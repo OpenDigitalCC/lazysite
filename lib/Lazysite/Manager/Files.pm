@@ -318,6 +318,26 @@ sub action_list {
     # `lock` field is set on exactly the entries it was set on before.
     my $have_locks = ( defined $LOCK_DIR && -d $LOCK_DIR ) ? 1 : 0;
 
+    # SM1339 (ruling 81): a host's served copy of a theme says so, with the source
+    # an edit belongs in and the hosts that serve it - list_files showed the
+    # source and every copy alike, and nothing said which one a host serves.
+    # Asked only of paths under a lazysite-assets folder; the configuration is
+    # read once for the listing.
+    my $mctx        = {};
+    my $served_copy = sub {
+        my ($rel) = @_;
+        return () unless $rel =~ m{(?:\A|/)lazysite-assets(?:/|\z)};
+        require Lazysite::Manager::Themes;
+        my $m = eval { Lazysite::Manager::Themes::served_mirror( $DOCROOT, $rel, $mctx ) } or return ();
+        return ( served_copy => {
+                level => $m->{level},
+                ( defined $m->{layout} ? ( layout => $m->{layout} ) : () ),
+                ( defined $m->{theme}  ? ( theme  => $m->{theme} )  : () ),
+                source    => $m->{source},
+                served_by => $m->{hosts},
+        } );
+    };
+
     my $hidden = 0;    # SM555: entries the blocklist sweep kept out of view
     for my $name ( sort keys %child ) {
         my $full = $child{$name};
@@ -355,6 +375,7 @@ sub action_list {
             type  => $is_dir ? 'dir' : 'file',
             size  => $is_dir ? 0     : ( $st[7] // 0 ),
             mtime => $st[9] // 0,
+            $served_copy->($entry_key),    # SM1339
         };
 
         # SM286: which tree this entry lives in.
@@ -456,6 +477,7 @@ sub action_list {
         if $hidden;
 
     return { ok => 1, path => $dir_path, entries => \@entries,
+        $served_copy->($canon),    # SM1339: the folder listed, when it is one
         address_profiles => _address_profile_choices() }; # SM1139: for the permissions editor's pickers
 }
 
@@ -591,7 +613,8 @@ sub _blocked {
 
 sub _active_artifact_guard {
     my (@rels) = @_;
-    return undef unless grep { defined && m{^/?lazysite/layouts/} } @rels;
+    # SM1339: and a host's served copy of a theme, wherever its lazysite-assets is.
+    return undef unless grep { defined && m{^/?lazysite/layouts/|(?:\A|/)lazysite-assets(?:/|\z)} } @rels;
     require Lazysite::Manager::Themes;
 
     # A caller that set this module's docroot and not Themes' (a tool, a test)
@@ -609,7 +632,7 @@ sub _active_artifact_guard {
             return { ok => 0, error => $err, kind => 'active-artifact-refused', audit_detail => $why };
         }
         # SM976 F1: and a theme or layout another site serves is that site's.
-        if ( my ( $err, $why ) = served_artifact_refusal( $rel,
+        if ( my ( $err, $why ) = served_artifact_refusal( $rel, docroot => $DOCROOT,
                 ( ref $CALLER_SCOPES eq 'ARRAY' ? ( scopes => $CALLER_SCOPES ) : () ) ) )
         {
             return { ok => 0, error => $err, kind => 'served-artifact-refused', audit_detail => $why };

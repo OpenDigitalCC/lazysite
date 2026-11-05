@@ -497,11 +497,20 @@ activation the server builds a flattened mirror served at
   instance serving more than one domain, do NOT re-activate - see
   [Multi-domain instances](#multi-domaininstances) below, where re-activating
   changes a different site.
-- As a fallback you can write the mirror files directly over WebDAV, to
-  `/lazysite-assets/<layout>/<theme>/`. That path is writable and this works -
-  but it is a **copy that will not track later edits to the theme source**, so
-  treat a hand-written mirror as a repair to be replaced, not a state to leave a
-  site in.
+- **The mirror also follows its source.** A write to a theme's source - WebDAV,
+  `write_file`, `upload_file`, `move_file`, `delete_file`, the manager - rebuilds
+  that theme's mirror for every domain that has one (the docroot's and one under
+  each content root), with its `theme-tokens.css` and fingerprint, and drops the
+  cached pages that use it, a page pinning it by `theme:` included. A write to a
+  layout's own files (`layout.tt`, `layout.json`) drops the pages that use the
+  layout. So an inactive theme's edit reaches the pages that pin it, and no
+  activation is needed for it.
+- **The mirror itself is not writable.** A write into any
+  `/lazysite-assets/<layout>/<theme>/` (a domain's own included) is refused,
+  naming the source path to write instead: the mirror is replaced whole at the
+  next source write, and reaches no other domain. `list_files` marks each mirror
+  `served_copy`, with its `source` and the hosts that serve it (`served_by`, each
+  with `theme_active`).
 - Before activation, the theme SOURCE css is web-served at
   `/lazysite/layouts/<layout>/themes/<theme>/main.css` - use that for preview;
   switch links to the `/lazysite-assets/` mirror once active.

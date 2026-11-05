@@ -1319,6 +1319,94 @@ sub _invalidate_pages_using {
     return $n;
 }
 
+# SM1339 (ruling 81): IS THIS PATH A SERVED COPY, AND WHOSE?
+#
+# A docroot-relative path under a host's /lazysite-assets/ (the docroot's, or
+# one under a content root) answers:
+#   level 'theme'  - inside <L>/<T>/ of a theme whose source is installed;
+#   level 'layout' - <L>/ itself, or a file directly in it, for an installed L;
+#   level 'root'   - the lazysite-assets folder itself.
+# with the layout and theme, the content root it is under ('' for the docroot),
+# the source path an edit belongs in, and the hosts that serve that root, each
+# with whether the theme is the one active there. Anything else - a copy of a
+# theme no longer installed, a remote layout's bundle, a path that is no
+# host's - is undef: it is not a copy of any source, and removing it is cleanup.
+#
+# $ctx (optional) carries the content roots and domain rows across calls, so a
+# listing reads the configuration once.
+sub served_mirror {
+    my ( $docroot, $rel, $ctx ) = @_;
+    ( my $r = $rel // '' ) =~ s{^/+|/+$}{}g;
+    return undef unless $r =~ m{(?:\A|/)lazysite-assets(?:/|\z)};
+    local $DOCROOT      = length( $docroot // '' ) ? $docroot : $DOCROOT;
+    local $LAZYSITE_DIR = _lz();
+    $ctx ||= {};
+    $ctx->{roots} ||= [ _all_content_roots() ];
+
+    for my $root ( sort { length $b <=> length $a } ( '', @{ $ctx->{roots} } ) ) {
+        my $pre = length $root ? "$root/lazysite-assets" : 'lazysite-assets';
+        next unless $r eq $pre || index( $r, "$pre/" ) == 0;
+        my $tail = substr( $r, length $pre );
+        $tail =~ s{\A/}{};
+        my ( $l, $t, $sub ) = split m{/}, $tail, 3;
+        my %m = ( root => $root );
+        if ( !length( $l // '' ) ) {
+            %m = ( %m, level => 'root',
+                source => 'lazysite/layouts/<layout>/themes/<theme>/assets/' );
+        }
+        elsif ( !-d "$LAZYSITE_DIR/layouts/$l" ) {
+            return undef;
+        }
+        elsif ( !defined $t || !-d "$LAZYSITE_DIR/layouts/$l/themes/$t" ) {
+            # <L>/ itself, or a file in it; a folder named for a theme that is
+            # no longer installed is an orphan copy, and not a served one.
+            return undef if defined $t && ( defined $sub || -d "$DOCROOT/$r" );
+            %m = ( %m, level => 'layout', layout => $l,
+                source => "lazysite/layouts/$l/themes/<theme>/assets/" );
+        }
+        else {
+            my $src = "lazysite/layouts/$l/themes/$t";
+            %m = ( %m, level => 'theme', layout => $l, theme => $t,
+                source => !defined $sub ? "$src/assets/"
+                : $sub eq 'theme-tokens.css' ? "$src/theme.json"
+                : $sub eq '.fingerprint'     ? "$src/assets/"
+                :                              "$src/assets/$sub" );
+        }
+        $m{hosts} = _hosts_serving( $root, $m{layout}, $m{theme}, $ctx );
+        return \%m;
+    }
+    return undef;
+}
+
+# The hosts whose /lazysite-assets/ is served from $root, each with whether the
+# theme is the one active there. A host serves from its effective content_root
+# (its own, else the base's, else the docroot), as _host_content_root reads it.
+sub _hosts_serving {
+    my ( $root, $layout, $theme, $ctx ) = @_;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    $ctx->{rows} ||= eval { Lazysite::Manager::Domains::domains_list()->{domains} } || [];
+    my @out;
+    for my $d ( @{ $ctx->{rows} } ) {
+        ( my $cr = $d->{content_root} // '' ) =~ s{^/+|/+$}{}g;
+        next unless $cr eq $root;
+        my $host = $d->{host} // '';
+        if ( $d->{is_primary} ) {
+            my $url = $d->{site_url} // '';
+            $host = $url !~ /\$\{/ && $url =~ m{^https?://([^/:?#]+)}i ? lc $1 : '(default)';
+        }
+        push @out, {
+            host => $host,
+            ( $d->{is_primary} ? ( primary => JSON::PP::true ) : () ),
+            ( defined $theme
+                ? ( theme_active => ( ( $d->{layout} // '' ) eq $layout && ( $d->{theme} // '' ) eq $theme )
+                    ? JSON::PP::true : JSON::PP::false )
+                : () ),
+        };
+    }
+    return \@out;
+}
+
 sub _validate_theme_dir {
     my ( $dir, $layout ) = @_;
     my $tj = "$dir/theme.json";

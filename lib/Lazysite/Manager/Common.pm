@@ -888,10 +888,42 @@ sub _confined_who { my (%who) = @_; return exists $who{scopes} ? 1 : request_dom
 # for everyone. Pure apart from the domain configuration it reads, and shaped as
 # the other content-write rules (error, or error and audit detail), so the choke
 # point and the WebDAV stack share it (t/lint/114, t/lint/218).
+#
+# SM1339 (ruling 81): AND A SERVED COPY OF A THEME IS WRITTEN BY NOBODY. The
+# copies under each host's /lazysite-assets/ are written from the theme's source
+# (Themes::follow_source_write, SM1335) and replaced whole at its next write, so
+# a file put into one is lost then, reaches no other host's copy, and carries no
+# history (the 05/11 filing: six photographs uploaded into the docroot's copy,
+# served nowhere they were wanted). Refused for every caller - the operator
+# included, since the bytes are lost for the operator too and the source is the
+# one place they last - naming the source path to write instead.
 sub served_artifact_refusal {
     my ( $rel, %who ) = @_;
     return unless defined $rel;
     ( my $r = $rel ) =~ s{^/+}{};
+    if ( $r =~ m{(?:\A|/)lazysite-assets(?:/|\z)} ) {
+        require Lazysite::Manager::Themes;
+        my $droot = length( $who{docroot} // '' ) ? $who{docroot}
+            : length( $DOCROOT // '' ) ? $DOCROOT
+            :                            $ENV{DOCUMENT_ROOT};
+        return unless length( $droot // '' );
+        my $m     = Lazysite::Manager::Themes::served_mirror( $droot, $r ) or return;
+        my @hosts = map { $_->{host} } @{ $m->{hosts} || [] };
+        my $what  = $m->{level} eq 'theme'
+            ? "a served copy of the theme '$m->{theme}' (layout '$m->{layout}')"
+            : $m->{level} eq 'layout' ? "where the served copies of the layout '$m->{layout}' themes live"
+            :                           'where the served copies of every theme live';
+        return _refusal(
+            "'$r' is $what"
+                . ( @hosts ? ', served to ' . join( ', ', @hosts ) : '' )
+                . ". It is written from the theme's source at every change to it, so a file "
+                . 'written here is replaced at the next and reaches no other host. Write '
+                . "$m->{source} instead: every host's copy follows it.",
+            'served-artifact-refused',
+            "'$r' is a served copy of a theme",
+            "write $m->{source} instead"
+        );
+    }
     my ( $layout, $rest ) = $r =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
     return unless defined $layout;
     my %by = _who(%who);

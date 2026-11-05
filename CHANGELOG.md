@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1339 (PENDING) **A served copy of a theme says so, and is not written.** Ruling 81: a write
+  into a host's `/lazysite-assets/<layout>/<theme>/` (the docroot's or a domain's own) is
+  refused on every surface - the manager, the control API, MCP `write_file`, `upload_file`,
+  `move_file`, `delete_file`, and WebDAV PUT, MKCOL, DELETE, MOVE and a COPY's destination -
+  for the operator too, naming the source path to write instead, since the copy is replaced
+  whole at the source's next write and reaches no other host. Reading a copy, copying out of
+  one and removing the copy of a theme no longer installed are not refused. `list_files` and
+  the Files page mark each copy `served_copy`, with its `source` and the hosts that serve it
+  (`served_by`, each with `theme_active`).
+
 - SM1336 (PENDING) **Every served copy of a theme carries its tokens and its version.** Ruling
   81: an installed theme (Upload Theme, `install_theme`) and a copied theme (`theme-copy`,
   `copy_theme`) had their copy built by hand, with no `theme-tokens.css`, no fingerprint (SM830)

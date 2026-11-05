@@ -956,7 +956,7 @@ my %TOOLS = (
     },
     list_files => {
         path_args => [qw(path)],
-        description => 'List files and folders under a site-relative directory path (default "/"; for a grant confined to a scope, the default is its scope roots).',
+        description => 'List files and folders under a site-relative directory path (default "/"; for a grant confined to a scope, the default is its scope roots). A served copy of a theme (under a lazysite-assets folder) is marked `served_copy`: its `source`, the path to write instead, and `served_by`, the hosts that serve it, each with `theme_active`. A served copy is not writable; it follows its source.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'Directory path, e.g. /content' } },

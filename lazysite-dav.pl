@@ -310,6 +310,17 @@ sub main {
     if ( $method eq 'GET' )      { return do_get( %args, head => 0 ) }
     if ( $method eq 'PROPFIND' ) { return do_propfind(%args) }
 
+    # SM1339: a write into a host's served copy of a theme is refused before any
+    # verb runs, naming the source to write instead - the rule the choke point
+    # asks (Manager::Common::served_artifact_refusal), here because authorise()
+    # also answers for a COPY's source and a folder DELETE's members, and
+    # neither of those writes the copy.
+    if ( defined( my $refused = _served_copy_refusal( $method, $rel ) ) ) {
+        audit_log( $user, lc($method), $rel, $ip, 'fail', 'dav', $REFUSAL_DETAIL // "http $refused" );
+        $REFUSAL_DETAIL = undef;
+        return $refused;
+    }
+
     my $code;
     if    ( $method eq 'PROPPATCH' ) { $code = do_proppatch(%args) }
     elsif ( $method eq 'PUT' )    { $code = guarded_put( \%args, sub { do_put(%args) } ) }
@@ -892,6 +903,31 @@ sub _follow_source {
     eval { Lazysite::Manager::Themes::follow_source_write( $DOCROOT, @rels ); 1 }
         or log_event( 'WARN', $user, 'theme source not followed', error => "$@" );
     return;
+}
+
+# SM1339 (ruling 81): the 403 for a PUT, MKCOL, DELETE or MOVE whose path, or a
+# COPY or MOVE whose destination, is a host's served copy of a theme - sent, and
+# its code returned - or undef. The copies are written from the theme's source
+# and replaced whole at its next write, so the answer names the source.
+sub _served_copy_refusal {
+    my ( $method, $rel ) = @_;
+    my @paths;
+    push @paths, $rel if $method =~ /\A(?:PUT|MKCOL|DELETE|MOVE)\z/;
+    if ( $method eq 'COPY' || $method eq 'MOVE' ) {
+        my $d = destination_rel();
+        push @paths, $d if defined $d;
+    }
+    require Lazysite::Manager::Common;
+    # Only a served copy is asked here: the rule's other half (SM976 F1) needs the
+    # account's scopes, and authorise_layout has already asked it with them.
+    for my $p ( grep { m{(?:\A|/)lazysite-assets(?:/|\z)} } @paths ) {
+        my ( $err, $why ) = Lazysite::Manager::Common::served_artifact_refusal( $p, docroot => $DOCROOT )
+            or next;
+        $REFUSAL_DETAIL = $why;
+        ( my $hdr = $err ) =~ s/[\r\n]+/ /g;
+        return send_status( 403, headers => ["X-Lazysite-Deny-Reason: $hdr"], body => "Forbidden: $err\n" );
+    }
+    return undef;
 }
 
 # FD-12: the housekeeping a completed PUT owes the rest of the site, in the
