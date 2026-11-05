@@ -30,8 +30,9 @@ A shipped doc cannot name it: it is one site's page.
 - The processor sets `design_guide` itself after reading the conf, to the value only if
   it is a same-site path under the rule `Lazysite::Util::sanitise_next` applies to
   `?next=`: a leading `/`, then letters, digits, `_`, `-`, `.` and `/`, no `//`, no
-  backslash. Anything else (a full URL, `//host`, markup, a space) is `''`, and the
-  line is left out. The processor holds its own copy of the rule (ADR 0001: the render
+  backslash. Anything else (a full URL, `//host`, markup, a space) leaves the
+  variable unset, and the line is left out; so does no key, so a site without one
+  renders with the stash it had (t/unit/processor/113 holds the stash). The processor holds its own copy of the rule (ADR 0001: the render
   path loads no modules).
 - A host whose alias lines give it a content root of its own gets no line: the path
   names a page in the primary's content. An alias serving the primary's content keeps

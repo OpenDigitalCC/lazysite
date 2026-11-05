@@ -2075,8 +2075,12 @@ sub _lazy_lib {
         # SM1340: the design guide is a path in the primary's content, so a host
         # with a content root of its own links none (the path would name a page
         # of a different site). An alias serving the primary's content keeps it.
-        $vars{design_guide}
-            = ( $defs{content_root} // '' ) ne $base_croot ? '' : _design_guide_path( $defs{design_guide} );
+        # No guide is no variable, so a site without the key has the stash it had.
+        {
+            my $dg = ( $defs{content_root} // '' ) ne $base_croot ? '' : _design_guide_path( $defs{design_guide} );
+            if ( length $dg ) { $vars{design_guide} = $dg }
+            else              { delete $vars{design_guide} }
+        }
 
         # SM155: the sanitised host actually being served - primary OR alias -
         # as a TT var, so a single content_root can render differently per
