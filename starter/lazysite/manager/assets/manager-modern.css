@@ -1137,6 +1137,11 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-dom-open { margin-left: 6px; text-decoration: none; color: var(--mg-text-muted); font-size: 0.9em; vertical-align: middle; }
 .mg-dom-open:hover, .mg-dom-open:focus { color: var(--mg-accent-deep); }
 .mg-dom-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* SM1333: the primary's row on the Domains page, and its Access sheet. */
+.mg-dom-primary-cell { color: var(--mg-text-light); }
+.mg-dom-actions { text-align: right; white-space: nowrap; }
+.mg-dom-primary-note { font-size: 0.85em; color: var(--mg-text-muted); margin: 4px 0 0; }
+.mg-dom-save { margin-top: 4px; }
 /* Wraps: this row holds a picker, Add, a spacer, Delete and Restore
    defaults, and at 420px the last two ended past the edge of the screen
    with nothing to scroll - found by tools/manager-layout-check.js, not

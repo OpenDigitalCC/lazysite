@@ -110,3 +110,28 @@ Negative
   whose group no domain names writes no domain at all (domain-add, -set,
   -remove, remap-save, site-backup-apply); only the operator's own session
   reaches every domain without a scope (SM975).
+
+## The primary site's row
+
+Where
+: Setup -> Domains -> (default) -> Access
+
+Do
+: Press **Access** on the **(default)** row, add a group that another domain
+  already names, and Save. Sign in as a member.
+
+Expect
+: The sheet holds the primary's access only (groups allowed, users locked);
+  its name, address and appearance stay on Config and Appearance. The member now
+  reaches the primary site as well as the other domain: grants add (SM1332,
+  SM1333). The same row is `domain-set` with host `(default)` on the control
+  API, MCP `domain_set`, and `lazysite-domains.pl --host '(default)' group-add`.
+  A secondary domain that names no groups of its own shows none; it never
+  inherits the primary's.
+
+Negative
+: A group named ONLY on the primary row reaches the primary only, as a group
+  named only on one domain reaches that domain. A manager who names their own
+  group there confines themselves to the primary until it comes off again (the
+  operator group is never confined).
+  Any other key on the primary row is refused, naming the Config page.

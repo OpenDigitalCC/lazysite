@@ -623,12 +623,16 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-wizard"><span class="mg-sg-tag">.mg-wizard</span><div class="mg-wizard-actions"><span class="mg-sg-tag">.mg-wizard-actions</span><div class="mg-wizard-section-label"><span class="mg-sg-tag">.mg-wizard-section-label</span></div></div>
 <div class="mg-wizard-title"><span class="mg-sg-tag">.mg-wizard-title</span></div></div>
 </div>
-<h3 class="mg-sg-fam">mg-dom <span class="mg-sg-count">3</span></h3>
+<h3 class="mg-sg-fam">mg-dom <span class="mg-sg-count">7</span></h3>
 <p class="mg-sg-note">Used by <code>domains.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
 <div class="mg-dom-chip"><span class="mg-sg-tag">.mg-dom-chip</span></div>
 <div class="mg-dom-open"><span class="mg-sg-tag">.mg-dom-open</span></div>
 <div class="mg-dom-tools"><span class="mg-sg-tag">.mg-dom-tools</span></div>
+<div class="mg-dom-primary-cell"><span class="mg-sg-tag">.mg-dom-primary-cell</span></div>
+<div class="mg-dom-actions"><span class="mg-sg-tag">.mg-dom-actions</span></div>
+<div class="mg-dom-primary-note"><span class="mg-sg-tag">.mg-dom-primary-note</span></div>
+<div class="mg-dom-save"><span class="mg-sg-tag">.mg-dom-save</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-header <span class="mg-sg-count">3</span></h3>
 <p class="mg-sg-note">Used by <code>the layout</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>

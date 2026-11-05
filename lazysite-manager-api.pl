@@ -1617,7 +1617,8 @@ elsif ( $action eq 'domain-set' ) {
         # NEW content_root, so a caller confined to one domain repointed it at
         # another's content and its own scope moved there with it.
         my $root = domain_content_root( $req->{host} );
-        my $names = join ', ', map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @REQUEST_SCOPES;
+        # SM1333: the primary by name.
+        my $names = Lazysite::Manager::Common::scope_names(@REQUEST_SCOPES);
         _refuse_unreachable_domain(
             ( defined $root && length $root
                 ? "Domain '" . ( $req->{host} // '' ) . "' serves content from '$root', "

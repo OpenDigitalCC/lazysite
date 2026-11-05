@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1333 (PENDING) **The primary is a row on every domain surface.** Ruling 78: the Domains page
+  lists the primary as `(default)` with an Access sheet (groups allowed, users locked), and
+  `domain-set` on the control API, MCP `domain_set` and `lazysite-domains.pl` (`--host '(default)'
+  group-add` and the rest) take the host `(default)` for those two keys, writing the primary's
+  bare lines; any other key on it is refused, naming Config. A secondary row no longer shows the
+  primary's access as inherited, on either listing: a row's access is its own, as it always was
+  where it is enforced. A group named only on the primary's row reaches the primary only, as on
+  any row.
+
 - SM1332 (PENDING) **A domain grant adds, and the primary can be granted.** Ruling 78: naming an
   account's group on a secondary domain took the primary site away from it, because the primary
   was reached only by having no scope at all, and there was no primary row to grant it back on.

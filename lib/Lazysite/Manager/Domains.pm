@@ -49,6 +49,12 @@ my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
     maintenance maintenance_page maintenance_until);
 my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
+# SM1333: the ACCESS keys are each row's own. DomainAccess has never inherited
+# them; since the primary has a row of its own (SM1332), a listing that let a
+# secondary inherit the primary's allowed_groups would show - and Groups would
+# read - a grant that row does not make.
+my %IS_ACCESS = map { $_ => 1 } qw(allowed_groups locked_users);
+
 # SM583: the two keys that name a layout or a theme rather than describing one.
 my %IS_PRESENTATION = map { $_ => 1 } qw(layout theme);
 
@@ -309,6 +315,9 @@ sub domains_list {
             $row{$k} = defined $ov->{$h}{$k} ? $ov->{$h}{$k}      : ( $base->{$k} // '' );
             $row{ $k . '_inherited' } = defined $ov->{$h}{$k} ? 0 : 1;
         }
+        # SM1333: a row's access is its own.
+        @row{ keys %IS_ACCESS } = map { $ov->{$h}{$_} // '' } keys %IS_ACCESS;
+        $row{ $_ . '_inherited' } = 0 for keys %IS_ACCESS;
         push @domains, \%row;
     }
 
@@ -1190,8 +1199,65 @@ sub domain_add_alias {
 
 # --- public: set -----------------------------------------------------------
 
+# SM165: an access key's value - a comma list of group / account names.
+# Normalise (trim, drop blanks, dedupe) and reject any token that is not a plain
+# name - this is access-control config, so it fails closed rather than storing
+# garbage. Returns the value to store, or a refusal (a hash).
+sub _access_value {
+    my ( $host, $key, $value ) = @_;
+    my @toks = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $value // '' );
+    # SM1014: a group is named @name everywhere one is picked, so a group
+    # arrives with or without its @. allowed_groups STORES the plain name
+    # (DomainAccess compares it with the groups file's), so the @ comes off
+    # here. locked_users names accounts, where an @ is no part of a name and
+    # stays refused below.
+    @toks = map { s/\A\@//r } @toks if $key eq 'allowed_groups';
+    for my $t (@toks) {
+        return { ok => 0, kind => 'invalid', error => "Invalid name in $key: $t" }
+            unless $t =~ /^[A-Za-z0-9_-]+\z/;
+    }
+    my %seen;
+    my @names = grep { !$seen{$_}++ } @toks;
+    if ( my $refusal = _refuse_unknown_names( $host, $key, @names ) ) {
+        return $refusal;
+    }
+    return join ', ', @names;
+}
+
+# SM1333 (ruling 78): THE PRIMARY'S ROW. SM1332 made the primary grantable: its
+# access keys are the bare `allowed_groups:` and `locked_users:` lines, as its
+# content root is the bare `content_root:`. Addressed as '(default)' (the row's
+# host in every listing) or ''. Only the access keys are set here: the primary's
+# other settings are the site's own (Config, config-set), and a secondary that
+# leaves a key unset inherits them.
+sub _is_primary_host {
+    my ($host) = @_;
+    my $h = lc( $host // '' );
+    $h =~ s/^\s+|\s+$//g;
+    return ( $h eq '' || $h eq '(default)' ) ? 1 : 0;
+}
+
+sub _primary_access_set {
+    my ( $key, $value ) = @_;
+    return { ok => 0, kind => 'invalid',
+        error => 'The primary site\'s row sets its access keys here (allowed_groups, locked_users); '
+            . 'its other settings are the site\'s own, on the Config page (config-set).' }
+        unless defined $key && $IS_ACCESS{$key};
+    my $v = _access_value( '(default)', $key, $value );
+    return $v if ref $v;
+    return { ok => 0, kind => 'invalid', error => 'Value must be a single line' } if $v =~ /[\r\n]/;
+    my $content = _slurp();
+    return { ok => 0, error => 'Cannot read lazysite.conf' } unless defined $content;
+    $content = _set_base( $content, $key, $v );
+    my ( $ok, $err ) = _write( $content, 'set domain key (default)' );
+    return { ok => 0, error => $err } unless $ok;
+    log_event( 'INFO', 'domain-set', 'domain key set', host => '(default)', key => $key, user => $auth_user );
+    return { ok => 1, host => '(default)', key => $key, value => $v };
+}
+
 sub domain_set {
     my ( $host, $key, $value ) = @_;
+    return _primary_access_set( $key, $value ) if _is_primary_host($host);    # SM1333
     $host = lc( $host // '' );
     return host_refusal($host) unless valid_host($host);
     return { ok => 0, kind => 'invalid', error => "Not a settable domain key: $key" }
@@ -1214,27 +1280,10 @@ sub domain_set {
             unless defined $rel;
         $value = $rel;
     }
-    elsif ( $key eq 'allowed_groups' || $key eq 'locked_users' ) {
-        # SM165: a comma list of group / account names. Normalise (trim, drop
-        # blanks, dedupe) and reject any token that is not a plain name - this is
-        # access-control config, so it fails closed rather than storing garbage.
-        my @toks = grep { length } map { s/^\s+|\s+$//gr } split /,/, $value;
-        # SM1014: a group is named @name everywhere one is picked, so a group
-        # arrives with or without its @. allowed_groups STORES the plain name
-        # (DomainAccess compares it with the groups file's), so the @ comes off
-        # here. locked_users names accounts, where an @ is no part of a name and
-        # stays refused below.
-        @toks = map { s/\A\@//r } @toks if $key eq 'allowed_groups';
-        for my $t (@toks) {
-            return { ok => 0, kind => 'invalid', error => "Invalid name in $key: $t" }
-                unless $t =~ /^[A-Za-z0-9_-]+\z/;
-        }
-        my %seen;
-        my @names = grep { !$seen{$_}++ } @toks;
-        if ( my $refusal = _refuse_unknown_names( $host, $key, @names ) ) {
-            return $refusal;
-        }
-        $value = join ', ', @names;
+    elsif ( $IS_ACCESS{$key} ) {
+        my $v = _access_value( $host, $key, $value );
+        return $v if ref $v;
+        $value = $v;
     }
     elsif ( $key eq 'lang' ) {
         # SM179: a BCP-47-ish language tag (en, fr, pt-BR). Strict - it lands in
@@ -1400,9 +1449,11 @@ sub domain_set {
 sub _refuse_unknown_names {
     my ( $host, $key, @names ) = @_;
     my $kind = $key eq 'allowed_groups' ? 'group' : 'account';
-    my ( undef, $ov ) = _parse();
-    my %had = map { $_ => 1 } grep { length }
-        map { s/^\s+|\s+$//gr } split /,/, ( ( ref $ov eq 'HASH' && $ov->{$host}{$key} ) // '' );
+    my ( $base, $ov ) = _parse();
+    my $own = _is_primary_host($host)    # SM1333: the primary's row is the bare line
+        ? ( ref $base eq 'HASH' && $base->{$key} )
+        : ( ref $ov eq 'HASH'   && $ov->{$host}{$key} );
+    my %had = map { $_ => 1 } grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $own // '' );
     my @new = grep { !$had{$_} } @names;
     return undef unless @new;
 
@@ -1467,8 +1518,9 @@ sub _refuse_unknown_names {
 # nothing and answers ok with changed => 0 and a sentence saying so.
 sub domain_access_edit {
     my ( $host, $key, $op, $name ) = @_;
-    $host = lc( $host // '' );
-    return host_refusal($host) unless valid_host($host);
+    my $primary = _is_primary_host($host);    # SM1333: the primary's row, '(default)'
+    $host = $primary ? '(default)' : lc( $host // '' );
+    return host_refusal($host) unless $primary || valid_host($host);
     my %KIND = ( allowed_groups => 'group', locked_users => 'account' );
     my $kind = $KIND{ $key // '' }
         or return { ok => 0, kind => 'invalid',
@@ -1484,10 +1536,11 @@ sub domain_access_edit {
         unless $name =~ /\A[A-Za-z0-9_-]+\z/;
     my $shown = $kind eq 'group' ? "\@$name" : $name;
 
-    my ( undef, $ov, $hosts ) = _parse();
+    my ( $base, $ov, $hosts ) = _parse();
     return { ok => 0, kind => 'not-found', error => "Domain not configured: $host" }
-        unless grep { $_ eq $host } @$hosts;
-    my @have = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $ov->{$host}{$key} // '' );
+        unless $primary || grep { $_ eq $host } @$hosts;
+    my @have = grep { length } map { s/^\s+|\s+$//gr } split /,/,
+        ( ( $primary ? $base->{$key} : $ov->{$host}{$key} ) // '' );
     my $present = grep { $_ eq $name } @have;
 
     if ( $op eq 'add' && $present ) {
@@ -2016,6 +2069,9 @@ sub action_domains_list {
             $row{$k} = defined $ov{ lc $h }{$k} ? $ov{ lc $h }{$k} : ( $base{$k} // '' );
             $row{ $k . '_inherited' } = ( defined $ov{ lc $h }{$k} ) ? 0 : 1;
         }
+        # SM1333: a row's access is its own.
+        @row{ keys %IS_ACCESS } = map { $ov{ lc $h }{$_} // '' } keys %IS_ACCESS;
+        $row{ $_ . '_inherited' } = 0 for keys %IS_ACCESS;
         push @domains, \%row;
     }
     # SM976: a domain-confined caller is shown its own domains only. A row

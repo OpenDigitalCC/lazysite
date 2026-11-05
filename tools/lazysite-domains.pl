@@ -63,6 +63,11 @@ Commands:
                                   otherwise discovered from canonical_ip or the
                                   install's own domain
 
+--host '(default)' names the primary site's row, which takes its access keys
+only (allowed_groups, locked_users, and so group-add & co): an account a
+secondary domain grants reaches the primary when the primary's row grants it
+too. Its other settings are the site's own (config-set).
+
 group-add, group-remove, user-add and user-remove write through the same
 path as `set` (validation, the content-history commit, the log line). Adding
 a name already there, or removing one that is not, changes nothing, says so

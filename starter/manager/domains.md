@@ -197,7 +197,7 @@ var EDIT_HINTS = {
   maintenance: 'on sends this domain\'s visitors to its maintenance page (a 302; the page answers 503) and refuses its machine doors, except to accounts holding access during maintenance. off leaves the domain open. The instance switch on the Config page puts every domain in maintenance, whatever is set here.',
   maintenance_page: 'A path on this site or an https address. Blank uses the instance setting, then /maintenance.',
   maintenance_until: 'Optional, UTC: 2026-11-01 18:30. Shown to visitors and sent as Retry-After.',
-  allowed_groups: 'Add the groups whose members may manage this domain (and are confined to it). None = only operators.',
+  allowed_groups: 'Add the groups whose members may manage this domain. Grants add: a member reaches every domain naming one of its groups, the primary only when its own row names one. None = only operators.',
   locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };
 // SM259: two hints read differently when the domain does not exist yet - a
@@ -355,9 +355,31 @@ function configureDomain(host) {
 // this), so it can never collide with a domain being configured.
 var NEW_HOST = '__new__';
 
+// SM1333 (ruling 78): the primary's row holds its access only. Its other
+// settings are the site's own (Config), which every other domain inherits.
+var PRIMARY_HINTS = {
+  allowed_groups: 'Add the groups whose members may manage the primary site. As on any domain, a group reaches the domains that name it: one named on another domain reaches the primary too only when it is named here, and one named only here reaches the primary only. An account no domain names reaches the primary anyway.',
+  locked_users: 'Add accounts that can reach ONLY the primary site (of the ones their groups allow) – no other domain.'
+};
+function primarySettingsHtml(row) {
+  var host = row.host;
+  var saved = EDIT_HINTS, k;
+  EDIT_HINTS = {};
+  for (k in saved) { if (Object.prototype.hasOwnProperty.call(saved, k)) EDIT_HINTS[k] = saved[k]; }
+  for (k in PRIMARY_HINTS) { if (Object.prototype.hasOwnProperty.call(PRIMARY_HINTS, k)) EDIT_HINTS[k] = PRIMARY_HINTS[k]; }
+  var access = EDIT_SECTIONS.filter(function (s) { return s.title === 'Access'; })[0];
+  var h = '<div class="mg-box">' + editSection(host, access, row, false) + '</div>';
+  EDIT_HINTS = saved;
+  h += '<p class="mg-dom-primary-note">The primary site’s name, address and appearance are on the Config and Appearance pages; every domain that sets none of its own inherits them.</p>';
+  h += '<div class="mg-line mg-dom-save">'
+     + '<button class="mg-btn mg-btn-primary" data-impact="commit" id="cfg-save-' + esc(host) + '" onclick="saveDomain(' + esc(JSON.stringify(host)) + ')">Save changes</button></div>';
+  return h;
+}
+
 function domainSettingsHtml(row, isCreate) {
   var host = row.host;
   var h = '';
+  if (row.is_primary && !isCreate) return primarySettingsHtml(row);
 
   // SM259: creating and configuring are the same object described twice, so the
   // sheet renders both from ONE set of sections. Only the create-only parts
@@ -423,6 +445,7 @@ function renderConfigSheet(host) {
   var croot = row.content_root
     ? (row.content_root_inherited ? row.content_root + ' (inherited)' : row.content_root)
     : 'default site';
+  if (row.is_primary) croot = 'the primary site: who may manage it';   // SM1333
   document.getElementById('cfg-sheet-title').innerHTML =
     'Configuring ' + esc(host) + ' <span class="mg-sheet-sub">' + esc(croot) + '</span>';
   document.getElementById('cfg-sheet-body').innerHTML = domainSettingsHtml(row);
@@ -1135,7 +1158,22 @@ function loadDomains() {
       DISPLAY_KEYS.forEach(function (k) { html += '<th>' + esc(label(k)) + '</th>'; });
       html += '<th></th></tr></thead><tbody>';
       rows.forEach(function (row) {
-        if (row.is_primary) return;   // the default site lives in Site settings, not this list
+        // SM1333 (ruling 78): the primary is a row too, so a group can be
+        // granted it. Only its access is set here; its other settings are the
+        // site's own (Config), so the row says so rather than repeating them.
+        if (row.is_primary) {
+          html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>'
+                + ' <span class="mg-tag" title="the site this instance serves at its own address">primary</span></td>';
+          DISPLAY_KEYS.forEach(function (k) {
+            html += '<td>' + (k === 'content_root'
+              ? '<span class="mg-dom-primary-cell">default site</span>'
+              : '<span class="mg-dom-primary-cell" title="set on the Config and Appearance pages">' + (row[k] ? esc(row[k]) : '&mdash;') + '</span>') + '</td>';
+          });
+          html += '<td class="mg-dom-actions">'
+                + '<button type="button" class="mg-btn mg-btn-sm mg-configbtn" data-cfg="' + esc(row.host) + '"'
+                + ' data-impact="inert" onclick="configureDomain(' + esc(JSON.stringify(row.host)) + ')">Access</button></td></tr>';
+          return;
+        }
         // A small state chip where the data exposes one the row does not
         // already carry. The "alias" chip that used to sit here is gone: it
         // meant "no content folder of its own", and the Content folder column
