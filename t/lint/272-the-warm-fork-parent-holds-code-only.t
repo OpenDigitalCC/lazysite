@@ -106,6 +106,7 @@ my $DERIVED = 'derived at load from a constant list in the same file';
 my $SEAM    = 'a code reference to a sub of its own module (a test seam); code, not data';
 my $PATTERN = 'a compiled pattern built from constants';
 my %T       = (
+    'lib/Lazysite/Audit.pm' => { '%CONTENT_READ' => 'SM1325: the constant names of the reads the read audit records' },
     'lib/Lazysite/Daemon/Service/Scheduler.pm' => { '%JOBS' => 'the job table: names, intervals and code references' },
     'lib/Lazysite/Data/Descriptor.pm' => { '%TYPE' => $DERIVED, '%TRUE' => $DERIVED, '%FALSE' => $DERIVED },
     'lib/Lazysite/Data/Owned.pm' => { '%RESERVED' => $DERIVED, '%STAMPED' => $DERIVED },

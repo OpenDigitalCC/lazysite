@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1325 (PENDING) **A site can audit the AI reads of its pages and files.** Ruling 50 (T-17):
+  a successful read is kept off the audit trail (SM943). `audit_reads: on` in lazysite.conf
+  records each successful MCP `read_file`, `read_page`, `view_version` and `preview_page`, and a
+  token's control-API `git-show`, in the existing trail with the account, the path and the
+  time. Off by default, and a value other than on is off. A signed-in person's reads are not
+  recorded. It is set in the file only, for now. The rows rotate with the trail.
+
 - SM1324 (PENDING) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
   protected content is kept out of the content history, which may be pushed to a remote. A
   folder rule may now carry `history: true` (the manager's Keep history, `history` on the

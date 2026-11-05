@@ -353,6 +353,15 @@ systemctl restart lazysited@<domain>
   happened.** `lazysite check --docroot PATH --sinks` sends one marked line
   through the engine's forwarding and says whether the journal or syslog
   received it - or that this account cannot read the log to tell.
+- **AI reads, by choice** (SM1325). A successful read is not on the trail (SM943).
+  `audit_reads: on` in `lazysite/lazysite.conf` records each successful read of a
+  page or a file by an AI as well - MCP `read_file`, `read_page`, `view_version`
+  and `preview_page`, and the control API's `git-show` for a token - naming the
+  account, the path and the time. Off by default, and any other value is off. A
+  signed-in person's reads and WebDAV are not recorded. It is set in the file only,
+  by whoever runs the site. The rows go to the same trail and rotate with it; the
+  manager's Audit page shows the newest 5,000 rows, so on a busy site the reads can
+  push older changes off that page (the file keeps them).
 - Optional syslog forwarding of the audit trail as well: `forward_audit`, a plain
   on/off, default **off**. Both keys and `syslog_facility` are managed by the
   **Logging & forwarding** extension.

@@ -31,7 +31,7 @@ use Fcntl qw(O_WRONLY O_APPEND O_CREAT);
 use Exporter 'import';
 use Lazysite::Util ();
 
-our @EXPORT_OK = qw(audit_log audit_trail_state);
+our @EXPORT_OK = qw(audit_log audit_trail_state audit_reads_state records_read);
 
 our $LAZYSITE_DIR;
 
@@ -81,6 +81,52 @@ sub audit_trail_state {
     }
     $_TRAIL_MEMO{$conf} = [ $st[9], $st[7], $state ];
     return $state;
+}
+
+# SM1325 (ruling 50, T-17): THE READ AUDIT, BY CHOICE.
+#
+# SM943 ruling 1 keeps a successful read off the trail - site activity, and
+# noise. A site may ask for the reads of its pages and files by an AI (an MCP
+# tool or a control-API token) to be recorded as well: `audit_reads: on` in
+# lazysite.conf. Here ABSENCE IS OFF, the other way round from the trail's own
+# switch, because this one records more about who read what: only an explicit
+# `on` (or true/yes/enabled) turns it on, and a value it cannot read is off.
+# It writes to the same trail, so the same rotation keeps it bounded.
+#
+# THE READS, named once for both doors: the ones that hand back a page's or a
+# file's content. A listing, a search or a status is not one.
+our %CONTENT_READ = (
+    api => { map { $_ => 1 } qw(git-show) },    # file-download is audited always
+    mcp => { map { $_ => 1 } qw(read_file read_page view_version preview_page) },
+);
+my %_READS_MEMO;                                # conf path => [ mtime, size, state ]
+
+sub audit_reads_state {
+    my ($lzdir) = @_;
+    $lzdir //= $LAZYSITE_DIR;
+    return 'off' unless defined $lzdir;
+    my $conf = "$lzdir/lazysite.conf";
+    my @st   = stat $conf;
+    return 'off' unless @st;
+    my $memo = $_READS_MEMO{$conf};
+    return $memo->[2] if $memo && $memo->[0] == $st[9] && $memo->[1] == $st[7];
+    my $state = 'off';
+    if ( open my $fh, '<', $conf ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^audit_reads\s*:\s*(\S*)\s*$/;
+            $state = ( $1 =~ /\A(?:on|true|yes|enabled)\z/i ) ? 'on' : 'off';
+        }
+        close $fh;
+    }
+    $_READS_MEMO{$conf} = [ $st[9], $st[7], $state ];
+    return $state;
+}
+
+# Is this successful read on this door one the site asked to have recorded?
+sub records_read {
+    my ( $origin, $name, $lzdir ) = @_;
+    return 0 unless defined $origin && defined $name && $CONTENT_READ{$origin}{$name};
+    return audit_reads_state($lzdir) eq 'on' ? 1 : 0;
 }
 
 sub audit_log {

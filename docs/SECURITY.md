@@ -2092,3 +2092,31 @@ residual risk
 
 verdict
 : proposed: accepted, pending the release manager's confirmation.
+
+### 2026-11-05 - SM1325 (0.16.5): a site can audit the AI reads of its content
+
+Assessment drafted by the developer agent for the release manager's confirmation. Ruling
+50 (T-17) made an audit of successful AI reads a per-site opt-in. It adds personal data to
+the trail, so it is recorded here.
+
+what changed
+: `audit_reads: on` in lazysite.conf records each successful MCP `read_file`, `read_page`,
+  `view_version` and `preview_page`, and a token's control-API `git-show`, as one `ok` row
+  (time, account, path, address, origin) in the existing trail. Off by default; any value
+  but on is off. A signed-in person's reads and WebDAV are not recorded.
+
+who can switch it
+: whoever edits lazysite.conf on the host. No manager, API or MCP surface sets it.
+
+data and privacy
+: the trail gains which account read which file, and when, and from which address. That
+  is about agents' accounts, and it names protected paths to whoever may read the audit
+  (the Audit page, scoped as before). It is kept and rotated as the trail is (logrotate,
+  weekly, eight kept, where installed), and forwarded to syslog if `forward_audit` is on.
+
+residual risk
+: volume. A busy agent can write many rows; the Audit page shows the newest 5,000, so
+  reads can push older changes off that page while the file keeps them.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation.

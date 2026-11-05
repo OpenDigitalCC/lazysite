@@ -296,6 +296,7 @@ my %T = (
     'lib/Lazysite/Audit.pm' => {
         '$write_warned' => [ exempt => 'warn-once latch for a failing audit write, per process on purpose' ],
         '%_TRAIL_MEMO'  => [ exempt => $KEYED ],
+        '%_READS_MEMO'  => [ exempt => $KEYED ],    # SM1325: the read audit's switch
     },
     'lib/Lazysite/Auth/Acl.pm' => {
         '$auth_user'  => [ unset  => '' ],
