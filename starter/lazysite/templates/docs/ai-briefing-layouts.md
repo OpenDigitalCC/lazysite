@@ -19,7 +19,7 @@ and a theme are, where they live on disk, how the engine resolves them and how a
 person installs and switches them is in [Layouts and themes](/docs/layouts); this
 page is what an agent needs to change them.
 
-[% IF design_guide %]**This site's design guide:** <a href="[% design_guide %]">[% design_guide %]</a> -
+[% IF design_guide %]**This site's design guide:** <a href="[% design_guide | url_safe %]">[% design_guide %]</a> -
 how this site's own design is put together. Read it before you change its look.[% END %]
 
 ## Terminology (D013)

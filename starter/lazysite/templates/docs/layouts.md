@@ -14,7 +14,7 @@ the manager. An AI agent changing a layout or theme reads
 the template contract, the `theme.json` schema and how an agent stages and
 activates a change.
 
-[% IF design_guide %]**This site's design guide:** <a href="[% design_guide %]">[% design_guide %]</a> -
+[% IF design_guide %]**This site's design guide:** <a href="[% design_guide | url_safe %]">[% design_guide %]</a> -
 how this site's own design is put together. Read it before you change its look.[% END %]
 
 ## Layouts and themes
