@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1344 (PENDING) **The Files page limits a rule by address profile, each chosen Allow or
+  Deny.** The request's A-3: the permissions card's "Limited by address" becomes "Limited by
+  address profile", one row per profile with Not used, Allow or Deny, in place of the two
+  pickers that offered only allow lists or only deny lists. A name the rule carries that the
+  store does not hold keeps its choice and is marked, so saving the card does not drop it.
+
 - SM1343 (PENDING) **Address lists are address profiles, allowed or denied where they are
   used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
   set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule

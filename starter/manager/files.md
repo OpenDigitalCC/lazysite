@@ -608,42 +608,48 @@ function protectionBlock(f) {
     + '</div>' + acts;
 }
 
-// SM1139: the address profiles a rule may name, as the two pickers of the permissions
-// card. A profile has no kind (SM1343), so either picker offers every profile; a
-// name the rule already carries that the store does not hold stays selected and is
-// marked, so saving the card does not silently drop it.
-function addressOptions(kind, chosen) {
-  chosen = chosen || [];
-  var have = {};
-  var h = '';
-  ADDRESS_PROFILES.forEach(function(l) {
-    have[l.name] = true;
-    h += '<option value="' + escHtml(l.name) + '"' + (chosen.indexOf(l.name) >= 0 ? ' selected' : '') + '>' + escHtml(l.name) + '</option>';
-  });
-  chosen.forEach(function(n) {
-    if (!have[n]) h += '<option value="' + escHtml(n) + '" selected>' + escHtml(n) + ' (no such profile yet)</option>';
-  });
-  return h;
+// SM1139, SM1344 (0.16.5): the address profiles a rule may name, as ONE picker of the
+// permissions card: a row per profile, each chosen Allow, Deny or neither. A profile
+// has no kind (SM1343): which it is, is this rule's choice, so the same profile may be
+// allowed here and denied on another card. A name the rule already carries that the
+// store does not hold keeps its choice and is marked, so saving the card does not
+// silently drop it. A name the rule both allows and denies (written by hand) shows
+// as Deny, which is what decides for it: deny wins.
+function addressRows(f) {
+  var allow = f.addresses || [], deny = f.addresses_deny || [];
+  var names = [], seen = {};
+  ADDRESS_PROFILES.forEach(function(l) { if (!seen[l.name]) { seen[l.name] = 'store'; names.push(l.name); } });
+  allow.concat(deny).forEach(function(n) { if (!seen[n]) { seen[n] = 'ghost'; names.push(n); } });
+  if (!names.length) return '<div class="mg-perms-hint">No address profiles yet (Access &rarr; Address profiles).</div>';
+  return names.map(function(n) {
+    var use = deny.indexOf(n) >= 0 ? 'deny' : allow.indexOf(n) >= 0 ? 'allow' : '';
+    var opt = function(v, label) {
+      return '<option value="' + v + '"' + (use === v ? ' selected' : '') + '>' + label + '</option>';
+    };
+    return '<div class="mg-perms-owner"><label>' + escHtml(n)
+      + (seen[n] === 'ghost' ? ' (no such profile yet)' : '') + '</label>'
+      + '<select data-addr-profile="' + escHtml(n) + '" data-impact="edit">'
+      +   opt('', 'Not used') + opt('allow', 'Allow') + opt('deny', 'Deny')
+      + '</select></div>';
+  }).join('');
 }
 
 function addressBlock(f) {
-  return '<div class="mg-perms-rights-label">Limited by address</div>'
-    + '<div class="mg-perms-owner"><label>Only these addresses</label>'
-    +   '<select multiple data-addr="allow" data-impact="edit">' + addressOptions('allow', f.addresses) + '</select></div>'
-    + '<div class="mg-perms-owner"><label>Never these</label>'
-    +   '<select multiple data-addr="deny" data-impact="edit">' + addressOptions('deny', f.addresses_deny) + '</select></div>'
-    + '<div class="mg-perms-hint">A visitor outside every list under <b>Only these addresses</b> is told the page is not available from their address; one on a list under <b>Never these</b> is refused whatever else allows them. Where a folder above also names lists, the address must satisfy both. Lists are kept under Access &rarr; Address profiles.</div>';
+  return '<div class="mg-perms-rights-label">Limited by address profile</div>'
+    + addressRows(f)
+    + '<div class="mg-perms-hint">A visitor outside every profile chosen <b>Allow</b> is told the page is not available from their address; one in a profile chosen <b>Deny</b> is refused whatever else allows them. Where a folder above also names profiles, the address must satisfy both. Profiles are kept under Access &rarr; Address profiles.</div>';
 }
 
-// The names chosen in a card's two address pickers.
+// The profiles a card allows and denies, from its one picker.
 function chosenAddresses(card) {
-  function picked(kind) {
-    var out = [], sel = card.querySelector('select[data-addr="' + kind + '"]');
-    if (!sel) return out;
-    for (var i = 0; i < sel.options.length; i++) if (sel.options[i].selected) out.push(sel.options[i].value);
-    return out;
+  var out = { addresses: [], addresses_deny: [] };
+  var sels = card.querySelectorAll('select[data-addr-profile]');
+  for (var i = 0; i < sels.length; i++) {
+    var n = sels[i].getAttribute('data-addr-profile');
+    if (sels[i].value === 'allow') out.addresses.push(n);
+    else if (sels[i].value === 'deny') out.addresses_deny.push(n);
   }
-  return { addresses: picked('allow'), addresses_deny: picked('deny') };
+  return out;
 }
 
 // The per-file config card (collapsed by default; one open at a time).
