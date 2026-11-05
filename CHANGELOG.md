@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1345 (PENDING) **The upgrade turns each address list into an address profile, and no
+  site changes behaviour.** The request's A-4: once, install.pl converts
+  `lazysite/auth/address-lists.json` to `address-profiles.json`, the same names and entries
+  with no kind, keeps the old file as `address-lists.json.converted` and says what it
+  converted. No rule is rewritten: every use already named its list in the slot the list's
+  kind meant, so an allow list's uses are Allow uses and a deny list's Deny uses. A profile
+  store already there is never overwritten, and an old store that will not decode is left for
+  the operator, with every rule that names a profile refused until it is converted.
+
 - SM1344 (PENDING) **The Files page limits a rule by address profile, each chosen Allow or
   Deny.** The request's A-3: the permissions card's "Limited by address" becomes "Limited by
   address profile", one row per profile with Not used, Allow or Deny, in place of the two

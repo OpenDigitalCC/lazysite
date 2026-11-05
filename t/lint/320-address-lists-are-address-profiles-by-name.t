@@ -24,7 +24,8 @@
 #   - OLD-NAME REGIONS, between `# old-address-name: begin (SM1343 ...)` and
 #     `# old-address-name: end`, in the files listed in %REGIONS and nowhere else:
 #     the refusals that tell a caller the new name (control API and MCP, the users
-#     tool's commands) and the tests that drive them. A region in any other file
+#     tool's commands), the upgrade that converts the old store (SM1345) and the
+#     tests that drive them. A region in any other file
 #     fails, so the exemption cannot spread. (A marker of its own, so it is not
 #     read as SM1142's `old-name` regions.)
 #
@@ -67,6 +68,8 @@ my %REGIONS = (
     't/integration/266-an-address-profile-is-read-by-a-manager-and-changed-by-the-operator.t'          => 1,
     't/unit/users/52-the-address-profile-store-is-written-by-the-users-tool.t'                       => 1,
     't/unit/odoo/112-an-operation-is-told-whether-the-call-came-from-an-address-profile.t'           => 1,
+    'install.pl'                                                                                    => 1,
+    't/tools/315-an-upgrade-makes-address-profiles-and-no-site-changes-behaviour.t'                  => 1,
 );
 
 # Tokens that may contain an old spelling wherever they appear.

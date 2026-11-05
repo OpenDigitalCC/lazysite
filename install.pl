@@ -983,6 +983,17 @@ sub cmd_install {
         }
     }
 
+    # address-profiles-converted (SM1345): each address list becomes an address
+    # profile of the same name (convert_address_profiles_store, above). On every mode: a new
+    # site has nothing to convert and records the step; a site whose old store will
+    # not convert is told, and tried again at the next upgrade.
+    unless ( grep { $_ eq 'address-profiles-converted' } @once ) {
+        my ( $changed, $warn, $done ) = convert_address_profiles_store( $o->{docroot} );
+        info("  auth:      $_") for @$changed;
+        push @$warnings, @$warn;
+        push @once, 'address-profiles-converted' if $done;
+    }
+
     # ---- write new state ----
     write_state( $state_path, $manifest->{version}, $state_files, \@once );
 
@@ -1042,6 +1053,84 @@ sub run_handler_conversion {
     return ( 1, '' ) if $rc == 0;
     return ( 0, $rc == 1 ? 'something was left unconverted' : "the tool exited $rc" );
 }
+
+# old-address-name: begin (SM1343, the upgrade converts the store by its old name)
+# SM1345 (0.16.5, rulings 56-57): ADDRESS LISTS BECOME ADDRESS PROFILES, ONCE.
+#
+# Until 0.16.5 lazysite/auth/address-lists.json held named address lists, each an
+# allow list or a deny list for life. The engine now reads address-profiles.json:
+# the same names and entries with no kind, because every rule that names one says
+# whether it allows or denies it (`addresses` / `addresses_deny`, and the manager's,
+# sign-in's and a session binding's `_deny` keys). Every place a rule names a list
+# already names it in the slot its kind meant (the saves refused the other one,
+# SM1189), so converting the STORE is the whole conversion: no rule is rewritten
+# and every use keeps its effect - an allow list's uses are Allow uses, a deny
+# list's Deny uses.
+#
+# Text in, text out (the installer loads no Lazysite module, SM767): the old file
+# is decoded with JSON::PP, each record loses its `kind`, the profiles are written
+# beside it with the old file's mode and owner, and only then is the old file
+# renamed to address-lists.json.converted, a record of what it held. Idempotent: no
+# old file, nothing to do. It never overwrites a profile store that is already
+# there (the site has both: told, and left for the operator to compare). An old
+# file that does not decode is left where it is, so the engine keeps refusing every
+# rule that names a profile (it reads an unconverted site as a fault, the SM1024
+# rule) rather than meeting an empty store whose deny rules would block nobody; the
+# summary says so and the next upgrade tries again.
+#
+# Returns ( \@changed, \@warnings, $done ): $done is true when the store is
+# converted or there was nothing to convert, so the once-step is recorded.
+sub convert_address_profiles_store {
+    my ($docroot) = @_;
+    my $auth = lazysite_dir_for($docroot) . '/auth';
+    my $old  = "$auth/address-lists.json";
+    my $new  = "$auth/address-profiles.json";
+    return ( [], [], 1 ) unless -e $old;
+    if ( -e $new ) {
+        return ( [], [ "ADDRESS PROFILES: both $old and $new exist. The profiles are what the "
+                . 'engine reads; the lists were left as they are. Compare the two, then delete '
+                . 'address-lists.json (SM1345)' ], 1 );
+    }
+    my $raw = do { local $/; open my $fh, '<:raw', $old or return ( [], [ "ADDRESS PROFILES: cannot read $old ($!) - "
+                    . 'every rule that names an address profile refuses until it is converted; run the upgrade '
+                    . 'again as the site user or root (SM1345)' ], 0 ); <$fh> };
+    my $lists = eval { JSON::PP::decode_json( $raw // '' ) };
+    unless ( ref $lists eq 'HASH' ) {
+        return ( [], [ "ADDRESS PROFILES: $old does not decode as a JSON object, so it was not converted - "
+                . 'every rule that names an address profile refuses until it is repaired and the upgrade '
+                . 'is run again (SM1345)' ], 0 );
+    }
+    my ( %profiles, %kind );
+    for my $name ( sort keys %$lists ) {
+        my $rec = $lists->{$name};
+        unless ( ref $rec eq 'HASH' ) { $profiles{$name} = $rec; next }    # the engine skips it, as before
+        my %p = %$rec;
+        $kind{$name} = delete $p{kind} // '';
+        $profiles{$name} = \%p;
+    }
+    my @st  = stat $old;
+    my $tmp = "$new.tmp.$$";
+    open my $out, '>:raw', $tmp
+        or return ( [], [ "ADDRESS PROFILES: cannot write $tmp ($!) - the lists were not converted (SM1345)" ], 0 );
+    print {$out} JSON::PP->new->canonical->pretty->encode( \%profiles );
+    close $out;
+    if (@st) {
+        chmod $st[2] & 07777, $tmp;
+        chown( ( $> == 0 ? $st[4] : -1 ), $st[5], $tmp );
+    }
+    unless ( rename $tmp, $new ) {
+        my $why = $!;
+        unlink $tmp;
+        return ( [], [ "ADDRESS PROFILES: cannot write $new ($why) - the lists were not converted (SM1345)" ], 0 );
+    }
+    rename $old, "$old.converted";
+    my @names = sort keys %profiles;
+    my @changed = ( 'converted ' . scalar(@names) . ' address list(s) to address profiles of the same names'
+            . ( @names ? ': ' . join( ', ', map { length( $kind{$_} // '' ) ? "$_ (was $kind{$_})" : $_ } @names ) : '' )
+            . '; every rule keeps its effect (SM1345)' );
+    return ( \@changed, [], 1 );
+}
+# old-address-name: end
 
 # N13-30: the settings 0.13.13 stopped reading, converted rather than kept alive
 # by an alias (pre-stable: one way to say a thing). Returns ( \@changed,
