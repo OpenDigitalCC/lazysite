@@ -39,7 +39,7 @@ use Lazysite::Manager::Common qw($auth_user $token_auth %token_caps
     users_api _users_tool_path _user_caps _operator _display_names _users_tool_run);
 use Lazysite::Manager::Themes   qw(_read_active_layout_and_theme action_theme_list);
 use Lazysite::Manager::Layouts  qw(action_layouts_available);
-use Lazysite::Manager::Extensions  qw(action_extension_list);
+use Lazysite::Manager::Extensions qw(action_extension_list);
 use Lazysite::Manager::Services qw(action_version _service_state);
 use Lazysite::Manager::Describe qw(site_capabilities);
 use Lazysite::Manager::Config   qw(_language_context);

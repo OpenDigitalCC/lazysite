@@ -28,8 +28,8 @@ use JSON::PP                   qw(decode_json);
 use Lazysite::Util             ();
 use Lazysite::Capabilities     qw(channel_service);
 use Lazysite::Manager::Extensions qw(action_extension_list);
-use Lazysite::Manager::Common  qw($auth_user);
-use File::Basename             qw(dirname);
+use Lazysite::Manager::Common     qw($auth_user);
+use File::Basename                qw(dirname);
 
 our @EXPORT_OK = qw(action_channel_services action_analyse_visitors _service_state action_version
     visitor_scope_args);
@@ -85,7 +85,7 @@ sub action_channel_services {
             : [];
         for my $c ( @{$owns} ) {
             $cap_extension{$c} = {
-                extension  => $p->{id},
+                extension => $p->{id},
                 name    => ( $p->{name} // $p->{id} ),
                 enabled => ( $p->{_enabled} ? JSON::PP::true : JSON::PP::false ),
             };

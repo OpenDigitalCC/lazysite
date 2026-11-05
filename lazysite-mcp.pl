@@ -511,7 +511,7 @@ sub setup_context {
     $Lazysite::Manager::Domains::DOCROOT      = $DOCROOT;
     $Lazysite::Manager::Domains::auth_user    = $user;
     $Lazysite::Manager::SitePackage::DOCROOT  = $DOCROOT;
-    $Lazysite::Manager::Extensions::DOCROOT      = $DOCROOT;
+    $Lazysite::Manager::Extensions::DOCROOT   = $DOCROOT;
     # SM918: the shared notice reader
     $Lazysite::Manager::Notices::DOCROOT       = $DOCROOT;
     $Lazysite::Handlers::DOCROOT               = $DOCROOT;

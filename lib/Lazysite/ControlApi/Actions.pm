@@ -794,7 +794,7 @@ our %ACTION = (
     'extension-action' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
     'extension-disable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
     'extension-enable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
-    'extension-list'    => { params => [] },
+    'extension-list' => { params => [] },
     'extension-read' => { cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' } ] },
     'extension-save' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' }, { name => 'values', in => 'body' }, { name => 'add', in => 'body' } ] },
     'preview' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' }, { name => 'theme', in => 'query', note => 'SM1290: an installed theme to render with instead of the active one; needs manage_themes or manage_layouts' } ] },

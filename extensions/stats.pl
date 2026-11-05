@@ -22,8 +22,8 @@
 # and there is no raw-log download (removed 0.5.29).
 use strict;
 use warnings;
-use JSON::PP qw(encode_json);
-use POSIX    ();
+use JSON::PP    qw(encode_json);
+use POSIX       ();
 use Time::Local ();    # Q14g (SM974): a server-log stamp read with its own offset
 
 # SM907 AT6: A LOG THAT WILL NOT OPEN IS NOT A LOG WITH NOTHING IN IT.
@@ -75,10 +75,10 @@ my ( %HOSTS_ARG, $BY_HOST_ARG, $BY_ACCOUNT_ARG );
     my @rest;
     while (@ARGV) {
         my $a = shift @ARGV;
-        if    ( $a eq '--host' )    { $HOSTS_ARG{ shift(@ARGV) // '' } = 1 }
-        elsif ( $a eq '--by-host' ) { $BY_HOST_ARG = 1 }
+        if    ( $a eq '--host' )       { $HOSTS_ARG{ shift(@ARGV) // '' } = 1 }
+        elsif ( $a eq '--by-host' )    { $BY_HOST_ARG = 1 }
         elsif ( $a eq '--by-account' ) { $BY_ACCOUNT_ARG = 1 }                    # SM1219
-        else                        { push @rest, $a }
+        else                           { push @rest, $a }
     }
     @ARGV = @rest;
 }
@@ -105,8 +105,8 @@ while (@ARGV) {
     elsif ( $a eq '--path' )        { $arg{path}        = shift @ARGV }    # SM392
     elsif ( $a eq '--status' )      { $arg{status}      = shift @ARGV }    # SM392
 }
-$arg{hosts}   = \%HOSTS_ARG if %HOSTS_ARG;
-$arg{by_host} = 1           if $BY_HOST_ARG;
+$arg{hosts}      = \%HOSTS_ARG if %HOSTS_ARG;
+$arg{by_host}    = 1           if $BY_HOST_ARG;
 $arg{by_account} = 1           if $BY_ACCOUNT_ARG;
 my $DOCROOT = $arg{docroot} || $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
 
@@ -479,7 +479,7 @@ sub _sweep_thresholds {
     my ($cfg) = @_;
     my $n     = ( $cfg->{scanner_404_paths}   || 5 ) + 0;
     my $w     = ( $cfg->{scanner_404_minutes} || 5 ) + 0;
-    $n = 5 if $n < 2;       # a threshold of 1 is "any 404 is a scan"
+    $n = 5 if $n < 2;    # a threshold of 1 is "any 404 is a scan"
     $w = 5 if $w < 1;
     return ( $n, $w * 60 );
 }
@@ -1282,12 +1282,12 @@ sub _page_view_from_buckets {
     }
 
     return {
-        ok              => 1,
-        window_days     => $window,
-        anonymised      => JSON::PP::true,
-        log_configured  => JSON::PP::true,
-        errors          => _error_surface($cfg),
-        classes         => \%classes,
+        ok             => 1,
+        window_days    => $window,
+        anonymised     => JSON::PP::true,
+        log_configured => JSON::PP::true,
+        errors         => _error_surface($cfg),
+        classes        => \%classes,
         # SM941 AV2: three counters, one population, and they SUM.
         #
         #   hits + asset_hits + error_hits == classes.unattributed.hits
@@ -1297,9 +1297,9 @@ sub _page_view_from_buckets {
         # differed by the asset count with nothing to reconcile them - 2,870 on
         # the measured site, which read as an engine fault rather than as two
         # different questions.
-        hits            => $hits,                      # successful PAGE views
-        asset_hits      => $assets,                    # SM329
-        error_hits      => $error_hits,                # >= 400, NOT a visit
+        hits       => $hits,          # successful PAGE views
+        asset_hits => $assets,        # SM329
+        error_hits => $error_hits,    # >= 400, NOT a visit
 
         # SM1203: absent when the app made none
         ( $app_hits ? ( app_hits => $app_hits ) : () ),
@@ -1410,7 +1410,7 @@ sub _parse_line {
         epoch  => $epoch,
         day    => _day_str($epoch),
         path   => $path,
-        query  => $query,                                                 # SM336
+        query  => $query,             # SM336
         status => $st + 0,
         # SM335: bytes were captured by the pattern and thrown away. The window
         # reader counted them itself from its own parse; now that both readers
@@ -1835,10 +1835,10 @@ sub _day_rollup {
 sub _month_rollup {
     my ( $mon, $days, $top_n ) = @_;
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
-    my %auth_ref;    # SM223
+    my %auth_ref;      # SM223
     my ( $pv, $ndays, $nf_junk, $asset_pv, $inferred, $paced ) = ( 0, 0, 0, 0, 0, 0 );
     my $app_pv = 0;    # SM1203
-    my %bases;       # SM338
+    my %bases;         # SM338
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
         $ndays++;
@@ -2764,7 +2764,7 @@ sub _tally_batch {
             my $tok = $e->{pkey} || $e->{visitor} || '';
             next unless length $tok && $promoted{$tok};
             next if ( $e->{class} // '' ) eq 'scanner';
-            my $b   = $cache->{days}{ $e->{day} // '' } or next;
+            my $b = $cache->{days}{ $e->{day} // '' } or next;
             # SM941 AV10: `unattributed` is the fallback because it is the
             # fall-through class, as `human` was. An entry carrying the LITERAL
             # string `human` cannot reach here because _migrate_human_class
@@ -3302,8 +3302,8 @@ sub _export_ingest_server_log {
                 status => $p->{status},
                 class => classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise, $p->{status} ),
                 agent => ( ( $p->{ua} // '' ) =~ $AGENT_RE ? 1 : 0 ),    # SM1098
-                # SM336: the user-agent was consumed by classify() and dropped.
-                # The verdict is not the only thing it can answer.
+                    # SM336: the user-agent was consumed by classify() and dropped.
+                    # The verdict is not the only thing it can answer.
                 device => _device_class( $p->{ua} ),
                 term   => ( $want_terms ? _search_term( $p->{query} ) : undef ),
                 bytes  => ( ( $p->{bytes} // 0 ) + 0 ),                            # SM335
@@ -3349,7 +3349,7 @@ sub _export_ingest_first_party {
         my ($base) = $f =~ m{([^/]+)$};
         my $size   = ( -s $f )              // 0;
         my $offset = $cache->{files}{$base} // 0;
-        $offset = 0 if $offset > $size;                  # rewritten/truncated: reprocess
+        $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
         next unless $size > $offset;
         open my $fh, '<', $f
             or do { _cannot_read( 'a visitor log', $f ); next };
@@ -3399,9 +3399,9 @@ sub _export_ingest_first_party {
                 status => $st,
                 class => classify( ( $r->{p} // '' ), ( $r->{ua} // '' ), $extra_ai, $extra_noise, $st ),
                 agent => ( ( $r->{ua} // '' ) =~ $AGENT_RE ? 1 : 0 ),    # SM1098
-                # SM336: same two facts, from the same user-agent, on the other
-                # ingester - so a site with either log source answers the same
-                # questions. The record's own path may carry a query too.
+                    # SM336: same two facts, from the same user-agent, on the other
+                    # ingester - so a site with either log source answers the same
+                    # questions. The record's own path may carry a query too.
                 device => _device_class( $r->{ua} // '' ),
                 term   => (
                     $want_terms
@@ -3470,7 +3470,7 @@ sub _ingest_form_events {
             # Create the day-bucket with the full shape _tally_batch uses, so a
             # form-only day (blocks but no page traffic) is still safe for the
             # window loop and rollups.
-            my $b = $cache->{days}{$day} ||= _new_day_bucket();
+            my $b  = $cache->{days}{$day} ||= _new_day_bucket();
             my $fb = $b->{forms}{$form}   ||= {
                 stored      => 0,
                 quarantined => 0,
@@ -3543,18 +3543,18 @@ sub _export_assemble {
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
     my $cutoff_ep = time() - $window * 86400;
     my ( %cls, %uips, %pages, %status, %ref_ext, %nf_pl, %forms, @by_day );
-    my %cls_vis;                      # SM941 AV3: visitors PER CLASS
-    my %bases;                        # SM941 AV10: every basis in the window
-    my ( %devices, %terms );          # SM336 items 6 and 7
-    my %auth_ref;                     # SM223: paths a visitor was turned away from
+    my %cls_vis;                # SM941 AV3: visitors PER CLASS
+    my %bases;                  # SM941 AV10: every basis in the window
+    my ( %devices, %terms );    # SM336 items 6 and 7
+    my %auth_ref;               # SM223: paths a visitor was turned away from
     my ( $hits, $ref_internal, $ref_direct, $nf_junk ) = ( 0, 0, 0, 0 );
-    my ( $assets, $error_hits ) = ( 0, 0 );    # SM941 AV2
+    my ( $assets, $error_hits ) = ( 0, 0 );                                # SM941 AV2
     my $app_hits = 0;
 
     for my $day ( sort keys %{ $cache->{days} } ) {
         next if $day lt $from_day;
         my $b = $cache->{days}{$day};
-        _forms_fold( \%forms, $b->{forms} );    # SM216-2
+        _forms_fold( \%forms, $b->{forms} );                               # SM216-2
         $cls{$_} += $b->{cls}{$_} for keys %{ $b->{cls} };
 
         # SM941 AV3: ONE POPULATION PER COUNTER, and this one had two.
@@ -3674,7 +3674,7 @@ sub _export_assemble {
     } sort keys %forms;
 
     return {
-        ok             => JSON::PP::true,
+        ok => JSON::PP::true,
         # SM941 AV10: 3, because `totals.human_visits` is GONE, `months` and
         # `traffic_classes` gained fields, and the classes are named
         # differently. One bump for all of it - the rename, the new class and
@@ -3708,7 +3708,7 @@ sub _export_assemble {
         counting_basis           => $COUNTING_BASIS,
         counting_basis_in_window => [ sort { $a <=> $b } keys %bases ],
         source                   => $source,
-        generated          => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
+        generated                => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         window    => { days => $window, from => $from_day, to => _day_str( time() ) },
         data_from => ( @all_days ? $all_days[0] : undef ),
         # SM941 AV2/AV3/AV4: FOUR COUNTERS, EACH NAMING ITS OWN POPULATION.
@@ -3815,7 +3815,7 @@ sub _export_assemble {
             # SM941: `unattributed` hit a missing page - the group that may
             # contain people, as opposed to the scanner chorus below it.
             plausible  => _topn( \%nf_pl, $top_n ),
-            junk_count => $nf_junk,                    # scanner-chorus 404s (count only)
+            junk_count => $nf_junk,                   # scanner-chorus 404s (count only)
         },
         # SM223: paths a visitor was TURNED AWAY from, as opposed to paths that
         # were missing. A file appearing here that the operator believes is
@@ -3835,7 +3835,7 @@ sub _export_assemble {
 
         # SM342: the work this call did, so a regression in EFFORT is visible
         # without a stopwatch and without a fast disk to hide it.
-        work  => {%WORK},
+        work => {%WORK},
         # SM941 AV6/R8: WHAT `unattributed` MEANS, where the person reading the
         # numbers will see it.
         #

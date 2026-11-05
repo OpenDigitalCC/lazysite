@@ -40,7 +40,7 @@ symlink "$root/$OLD/form-smtp.pl", "$cgibin/form-smtp.pl" or die $!;
 spit( "$docroot/lazysite/auth/user-settings.json",
     '{"ed":{"start_page":"manager:' . $OLD . '"},"jo":{"start_page":"manager:files"}}' );
 my @before = sort map { m{^\s+-\s+\Q$OLD\E/(\S+)} ? $1 : () } split /\n/, slurp("$docroot/lazysite/lazysite.conf");
-ok( scalar( grep { $_ eq 'login-rate-limit.pl' } @before ), 'the old site has the login rate limiter on' );
+ok( scalar( grep { $_ eq 'login-rate-limit.pl' } @before ), 'the old site has the login rate limiter on' );    # bare-name-on-purpose
 
 ( $rc, $out ) = install( $docroot, $cgibin, 'upgrade' );
 is( $rc, 0, 'the upgrade succeeds' ) or diag $out;

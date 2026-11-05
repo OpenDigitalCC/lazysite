@@ -255,7 +255,7 @@ if (@EXTENSION_DIRS) {
         push @real, $dir;
     }
     @EXTENSION_DIRS = @real;
-    @EXT_REPORT     = extension_report( \@EXTENSION_DIRS, Lazysite::Extensions::extensions_dir("$DOCROOT/..") );
+    @EXT_REPORT = extension_report( \@EXTENSION_DIRS, Lazysite::Extensions::extensions_dir("$DOCROOT/..") );
 
     # The CGIs this server runs read these; an installed engine is never started
     # here, so for it neither is set and its lookup is unchanged. PERL5LIB gives

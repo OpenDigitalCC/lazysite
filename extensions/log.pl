@@ -13,7 +13,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 . 'optional forwarding of the audit trail and diagnostics to syslog '
                 . '(for an external log collector). Forwarding is best-effort and '
                 . 'never blocks the site; the on-disk logs remain the record.',
-            version     => '1.1',
+            version => '1.1',
             # Operator/host concern, not a site-manager one: hidden from the
             # Extension Manager. Still configured from the CLI via the lazysite.conf
             # keys below (log_level, forwarding, syslog facility).

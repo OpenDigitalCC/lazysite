@@ -472,7 +472,7 @@ sub _render_stash {
         # setting existed, so a typo degrades to the status quo rather than to
         # an unstyled manager.
         manager_style   => _manager_style(),
-        enabled_extensions => _enabled_extensions(),         # conditional manager nav
+        enabled_extensions => _enabled_extensions(),    # conditional manager nav
         manager_caps    => $manager_caps,              # SM154: gate the Domains nav
         scope_root      => $scope_root,                # SM154: a bound editor's root
         home_domain     => $home_domain,               # SM154: a bound editor's domain

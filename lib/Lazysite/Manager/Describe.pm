@@ -25,7 +25,7 @@ use JSON::PP                      ();
 use Lazysite::Capabilities        qw(describe);
 use Lazysite::Auth::Settings      ();
 use Lazysite::ControlApi::Actions ();
-use Lazysite::Manager::Extensions    qw(action_extension_list);
+use Lazysite::Manager::Extensions qw(action_extension_list);
 use Lazysite::Manager::Common     qw($token_auth users_api);
 
 our @EXPORT_OK = qw(site_capabilities action_describe_capabilities action_actions_list _json_bool);

@@ -15,7 +15,7 @@ use Encode                    ();
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(write_file_checked);
 use Exporter 'import';
-use Lazysite::Paths ();
+use Lazysite::Paths      ();
 use Lazysite::Extensions ();
 
 our @EXPORT_OK = qw(
@@ -322,7 +322,7 @@ sub action_extension_list {
             log_event( 'WARN', 'extension-list',
                 'an extension did not describe itself in time and is not listed',
                 extension => $rel,
-                why    => ( $@ ? "no answer within ${budget}s" : 'empty answer' ) );
+                why       => ( $@ ? "no answer within ${budget}s" : 'empty answer' ) );
             next;
         }
 
@@ -616,8 +616,8 @@ sub _update_extensions_conf {
 
     my @lines = split /\n/, $conf;
     my @extensions;
-    my $in_extensions  = 0;
-    my $found_block = 0;
+    my $in_extensions = 0;
+    my $found_block   = 0;
     my @before;
     my @after;
     my $phase = 'before';
@@ -628,9 +628,9 @@ sub _update_extensions_conf {
     # choose between when writing it back.
     for my $line (@lines) {
         if ( $line =~ /^extensions\s*:\s*$/ ) {
-            $in_extensions       = 1;
-            $found_block      = 1;
-            $phase            = 'extensions';
+            $in_extensions = 1;
+            $found_block   = 1;
+            $phase         = 'extensions';
             next;
         }
         if ($in_extensions) {
@@ -642,7 +642,7 @@ sub _update_extensions_conf {
             }
             elsif ( $line !~ /^\s/ ) {
                 $in_extensions = 0;
-                $phase      = 'after';
+                $phase         = 'after';
             }
             else { next }
         }
@@ -882,7 +882,7 @@ sub action_extension_save {
         # config file, while the branch below writes lazysite.conf. They had the
         # same variable name, which reads as one thing written two ways.
         my $extension_conf = "$DOCROOT/$config_file";
-        my $dir         = dirname($extension_conf);
+        my $dir            = dirname($extension_conf);
         make_path($dir) unless -d $dir;
 
         # SM1172 (OOM Lab L-15, "saving odoo_packs while another app is

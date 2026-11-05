@@ -104,7 +104,7 @@ my $DOCROOT = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // die "No
 $Lazysite::Auth::Acl::DOCROOT            = $DOCROOT;
 $Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
-$Lazysite::Manager::Extensions::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Extensions::DOCROOT  = $DOCROOT;
 $Lazysite::Manager::Notices::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::StartPage::DOCROOT   = $DOCROOT;           # SM944 S23
 $Lazysite::Manager::Account::DOCROOT     = $DOCROOT;           # SM1043
@@ -498,7 +498,7 @@ $path = $params{path} // '/';
 # module below loses its copy at its own row and imports from Common instead.
 $Lazysite::Manager::Upload::auth_user   = $auth_user;
 $Lazysite::Manager::Backups::auth_user  = $auth_user;
-$Lazysite::Manager::Extensions::action     = $action;
+$Lazysite::Manager::Extensions::action  = $action;
 $Lazysite::Manager::Files::auth_user    = $auth_user;
 $Lazysite::Manager::Files::action       = $action;
 $Lazysite::Manager::Themes::auth_user   = $auth_user;

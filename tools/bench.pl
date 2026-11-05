@@ -33,7 +33,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Extensions ();
+use Lazysite::Extensions   ();
 use Lazysite::Auth::Verify ();    # SM685: the credential path a request uses
 my $ITER = 20;
 # SM327: 1.25, and the figure is DELIBERATE rather than merely tighter.

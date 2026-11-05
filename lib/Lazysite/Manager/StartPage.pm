@@ -64,7 +64,7 @@ our %PAGES = (
     'appearance' => { label => 'Appearance', caps => [ 'manage_themes', 'manage_layouts' ] },
     # SM957: ONE entry, "Extensions"; its configuration is a tab of the same
     # page (/manager/extension-config), so it is not a start page of its own.
-    'extensions' => { label => 'Extensions',    caps => [] },
+    'extensions'    => { label => 'Extensions',      caps => [] },
     'users'         => { label => 'Users',           caps => [] },
     'groups'        => { label => 'Groups',          caps => [] },
     'address-lists' => { label => 'Address lists',   caps => [] },                # SM1138

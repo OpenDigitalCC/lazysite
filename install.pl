@@ -967,7 +967,7 @@ sub cmd_install {
         info("  extensions: $_") for @$changed;
         $plan_stats->{extensions_rename} = $changed;
         push @$warnings, @$warn;
-        push @once, 'extensions-rename' unless @$warn;
+        push @once,      'extensions-rename' unless @$warn;
     }
 
     unless ( grep { $_ eq 'login-rate-limit-on' } @once ) {
@@ -1172,8 +1172,8 @@ sub extensions_rename {
     my ( $docroot, $cgibin, $subs ) = @_;
     my $od = _old_ext_dir();
     my ( @changed, @warn );
-    my $old = resolve_placeholders( "{DOCROOT}/../$od", $subs );
-    my $new = resolve_placeholders( '{DOCROOT}/../extensions',   $subs );
+    my $old = resolve_placeholders( "{DOCROOT}/../$od",        $subs );
+    my $new = resolve_placeholders( '{DOCROOT}/../extensions', $subs );
     # The step moves every entry of $old: it must be the old directory and
     # nothing wider, whatever the placeholders resolved to.
     return ( [], ["EXTENSIONS: refusing to convert - the directories resolved to $old and $new"] )
@@ -1225,9 +1225,9 @@ sub extensions_rename {
             my $link   = "$cgibin/$e";
             my $target = readlink $link;
             next unless defined $target;
-            my $abs = $target =~ m{\A/} ? $target : "$cgibin/$target";
+            my $abs    = $target =~ m{\A/} ? $target : "$cgibin/$target";
             my ($file) = $abs =~ m{/\Q$od\E/([^/]+)\z} or next;
-            my $to = "$new/$file";
+            my $to     = "$new/$file";
             next unless -f $to;
             unlink $link;
             if ( symlink $to, $link ) {
@@ -1271,8 +1271,8 @@ sub extensions_rename {
             splice @out, $at, 0, "extensions:\n", map { "  - $_\n" } @entries;
             $out[ $at - 1 ] .= "\n" if $at && $out[ $at - 1 ] !~ /\n\z/;
             my ( $ok, $why ) = _replace_conf( $conf, \@out );
-            if   ($ok) { push @changed, 'lazysite.conf lists the enabled extensions under extensions:, as extensions/<file>' }
-            else       { push @warn, "EXTENSIONS: could not rewrite $conf ($why) - every extension reads as off until it is" }
+            if ($ok) { push @changed, 'lazysite.conf lists the enabled extensions under extensions:, as extensions/<file>' }
+            else { push @warn, "EXTENSIONS: could not rewrite $conf ($why) - every extension reads as off until it is" }
         }
     }
 
@@ -1284,8 +1284,8 @@ sub extensions_rename {
         my $n = $text =~ s/("start_page"\s*:\s*"manager:)\Q$od\E(")/$1extensions$2/g;
         if ($n) {
             my ( $ok, $why ) = _replace_conf( $settings, [$text] );
-            if   ($ok) { push @changed, "$n start page(s) now name /manager/extensions" }
-            else       { push @warn, "EXTENSIONS: could not rewrite $settings ($why) - $n account(s) land on the account sheet until their start page is set again" }
+            if ($ok) { push @changed, "$n start page(s) now name /manager/extensions" }
+            else { push @warn, "EXTENSIONS: could not rewrite $settings ($why) - $n account(s) land on the account sheet until their start page is set again" }
         }
     }
     return ( \@changed, \@warn );
@@ -1294,8 +1294,8 @@ sub extensions_rename {
 # The plan's orphan lines for the old directory: the step above moved them.
 sub _drop_old_dir_orphans {
     my ( $stats, $warnings, $subs ) = @_;
-    my $od = _old_ext_dir();
-    my $old = resolve_placeholders( "{DOCROOT}/../$od", $subs );
+    my $od     = _old_ext_dir();
+    my $old    = resolve_placeholders( "{DOCROOT}/../$od", $subs );
     my $is_old = sub { index( $_[0], "$old/" ) == 0 };
     @{ $stats->{orphaned} } = grep { !$is_old->($_) } @{ $stats->{orphaned} };
     @$warnings = grep { !( /\Aorphan \(edited post-install, left in place\): (.+)\z/ && $is_old->($1) ) } @$warnings;
