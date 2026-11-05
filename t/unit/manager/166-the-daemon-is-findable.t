@@ -67,7 +67,6 @@ subtest 'a missing extension parameter is named as missing' => sub {
     like( $why, qr/\?extension=/,            'and the query-string spelling' );
     like( $why, qr/"script"/,             'and the body spelling' );
     like( $why, qr/extension-list/,       'and where the ids come from - by its current name' );
-    unlike( $why, qr/\bextension-list\b/,   '...not the deprecated one (SM840)' );
     unlike( $why, qr/Extension not found/,
         'it does not say the extension is missing when the PARAMETER was - that '
             . 'sentence sent the field looking for an extension that was there' );

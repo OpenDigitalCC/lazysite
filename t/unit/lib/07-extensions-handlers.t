@@ -40,15 +40,12 @@ close $c;
 sub slurp_conf { open my $f, '<', "$d/lazysite/lazysite.conf"; local $/; <$f> }
 # --- extension enable / disable mutate the conf correctly ---
 ok( action_extension_enable('extensions/log.pl')->{ok}, 'enable an extension' );
-# SM915: this fixture's conf carries NO list, so there is no header the site
-# "already uses" and the writer creates one under `extensions:` - the name SM817
-# introduced - rather than reviving `extensions:` on a site that never had it. The
-# assertion used to expect the old spelling, which was correct only while the
-# writer hardcoded it. Both directions are checked so this cannot pass on either
-# spelling indifferently; t/unit/manager/198 holds the rest of the behaviour.
+# SM915 / SM1142: this fixture's conf carries NO list, and the writer creates
+# one under `extensions:`, the one name (t/unit/manager/198 holds the rest of
+# the writer's behaviour, the old header included).
 like( slurp_conf(), qr{extensions:\s*\n\s+- extensions/log\.pl}s,
-    'a new list is created under `extensions:`, the current name' );
-unlike( slurp_conf(), qr{^extensions:}m, 'and not under the retired spelling' );
+    'a new list is created under `extensions:`' );
+is( scalar( () = slurp_conf() =~ /^extensions:/mg ), 1, 'and only one' );
 ok( action_extension_enable('extensions/audit.pl')->{ok}, 'enable a second' );
 like( slurp_conf(), qr{audit\.pl}, 'second extension present' );
 ok( action_extension_disable('extensions/log.pl')->{ok}, 'disable an extension' );
