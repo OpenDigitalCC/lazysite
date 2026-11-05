@@ -55,9 +55,9 @@ use Lazysite::Manager::Common ();
 my $d = Cwd::realpath( tempdir( CLEANUP => 1 ) );
 make_path( "$d/lazysite/auth", "$d/content" );
 
-# The briefs plugin owns these actions and gates every one of them on being
+# The briefs extension owns these actions and gates every one of them on being
 # enabled (ADR 0009 / SM469), so the rig has to enable it or the whole file
-# would assert nothing but "the plugin is off".
+# would assert nothing but "the extension is off".
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nextensions:\n  - extensions/briefs.pl\n";
 close $cf;

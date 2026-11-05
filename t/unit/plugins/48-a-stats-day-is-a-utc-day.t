@@ -3,7 +3,7 @@
 # judge of which day is closed.
 #
 # The processor files a first-party line by its UTC day and salts the visitor
-# key with it; the stats ingester buckets by the same UTC day. The plugin then
+# key with it; the stats ingester buckets by the same UTC day. The extension then
 # decided "today", "closed" and the window on the LOCAL calendar. East of UTC
 # that judged the current UTC day closed at local midnight, finalised its day
 # file, and never wrote it again: under BST the last hour of every UTC day
@@ -28,9 +28,9 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir env_passthrough run_child);
 
-my $plugin  = repo_root() . '/extensions/stats.pl';
+my $extension  = repo_root() . '/extensions/stats.pl';
 my $handler = repo_root() . '/extensions/form-handler.pl';
-ok( -f $plugin, 'the stats plugin is present' );
+ok( -f $extension, 'the stats extension is present' );
 
 # Three-letter name: glibc ignores a POSIX zone whose name is shorter.
 my $EAST = '<QQQ>-23:59';
@@ -48,7 +48,7 @@ sub export {
     my ( $d, $tz, %env ) = @_;
     local $ENV{TZ} = $tz;
     local @ENV{ keys %env } = values %env;
-    my $out = run_child( [ $^X, $plugin, '--export', '--window', 30, '--docroot', $d ],
+    my $out = run_child( [ $^X, $extension, '--export', '--window', 30, '--docroot', $d ],
         stderr => 'inherit' )->{out};
     return eval { decode_json($out) };
 }
@@ -70,7 +70,7 @@ subtest 'a UTC day east of UTC is not closed at local midnight' => sub {
     my $log = "$d/lazysite/logs/access-$ymd.jsonl";
 
     # Two page views from two readers in the same UTC day, the second arriving
-    # after the plugin has already run once. Both carry the same instant, so a
+    # after the extension has already run once. Both carry the same instant, so a
     # run that straddles UTC midnight cannot put them in different days.
     my $view = sub {
         my ($who) = @_;

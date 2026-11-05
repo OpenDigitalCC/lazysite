@@ -5,12 +5,12 @@
 # is. The CGIs looked only relative to themselves (bin/lib, bin/../lib,
 # bin/../../lib; lazysite-data.pl and lazysite-odoo.pl only the first two), so
 # on install.pl's own usage example - /var/www/html with /usr/lib/cgi-bin -
-# every CGI but the symlinked plugins died "Can't locate Lazysite/...". The rule
+# every CGI but the symlinked extensions died "Can't locate Lazysite/...". The rule
 # now ends with the docroot's ../lib, and it is one rule: this holds every copy
 # to the same text, so t/unit/lib/97 can evaluate any one of them for all.
 #
 # Which scripts: every lazysite-*.pl at the repository root (install.pl puts
-# them all in {CGIBIN}), the plugins install.pl links (or copies, where a
+# them all in {CGIBIN}), the extensions install.pl links (or copies, where a
 # symlink fails) into the cgi-bin, read from install.pl itself, and the
 # processor's lazy lookup (_lazy_lib), which is the same rule inside a sub.
 # Inside a sub the processor reads the docroot from $DOCROOT, which is the
@@ -41,8 +41,8 @@ closedir $dh;
 ok( $has_proc, 'the processor is among them' );
 cmp_ok( scalar @scripts, '>=', 8, 'the root CGIs are found (' . scalar(@scripts) . ')' );
 
-my ($linked) = slurp("$root/install.pl") =~ m{for my \$plugin \(qw\(([^)]+)\)\) \{\n\s+my \$src = "\$plugin_dir/\$plugin\.pl";\n\s+my \$dst = "\$cgibin/\$plugin\.pl";};
-ok( defined $linked, 'install.pl names the plugins it puts in the cgi-bin' );
+my ($linked) = slurp("$root/install.pl") =~ m{for my \$extension \(qw\(([^)]+)\)\) \{\n\s+my \$src = "\$extension_dir/\$extension\.pl";\n\s+my \$dst = "\$cgibin/\$extension\.pl";};
+ok( defined $linked, 'install.pl names the extensions it puts in the cgi-bin' );
 push @scripts, map { "extensions/$_.pl" } split ' ', $linked // '';
 
 for my $s (@scripts) {

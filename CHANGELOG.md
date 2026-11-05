@@ -65,6 +65,18 @@ Archive
   settle capability. Docs only; nothing is signed.
 
 - SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
+- SM1142 (PENDING) **The code says extension, and the old action spelling is answered with the
+  new one.** Slice S2 (R5: "so that the namespace of plugin is fully free"). The modules are
+  `Lazysite::Manager::Extensions` and `Lazysite::Extensions::Owns`, and the functions, the
+  template variable (`enabled_extensions`), the manager's own scripts and styles and the
+  internal action names follow. The wire's old spelling is removed: an old-spelling action
+  answers unknown action naming its `extension-*` spelling, and the old `?<id>` parameter on
+  extension-read, -save and -action and whoami's old catalogue switch are refused naming
+  `extension` and `extensions`; the list's response key is `extensions` and groups-read's is
+  `capability_extension`. t/lint/307 holds the word to history, third-party names and the few
+  places that must name the old spelling to convert or refuse it. ON UPGRADE: a script calling
+  the old spelling must move to `extension-*` (SM1125's note); the sites agent has been told.
+
 - SM1142 (PENDING) **The upgrade moves a site to `extensions/`, and nothing reads the old name
   after it.** Slice S1 of the rename (ruled 2026-10-17, R1 and R3: "fixup on upgrade, then its
   done"). The engine's extensions ship in `extensions/` (deb: `/usr/share/lazysite/extensions`)

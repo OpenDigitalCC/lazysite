@@ -11,7 +11,7 @@ package Lazysite::Data::Connect;
 #
 #   A page render is the least trusted place in this system to hold a writable
 #   database handle. It runs per request, it is reached by anonymous visitors,
-#   and its inputs are content. Everything else in this plugin is a check that
+#   and its inputs are content. Everything else in this extension is a check that
 #   can be got wrong once; a read-only handle is a property that stays true
 #   even when a check is.
 #

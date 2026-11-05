@@ -1,9 +1,9 @@
 #!/usr/bin/perl
-# SM694: the PDF export plugin, and the boundary the filing said to settle first.
+# SM694: the PDF export extension, and the boundary the filing said to settle first.
 #
-# This plugin is unlike every other one shipped: it runs an EXTERNAL BINARY on
+# This extension is unlike every other one shipped: it runs an EXTERNAL BINARY on
 # operator-supplied input. The dependency half was answered in 0.11.7 (`bins`,
-# so SM472's "a plugin that cannot run is not enabled" applies to a program as
+# so SM472's "an extension that cannot run is not enabled" applies to a program as
 # well as a module). What was left was the execution side, and these are the
 # four decisions, asserted rather than described:
 #
@@ -27,7 +27,7 @@ my $plug = "$FindBin::Bin/../../../extensions/pandoc.pl";
 plan skip_all => "no $plug" unless -f $plug;
 require $plug;
 
-# THE RENDER IS ASSERTED HERE, NOT THE PRODUCTION CEILING. The plugin kills a
+# THE RENDER IS ASSERTED HERE, NOT THE PRODUCTION CEILING. The extension kills a
 # conversion after 20 s; under a host load of about 17 or more on this machine
 # a render that takes 9 s alone took longer, was killed (exit 15), and "a page
 # converts" failed while the file passed alone. The ceiling is asserted on its
@@ -40,7 +40,7 @@ my $PRODUCTION_CEILING = $main::TIMEOUT_SECONDS;
 
 my $src = do { open my $fh, '<', $plug or die $!; local $/; <$fh> };
 
-# CODE ONLY. This plugin explains itself in prose that quotes flags and class
+# CODE ONLY. This extension explains itself in prose that quotes flags and class
 # names in backticks, and a shell-safety pattern matched against the prose finds
 # what the prose is describing rather than what the code does. Third time this
 # session a comment has been read as code (t/lint/96 on a CSS comment, SM700's
@@ -51,9 +51,9 @@ subtest 'the dependency is DECLARED, so enabling is refused without it' => sub {
     my $d = main::describe();
     is_deeply( $d->{owns}{bins}, ['md-to-pdf'],
         'the WRAPPER is declared, not pandoc' )
-        or diag( 'md-to-pdf is what this plugin calls; it owns the pandoc and '
+        or diag( 'md-to-pdf is what this extension calls; it owns the pandoc and '
             . 'XeLaTeX invocation, the templates and the brands. Declaring '
-            . 'pandoc would let the plugin enable on a host that has pandoc and '
+            . 'pandoc would let the extension enable on a host that has pandoc and '
             . 'not the wrapper - the state `bins` exists to prevent.' );
     is_deeply( $d->{owns}{capabilities}, [],
         'and it invents no capability of its own' )
@@ -137,7 +137,7 @@ subtest 'it converts, and the refusals refuse' => sub {
         my $r = main::convert( docroot => $d, path => $bad );
         ok( !$r->{ok}, "refused: $bad" )
             or diag( 'The content path decides which file is opened. If this '
-                . 'passes, the plugin reads whatever it is pointed at.' );
+                . 'passes, the extension reads whatever it is pointed at.' );
     }
 
     my $t = main::convert( docroot => $d, path => 'docs/page.md', brand => '../../etc' );
@@ -166,7 +166,7 @@ subtest 'the work is bounded, because there is no queue to put it in' => sub {
 # n355: the ceiling the tests above widen is the one the alarm arms. A
 # converter that never finishes is stopped at it and the conversion refused -
 # proven with a stand-in, so it holds on a host without md-to-pdf and at any
-# load. Were the plugin's variable a lexical again, the widening above would
+# load. Were the extension's variable a lexical again, the widening above would
 # silently do nothing, and this would wait out the stand-in instead.
 subtest 'the ceiling stops a converter that never finishes' => sub {
     is( $PRODUCTION_CEILING,

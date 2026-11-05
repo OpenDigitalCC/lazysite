@@ -3,20 +3,20 @@
 # / Debian libnet-xmpp-perl" - and declared nothing under `owns.deps`, the field
 # ADR 0009 created and the enable path reads. So it enabled cleanly on a host that
 # did not have the module, accepted eight fields including a password, reported
-# nothing wrong, and failed at first delivery on a live site. Two sibling plugins
+# nothing wrong, and failed at first delivery on a live site. Two sibling extensions
 # use the mechanism; the fact was written down nine lines from where the machinery
 # would have read it.
 #
 # WHAT THIS GATE DELIBERATELY DOES NOT DO, because both dead ends are the lesson.
 #
 # It does not scan for an undeclared `require`. The `require Net::XMPP` is not in
-# the plugin at all - delivery lives in Lazysite::Notify and the plugin is a
+# the extension at all - delivery lives in Lazysite::Notify and the extension is a
 # descriptor - so a sweep of extensions/ for undeclared requires finds nothing here.
 # That is what tmp/sm925-dep-audit.pl did on its first run: it flagged two other
-# plugins and missed the one the report was about.
+# extensions and missed the one the report was about.
 #
 # And it does not flag a `Foo::Bar` name in prose. That version was written, run,
-# and abandoned: it failed 12 of 16 plugins on `Cwd::abs_path`, `JSON::PP::true`
+# and abandoned: it failed 12 of 16 extensions on `Cwd::abs_path`, `JSON::PP::true`
 # and `Digest::SHA::sha256_hex` - fully-qualified CALLS, not dependencies - and on
 # `Devel::Cover` in a comment. It even flagged form-handler.pl for a comment THIS
 # FILING added mentioning Net::XMPP. A detector that cannot tell "depends on" from
@@ -25,7 +25,7 @@
 # What is left is narrow and sound: a DEBIAN PERL PACKAGE NAME. `libnet-xmpp-perl`
 # never appears by accident - it appears when somebody is telling an operator what
 # to install, which is precisely the moment the machinery should have been told
-# too. Measured 2026-09-30: two plugins carry one, and before this build one of the
+# too. Measured 2026-09-30: two extensions carry one, and before this build one of the
 # two declared nothing.
 use strict;
 use warnings;
@@ -36,11 +36,11 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root    = repo_root();
-my @plugins = sort glob( $root . '/extensions/*.pl' );
-cmp_ok( scalar @plugins, '>=', 10, 'the plugin set is present' );
+my @extensions = sort glob( $root . '/extensions/*.pl' );
+cmp_ok( scalar @extensions, '>=', 10, 'the extension set is present' );
 
 my $named = 0;
-for my $p (@plugins) {
+for my $p (@extensions) {
     ( my $base = $p ) =~ s{.*/}{};
     open my $fh, '<', $p or do { fail("$base: unreadable"); next };
     my $src = do { local $/; <$fh> };
@@ -63,7 +63,7 @@ for my $p (@plugins) {
     ok( scalar @declared,
         "$base names " . join( ', ', sort keys %pkg ) . " and declares a dep or a bin" )
         or diag( "  Naming a Debian package tells an OPERATOR to install something.\n"
-            . "  `owns.deps` is what tells the ENABLE PATH, and without it the plugin\n"
+            . "  `owns.deps` is what tells the ENABLE PATH, and without it the extension\n"
             . "  enables on a host that has not installed it and fails at first use -\n"
             . "  the state SM472 and ADR 0009 exist to prevent. Add:\n"
             . "      owns => { deps => ['Module::Name'], capabilities => [] },\n" );
@@ -71,6 +71,6 @@ for my $p (@plugins) {
 
 # Not vacuous. If the detector stops matching - a rewording, a moved comment - this
 # is the assertion that fails instead of the file passing on an empty census.
-cmp_ok( $named, '>=', 2, "plugins naming a Debian Perl package were found ($named)" );
+cmp_ok( $named, '>=', 2, "extensions naming a Debian Perl package were found ($named)" );
 
 done_testing();

@@ -40,9 +40,9 @@ use Digest::SHA qw(hmac_sha256_hex);
 sub new_site {
     my (%o) = @_;
     my $root = $o{root} or die 'new_site needs root => repo_root()';
-    # Site-shaped, with the repo's plugins beside it - see site_tempdir. Under
-    # a bare tempdir() the plugin registry read /tmp/plugins.
-    my $d = TestHelper::site_tempdir( plugins => 1 );
+    # Site-shaped, with the repo's extensions beside it - see site_tempdir. Under
+    # a bare tempdir() the extension registry read /tmp/extensions.
+    my $d = TestHelper::site_tempdir( extensions => 1 );
     make_path("$d/lazysite/auth");
 
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;

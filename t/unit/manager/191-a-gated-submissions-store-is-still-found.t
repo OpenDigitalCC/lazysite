@@ -2,7 +2,7 @@
 # N141E (SM852's remaining MISS row, verified): a submissions store that lives
 # in a PROTECTED folder is still found, read and rewritten.
 #
-# SM852 listed this as a MISS - "Plugins::_rewrite_store (finds no store once
+# SM852 listed this as a MISS - "Extensions::_rewrite_store (finds no store once
 # its folder is gated - fixed by S1, since it reads through store_path; to
 # verify)". A MISS is the harmless direction of the SM852 shape: it can fail to
 # find the private copy, never create a public one. But "harmless" here means an
@@ -31,7 +31,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(site_tempdir);
 use Lazysite::Private;
-use Lazysite::Manager::Plugins;
+use Lazysite::Manager::Extensions;
 use Lazysite::Handlers;
 
 sub w {
@@ -68,7 +68,7 @@ w( "$priv/client-data/contact.jsonl",
       . qq({"name":"Bob","message":"second"}\n) );
 
 no warnings 'once';
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 $Lazysite::Handlers::DOCROOT         = $d;
 use warnings 'once';
 
@@ -77,7 +77,7 @@ ok( !-e "$d/client-data/contact.jsonl",
 ok( -f "$priv/client-data/contact.jsonl", 'and a real one in the private store' );
 
 # --- the store is FOUND ------------------------------------------------------
-my $r = Lazysite::Manager::Plugins::action_form_submissions('client-data/contact.jsonl');
+my $r = Lazysite::Manager::Extensions::action_form_submissions('client-data/contact.jsonl');
 ok( $r->{ok}, 'a gated submissions store is found and read' )
     or diag( 'The MISS row: "finds no store once its folder is gated". If this '
         . 'answers "No such submissions store" then S1 did not reach this '
@@ -99,7 +99,7 @@ my $id = ref $rows->[0] eq 'HASH' ? ( $rows->[0]{_id} // $rows->[0]{id} ) : unde
 SKIP: {
     skip 'the row shape carries no id to delete by', 3 unless defined $id;
 
-    my $del = Lazysite::Manager::Plugins::action_form_submission_delete(
+    my $del = Lazysite::Manager::Extensions::action_form_submission_delete(
         'client-data/contact.jsonl', $id );
     ok( $del->{ok}, 'a row in a gated store can be deleted' )
         or diag( 'error: ' . ( $del->{error} // '-' ) );

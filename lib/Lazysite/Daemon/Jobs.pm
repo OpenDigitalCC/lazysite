@@ -9,7 +9,7 @@ package Lazysite::Daemon::Jobs;
 # that re-checked would be a second gate that could drift from the first.
 #
 # WHAT A JOB MAY DO is bounded by what the engine already does for the same
-# capability through the manager. stats_rollup runs the stats plugin's export,
+# capability through the manager. stats_rollup runs the stats extension's export,
 # which is what the Stats page and analyse_visitors run and what `analytics`
 # grants; sessions_sweep applies the session reader's own expiry rule to the
 # registry, under `manage_users`, which is the grant that lists and revokes
@@ -32,7 +32,7 @@ our $VERSION = '0.1';
 
 # --- stats-rollup -----------------------------------------------------------
 
-# Where the stats plugin lives. The same candidates the manager API tries
+# Where the stats extension lives. The same candidates the manager API tries
 # (_tool_path), because the layouts are the same: the repo, the Hestia domain
 # root with extensions/ beside public_html, and the packaged /usr/share/lazysite.
 #
@@ -63,23 +63,23 @@ sub stats_rollup {
     my (%ctx) = @_;
     my $root  = $ctx{docroot};
     my $tool  = _stats_tool($root)
-        or return { ok => 0, error => 'the stats plugin was not found' };
+        or return { ok => 0, error => 'the stats extension was not found' };
 
     # List form, no shell; the actor goes in the environment as the manager
-    # API sends it, so a plugin that reads it sees the same name the audit
+    # API sends it, so an extension that reads it sees the same name the audit
     # row carries.
     local $ENV{LAZYSITE_ACTING_USER} = $ctx{actor};
     my $pid = open my $fh, '-|', $^X, $tool, '--export', '--index',
         '--docroot', $root;
-    return { ok => 0, error => "cannot run the stats plugin: $!" } unless $pid;
+    return { ok => 0, error => "cannot run the stats extension: $!" } unless $pid;
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $rc = $? >> 8;
-    return { ok => 0, error => "the stats plugin exited $rc" } if $rc;
+    return { ok => 0, error => "the stats extension exited $rc" } if $rc;
 
     require JSON::PP;
     my $idx = eval { JSON::PP->new->decode( $raw // '' ) };
-    return { ok => 0, error => 'the stats plugin printed no JSON' }
+    return { ok => 0, error => 'the stats extension printed no JSON' }
         unless ref $idx eq 'HASH';
 
     # "No stats index yet." is not a failure: the export ran and found no

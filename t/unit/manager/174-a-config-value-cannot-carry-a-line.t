@@ -2,13 +2,13 @@
 # SM838: a line break in an extension setting cannot add a line to the config.
 #
 # Found while building SM802, then REPRODUCED before it was fixed: one
-# plugin-save to the Logging extension with
+# extension-save to the Logging extension with
 #
 #   log_level => "INFO\nalias.victim.example.allowed_groups: attackers"
 #
 # wrote both lines into lazysite.conf. The allowlist checked the KEY and never
 # the value, and every value is written as `key: value` on a line of its own.
-# plugin-save needs manage_config; allowed_groups is behind manage_domains AND
+# extension-save needs manage_config; allowed_groups is behind manage_domains AND
 # manage_users by the SM647 ruling - so this crossed a ruled boundary, and the
 # same line break injects any key at all.
 #
@@ -24,7 +24,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 my $root   = repo_root();
 my $parent = site_tempdir();    # lint 118: not a bare tempdir
@@ -37,9 +37,9 @@ local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' )
 my $conf = "$d/lazysite/lazysite.conf";
 sub reset_conf { open my $c, '>', $conf or die $!; print {$c} "site_name: T\n"; close $c }
 sub conf       { open my $h, '<', $conf or return ''; local $/; return <$h> }
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/log.pl', {@_} ) }
+sub save { return Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/log.pl', {@_} ) }
 
 # --- THE CANARY -------------------------------------------------------------
 # A refusal test passes against a save that writes nothing at all, so first prove

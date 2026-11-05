@@ -129,7 +129,7 @@ sub list_tables {
         # Three consistent, honest signals that pointed nowhere.
         #
         # The dependency is declared - in sbom-deps.json, in the deb, in the
-        # plugin's `owns` - so this is not about whether it SHOULD be there. It is
+        # extension's `owns` - so this is not about whether it SHOULD be there. It is
         # about what happens on the host where it is not, and "500" is the one
         # answer that cannot be acted on.
         unless ( eval { require YAML::PP; 1 } ) {
@@ -635,9 +635,9 @@ sub apply_schema {
         blocked => $plan->{blocked} };
 }
 
-# SM777: THE PLUGIN STAMPS WHAT IT RESERVES. `timestamps: true` created the
+# SM777: THE EXTENSION STAMPS WHAT IT RESERVES. `timestamps: true` created the
 # two columns, the value layer refused them from every writer ("maintained by
-# the plugin"), and nothing ever wrote them: SQLite.pm's insert_sql says the
+# the extension"), and nothing ever wrote them: SQLite.pm's insert_sql says the
 # caller supplies them, and no caller did. A site that turned the flag on to
 # get trustworthy provenance got neither a stamp nor its own field back - the
 # field found rows with created_at=None on a table with the flag on, and a
@@ -1216,7 +1216,7 @@ sub import_rows {
             next unless defined $v && length $v;    # empty cell: not sent
             $in{ $header->[$i] } = $v;
         }
-        # The STAMPS are the plugin's; an export carries them, an import must
+        # The STAMPS are the extension's; an export carries them, an import must
         # not try to write them back. Unconditional, and the stamp set rather
         # than the whole owned set: a column the engine creates but a WRITER is
         # allowed to set is not one an import should have stripped.

@@ -4,7 +4,7 @@
 # saves each key via config-set. Those are three representations of the same key
 # set; if they drift, a toggle renders but never persists (or shows blank) - the
 # exact 0.9.0 bug where the service killswitches saved through the retired
-# pseudo-plugin path and silently vanished. This test fails the build unless:
+# pseudo-extension path and silently vanished. This test fails the build unless:
 #   - every key the page SHOWS is surfaced by config-read, and
 #   - every SETTABLE key the page offers is in config-set's write allow-list.
 # It is the mechanical replacement for the old "config.md must stay in sync"

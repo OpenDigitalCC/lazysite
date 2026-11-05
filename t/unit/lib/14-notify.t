@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM136: the shared operator-notification write path (Lazysite::Notify) - the
-# bell-store append, and XMPP delivery gating (only when the notify-xmpp plugin is
+# bell-store append, and XMPP delivery gating (only when the notify-xmpp extension is
 # enabled AND configured; strictly best-effort).
 use strict;
 use warnings;
@@ -42,8 +42,8 @@ close $nf;
 is( scalar @lines, 2, 'still one line per notice' );
 like( decode_json( $lines[1] )->{message}, qr/line one line two/, 'newlines flattened' );
 
-# --- no XMPP attempt while the plugin is not enabled ---
-is( scalar @sent, 0, 'no XMPP send while the notify-xmpp plugin is disabled' );
+# --- no XMPP attempt while the extension is not enabled ---
+is( scalar @sent, 0, 'no XMPP send while the notify-xmpp extension is disabled' );
 
 # --- enabled + configured -> the sender is called with the conf and message ---
 open $cf, '>', "$d/lazysite/lazysite.conf" or die $!;

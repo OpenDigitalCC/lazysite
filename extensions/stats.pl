@@ -15,7 +15,7 @@
 # LOG-ONLY heuristic (UA + path + status), attributed at request granularity -
 # it is an honest estimate, not authenticated identity.
 #
-# Invoked by the manager plugin API: `--describe` returns the contract;
+# Invoked by the manager extension API: `--describe` returns the contract;
 # `--scan --docroot DIR` parses the log and prints the stats JSON;
 # `--resolve-log --docroot DIR` prints the resolved log path to the CLI for an
 # operator debugging log auto-detection - the path is never sent to any page,
@@ -34,7 +34,7 @@ use Time::Local ();    # Q14g (SM974): a server-log stamp read with its own offs
 # log reported a site nobody had visited. A sysop reading "0 human visits" had no
 # way to tell that from the truth.
 #
-# This plugin deliberately loads no Lazysite modules - it runs as a subprocess -
+# This extension deliberately loads no Lazysite modules - it runs as a subprocess -
 # so it carries the reporter rather than importing cannot_read. The same shape:
 # the file, the error and the unix user. ABSENCE SAYS NOTHING, because a site with
 # no visitors yet has no log.
@@ -287,7 +287,7 @@ sub _basis_of {
 # SM336 item 7: how many DIFFERENT visits must use a term before it is written
 # down. Below this only a hash of the term is counted, so a one-off never
 # reaches disk in a readable form - see _apply_event.
-# A checkbox reaches the plugin config as a string. Treated as OFF unless it
+# A checkbox reaches the extension config as a string. Treated as OFF unless it
 # says something affirmative, because this particular setting failing open would
 # start recording visitors' own words on a site that never asked for it.
 sub _flag_on {
@@ -457,7 +457,7 @@ sub _is_probe {
 # So the two identities separate: counting stays on the token, and the sweep
 # accumulator and promotion key on token+user-agent. A scanner and a browser
 # behind one NAT then promote independently. No engine change and no new
-# retained data - the plugin already holds both fields, and the token is already
+# retained data - the extension already holds both fields, and the token is already
 # anonymised at write.
 sub _promo_key {
     my ( $tok, $ua ) = @_;
@@ -561,7 +561,7 @@ sub _classifier_file { return _lz($DOCROOT) . "/stats/classifiers.json" }
 # The first design routed every match through a _rule('name') lookup, and it
 # broke a testing surface: t/unit/plugins/05 extracts `my $ASSET_RE = ...`
 # together with `sub _is_asset` and evaluates the pair in its own package, so a
-# pure path test can run without the plugin. A lookup helper does not exist in
+# pure path test can run without the extension. A lookup helper does not exist in
 # that package, and the extracted sub died.
 #
 # Assigning into the lexicals keeps the patterns the single subject of every
@@ -729,10 +729,10 @@ if ( $arg{describe} ) {
                     note => 'Records what visitors typed into the site search, as a top-20 list per day. A term is only stored once ' . $SEARCH_TERM_FLOOR . ' different visits have used it, so a one-off is never kept: below that only a hash is counted, and the words themselves are never written down. Off by default. NOTE: once on, the terms also reach any partner agent holding the analytics capability, through analyse_visitors - recording them and sharing them with your agents is one switch, not two.' },
             ],
             # 'refresh' is called programmatically by the Stats page to pull
-            # data - it is not a config-page button (hidden), so the plugin page
+            # data - it is not a config-page button (hidden), so the extension page
             # shows no pointless Refresh.
             # SM399: the trails view. The day is a declared CHOICE rather than a
-            # free parameter, because action_plugin_action accepts nothing
+            # free parameter, because action_extension_action accepts nothing
             # request-controlled onto the command line except a choice it can
             # match against this list. That constraint turns out to be the right
             # shape anyway: the list is built from the files that EXIST, so the
@@ -883,7 +883,7 @@ if ( $arg{scan} ) {
     exit 0;
 }
 
-# SM399: parameterised plugin actions (the SM085 mechanism). The only one is
+# SM399: parameterised extension actions (the SM085 mechanism). The only one is
 # the trails view, and it deliberately does NOT re-scan: the Stats page runs
 # 'refresh' before it, the day files are already current, and re-reading the
 # whole access log to display a file that is sitting on disk would make opening

@@ -32,7 +32,7 @@ plan skip_all => "no $plug" unless -f $plug;
 require $plug;
 
 # THE RENDER IS ASSERTED HERE, NOT THE PRODUCTION CEILING (n355). Under a host
-# load of about 17 or more a composed render outlasted the plugin's 20 s, was
+# load of about 17 or more a composed render outlasted the extension's 20 s, was
 # killed, and "the document converts" failed while this file passed alone.
 # t/unit/plugins/40 asserts the ceiling itself.
 {
@@ -168,7 +168,7 @@ subtest 'the PDF is kept, and rebuilt when any input is newer' => sub {
 
 subtest 'and what fills the cache can empty it' => sub {
     my $d = site();
-    my $empty = main::plugin_clear($d);
+    my $empty = main::extension_clear($d);
     ok( $empty->{ok}, 'clearing an empty cache is not an error' );
     is( $empty->{cleared}, 0, 'and it says nothing was there' )
         or diag( 'An operator who clears twice should be told the second '
@@ -180,7 +180,7 @@ subtest 'and what fills the cache can empty it' => sub {
     _w( "$d/lazysite/cache/pdf/docs_report.md.pdf", 'not really a pdf' );
     _w( "$d/lazysite/cache/pdf/docs_other.md.pdf",  'nor this' );
     _w( "$d/lazysite/cache/pdf/keep.txt",           'not a pdf at all' );
-    my $r = main::plugin_clear($d);
+    my $r = main::extension_clear($d);
     is( $r->{cleared}, 2, 'the cached PDFs are cleared, and counted' )
         or diag( 'SM706 required the cache be sweepable: a stale PDF nothing '
             . 'can clear is worse than a slow one. The rendered-page sweep '
@@ -193,7 +193,7 @@ subtest 'and what fills the cache can empty it' => sub {
 
     my $act = main::describe()->{actions};
     ok( ( grep { $_->{id} eq 'clear' } @$act ),
-        'and the operator can reach it from the Plugin Manager' )
+        'and the operator can reach it from the Extension Manager' )
         or diag( 'A sweep with no button is a sweep nobody performs.' );
 };
 

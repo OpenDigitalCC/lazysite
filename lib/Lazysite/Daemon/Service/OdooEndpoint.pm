@@ -71,10 +71,10 @@ sub script_for {
 sub wanted {
     my ($root) = @_;
     return 0 unless defined Lazysite::Paths::pool_conf_for($root);
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     no warnings 'once';
-    local $Lazysite::Manager::Plugins::DOCROOT = $root;
-    return 0 unless Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
+    local $Lazysite::Manager::Extensions::DOCROOT = $root;
+    return 0 unless Lazysite::Manager::Extensions::extension_enabled('extensions/odoo.pl');
     return 0 unless defined script_for($root);
     my ($sock) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($root) );
     return defined $sock ? 1 : 0;

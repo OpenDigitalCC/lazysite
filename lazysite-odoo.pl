@@ -170,14 +170,14 @@ sub main {
 
     no warnings 'once';
     Lazysite::Timing::to('load'); # SM1144: the modules this request needs, up to the identity
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     require Lazysite::Paths;
     Lazysite::Timing::configure( Lazysite::Paths::lazysite_dir($docroot) );
-    local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
     return reply( '403 Forbidden',
         { ok => 0, kind => 'disabled',
             error => 'The Odoo extension is disabled. A sysop can enable it on the Extensions page.' } )
-        unless Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
+        unless Lazysite::Manager::Extensions::extension_enabled('extensions/odoo.pl');
 
     # SM1147: the visitor cookie, the session cookie and the identity cookie are
     # read by these small modules; Lazysite::Odoo (the engine, with Egress under

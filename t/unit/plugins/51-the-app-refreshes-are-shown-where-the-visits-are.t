@@ -14,8 +14,8 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = "$root/extensions/stats.pl";
+plan skip_all => "no $extension" unless -f $extension;
 
 # Two days, 90 minutes back and a day and a half back, clear of UTC midnight.
 my $now = time();
@@ -58,7 +58,7 @@ sub run {
     my ( $d, @args ) = @_;
     # Argument list, never a shell string (t/lint/40); stdout only, as it is JSON.
     local $ENV{DOCUMENT_ROOT} = $d;
-    my $out = run_child( [ $^X, $plugin, @args, '--docroot', $d ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, $extension, @args, '--docroot', $d ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) } || {};
 }
 

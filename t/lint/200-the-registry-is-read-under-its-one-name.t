@@ -70,7 +70,7 @@ for my $f (@FILES) {
 
 # The gate must not be able to pass by finding nothing. Six readers and the
 # installer's writer were measured on 2026-11-05 (install.pl, the processor's
-# access-log.pm and layout.pm, Notify.pm, Manager/Plugins.pm x2).
+# access-log.pm and layout.pm, Notify.pm, Manager/Extensions.pm x2).
 cmp_ok( scalar @sites, '>=', 5,
     'the list-header sites are found at all (' . scalar(@sites) . ' seen)' );
 
@@ -81,7 +81,7 @@ for my $s (@sites) {
         "  $s->{text}"
             . "  SM1142: `extensions:` is the one name - the upgrade converted the old\n"
             . "  one, so a reader that knows another spelling sees a list nothing else\n"
-            . "  sees. Copy the shape at lib/Lazysite/Manager/Plugins.pm:\n"
+            . "  sees. Copy the shape at lib/Lazysite/Manager/Extensions.pm:\n"
             . "      /^extensions\\s*:\\s*\$/\n" );
 }
 

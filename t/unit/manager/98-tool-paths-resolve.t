@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM516 MA-18: the manager API shells out to two tools it does not ship in its
-# own directory - the users tool and the stats plugin - and it found each with
+# own directory - the users tool and the stats extension - and it found each with
 # the same four-candidate ladder, written out twice: the named environment
 # override, the cgi-bin sibling of tools/, the run-in-place repo root, then the
 # docroot's parent. The two copies are now one _tool_path.

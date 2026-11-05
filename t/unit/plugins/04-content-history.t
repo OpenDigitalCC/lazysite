@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# The Content history plugin (extensions/content-history.pl) - the operator
+# The Content history extension (extensions/content-history.pl) - the operator
 # surface for SM085's engine, moved off the Backups page (field feedback:
 # it is not a backup, it is the enabling of change logging). What matters:
 # the descriptor shape (Status + a confirmed Enable action in action mode),
@@ -7,7 +7,7 @@
 # enabled with a version count), enable = the git-init semantics (conf key
 # written, repo initialised, adoption commit reported, idempotent re-enable
 # that keeps every version), the engine gate opens after enable, and the
-# plugin is auto-discovered by plugin-list and drivable through the manager
+# extension is auto-discovered by extension-list and drivable through the manager
 # action seam with the acting user attributed.
 use strict;
 use warnings;
@@ -22,17 +22,17 @@ use TestHelper qw(run_child);
 use Lazysite::Git ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
-my $PLUGIN = "$ROOT/extensions/content-history.pl";
-ok( -f $PLUGIN, 'content-history plugin present' );
+my $EXTENSION = "$ROOT/extensions/content-history.pl";
+ok( -f $EXTENSION, 'content-history extension present' );
 
 sub t_spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh }
 sub t_slurp { open my $fh, '<', $_[0] or return undef; local $/; my $t = <$fh>; close $fh; $t }
 
-# Run the plugin exactly as action_plugin_action does (child process, JSON on
+# Run the extension exactly as action_extension_action does (child process, JSON on
 # stdout), list-form - no shell.
-sub run_plugin {
+sub run_extension {
     my (@args) = @_;
-    my $out = run_child( [ $^X, $PLUGIN, @args ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, $EXTENSION, @args ], stderr => 'inherit' )->{out};
     my $r = eval { decode_json($out) };
     return $r // { ok => 0, error => "no JSON output: " . ( $out // '' ) };
 }
@@ -48,7 +48,7 @@ sub mksite {
 
 # --- descriptor -----------------------------------------------------------------
 {
-    my $desc = run_plugin('--describe');
+    my $desc = run_extension('--describe');
     is( $desc->{id},      'content-history', '--describe: id' );
     is( $desc->{name},    'Content history', '--describe: name' );
     is( $desc->{version}, '1.0',             '--describe: version' );
@@ -75,14 +75,14 @@ sub mksite {
 {
     my $d = mksite();
     local $ENV{PATH} = '/nonexistent-no-git';    # the child scans PATH for git
-    my $s = run_plugin( '--scan', '--docroot', $d );
+    my $s = run_extension( '--scan', '--docroot', $d );
     ok( $s->{ok},             'status still answers with git absent' ) or diag explain $s;
     ok( !$s->{git_available}, 'status: reports git unavailable' );
     ok( !$s->{enabled},       'status: not enabled without git' );
     like( $s->{message}, qr/git is not installed/i, 'plain-language git-absent message' );
     like( $s->{message}, qr/install the git package/i, 'and it says what to do' );
 
-    my $e = run_plugin( '--action', 'enable', '--docroot', $d );
+    my $e = run_extension( '--action', 'enable', '--docroot', $d );
     ok( !$e->{ok}, 'enable refuses with git absent' );
     like( $e->{error}, qr/git is not installed/i, 'enable refusal in plain language' );
 }
@@ -96,7 +96,7 @@ if ( !Lazysite::Git::git_available() ) {
 # --- status before / enable / status after: the round-trip ------------------------
 my $D = mksite();
 {
-    my $s = run_plugin( '--scan', '--docroot', $D );
+    my $s = run_extension( '--scan', '--docroot', $D );
     ok( $s->{ok},        'status ok before enable' ) or diag explain $s;
     ok( !$s->{enabled},  'status: not enabled yet' );
     ok( $s->{git_available}, 'status: git present' );
@@ -104,7 +104,7 @@ my $D = mksite();
     like( $s->{message}, qr/not enabled/i,       'plain-language not-enabled message' );
     like( $s->{message}, qr/initial snapshot/i,  'explains what enabling does' );
 
-    my $r = run_plugin( '--action', 'enable', '--docroot', $D );
+    my $r = run_extension( '--action', 'enable', '--docroot', $D );
     ok( $r->{ok}, 'enable ok' ) or diag explain $r;
     like( $r->{commit}, qr/\A[0-9a-f]{40}\z/, 'the adoption commit is reported' );
     cmp_ok( $r->{commits}, '>=', 1, 'version count reported' );
@@ -116,12 +116,12 @@ my $D = mksite();
     Lazysite::Git::reset_cache();
     ok( Lazysite::Git::enabled($D), 'the engine gate opens - hooks unchanged' );
 
-    my $again = run_plugin( '--action', 'enable', '--docroot', $D );
+    my $again = run_extension( '--action', 'enable', '--docroot', $D );
     ok( $again->{ok} && $again->{already}, 'a second enable is an idempotent no-op' );
     is( $again->{commits}, $r->{commits}, 'and keeps the recorded versions' );
     like( $again->{message}, qr/already/i, 'saying so in plain language' );
 
-    my $s2 = run_plugin( '--scan', '--docroot', $D );
+    my $s2 = run_extension( '--scan', '--docroot', $D );
     ok( $s2->{ok} && $s2->{enabled}, 'status: enabled after enable' );
     ok( $s2->{initialised},          'status: initialised' );
     ok( !$s2->{recording_failed},    'status: recording healthy (no breadcrumb)' );
@@ -132,7 +132,7 @@ my $D = mksite();
     # Last-commit health: the engine's COMMIT_FAILED breadcrumb surfaces here
     # (the full failure->recovery lifecycle is t/unit/lib/18-git-guarantee.t).
     t_spit( "$D/lazysite/git/COMMIT_FAILED", "x\n" );
-    my $s3 = run_plugin( '--scan', '--docroot', $D );
+    my $s3 = run_extension( '--scan', '--docroot', $D );
     ok( $s3->{recording_failed}, 'status: breadcrumb reported as recording_failed' );
     like( $s3->{message}, qr/FAILED/,        'failing state named in plain language' );
     like( $s3->{message}, qr/lazysite check/, 'and points at the doctor' );
@@ -141,15 +141,15 @@ my $D = mksite();
 
 # --- refusals ----------------------------------------------------------------------
 {
-    ok( !run_plugin( '--action', 'nope', '--docroot', $D )->{ok},
+    ok( !run_extension( '--action', 'nope', '--docroot', $D )->{ok},
         'an unknown action id is refused' );
-    ok( !run_plugin( '--scan', '--docroot', '/nonexistent-docroot' )->{ok},
+    ok( !run_extension( '--scan', '--docroot', '/nonexistent-docroot' )->{ok},
         'status refuses a missing docroot' );
 }
 
-# --- plugin-list discovery + the manager action seam --------------------------------
+# --- extension-list discovery + the manager action seam --------------------------------
 SKIP: {
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     my $base = tempdir( CLEANUP => 1 );
     symlink( "$ROOT/extensions", "$base/extensions" )
         or skip 'no symlink support', 1;
@@ -157,24 +157,24 @@ SKIP: {
     make_path("$site/lazysite");
     t_spit( "$site/lazysite/lazysite.conf", "site_name: T\n" );
     t_spit( "$site/index.md",               "home\n" );
-    local $Lazysite::Manager::Plugins::DOCROOT  = $site;
+    local $Lazysite::Manager::Extensions::DOCROOT  = $site;
     local $Lazysite::Manager::Common::auth_user = 'bob';
 
-    my $list = Lazysite::Manager::Plugins::action_plugin_list();
-    ok( $list->{ok}, 'plugin-list ok' );
-    my %by_id = map { $_->{id} => $_ } @{ $list->{plugins} };
+    my $list = Lazysite::Manager::Extensions::action_extension_list();
+    ok( $list->{ok}, 'extension-list ok' );
+    my %by_id = map { $_->{id} => $_ } @{ $list->{extensions} };
     ok( $by_id{'content-history'}, 'content-history is auto-discovered' );
     is( $by_id{'content-history'}{_script}, 'extensions/content-history.pl',
         'with its extensions/ script path' );
     ok( $by_id{'git-sync'}, 'beside its sibling git-sync' );
     like( $by_id{'git-sync'}{description}, qr/Content history extension/,
-        'git-sync now points at the plugin, not the Backups page' );
+        'git-sync now points at the extension, not the Backups page' );
 
-    my $st = Lazysite::Manager::Plugins::action_plugin_action( 'content-history',
+    my $st = Lazysite::Manager::Extensions::action_extension_action( 'content-history',
         'extensions/content-history.pl', 'status', undef );
     ok( $st->{ok} && !$st->{enabled}, 'status dispatches through the manager seam' );
 
-    my $en = Lazysite::Manager::Plugins::action_plugin_action( 'content-history',
+    my $en = Lazysite::Manager::Extensions::action_extension_action( 'content-history',
         'extensions/content-history.pl', 'enable', undef );
     ok( $en->{ok}, 'enable dispatches through the manager seam' ) or diag explain $en;
     like( $en->{commit}, qr/\A[0-9a-f]{40}\z/, 'and reports the adoption commit' );
@@ -185,12 +185,12 @@ SKIP: {
     is( $log->[0]{author}, 'bob', 'the adoption commit is attributed to the acting user' );
 }
 
-# --- ONE switch: the Plugin-Manager toggle runs the lifecycle hooks ----------------
-# Field feedback: enabling the plugin must be all it takes - no second Enable
+# --- ONE switch: the Extension-Manager toggle runs the lifecycle hooks ----------------
+# Field feedback: enabling the extension must be all it takes - no second Enable
 # on the config page. Ticking runs on_enable (init + adoption commit);
 # unticking runs on_disable (recording paused, every version kept).
 SKIP: {
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     my $base = tempdir( CLEANUP => 1 );
     symlink( "$ROOT/extensions", "$base/extensions" )
         or skip 'no symlink support', 1;
@@ -198,33 +198,33 @@ SKIP: {
     make_path("$site/lazysite");
     t_spit( "$site/lazysite/lazysite.conf", "site_name: T\n" );
     t_spit( "$site/index.md",               "home\n" );
-    local $Lazysite::Manager::Plugins::DOCROOT  = $site;
+    local $Lazysite::Manager::Extensions::DOCROOT  = $site;
     local $Lazysite::Manager::Common::auth_user = 'bob';
 
-    my $desc = decode_json( scalar qx($^X \Q$PLUGIN\E --describe) );
+    my $desc = decode_json( scalar qx($^X \Q$EXTENSION\E --describe) );
     is( $desc->{on_enable},  'enable',  'descriptor declares the on_enable hook' );
     is( $desc->{on_disable}, 'disable', 'descriptor declares the on_disable hook' );
 
-    my $en = Lazysite::Manager::Plugins::action_plugin_enable('extensions/content-history.pl');
-    ok( $en->{ok}, 'plugin-enable ok' ) or diag explain $en;
+    my $en = Lazysite::Manager::Extensions::action_extension_enable('extensions/content-history.pl');
+    ok( $en->{ok}, 'extension-enable ok' ) or diag explain $en;
     ok( $en->{hook} && $en->{hook}{ok}, 'the toggle ran the on_enable hook' )
         or diag explain $en;
     like( $en->{hook}{commit}, qr/\A[0-9a-f]{40}\z/, 'hook took the adoption commit' );
-    # SM915: this asserted the HEADER (`^plugins:`), which made a test about
+    # SM915: this asserted the HEADER (`^extensions:`), which made a test about
     # content history depend on the writer's choice of spelling - and the writer
     # now creates a new list under `extensions:`, the current name. What this test
-    # actually means is that the plugin got listed, so it asserts the ENTRY and is
+    # actually means is that the extension got listed, so it asserts the ENTRY and is
     # indifferent to which of the two spellings opens the list. t/unit/manager/198
     # is where the spelling belongs.
     like( t_slurp("$site/lazysite/lazysite.conf"),
-        qr{^\s+-\s+extensions/content-history\.pl$}m, 'plugin listed in conf' );
+        qr{^\s+-\s+extensions/content-history\.pl$}m, 'extension listed in conf' );
     Lazysite::Git::reset_cache();
     ok( Lazysite::Git::enabled($site), 'recording is ON after the one switch' );
     my $commits = Lazysite::Git::count_commits($site);
     my $first_log = Lazysite::Git::file_log( $site, 'index.md' );
 
-    my $dis = Lazysite::Manager::Plugins::action_plugin_disable('extensions/content-history.pl');
-    ok( $dis->{ok}, 'plugin-disable ok' ) or diag explain $dis;
+    my $dis = Lazysite::Manager::Extensions::action_extension_disable('extensions/content-history.pl');
+    ok( $dis->{ok}, 'extension-disable ok' ) or diag explain $dis;
     ok( $dis->{hook} && $dis->{hook}{ok}, 'the toggle ran the on_disable hook' )
         or diag explain $dis;
     like( $dis->{hook}{message}, qr/kept/, 'pause message says the versions are kept' );
@@ -232,9 +232,9 @@ SKIP: {
     ok( !Lazysite::Git::enabled($site), 'recording is OFF after unticking' );
     ok( -f "$site/lazysite/git/HEAD", 'the repo (and its versions) stay on disk' );
     like( t_slurp("$site/lazysite/lazysite.conf"), qr/^git_history:/m,
-        'conf keys survive removing the last plugin on their own lines (line-glue regression)' );
+        'conf keys survive removing the last extension on their own lines (line-glue regression)' );
 
-    my $re = Lazysite::Manager::Plugins::action_plugin_enable('extensions/content-history.pl');
+    my $re = Lazysite::Manager::Extensions::action_extension_enable('extensions/content-history.pl');
     ok( $re->{ok} && $re->{hook} && $re->{hook}{ok}, 're-enable resumes recording' )
         or diag explain $re;
     Lazysite::Git::reset_cache();
@@ -242,8 +242,8 @@ SKIP: {
     # The guarantee is that resuming keeps the existing history rather than
     # re-adopting the site as a fresh baseline. Commit-count equality was a valid
     # proxy for that only while nothing else committed in between; since SM255
-    # every write to lazysite.conf is recorded, so toggling the plugin
-    # legitimately adds commits (the plugins: block, then git_history off and on
+    # every write to lazysite.conf is recorded, so toggling the extension
+    # legitimately adds commits (the extensions: block, then git_history off and on
     # again). Counting therefore fails on correct behaviour. Assert the property
     # itself instead: adoption happened exactly once, and the pre-existing
     # history for a file is still intact and unchanged.
@@ -258,9 +258,9 @@ SKIP: {
     cmp_ok( Lazysite::Git::count_commits($site), '>=', $commits,
         'every version kept - history only ever grows' );
 
-    # A plugin with no lifecycle hooks toggles exactly as before (no hook key).
-    my $plain = Lazysite::Manager::Plugins::action_plugin_enable('extensions/git-sync.pl');
-    ok( $plain->{ok} && !exists $plain->{hook}, 'a hookless plugin toggles with no hook result' )
+    # An extension with no lifecycle hooks toggles exactly as before (no hook key).
+    my $plain = Lazysite::Manager::Extensions::action_extension_enable('extensions/git-sync.pl');
+    ok( $plain->{ok} && !exists $plain->{hook}, 'a hookless extension toggles with no hook result' )
         or diag explain $plain;
 }
 
@@ -274,7 +274,7 @@ SKIP: {
     my $d = mksite();
     t_spit( "$d/lazysite/lazysite.conf",
         "site_name: T\nmanager: enabled\ngit_history: enabled\n" );
-    my $s = run_plugin( '--scan', '--docroot', $d );
+    my $s = run_extension( '--scan', '--docroot', $d );
     is( $s->{verdict}, 'inconsistent',
         'conf says enabled but no repo -> verdict inconsistent' );
     ok( !$s->{healthy},     'the inconsistent state is NOT reported healthy' );
@@ -288,17 +288,17 @@ SKIP: {
 SKIP: {
     skip 'git not installed', 6 unless Lazysite::Git::git_available();
     my $d = mksite();
-    is( run_plugin( '--scan', '--docroot', $d )->{verdict}, 'disabled',
+    is( run_extension( '--scan', '--docroot', $d )->{verdict}, 'disabled',
         'fresh site -> verdict disabled' );
 
-    run_plugin( '--action', 'enable', '--docroot', $d );
-    my $ok = run_plugin( '--scan', '--docroot', $d );
+    run_extension( '--action', 'enable', '--docroot', $d );
+    my $ok = run_extension( '--scan', '--docroot', $d );
     is( $ok->{verdict}, 'ok', 'after a completed enable -> verdict ok' );
     ok( $ok->{healthy}, 'enabled + initialised + a real HEAD -> healthy' );
     like( $ok->{message}, qr/healthy/i, 'the ok message says it is healthy' );
 
-    run_plugin( '--action', 'disable', '--docroot', $d );
-    my $p = run_plugin( '--scan', '--docroot', $d );
+    run_extension( '--action', 'disable', '--docroot', $d );
+    my $p = run_extension( '--scan', '--docroot', $d );
     is( $p->{verdict}, 'paused', 'disable with a repo present -> verdict paused' );
     ok( !$p->{healthy}, 'paused is not the healthy (actively-recording) state' );
 }
@@ -307,9 +307,9 @@ SKIP: {
 SKIP: {
     skip 'git not installed', 2 unless Lazysite::Git::git_available();
     my $d = mksite();
-    run_plugin( '--action', 'enable', '--docroot', $d );
+    run_extension( '--action', 'enable', '--docroot', $d );
     t_spit( Lazysite::Git::breadcrumb_path($d), "1\n" );    # the engine's failure marker
-    my $s = run_plugin( '--scan', '--docroot', $d );
+    my $s = run_extension( '--scan', '--docroot', $d );
     is( $s->{verdict}, 'degraded', 'a COMMIT_FAILED breadcrumb -> verdict degraded' );
     like( $s->{message}, qr/FAILED/, 'degraded message flags the failed recording' );
 }

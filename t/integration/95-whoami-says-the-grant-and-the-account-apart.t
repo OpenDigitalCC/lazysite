@@ -57,7 +57,7 @@ sub api_whoami {
         LAZYSITE_AUTH_TRUSTED => 1,
         LAZYSITE_USERS_TOOL   => $stub,
         REQUEST_METHOD        => 'GET',
-        QUERY_STRING          => 'action=whoami&plugins=0',
+        QUERY_STRING          => 'action=whoami&extensions=0',
     );
     my $out = qx($^X \Q$root/lazysite-manager-api.pl\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;

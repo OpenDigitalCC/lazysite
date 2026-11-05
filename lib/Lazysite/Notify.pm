@@ -470,7 +470,7 @@ sub send_mail {
     return 'the Form SMTP extension is not installed, so this site cannot send mail'
         unless defined $script;
     return 'the Form SMTP extension is switched off (enable it on the Extensions page)'
-        unless _plugin_enabled( $docroot, 'form-smtp.pl' );
+        unless _extension_enabled( $docroot, 'form-smtp.pl' );
     my $smtp = Lazysite::Paths::lazysite_dir($docroot) . '/forms/smtp.conf';
     return 'the Form SMTP extension has no settings yet (save the SMTP settings first)'
         unless -f $smtp;
@@ -626,9 +626,9 @@ sub _mail_send {
     return 1;
 }
 
-# The notify-xmpp client config, or undef when the plugin is disabled or not
-# configured. Enabled = listed in the lazysite.conf `plugins:` block (the same
-# registry the manager's Plugins page toggles).
+# The notify-xmpp client config, or undef when the extension is disabled or not
+# configured. Enabled = listed in the lazysite.conf `extensions:` block (the same
+# registry the manager's Extensions page toggles).
 #
 # SM927: AND THE REASON, AS THE SECOND RETURN VALUE. X3 made these four states say
 # which one they were - into the server error log, where the operator configuring
@@ -751,7 +751,7 @@ sub _xmpp_conf_state {
     # now say so. The four-state rule SM906, SM907 and SM917 applied to the stores,
     # arriving on the notification path.
     return ( undef, 'XMPP notifications are switched off for this site.' )
-        unless _plugin_enabled( $docroot, 'notify-xmpp.pl' );
+        unless _extension_enabled( $docroot, 'notify-xmpp.pl' );
 
     my $path = Lazysite::Paths::lazysite_dir($docroot) . "/notify-xmpp.conf";
     my $fh;
@@ -889,7 +889,7 @@ sub site_base {
     return $b;
 }
 
-sub _plugin_enabled {
+sub _extension_enabled {
     my ( $docroot, $name ) = @_;
     open my $fh, '<:utf8', Lazysite::Paths::lazysite_dir($docroot) . "/lazysite.conf" or return 0; # not a store - site config
     my ( $in, $found ) = ( 0, 0 );
@@ -1210,7 +1210,7 @@ sub _audit_delivery_failure {
 # form-smtp declares a `validate` action and the config page shows a button for
 # it. notify-xmpp declared no actions at all, so an operator who had just typed
 # eight fields including a password had no way to learn whether any of it worked
-# until an event fired - and the whole shape of this plugin's failure is that when
+# until an event fired - and the whole shape of this extension's failure is that when
 # one does fire, nothing tells them: an XMPP notice that never arrives looks
 # exactly like a site where nothing has happened.
 #
@@ -1253,7 +1253,7 @@ sub _test_body {
     return _render( $body, $from_file, \%vars );
 }
 
-# Run the test and report every stage it reached. Returns the plugin action's
+# Run the test and report every stage it reached. Returns the extension action's
 # result: ok, the stage it stopped at, the steps, the body as sent, and either a
 # one-line verdict or the reason it failed.
 #

@@ -1,18 +1,18 @@
 #!/usr/bin/perl
-# SM409 / ADR 0009: a contract plugin that is not enabled executes NOTHING.
+# SM409 / ADR 0009: a contract extension that is not enabled executes NOTHING.
 #
-# What was true before: the plugins: list drove the Plugin Manager LISTING -
-# its parse lived inline in action_plugin_list, whose only consumer was the
-# display - and nothing on any execution path read it. action_plugin_action
-# ran any registered plugin; an operator who "disabled" one had changed a page,
+# What was true before: the extensions: list drove the Extension Manager LISTING -
+# its parse lived inline in action_extension_list, whose only consumer was the
+# display - and nothing on any execution path read it. action_extension_action
+# ran any registered extension; an operator who "disabled" one had changed a page,
 # not the site. The recurring defect class (a control reporting one state
-# while doing another), applied to the plugin system itself.
+# while doing another), applied to the extension system itself.
 #
-# The ruling (release manager, 2026-08-19): plugins that declare the ADR 0009
-# `contract` are gated and BORN DISABLED; legacy plugins are untouched until
+# The ruling (release manager, 2026-08-19): extensions that declare the ADR 0009
+# `contract` are gated and BORN DISABLED; legacy extensions are untouched until
 # each one's migration SM replicates its current effective state. So the gate
 # must discriminate, and this test drives BOTH kinds through the REAL registry
-# against a REAL fixture tree - a contract plugin and a legacy plugin, actual
+# against a REAL fixture tree - a contract extension and a legacy extension, actual
 # executables answering --describe.
 use strict;
 use warnings;
@@ -22,18 +22,18 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::Plugins qw(
-    action_plugin_action action_plugin_read action_plugin_save
-    action_plugin_enable action_plugin_disable plugin_enabled);
+use Lazysite::Manager::Extensions qw(
+    action_extension_action action_extension_read action_extension_save
+    action_extension_enable action_extension_disable extension_enabled);
 
 sub spit { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh }
 
-# A minimal but REAL plugin: answers --describe, and its one action writes a
+# A minimal but REAL extension: answers --describe, and its one action writes a
 # witness file - so "executed" and "refused" are facts on disk, not guesses.
-sub write_plugin {
+sub write_extension {
     my ( $path, %o ) = @_;
     my $contract = $o{contract} ? '"contract": 1,' : '';
-    spit( $path, <<PLUGIN );
+    spit( $path, <<EXTENSION );
 #!/usr/bin/perl
 use strict; use warnings;
 if ( \@ARGV && \$ARGV[0] eq '--describe' ) {
@@ -52,7 +52,7 @@ if ( \@ARGV >= 2 && \$ARGV[0] eq '--action' && \$ARGV[1] eq 'touch' ) {
     exit 0;
 }
 exit 1;
-PLUGIN
+EXTENSION
     chmod 0755, $path or die $!;
 }
 
@@ -61,72 +61,72 @@ sub fixture {
     my $d    = "$base/web";
     make_path( "$d/lazysite", "$base/extensions" );
     spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
-    write_plugin( "$base/extensions/contract-demo.pl",
+    write_extension( "$base/extensions/contract-demo.pl",
         id => 'contract-demo', contract => 1, witness => "$base/contract-ran" );
-    write_plugin( "$base/extensions/legacy-demo.pl",
+    write_extension( "$base/extensions/legacy-demo.pl",
         id => 'legacy-demo', contract => 0, witness => "$base/legacy-ran" );
-    $Lazysite::Manager::Plugins::DOCROOT = $d;
+    $Lazysite::Manager::Extensions::DOCROOT = $d;
     return ( $base, $d );
 }
 
-subtest 'a contract plugin is BORN DISABLED and executes nothing' => sub {
+subtest 'a contract extension is BORN DISABLED and executes nothing' => sub {
     my ( $base, $d ) = fixture();
-    ok( !plugin_enabled('extensions/contract-demo.pl'), 'not in the list' );
+    ok( !extension_enabled('extensions/contract-demo.pl'), 'not in the list' );
 
-    my $r = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
+    my $r = action_extension_action( 'contract-demo', 'extensions/contract-demo.pl',
         'touch', {} );
     ok( !$r->{ok}, 'execution refused' );
     like( $r->{error}, qr/disabled.*Extensions page/s,
         'with the house sentence pointing at the enable surface' );
     ok( !-f "$base/contract-ran",
-        'and the plugin really did not run - no witness file' );
+        'and the extension really did not run - no witness file' );
 
     # SM765: a declared READ answers while disabled - and leaves no witness.
-    my $peek = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
+    my $peek = action_extension_action( 'contract-demo', 'extensions/contract-demo.pl',
         'peek', {} );
-    ok( $peek->{ok} && $peek->{peeked}, 'a read action answers while the plugin is off' )
+    ok( $peek->{ok} && $peek->{peeked}, 'a read action answers while the extension is off' )
         or diag $peek->{error};
     ok( !-f "$base/contract-ran", 'and still nothing ran' );
 };
 
-subtest 'a LEGACY plugin is untouched by the gate' => sub {
+subtest 'a LEGACY extension is untouched by the gate' => sub {
     my ( $base, $d ) = fixture();
-    ok( !plugin_enabled('extensions/legacy-demo.pl'),
-        'also not in the list - same list state as the contract plugin' );
+    ok( !extension_enabled('extensions/legacy-demo.pl'),
+        'also not in the list - same list state as the contract extension' );
 
-    my $r = action_plugin_action( 'legacy-demo', 'extensions/legacy-demo.pl',
+    my $r = action_extension_action( 'legacy-demo', 'extensions/legacy-demo.pl',
         'touch', {} );
     ok( $r->{ok},              'runs exactly as it always has' ) or diag $r->{error};
     ok( -f "$base/legacy-ran", 'the witness file proves it ran' );
 };
 
-subtest 'enabling turns the contract plugin on; disabling turns it OFF' => sub {
+subtest 'enabling turns the contract extension on; disabling turns it OFF' => sub {
     my ( $base, $d ) = fixture();
 
-    my $en = action_plugin_enable('extensions/contract-demo.pl');
+    my $en = action_extension_enable('extensions/contract-demo.pl');
     ok( $en->{ok},                                  'enabled' ) or diag $en->{error};
-    ok( plugin_enabled('extensions/contract-demo.pl'), 'the predicate agrees' );
+    ok( extension_enabled('extensions/contract-demo.pl'), 'the predicate agrees' );
 
-    my $r = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
+    my $r = action_extension_action( 'contract-demo', 'extensions/contract-demo.pl',
         'touch', {} );
     ok( $r->{ok} && -f "$base/contract-ran", 'and it executes' );
 
     unlink "$base/contract-ran";
-    my $dis = action_plugin_disable('extensions/contract-demo.pl');
+    my $dis = action_extension_disable('extensions/contract-demo.pl');
     ok( $dis->{ok}, 'disabled' );
-    my $r2 = action_plugin_action( 'contract-demo', 'extensions/contract-demo.pl',
+    my $r2 = action_extension_action( 'contract-demo', 'extensions/contract-demo.pl',
         'touch', {} );
     ok( !$r2->{ok},               'off means off again' );
     ok( !-f "$base/contract-ran", 'no witness - it truly did not run' );
 };
 
-subtest 'config stays reachable on a DISABLED contract plugin' => sub {
-    # An operator must be able to configure a plugin before enabling it, and
+subtest 'config stays reachable on a DISABLED contract extension' => sub {
+    # An operator must be able to configure an extension before enabling it, and
     # the enable flow itself is a config surface - so read/save are not gated.
     my ( $base, $d ) = fixture();
-    my $read = action_plugin_read( 'contract-demo', 'extensions/contract-demo.pl' );
+    my $read = action_extension_read( 'contract-demo', 'extensions/contract-demo.pl' );
     ok( $read->{ok}, 'config read works while disabled' ) or diag $read->{error};
-    my $save = action_plugin_save( 'contract-demo', 'extensions/contract-demo.pl',
+    my $save = action_extension_save( 'contract-demo', 'extensions/contract-demo.pl',
         { note => 'configured before first enable' } );
     ok( $save->{ok}, 'config save works while disabled' ) or diag $save->{error};
 };

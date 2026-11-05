@@ -94,7 +94,7 @@ subtest 'a store at the handler\'s own path reads too' => sub {
 subtest 'the two surfaces agree about where the store is' => sub {
     # form-list is what reported has_store: true while MCP said total: 0, so the
     # disagreement is the thing to assert gone.
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     require Lazysite::Handlers;
     local $Lazysite::Manager::Common::DOCROOT = $d;
     local $Lazysite::Handlers::DOCROOT        = $d;

@@ -21,12 +21,12 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper                 qw(repo_root site_tempdir);
 use Lazysite::Util             ();
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Handlers         ();
 
-my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
+my $EXTENSION = repo_root() . '/extensions/form-handler.pl';
 alarm 60;    # a lock that is never released must fail this file, not hang the suite
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $SECRET = 'test-secret-961';
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
@@ -62,7 +62,7 @@ sub post_in_child {
         open STDIN,  '<', "$d/post.txt" or die $!;
         open STDOUT, '>', '/dev/null';
         open STDERR, '>', '/dev/null';
-        exec $^X, $PLUGIN;
+        exec $^X, $EXTENSION;
         exit 127;
     }
     return $pid;
@@ -101,9 +101,9 @@ subtest 'a delete waits for an append in progress, and keeps the new row' => sub
         # The child inherits this lock's open handle; while it stays open here
         # the lock can never be released, and the child would wait on itself.
         undef $lk;
-        $Lazysite::Manager::Plugins::DOCROOT = $d;
+        $Lazysite::Manager::Extensions::DOCROOT = $d;
         $Lazysite::Handlers::DOCROOT         = $d;
-        my $r = Lazysite::Manager::Plugins::action_form_submission_delete(
+        my $r = Lazysite::Manager::Extensions::action_form_submission_delete(
             'lazysite/forms/submissions/contact.jsonl', $id );
         exit( $r && $r->{ok} ? 0 : 1 );
     }

@@ -116,15 +116,15 @@ subtest 'the socket: under the site when short, oomd\'s default directory when n
 };
 
 subtest 'a config save rewrites the conf (the on_save hook), and off removes it' => sub {
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     my $engine = repo_root();
     local $ENV{PERL5LIB} = join ':', "$engine/lib", $ENV{PERL5LIB} // ();
     {
         no warnings 'once';
-        local $Lazysite::Manager::Plugins::DOCROOT = $d;
+        local $Lazysite::Manager::Extensions::DOCROOT = $d;
         local $Lazysite::Manager::Common::DOCROOT  = $d;
         my $before = slurp( Lazysite::Odoo::Daemon::conf_path($d) );
-        my $r = Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl', { odoo_daemon_workers => '6' } );
+        my $r = Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/odoo.pl', { odoo_daemon_workers => '6' } );
         ok( $r->{ok}, 'the config saves' ) or diag explain $r;
         ok( $r->{hook} && $r->{hook}{ok}, 'and the hook ran' ) or diag explain $r;
         my $after = slurp( Lazysite::Odoo::Daemon::conf_path($d) );
@@ -132,7 +132,7 @@ subtest 'a config save rewrites the conf (the on_save hook), and off removes it'
         like( $after, qr/^workers = 6$/m, 'from the saved config' );
         is( sprintf( '%04o', ( stat Lazysite::Odoo::Daemon::conf_path($d) )[2] & 07777 ), '0600', 'still 0600' );
 
-        $r = Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl', { odoo_daemon => 'off' } );
+        $r = Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/odoo.pl', { odoo_daemon => 'off' } );
         ok( $r->{ok}, 'saving odoo_daemon: off' );
         ok( !-e Lazysite::Odoo::Daemon::conf_path($d), 'removes the conf: nothing that names key files stays when the daemon is off' );
     }

@@ -57,7 +57,7 @@ sub _conf_text {
 # from HTTP codes. No secrets - just the operator-visible site settings.
 sub action_config_read {
     # SM042: the Config page loads via config-read (not the retired lazysite
-    # pseudo-plugin), so this subset must surface EVERY key the page shows -
+    # pseudo-extension), so this subset must surface EVERY key the page shows -
     # settable ones and the readonly_with_link ones (layout/theme/layouts_repo,
     # managed on Appearance). Kept in lock-step with config.md SITE_SCHEMA and
     # config-set's allow-list by t/lint/18-config-key-parity.t.
@@ -264,7 +264,7 @@ sub _app_offline_page_fault {
 # SM072 §13 / control API: set an allowlisted site-config key in
 # lazysite.conf. The allowlist is deliberately narrow - benign display /
 # behaviour keys only, NEVER privilege-relevant keys (manager_groups,
-# plugins, auth_default) or ones with dedicated actions (layout/theme via
+# extensions, auth_default) or ones with dedicated actions (layout/theme via
 # theme-activate/layout-activate). Gated on manage_config by %need.
 # (Defined inside the sub: the dispatch runs above this point in the file,
 # so a file-level `my` initialised here would still be empty at call time.)
@@ -386,7 +386,7 @@ sub action_config_set {
     }
     # 0.9.0 service killswitches + the manager toggle: enabled/disabled, same
     # shape as webdav_enabled (SM042: the whole site-settings page now saves via
-    # config-set, not the lazysite pseudo-plugin, so config-set owns their rules).
+    # config-set, not the lazysite pseudo-extension, so config-set owns their rules).
     if ( $key =~ /^(?:mcp|oauth|control_api|token_exchange)_enabled$/
         && defined $value && $value !~ /^(?:enabled|disabled)$/ )
     {

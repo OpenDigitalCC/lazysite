@@ -148,7 +148,7 @@ like( $page, qr/function statsToggle.*?try\s*\{.*?\}\s*catch\s*\(e\)\s*\{/s,
 # ---------------------------------------------------------------------
 # The page used to fetch a card's contents unconditionally at load, whether or
 # not anyone looked. The deferred-fetch machinery is now exercised by the
-# journeys card; the blocked-address card it was written for moved to Plugin
+# journeys card; the blocked-address card it was written for moved to Extension
 # Config in SM703.
 like( $page, qr/cardSet\(\s*'card-trails'/,
     'a card is fetched through the machinery that knows whether it is open' );
@@ -158,7 +158,7 @@ like( $page, qr/if \(open && !cardLoaded\[key\]\)/,
 # SM703: a block is an ACCESS CONTROL - lazysite-auth.pl answers a blocked
 # address 403 and exits before anything is served - so it does not belong on a
 # page of statistics, where it reads as "hidden from the numbers" rather than
-# "refused the site". It lives with the plugin that does the blocking.
+# "refused the site". It lives with the extension that does the blocking.
 unlike( $page, qr/function loadBlocked/,
     'the blocked-address list is not implemented on the statistics page' );
 unlike( $page, qr/id="blocked-body"/,

@@ -1,10 +1,10 @@
 #!/usr/bin/perl
-# SM757: pressing Enable on the daemon plugin runs its Status action, and Status
+# SM757: pressing Enable on the daemon extension runs its Status action, and Status
 # now LOOKS AT THE HOST - is there a runtime conf naming this docroot, is its
 # timer enabled - and at the job account, and says in one sentence what a sysop
 # must still arrange. The manager has no root; what it can do is tell.
 #
-# The release manager's ruling: "when plugin enable pressed, this should be
+# The release manager's ruling: "when extension enable pressed, this should be
 # checked and operator advised if there are any problems".
 use strict;
 use warnings;
@@ -96,12 +96,12 @@ subtest 'the job account checks say which job will be refused, before it is' => 
     like( summary_of(), qr/Also: sessions-sweep will be refused/, 'the summary carries the first failing check' );
 };
 
-subtest 'the plugin runs Status on Enable and the toggle line gets the summary' => sub {
+subtest 'the extension runs Status on Enable and the toggle line gets the summary' => sub {
     my $src = do { local ( @ARGV, $/ ) = "$root/extensions/daemon.pl"; <> };
     like( $src, qr/on_enable\s*=>\s*'status'/, 'on_enable names the status action' );
     like( $src, qr/\$st->\{message\} = \$st->\{summary\}/, 'and the action puts the summary where the toggle line reads' );
-    my $plugins = do { local ( @ARGV, $/ ) = "$root/starter/manager/extensions.md"; <> };
-    like( $plugins, qr/if \(h && h\.message\) \{ warn\(name \+ ': ' \+ h\.message\); \}/, 'which is h.message on the Extensions page' );
+    my $extensions = do { local ( @ARGV, $/ ) = "$root/starter/manager/extensions.md"; <> };
+    like( $extensions, qr/if \(h && h\.message\) \{ warn\(name \+ ': ' \+ h\.message\); \}/, 'which is h.message on the Extensions page' );
 };
 
 # SM759: the field's list of the states the line must distinguish, and the
@@ -113,7 +113,7 @@ subtest 'disabled: the line says so and says what to do' => sub {
     put( "$d/lazysite/lazysite.conf", "site_name: t\n" );
     my $st = Lazysite::Daemon::Supervisor::status($d);
     is( $st->{desired}, 'off', 'desired off' );
-    like( $st->{message}, qr/plugin is disabled/, 'the state' );
+    like( $st->{message}, qr/extension is disabled/, 'the state' );
     # 'off' is a healthy verdict by the lifecycle contract (desired off, not
     # running), so it carries no remedy field; the next step is in the line.
     like( summary_of(), qr/disabled and the runtime is stopped.*enable it on the Extensions page/, 'the state and the next step, in the one line' );

@@ -53,12 +53,12 @@ push @DOCS, grep { -f } map {"$root/$_"} qw(README.md DEVELOPER.md);
 ok( scalar @DOCS, 'found documentation to check' );
 
 # A repo-relative path: opens with one of our own top-level directories.
-my $REPO_DIR = qr{(?:tools|lib|plugins|debian|starter|installers)};
+my $REPO_DIR = qr{(?:tools|lib|extensions|debian|starter|installers)};
 
 # A path is checked only when it LOOKS like a file or a directory: it carries an
 # extension, or ends in a slash. Without that the check fires on prose that
 # merely contains a slash, and on names that are not paths at all - `tools/list`
-# and `tools/call` are JSON-RPC METHOD names, and "plugins / handlers /
+# and `tools/call` are JSON-RPC METHOD names, and "extensions / handlers /
 # form-targets" is a sentence.
 my $LOOKS_LIKE_PATH = qr{(?:\.[A-Za-z0-9*]+\z|/\z)};
 

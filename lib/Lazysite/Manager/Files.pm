@@ -403,7 +403,7 @@ sub action_list {
             }
 
             # SM245: the brief-presence metadata (is_brief / has_brief) is
-            # gone with the sidecar itself - briefs live in the plugin's
+            # gone with the sidecar itself - briefs live in the extension's
             # store and the listing no longer knows they exist.
             {
                 # SM074: surface ownership from the central ACL store.
@@ -873,7 +873,7 @@ sub _content_write_refusal {
         return { ok => 0, error => $err, kind => 'template-parse-refused', audit_detail => $why };
     }
 
-    # SM504: a .brief write refuses once the briefs plugin owns the record on
+    # SM504: a .brief write refuses once the briefs extension owns the record on
     # this site. Covers the manager save AND MCP (write_file / create_page
     # route through here), exactly as the SM189 guard above does.
     if ( my ( $err, $why ) = brief_write_refusal($rel) ) {
@@ -3533,7 +3533,7 @@ sub _git_target {
 }
 
 # Feature status for the Files page's History control (the operator-facing
-# enable/status surface is the content-history plugin, which drives the same
+# enable/status surface is the content-history extension, which drives the same
 # Lazysite::Git machinery).
 sub action_git_status {
     require Lazysite::Git;

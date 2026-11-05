@@ -239,7 +239,7 @@ sub coerce_row {
     # lose the value - the sysop sees "saved" and the data is not there.
     my $policy_col = Lazysite::Data::Owned::policy_column();
     for my $f ( sort keys %{$input} ) {
-        return _err( "'$f' is maintained by the plugin and cannot be written",
+        return _err( "'$f' is maintained by the extension and cannot be written",
             field => $f, rule => 'reserved' )
             if stamped_column($f);
 

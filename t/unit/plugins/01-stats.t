@@ -5,18 +5,18 @@ use JSON::PP   qw(decode_json encode_json);
 use File::Temp qw(tempdir);
 use POSIX      qw(strftime);
 
-# SM083: the visitor-stats plugin parses the access log into aggregates.
-my $PLUGIN = 'extensions/stats.pl';
-ok( -f $PLUGIN, 'stats plugin present' );
+# SM083: the visitor-stats extension parses the access log into aggregates.
+my $EXTENSION = 'extensions/stats.pl';
+ok( -f $EXTENSION, 'stats extension present' );
 
-my $desc = decode_json(qx($^X $PLUGIN --describe));
+my $desc = decode_json(qx($^X $EXTENSION --describe));
 is( $desc->{id}, 'stats', '--describe: id is stats' );
 ok( @{ $desc->{config_schema} } >= 4, '--describe: config schema present' );
 ok( @{ $desc->{actions} } >= 1,       '--describe: has an action' );
 
 my $d = tempdir( CLEANUP => 1 );
 mkdir "$d/lazysite";
-# Q14g (SM974): gmtime, because the stamp says +0000 and the plugin reads it.
+# Q14g (SM974): gmtime, because the stamp says +0000 and the extension reads it.
 my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime );
 open my $lg, '>', "$d/access.log" or die $!;
 print $lg qq{1.2.3.4 - - [$now] "GET /a HTTP/1.1" 200 100 "https://ext.example/" "Mozilla/5.0"\n};
@@ -33,7 +33,7 @@ sub scan {
     # The log path is an owner-set env var now, never manager config.
     local $ENV{LAZYSITE_ACCESS_LOG} = $opt{access_log} // '';
     local $ENV{LAZYSITE_ERROR_LOG}  = $opt{error_log}  // '';
-    return decode_json(qx($^X $PLUGIN --scan --docroot '$d'));
+    return decode_json(qx($^X $EXTENSION --scan --docroot '$d'));
 }
 
 my $s = scan( "window_days: 30\nanonymise_ip: true\nexclude_bots: true\n",
@@ -118,7 +118,7 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
     open my $sc, '>', "$doc/lazysite/stats.conf" or die $!;
     print $sc "window_days: 30\naccess_log: /etc/passwd\n";
     close $sc;
-    my $got = decode_json(qx($^X $PLUGIN --scan --docroot '$doc'));
+    my $got = decode_json(qx($^X $EXTENSION --scan --docroot '$doc'));
     ok( $got->{ok}, 'auto-detect scan ok (manager access_log ignored)' ) or diag( $got->{error} );
     ok( $got->{log_configured}, 'log resolved (its disk path is never returned)' );
     ok( !exists $got->{log},    'disk path not exposed in the scan output (privacy)' );
@@ -137,7 +137,7 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
     print $cf2 "site_url: https://none.example\n";
     close $cf2;
     open my $sc2, '>', "$doc2/lazysite/stats.conf" or die $!; close $sc2;
-    my $none = decode_json(qx($^X $PLUGIN --scan --docroot '$doc2'));
+    my $none = decode_json(qx($^X $EXTENSION --scan --docroot '$doc2'));
     ok( !$none->{ok} && $none->{needs_config}, 'no log found -> needs_config (ask the operator)' );
 }
 
@@ -158,7 +158,7 @@ SKIP: {
     print $lg3 "x\n"; close $lg3;
     chmod 0000, "$r3/web/locked.example/logs/locked.example.log";
 
-    my $locked = decode_json(qx($^X $PLUGIN --scan --docroot '$doc3'));
+    my $locked = decode_json(qx($^X $EXTENSION --scan --docroot '$doc3'));
     ok( !$locked->{ok} && $locked->{needs_config}, 'unreadable log -> needs_config' );
     like( $locked->{error}, qr/exists .* not \s readable/x,
         'error says the log EXISTS but is unreadable (not "no log found")' );

@@ -10,7 +10,7 @@
 #
 # The filing says the rule is CHECKABLE and that the gate lands with the first
 # code. This is it. It reads every functional file - the CGIs, the processor's
-# parts, the library, the plugins, the tools and the shipped scripts - with
+# parts, the library, the extensions, the tools and the shipped scripts - with
 # comments and POD removed, so prose explaining the boundary may name what it
 # keeps out, and code may not.
 #

@@ -25,8 +25,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $now = time();
 # Q14g (SM974): AND THE RECORDS ARE ONE DAY. They span a few minutes after
@@ -76,7 +76,7 @@ sub build {
 sub ask {
     my ( $d, @sel ) = @_;
     my $args = join ' ', map { quotemeta } @sel;
-    my $out  = `DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export $args 2>/dev/null`;
+    my $out  = `DOCUMENT_ROOT=\Q$d\E $^X \Q$EXTENSION\E --export $args 2>/dev/null`;
     return decode_json( $out || '{}' );
 }
 

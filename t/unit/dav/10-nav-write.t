@@ -49,7 +49,7 @@ grant_caps( $doc, 'deploy', 'manage_nav' );
 # --- lazysite.conf stays denied even with these caps ------------------
 {
     my $r = run_dav( $doc, 'PUT', '/lazysite/lazysite.conf',
-        HTTP_AUTHORIZATION => $auth, body => "plugins: evil\n" );
+        HTTP_AUTHORIZATION => $auth, body => "extensions: evil\n" );
     is( $r->{code}, 403, 'lazysite.conf write stays denied' );
 }
 

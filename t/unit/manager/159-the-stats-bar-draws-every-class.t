@@ -50,11 +50,11 @@ ok( $block, 'the page carries the class-list builder' )
 # it checks. The header above says the page "held its own copy of the list -
 # which is how it fell a release behind"; so did this test.
 #
-# Read from the plugin, so the next class to arrive appears here the day it is
+# Read from the extension, so the next class to arrive appears here the day it is
 # declared and this stays a test of the PAGE rather than of a list typed twice.
-my $plugin = repo_root() . '/extensions/stats.pl';
+my $extension = repo_root() . '/extensions/stats.pl';
 my ($cls_decl) = do {
-    open my $pf, '<', $plugin or die $!;
+    open my $pf, '<', $extension or die $!;
     local $/;
     <$pf> =~ /our \@CLASSES = qw\(([^)]+)\)/;
 };

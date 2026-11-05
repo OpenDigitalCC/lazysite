@@ -17,7 +17,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 my $root   = repo_root();
 my $parent = site_tempdir();    # lint 118: not a bare tempdir
@@ -34,8 +34,8 @@ sub reset_conf {
     close $c;
 }
 sub conf { open my $h, '<', $conf or return ''; local $/; return <$h> }
-$Lazysite::Manager::Plugins::DOCROOT = $d;
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/form-smtp.pl', {@_} ) }
+$Lazysite::Manager::Extensions::DOCROOT = $d;
+sub save { return Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/form-smtp.pl', {@_} ) }
 
 # The canary: a real new password lands, and is reported as changed.
 reset_conf();

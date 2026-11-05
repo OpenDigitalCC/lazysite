@@ -37,7 +37,7 @@ use TestHelper qw(repo_root site_tempdir env_passthrough);
 
 BEGIN {
     eval { require DBI; require DBD::SQLite; 1 }
-        or plan skip_all => 'DBI/DBD::SQLite not available (the data plugin needs them)';
+        or plan skip_all => 'DBI/DBD::SQLite not available (the data extension needs them)';
 }
 
 my $root   = repo_root();

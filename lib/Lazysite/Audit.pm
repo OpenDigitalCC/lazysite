@@ -49,7 +49,7 @@ sub _warn_once {
 #
 # `audit_trail: off` in lazysite.conf stops the trail recording. It is its own
 # setting rather than an extension toggle, because the registry cannot say "on
-# unless switched off": `plugins:` lists what is on, and absence there means both
+# unless switched off": `extensions:` lists what is on, and absence there means both
 # "switched off" and "never asked". So here ABSENCE IS ON, and only an explicit
 # `off` stops it. A value that is neither on nor off also reads as ON - an audit
 # trail that cannot tell what it was told keeps recording, which is the safe way
@@ -96,7 +96,7 @@ sub audit_log {
     $line .= " | $detail" if length $detail;
 
     _append_line( $act, $line );
-    # External forwarding (the 'Logging & forwarding' plugin): best-effort,
+    # External forwarding (the 'Logging & forwarding' extension): best-effort,
     # independent of the file append, so an entry that could not land on disk
     # can still reach the operator's syslog.
     Lazysite::Util::forward_line( 'audit', 'info', $line );

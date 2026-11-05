@@ -50,7 +50,7 @@ function showProxyWarning(msg) {
 var API = '/cgi-bin/lazysite-manager-api.pl';
 
 // SM042: SITE_SCHEMA is the SOLE source of truth for the site-settings form.
-// (It no longer mirrors the processor's config_schema - that pseudo-plugin path
+// (It no longer mirrors the processor's config_schema - that pseudo-extension path
 // is retired. Every settable key here MUST also be in the control API's
 // config-set allow-list and config-read subset; the guarantee test
 // t/lint/18-config-key-parity.t fails the build if they drift.)
@@ -324,7 +324,7 @@ var loadedValues = {};
 
 function loadSiteSettings() {
   // SM042: site settings are read via the control API's config-read (a safe,
-  // per-key subset) - NOT the lazysite pseudo-plugin. SM044: fetch settings and
+  // per-key subset) - NOT the lazysite pseudo-extension. SM044: fetch settings and
   // the layouts-available list in parallel so the layout dropdown renders with
   // real options on first paint; the theme dropdown follows once the layout is known.
   var readPromise = fetch(API + '?action=config-read')
@@ -710,7 +710,7 @@ function saveSiteSettings_go(values) {
 
   // SM042: the whole site-settings page now persists via the control API's
   // per-key config-set (each key validated + audited by the API) - NOT the
-  // lazysite pseudo-plugin's extension-save. Only CHANGED, settable keys are
+  // lazysite pseudo-extension's extension-save. Only CHANGED, settable keys are
   // written; readonly_with_link fields (layout/theme/layouts_repo, managed on
   // Appearance) are never sent. CSRF is added by the manager's fetch wrapper.
   var settable = {};
@@ -797,7 +797,7 @@ function saveSiteSettings_go(values) {
 
 // SM042: site settings load (config-read) and save (per-key config-set) go
 // straight through the control API. The old indirection - discovering the
-// processor as a pseudo-plugin (id 'lazysite') via extension-list, then
+// processor as a pseudo-extension (id 'lazysite') via extension-list, then
 // extension-read/extension-save - is retired; SITE_SCHEMA below is now the sole source
 // of truth for the form, and config-set's allow-list is the sole gate on writes.
 loadSiteSettings();

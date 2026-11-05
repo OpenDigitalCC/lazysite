@@ -1,21 +1,21 @@
 #!/usr/bin/perl
-# SM447 / ADR 0009: the plugin's `owns` declaration is asserted against the
+# SM447 / ADR 0009: the extension's `owns` declaration is asserted against the
 # code, not merely present.
 #
 # THE WHOLE POINT OF THE CONTRACT is that the platform CONSUMES the
-# declaration instead of knowing about the plugin by name: backup and site
+# declaration instead of knowing about the extension by name: backup and site
 # packages read `storage`, the SBOM gate reads `deps`, the capability lints
 # discover `capabilities`. Every one of those consumers trusts the list. A
 # declaration nothing checks is a comment with punctuation - and worse than a
 # comment, because the platform acts on it.
 #
 # The failure it prevents is specific and has already happened once, as SM410
-# finding B: a plugin's data directory carried by one backup kind and silently
-# dropped by another, because each learned about plugin-owned assets
+# finding B: an extension's data directory carried by one backup kind and silently
+# dropped by another, because each learned about extension-owned assets
 # separately. A wrong `storage` line reintroduces exactly that, and the symptom
 # is a restored site missing data nobody notices until they look for it.
 #
-# ADR 0009 says a clause that survives the data plugin is proven rather than
+# ADR 0009 says a clause that survives the data extension is proven rather than
 # speculative. This is what surviving means.
 use strict;
 use warnings;
@@ -24,17 +24,17 @@ use JSON::PP;
 use FindBin;
 
 my $root   = "$FindBin::Bin/../../..";
-my $plugin = "$root/extensions/data.pl";
-plan skip_all => 'plugin not present' unless -f $plugin;
+my $extension = "$root/extensions/data.pl";
+plan skip_all => 'extension not present' unless -f $extension;
 
-my $d = eval { decode_json(`$^X \Q$plugin\E --describe`) };
+my $d = eval { decode_json(`$^X \Q$extension\E --describe`) };
 ok( ref $d eq 'HASH', '--describe returns JSON' ) or BAIL_OUT($@);
 
 subtest 'it describes itself even with no Lazysite tree' => sub {
-    # A plugin that cannot describe itself cannot be listed, and an operator
+    # An extension that cannot describe itself cannot be listed, and an operator
     # sees it MISSING rather than broken - so the module lookup is deferred
     # and this is the assertion that keeps it deferred.
-    my $out = `$^X \Q$plugin\E --describe 2>&1`;
+    my $out = `$^X \Q$extension\E --describe 2>&1`;
     ok( $out =~ /^\{/, 'output is JSON, not a load error' );
     is( $?, 0, 'and it exits cleanly' );
 };
@@ -48,7 +48,7 @@ subtest 'config_keys names exactly what config_schema offers' => sub {
     is_deeply( \@owned, \@schema,
         'the two lists agree' )
         or diag( 'One is what the operator is shown and the other is what the '
-            . 'platform treats as this plugin\'s. A key in one and not the '
+            . 'platform treats as this extension\'s. A key in one and not the '
             . 'other is either an unsettable setting or an unowned key.' );
 };
 
@@ -87,8 +87,8 @@ subtest 'deps names every non-core module the data code loads' => sub {
                 . 'finds is listed, so this fails the RELEASE - the most '
                 . 'expensive place to find it.' );
         next if $mods->{$m} && $mods->{$m}{core};
-        ok( $declared{$m}, "$m is declared in the plugin's deps" )
-            or diag( "$m is not core, so it is this plugin's to declare." );
+        ok( $declared{$m}, "$m is declared in the extension's deps" )
+            or diag( "$m is not core, so it is this extension's to declare." );
     }
     # The engine modules are used through Connect/SQLite and must be declared
     # even though the loop above removes them from the grep set.
@@ -119,23 +119,23 @@ subtest 'what it declares is MIRRORED, not duplicated' => sub {
 
     # NOT A ROLL-CALL. This asserted `exactly manage_data`, which was a list of
     # names rather than the property being protected - and it failed the moment
-    # SM682 gave the plugin a second capability (write_data, the narrow
+    # SM682 gave the extension a second capability (write_data, the narrow
     # row-write grant), which is a legitimate thing for it to own.
     #
-    # The property is that the plugin declares AT LEAST its own capability and
+    # The property is that the extension declares AT LEAST its own capability and
     # that everything it declares is mirrored in @CAP_KEYS. Which capabilities
-    # those are is the plugin's business and changes as it grows.
+    # those are is the extension's business and changes as it grows.
     ok( ( grep { $_ eq 'manage_data' } @caps ),
-        'the data plugin owns manage_data' );
+        'the data extension owns manage_data' );
 
     # THIS ASSERTION USED TO SAY THE OPPOSITE, and the change is deliberate.
     # It required manage_data NOT to be in @CAP_KEYS, on the reasoning that two
     # owners of one capability is the ambiguity ADR 0009 removes. That is
     # right about OWNERSHIP and wrong about the LIST: caps_for() is on every
-    # request and cannot run ten plugins to discover names, so the runtime
+    # request and cannot run ten extensions to discover names, so the runtime
     # keeps a static mirror.
     #
-    # The plugin stays the owner. t/lint/76 discovers the declarations and
+    # The extension stays the owner. t/lint/76 discovers the declarations and
     # refuses a mirror with no owner, or one claimed twice - which is where the
     # ambiguity is actually prevented.
     require "$root/lib/Lazysite/Auth/Settings.pm";
@@ -143,7 +143,7 @@ subtest 'what it declares is MIRRORED, not duplicated' => sub {
     my @unmirrored = grep { !$key{$_} } @caps;
     is_deeply( \@unmirrored, [],
         'and every capability it declares is grantable' )
-        or diag( 'A capability nobody can be granted leaves the plugin\'s '
+        or diag( 'A capability nobody can be granted leaves the extension\'s '
             . 'actions unreachable, with nothing saying why. Missing from '
             . "\@CAP_KEYS: @unmirrored" );
 };
@@ -151,7 +151,7 @@ subtest 'what it declares is MIRRORED, not duplicated' => sub {
 subtest 'status reports and does not repair' => sub {
     use File::Temp qw(tempdir);
     my $dir = tempdir( CLEANUP => 1 );
-    my $out = decode_json(`$^X \Q$plugin\E --action status --docroot \Q$dir\E`);
+    my $out = decode_json(`$^X \Q$extension\E --action status --docroot \Q$dir\E`);
     ok( $out->{ok}, 'status answers on an empty docroot' );
     is( $out->{store}{exists}, 0, 'and reports no store' );
     ok( !-e "$dir/lazysite/db/data.sqlite",

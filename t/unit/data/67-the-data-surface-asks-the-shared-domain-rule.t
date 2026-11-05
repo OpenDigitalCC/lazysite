@@ -44,7 +44,7 @@ use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Files   ();
 use Lazysite::Auth::Acl        ();
 
-my $d = Cwd::realpath( TestHelper::site_tempdir( plugins => 1 ) );
+my $d = Cwd::realpath( TestHelper::site_tempdir( extensions => 1 ) );
 make_path( "$d/lazysite/db/tables", "$d/lazysite/db/rebuilds", "$d/lazysite/auth",
     map { "$d/sites/$_" } qw(alpha alpha/blog beta) );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;

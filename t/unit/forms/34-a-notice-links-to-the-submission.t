@@ -26,11 +26,11 @@ use File::Path  qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Handlers         ();
 
-my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/form-handler.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/forms", "$d/lazysite/logs" );
@@ -44,7 +44,7 @@ spit( "$d/lazysite/lazysite.conf",         "site_name: T\nsite_url: https://exam
 spit( "$d/lazysite/forms/.secret",         "$SECRET\n" );
 spit( "$d/lazysite/forms/handlers.conf",   "handlers:\n  - id: jsonl\n    type: file\n" );
 spit( "$d/lazysite/forms/contact.conf",    "targets:\n  - handler: jsonl\n" );
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 $Lazysite::Handlers::DOCROOT         = $d;
 
 my $BOUNDARY = 'Sbnd938';
@@ -66,7 +66,7 @@ sub submit {
     local $ENV{DOCUMENT_ROOT}  = $d;
     local $ENV{REMOTE_ADDR}    = '203.0.113.7';
     local $ENV{HTTP_HOST}      = 'example.com';
-    qx($^X \Q$PLUGIN\E < \Q$d/post.bin\E 2>/dev/null);
+    qx($^X \Q$EXTENSION\E < \Q$d/post.bin\E 2>/dev/null);
     return;
 }
 sub last_notice {
@@ -89,7 +89,7 @@ subtest 'the notice links to the row that was stored' => sub {
 
 subtest 'the link resolves to that submission, as typed' => sub {
     plan skip_all => 'no id' unless $id;
-    my $r = Lazysite::Manager::Plugins::action_form_submission( $STORE, $id );
+    my $r = Lazysite::Manager::Extensions::action_form_submission( $STORE, $id );
     ok( $r->{ok}, 'read' ) or return diag explain $r;
     is( $r->{record}{name}, 'Ann', 'the row the visitor sent' );
     is( $r->{record}{message}, "caf\x{e9} \x{263a}", 'its text as typed, non-ASCII included' );
@@ -99,7 +99,7 @@ subtest 'the link resolves to that submission, as typed' => sub {
 
 subtest 'the link\'s id is the id the table gives the row' => sub {
     plan skip_all => 'no id' unless $id;
-    my $t = Lazysite::Manager::Plugins::action_form_submissions($STORE);
+    my $t = Lazysite::Manager::Extensions::action_form_submissions($STORE);
     my ($ann) = grep { $_->{name} eq 'Ann' } @{ $t->{rows} };
     is( scalar @{ $t->{rows} }, 2, 'two rows in the table' );
     is( $ann && $ann->{_id}, $id, 'and the linked row carries the same id there' )
@@ -109,32 +109,32 @@ subtest 'the link\'s id is the id the table gives the row' => sub {
 
 subtest 'a gone row, a malformed id, a store outside the stores' => sub {
     plan skip_all => 'no id' unless $id;
-    Lazysite::Manager::Plugins::action_form_submission_delete( $STORE, $id );
-    my $r = Lazysite::Manager::Plugins::action_form_submission( $STORE, $id );
+    Lazysite::Manager::Extensions::action_form_submission_delete( $STORE, $id );
+    my $r = Lazysite::Manager::Extensions::action_form_submission( $STORE, $id );
     is( $r->{kind}, 'not-found', 'a deleted row is not-found' );
     like( $r->{error}, qr/deleted since the notice was sent/, 'in words that say what probably happened' );
     like( $r->{error}, qr/\Q$id\E on the form 'contact'/, 'naming the id and the form' );
     unlike( $r->{error}, qr{/|\.jsonl}, 'and no path to the store (SM953)' )
         or diag('The owner: a message should not expose file paths.');
-    my $gone = Lazysite::Manager::Plugins::action_form_submission(
+    my $gone = Lazysite::Manager::Extensions::action_form_submission(
         'lazysite/forms/submissions/nosuch.jsonl', $id );
     is( $gone->{kind}, 'not-found', 'a store that does not exist is not-found' );
     unlike( $gone->{error} // '', qr{/|\.jsonl}, 'and says so without a path' ) or diag( $gone->{error} );
-    is( Lazysite::Manager::Plugins::action_form_submission( $STORE, 'nothex' )->{field}, 'id',
+    is( Lazysite::Manager::Extensions::action_form_submission( $STORE, 'nothex' )->{field}, 'id',
         'a malformed id is refused, naming the field' );
     # A real file outside the stores, holding a row with a known id - so the
     # refusal has to be the confinement, not the file being absent.
     make_path("$d/lazysite/auth");
     my $line = '{"sid":"x"}';
     spit( "$d/lazysite/auth/sessions.jsonl", "$line\n" );
-    my $out = Lazysite::Manager::Plugins::action_form_submission( 'lazysite/auth/sessions.jsonl',
+    my $out = Lazysite::Manager::Extensions::action_form_submission( 'lazysite/auth/sessions.jsonl',
         Lazysite::Handlers::submission_row_id($line) );
     ok( !$out->{ok}, 'a file outside the submission stores is refused' );
     like( $out->{error} // '', qr/Invalid submissions file/, 'by the same confinement the table uses' );
 };
 
 subtest 'without a stored row the notice still links somewhere real' => sub {
-    my $src = slurp($PLUGIN);
+    my $src = slurp($EXTENSION);
     my ($sub) = $src =~ /(sub _submission_url \{.*?\n\})/s;
     ok( $sub, 'found the url builder' ) or return;
     my $f = eval "package T; $sub; \\&_submission_url" or die $@;

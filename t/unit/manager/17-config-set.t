@@ -147,7 +147,7 @@ $tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 }
 
 # SM042: the whole site-settings page saves via config-set now, so manager +
-# manager_path (previously written by the pseudo-plugin's plugin-save) are
+# manager_path (previously written by the pseudo-extension's extension-save) are
 # settable here too.
 {
     # SM612: THE TOKEN PATH IS REFUSED FOR THESE TWO NOW, and this block used

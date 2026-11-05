@@ -759,7 +759,7 @@ sub log_event {
     return;
 }
 
-# --- External log forwarding (the 'Logging & forwarding' plugin, log.pl) ----
+# --- External log forwarding (the 'Logging & forwarding' extension, log.pl) ----
 #
 # forward_audit / forward_diagnostics / syslog_facility in lazysite.conf control
 # best-effort syslog copies of the two streams: audit-trail lines (the pipe
@@ -972,7 +972,7 @@ sub forward_line {
     my $cfg = _forward_conf();
 
     # SM932: the audit stream stays a boolean; the diagnostics stream carries a
-    # THRESHOLD, applied here rather than in log_event because four plugins
+    # THRESHOLD, applied here rather than in log_event because four extensions
     # (audit, form-handler, form-smtp, payment-demo) carry their own log_event
     # copy and call straight into this sub. One gate, five callers.
     if ( $stream eq 'audit' ) {

@@ -103,7 +103,7 @@ sub group_map {
     return parse_map( conf($dir)->{odoo_group_map}, $dir );
 }
 
-# The save-time check (Manager::Plugins asks it of a field that declares `validate`):
+# The save-time check (Manager::Extensions asks it of a field that declares `validate`):
 # '' when every entry may be stored, else the sentence naming each refused entry.
 sub validate_group_map {
     my ( $value, $dir )     = @_;

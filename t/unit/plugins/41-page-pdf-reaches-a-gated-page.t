@@ -2,10 +2,10 @@
 # N141B-A: page-pdf converts a page that lives in the private store.
 #
 # A page under a draft or read ACL is not at $docroot/$rel - it is in the
-# private store, and SM738 gave this plugin a `resolve` callback precisely so it
+# private store, and SM738 gave this extension a `resolve` callback precisely so it
 # could be found. convert() then tested `-f "$docroot/$rel"` BEFORE consulting
 # that callback, answered "no such page", and returned. The resolver was never
-# reached for the one class of page it exists to serve: the plugin worked only
+# reached for the one class of page it exists to serve: the extension worked only
 # on the pages that did not need it.
 #
 # Reported from the field with the workaround already in place - the agent was
@@ -23,8 +23,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/extensions/pandoc.pl';
-require $plugin;
+my $extension = repo_root() . '/extensions/pandoc.pl';
+require $extension;
 
 my $d = site_tempdir();
 my $public  = "$d/public";
@@ -95,7 +95,7 @@ isnt( $open->{error} // '', 'no such page',
 
 # --- and with NO resolver at all, the docroot is still the answer ------------
 #
-# Callers that pass no `resolve` get the old behaviour exactly: this plugin is
+# Callers that pass no `resolve` get the old behaviour exactly: this extension is
 # used from surfaces that have no private store to consult.
 my $no_res = main::convert( docroot => $public, path => 'open/notes.md' );
 isnt( $no_res->{error} // '', 'no such page',
@@ -104,7 +104,7 @@ isnt( $no_res->{error} // '', 'no such page',
 my $no_res_gated = main::convert( docroot => $public, path => 'docs/policy.md' );
 is( $no_res_gated->{error}, 'no such page',
     'and a private-store page is correctly unknown to a caller with no resolver' )
-    or diag( 'Without a resolver the plugin has no business finding a page '
+    or diag( 'Without a resolver the extension has no business finding a page '
         . 'outside the docroot it was handed.' );
 
 done_testing();

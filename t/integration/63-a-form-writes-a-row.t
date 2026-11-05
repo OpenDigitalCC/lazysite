@@ -15,7 +15,7 @@
 #
 # SM842: the `db` handler became `table` with keep_copy: false, and delivery
 # moved into Lazysite::Handlers - the same code the schedule calls. This file
-# drives it there, through deliver(), rather than through the plugin.
+# drives it there, through deliver(), rather than through the extension.
 use strict;
 use warnings;
 use Test::More;
@@ -68,18 +68,18 @@ handlers:
 CONF
 close $hf;
 
-# ENABLED STATE LIVES IN lazysite.conf's `plugins:` LIST, not in a file of its
+# ENABLED STATE LIVES IN lazysite.conf's `extensions:` LIST, not in a file of its
 # own - checked rather than assumed, because the first version of this fixture
-# wrote a plugins.conf that nothing reads, so the "disabled" subtest ran
-# against an enabled plugin and passed for no reason.
-sub set_plugins {
+# wrote an extensions.conf that nothing reads, so the "disabled" subtest ran
+# against an enabled extension and passed for no reason.
+sub set_extensions {
     my ($on) = @_;
     open my $f, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$f} "site_name: T\n";
     print {$f} "extensions:\n  - extensions/data.pl\n" if $on;
     close $f;
 }
-set_plugins(1);
+set_extensions(1);
 
 $Lazysite::Handlers::DOCROOT = $docroot;
 
@@ -170,13 +170,13 @@ subtest 'the operator has to say where it goes' => sub {
 
 subtest 'OFF MEANS OFF, on this path too' => sub {
     # SM409. A form quietly writing to a table an operator has switched off
-    # would be the plugin still running after being turned off.
-    set_plugins(0);
+    # would be the extension still running after being turned off.
+    set_extensions(0);
     my $before = scalar @{ rows() };
     ok( !dispatch_db( \%handler,
             { _form => 'contact', ref => 'E9', name => 'Nope' } ),
-        'the handler refuses while the data plugin is disabled' );
-    set_plugins(1);
+        'the handler refuses while the data extension is disabled' );
+    set_extensions(1);
     is( scalar @{ rows() }, $before, 'and stored nothing' );
 };
 

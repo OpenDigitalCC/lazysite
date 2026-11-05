@@ -1,14 +1,14 @@
 #!/usr/bin/perl
-# SM759: the runtime and the start-page gate read the plugin's enabled state
-# through the SAME WRITER the Plugin Manager uses - never a fixture's idea of
+# SM759: the runtime and the start-page gate read the extension's enabled state
+# through the SAME WRITER the Extension Manager uses - never a fixture's idea of
 # what the conf holds.
 #
 # The field found it: Enable wrote `extensions/daemon.pl` into the conf, the
 # listing read it back as enabled, and the runtime looked up 'daemon.pl' -
-# a word the conf never holds - and reported "the plugin is disabled" five
+# a word the conf never holds - and reported "the extension is disabled" five
 # minutes after the sysop had switched it on. Every daemon test had written
 # `- daemon.pl` by hand, so the fixture agreed with the reader and the two
-# never met. This test enables through action_plugin_enable and asks the
+# never met. This test enables through action_extension_enable and asks the
 # readers, which is the only join that proves the writer and the readers
 # agree on the key.
 use strict;
@@ -19,14 +19,14 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib", "$FindBin::Bin/../../lib";
 
-use Lazysite::Manager::Plugins;
+use Lazysite::Manager::Extensions;
 use Lazysite::Daemon::Supervisor;
 use Lazysite::Manager::StartPage;
 
 my $engine = "$FindBin::Bin/../../..";
 
 # The registry scans "$DOCROOT/../extensions", so the site sits one level below
-# a directory that carries the engine's real plugins.
+# a directory that carries the engine's real extensions.
 my $base = tempdir( CLEANUP => 1 );
 symlink( "$engine/extensions", "$base/extensions" ) or die "symlink: $!";
 my $root = "$base/site";
@@ -35,11 +35,11 @@ open my $c, '>', "$root/lazysite/lazysite.conf" or die $!;
 print {$c} "site_name: t\n";
 close $c;
 
-$Lazysite::Manager::Plugins::DOCROOT = $root;
+$Lazysite::Manager::Extensions::DOCROOT = $root;
 $Lazysite::Manager::Common::DOCROOT  = $root;
 $Lazysite::Manager::StartPage::DOCROOT = $root;
 
-# The on_enable hook runs the plugin as a subprocess; it needs the lib.
+# The on_enable hook runs the extension as a subprocess; it needs the lib.
 local $ENV{PERL5LIB} = join ':', "$engine/lib", ( $ENV{PERL5LIB} // () );
 
 subtest 'before: the runtime reads disabled' => sub {
@@ -47,7 +47,7 @@ subtest 'before: the runtime reads disabled' => sub {
 };
 
 subtest 'enable through the manager: the runtime reads enabled' => sub {
-    my $r = Lazysite::Manager::Plugins::action_plugin_enable('extensions/daemon.pl');
+    my $r = Lazysite::Manager::Extensions::action_extension_enable('extensions/daemon.pl');
     ok( $r->{ok}, 'the manager enabled it' ) or diag explain $r;
     open my $fh, '<', "$root/lazysite/lazysite.conf" or die $!;
     my $conf = do { local $/; <$fh> };
@@ -58,16 +58,16 @@ subtest 'enable through the manager: the runtime reads enabled' => sub {
         'should_run reads the key the manager wrote' );
     my $st = Lazysite::Daemon::Supervisor::status($root);
     is( $st->{desired}, 'on', 'status: desired on' );
-    unlike( $st->{summary}, qr/plugin is disabled/, 'the summary does not call an enabled plugin disabled' )
+    unlike( $st->{summary}, qr/extension is disabled/, 'the summary does not call an enabled extension disabled' )
         or diag $st->{summary};
 
     # The hook's answer is what the toggle shows; it must agree.
     ok( ref $r->{hook} eq 'HASH', 'on_enable ran status' ) or diag explain $r;
-    is( $r->{hook}{desired}, 'on', 'and the toggle line is about an ENABLED plugin' );
+    is( $r->{hook}{desired}, 'on', 'and the toggle line is about an ENABLED extension' );
 };
 
 subtest 'disable through the manager: the runtime reads disabled' => sub {
-    my $r = Lazysite::Manager::Plugins::action_plugin_disable('extensions/daemon.pl');
+    my $r = Lazysite::Manager::Extensions::action_extension_disable('extensions/daemon.pl');
     ok( $r->{ok}, 'disabled' ) or diag explain $r;
     is( Lazysite::Daemon::Supervisor::should_run($root), 0, 'should_run follows' );
 
@@ -75,8 +75,8 @@ subtest 'disable through the manager: the runtime reads disabled' => sub {
     # afterwards - answers with the state, not the refusal. The disable hook
     # had shown it seconds earlier; the field found the button blank a minute
     # later.
-    my $st = Lazysite::Manager::Plugins::action_plugin_action( 'daemon', 'extensions/daemon.pl', 'status' );
-    ok( $st->{ok}, 'Status answers while the plugin is disabled' ) or diag explain $st;
+    my $st = Lazysite::Manager::Extensions::action_extension_action( 'daemon', 'extensions/daemon.pl', 'status' );
+    ok( $st->{ok}, 'Status answers while the extension is disabled' ) or diag explain $st;
     is( $st->{desired}, 'off', 'desired off' );
     like( $st->{summary}, qr/disabled and the runtime is stopped/, 'and says the runtime stopped' );
     ok( ref $st->{host} eq 'HASH' && ref $st->{checks} eq 'ARRAY' && ref $st->{runs} eq 'HASH', 'with host, checks and runs' );
@@ -85,9 +85,9 @@ subtest 'disable through the manager: the runtime reads disabled' => sub {
 subtest 'the start-page gate reads the same key' => sub {
     my $caps = { ui => 1 };
     is( Lazysite::Manager::StartPage::_page_reachable( 'stats', $caps ), 0,
-        'stats page unreachable while its plugin is off' );
-    my $r = Lazysite::Manager::Plugins::action_plugin_enable('extensions/stats.pl');
-    ok( $r->{ok}, 'stats plugin enabled through the manager' ) or diag explain $r;
+        'stats page unreachable while its extension is off' );
+    my $r = Lazysite::Manager::Extensions::action_extension_enable('extensions/stats.pl');
+    ok( $r->{ok}, 'stats extension enabled through the manager' ) or diag explain $r;
     is( Lazysite::Manager::StartPage::_page_reachable( 'stats', $caps ), 1,
         'and now reachable - the gate read what the manager wrote' );
 };

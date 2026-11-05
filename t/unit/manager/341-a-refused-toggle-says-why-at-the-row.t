@@ -33,7 +33,7 @@ plan skip_all => 'node not installed' unless length $node && -x $node;
 my $page = PageScript::page_source("$root/starter/manager/extensions.md");
 my $fns  = join "\n",
     map { PageScript::extract_function( $page, $_ ) }
-    qw(warn showRowRefusal clearRowRefusal togglePlugin);
+    qw(warn showRowRefusal clearRowRefusal toggleExtension);
 my $dir = File::Temp->newdir;
 
 # A stand-in DOM holding exactly what the four functions touch: the status
@@ -63,41 +63,41 @@ El.prototype.closest = function (sel) {
   return null;
 };
 var status = new El('mg-status');
-var row = new El('mg-plugin-row'), ctl = row.appendChild(new El('mg-plugin-ctl')),
-    main = row.appendChild(new El('mg-plugin-main')), input = ctl.appendChild(new El('mg-toggle'));
+var row = new El('mg-extension-row'), ctl = row.appendChild(new El('mg-extension-ctl')),
+    main = row.appendChild(new El('mg-extension-main')), input = ctl.appendChild(new El('mg-toggle'));
 var document = {
-  getElementById: function (id) { return id === 'plugin-status' ? status : null; },
+  getElementById: function (id) { return id === 'extension-status' ? status : null; },
   createElement: function () { return new El(''); }
 };
 var API = '/api', reloaded = 0;
-function loadPluginRegistry() { reloaded++; }
+function loadExtensionRegistry() { reloaded++; }
 var reply;
 function fetch() { return reply(); }
 function ok(v) { return Promise.resolve({ json: function () { return Promise.resolve(v); } }); }
-function refusal() { var n = main.querySelector('.mg-plugin-refusal'); return n ? n.textContent : null; }
+function refusal() { var n = main.querySelector('.mg-extension-refusal'); return n ? n.textContent : null; }
 function out(o) { console.log(JSON.stringify(o)); }
 JS
 
 my $drive = <<'JS';
 (async function () {
-  var said = 'This plugin needs Odoo::Ops (Debian: odoo-oom) and they are not installed.';
+  var said = 'This extension needs Odoo::Ops (Debian: odoo-oom) and they are not installed.';
   reply = function () { return ok({ ok: 0, kind: 'missing_deps', error: said }); };
   input.checked = true;
-  togglePlugin(input, 'extensions/odoo.pl', 'Odoo');
+  toggleExtension(input, 'extensions/odoo.pl', 'Odoo');
   await new Promise(function (r) { setTimeout(r, 10); });
-  var note = main.querySelector('.mg-plugin-refusal');
+  var note = main.querySelector('.mg-extension-refusal');
   out({ step: 'refused', checked: input.checked, row: refusal(),
         role: note && note.attrs.role, status: status.textContent,
         error: status.classList.contains('mg-status-error') });
 
   reply = function () { return new Promise(function () {}); };
   input.checked = true;
-  togglePlugin(input, 'extensions/odoo.pl', 'Odoo');
+  toggleExtension(input, 'extensions/odoo.pl', 'Odoo');
   out({ step: 'retry', row: refusal() });
 
   reply = function () { return Promise.reject(new Error('network down')); };
   input.disabled = false; input.checked = true;
-  togglePlugin(input, 'extensions/odoo.pl', 'Odoo');
+  toggleExtension(input, 'extensions/odoo.pl', 'Odoo');
   await new Promise(function (r) { setTimeout(r, 10); });
   out({ step: 'unreachable', row: refusal(), checked: input.checked });
 })();
@@ -114,7 +114,7 @@ diag "node said: @lines" unless keys %r == 3;
 subtest 'a refused enable says why under its own row' => sub {
     my $s = $r{refused} or return fail('no result');
     ok !$s->{checked}, 'the switch goes back';
-    like $s->{row}, qr/Failed to enable Odoo: This plugin needs Odoo::Ops/,
+    like $s->{row}, qr/Failed to enable Odoo: This extension needs Odoo::Ops/,
         'the row carries the server sentence, naming what is missing';
     is $s->{role}, 'alert', 'announced as an alert';
     like $s->{status}, qr/Odoo::Ops/, 'the status line says it too';

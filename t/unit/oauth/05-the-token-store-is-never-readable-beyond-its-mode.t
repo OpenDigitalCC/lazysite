@@ -99,7 +99,7 @@ for my $rel (
     'lib/Lazysite/Auth/OAuth.pm',      'lib/Lazysite/Manager/Users.pm',
     'lib/Lazysite/Manager/Sessions.pm', 'lib/Lazysite/Auth/Session.pm',
     'lib/Lazysite/Manager/AccountImport.pm',
-    'lib/Lazysite/Manager/Preview.pm',  'lib/Lazysite/Manager/Plugins.pm',
+    'lib/Lazysite/Manager/Preview.pm',  'lib/Lazysite/Manager/Extensions.pm',
     ) {
     open my $fh, '<', "$root/$rel" or die "$rel: $!";
     my $src = do { local $/; <$fh> };
@@ -107,7 +107,7 @@ for my $rel (
     like( $src, qr/write_private_atomic/, "$rel writes its secret through write_private_atomic" );
     unlike( $src, qr{open\s+my\s+\$\w+,\s*'>[:\w]*',\s*\$(?:tmp|path|mpath)\b},
         "$rel does not open a secret with the umask's mode and chmod it afterwards" )
-        unless $rel =~ /Plugins/;    # other, non-secret writes live there
+        unless $rel =~ /Extensions/;    # other, non-secret writes live there
 }
 # SM1217 (OOM 0.38): Lazysite::Odoo::SiteSignin no longer writes a file at all - its
 # only writer was the unknown-groups report, which OOM's has_groups no longer feeds.

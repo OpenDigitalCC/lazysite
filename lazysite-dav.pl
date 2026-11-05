@@ -305,7 +305,7 @@ sub main {
     elsif ( $method eq 'UNLOCK' ) { return do_unlock(%args) }
 
     # Reads (GET / PROPFIND) are NOT audited - the audit trail records MATERIAL
-    # actions only, not access (the access log + a future stats plugin cover
+    # actions only, not access (the access log + a future stats extension cover
     # browsing). Only state-changing methods are recorded below.
     if ( $method eq 'GET' )      { return do_get( %args, head => 0 ) }
     if ( $method eq 'PROPFIND' ) { return do_propfind(%args) }
@@ -635,9 +635,9 @@ sub do_put {
         return send_status( $code, body => "Locked\n" );
     }
 
-    # SM504: a .brief write refuses once the briefs plugin owns the record on
+    # SM504: a .brief write refuses once the briefs extension owns the record on
     # this site (path-based, so the body is never read). A site still on
-    # sidecars - the plugin disabled - keeps working; migration is per site.
+    # sidecars - the extension disabled - keeps working; migration is per site.
     # Common loads LAZILY on this path (the SM189 check below carries the
     # only require, which sits after this wire) - so load it here first; the
     # probe that found this met "Undefined subroutine" with the sub defined.

@@ -14,14 +14,14 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper                 qw(repo_root);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 my $root = repo_root();
 
 # The registry reads from a docroot; these assertions are about the REFUSAL
 # text, which is decided before any lookup, so a scratch docroot keeps the
 # module from warning about an unset global.
-$Lazysite::Manager::Plugins::DOCROOT = $root;
+$Lazysite::Manager::Extensions::DOCROOT = $root;
 sub src {
     my ($f) = @_;
     open my $fh, '<', "$root/$f" or die "$f: $!";
@@ -34,7 +34,7 @@ subtest 'the word everyone uses appears where a person searches' => sub {
     my $d = src('extensions/daemon.pl');
     my ($name) = $d =~ /name\s*=>\s*'([^']+)'/;
     like( $name, qr/daemon/i,
-        'the plugin name contains "daemon"' )
+        'the extension name contains "daemon"' )
         or diag( 'Its id is daemon, its script daemon.pl, its config '
             . 'daemon.conf, its jobs daemon-*, and every filing calls it the '
             . 'daemon. Searching the manager for that word found nothing.' );
@@ -43,39 +43,39 @@ subtest 'the word everyone uses appears where a person searches' => sub {
 };
 
 # 2. The parameter the declaration names is the one that works.
-subtest 'a plugin resolves by the parameter the declaration names' => sub {
+subtest 'an extension resolves by the parameter the declaration names' => sub {
     my $decl = src('lib/Lazysite/ControlApi/Actions.pm');
-    for my $a (qw(plugin-read plugin-save plugin-action)) {
-        like( $decl, qr/'\Q$a\E'[^\n]*name => 'plugin'/,
-            "$a declares a `plugin` parameter" );
+    for my $a (qw(extension-read extension-save extension-action)) {
+        like( $decl, qr/'\Q$a\E'[^\n]*name => 'extension'/,
+            "$a declares an `extension` parameter" );
     }
 
-    my $p = src('lib/Lazysite/Manager/Plugins.pm');
-    for my $sub (qw(action_plugin_read action_plugin_save action_plugin_action)) {
+    my $p = src('lib/Lazysite/Manager/Extensions.pm');
+    for my $sub (qw(action_extension_read action_extension_save action_extension_action)) {
         my ($body) = $p =~ /(sub \Q$sub\E \{.*?\n\})/s;
         ok( $body, "$sub was found" ) or next;
-        like( $body, qr/_resolve_plugin_or_why\(\s*\$plugin_id, \$script\s*\)/,
-            "$sub resolves on EITHER, so `plugin` is no longer accepted and ignored" );
+        like( $body, qr/_resolve_extension_or_why\(\s*\$extension_id, \$script\s*\)/,
+            "$sub resolves on EITHER, so `extension` is no longer accepted and ignored" );
     }
 };
 
-# 3. And the refusal is about the parameter, not about the plugin.
-subtest 'a missing plugin parameter is named as missing' => sub {
-    my ( $full, $why ) = Lazysite::Manager::Plugins::_resolve_plugin_or_why( undef, undef );
+# 3. And the refusal is about the parameter, not about the extension.
+subtest 'a missing extension parameter is named as missing' => sub {
+    my ( $full, $why ) = Lazysite::Manager::Extensions::_resolve_extension_or_why( undef, undef );
     ok( !$full, 'nothing resolves' );
     like( $why, qr/an extension is required/, 'the refusal names the parameter' );
-    like( $why, qr/\?plugin=/,            'and the query-string spelling' );
+    like( $why, qr/\?extension=/,            'and the query-string spelling' );
     like( $why, qr/"script"/,             'and the body spelling' );
     like( $why, qr/extension-list/,       'and where the ids come from - by its current name' );
-    unlike( $why, qr/\bplugin-list\b/,   '...not the deprecated one (SM840)' );
-    unlike( $why, qr/Plugin not found/,
-        'it does not say the plugin is missing when the PARAMETER was - that '
-            . 'sentence sent the field looking for a plugin that was there' );
+    unlike( $why, qr/\bextension-list\b/,   '...not the deprecated one (SM840)' );
+    unlike( $why, qr/Extension not found/,
+        'it does not say the extension is missing when the PARAMETER was - that '
+            . 'sentence sent the field looking for an extension that was there' );
 
-    my ( $f2, $why2 ) = Lazysite::Manager::Plugins::_resolve_plugin_or_why( 'nosuchplugin', undef );
-    ok( !$f2, 'a named plugin that is not installed still fails' );
-    like( $why2, qr/no extension 'nosuchplugin' is installed/,
-        'and THAT refusal is about the plugin, because that is what was wrong' );
+    my ( $f2, $why2 ) = Lazysite::Manager::Extensions::_resolve_extension_or_why( 'nosuchextension', undef );
+    ok( !$f2, 'a named extension that is not installed still fails' );
+    like( $why2, qr/no extension 'nosuchextension' is installed/,
+        'and THAT refusal is about the extension, because that is what was wrong' );
     like( $why2, qr/extension-list/, 'still pointing at the list' );
 };
 

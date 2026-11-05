@@ -464,19 +464,19 @@ the words to use; anything else needs a reason.</p>
 <div class="mg-file-size"><span class="mg-sg-tag">.mg-file-size</span></div>
 <div class="mg-file-table"><span class="mg-sg-tag">.mg-file-table</span></div>
 </div>
-<h3 class="mg-sg-fam">mg-plugin <span class="mg-sg-count">11</span></h3>
+<h3 class="mg-sg-fam">mg-extension <span class="mg-sg-count">11</span></h3>
 <p class="mg-sg-note">Used by <code>extensions.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>
 <div class="mg-sg-demo mg-sg-family">
-<div class="mg-plugin-card"><span class="mg-sg-tag">.mg-plugin-card</span><div class="mg-plugin-row-config"><span class="mg-sg-tag">.mg-plugin-row-config</span></div>
+<div class="mg-extension-card"><span class="mg-sg-tag">.mg-extension-card</span><div class="mg-extension-row-config"><span class="mg-sg-tag">.mg-extension-row-config</span></div>
 <div class="mg-muted"><span class="mg-sg-tag">.mg-muted</span></div>
-<div class="mg-plugin-row-name"><span class="mg-sg-tag">.mg-plugin-row-name</span></div></div>
-<div class="mg-plugin-ctl"><span class="mg-sg-tag">.mg-plugin-ctl</span></div>
-<div class="mg-plugin-desc"><span class="mg-sg-tag">.mg-plugin-desc</span></div>
-<div class="mg-plugin-end"><span class="mg-sg-tag">.mg-plugin-end</span></div>
-<div class="mg-plugin-main"><span class="mg-sg-tag">.mg-plugin-main</span></div>
-<div class="mg-plugin-registry"><span class="mg-sg-tag">.mg-plugin-registry</span></div>
-<div class="mg-plugin-row"><span class="mg-sg-tag">.mg-plugin-row</span></div>
-<div class="mg-plugin-title"><span class="mg-sg-tag">.mg-plugin-title</span></div>
+<div class="mg-extension-row-name"><span class="mg-sg-tag">.mg-extension-row-name</span></div></div>
+<div class="mg-extension-ctl"><span class="mg-sg-tag">.mg-extension-ctl</span></div>
+<div class="mg-extension-desc"><span class="mg-sg-tag">.mg-extension-desc</span></div>
+<div class="mg-extension-end"><span class="mg-sg-tag">.mg-extension-end</span></div>
+<div class="mg-extension-main"><span class="mg-sg-tag">.mg-extension-main</span></div>
+<div class="mg-extension-registry"><span class="mg-sg-tag">.mg-extension-registry</span></div>
+<div class="mg-extension-row"><span class="mg-sg-tag">.mg-extension-row</span></div>
+<div class="mg-extension-title"><span class="mg-sg-tag">.mg-extension-title</span></div>
 </div>
 <h3 class="mg-sg-fam">mg-acc <span class="mg-sg-count">10</span></h3>
 <p class="mg-sg-note">Used by <code>users.md</code>. Nested as the pages compose it: the outer class wraps the parts named after it.</p>

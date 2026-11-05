@@ -22,8 +22,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $d = tempdir( 'lazysite-rules-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
 make_path( "$d/lazysite/logs", "$d/lazysite/stats" );
@@ -54,7 +54,7 @@ for my $ua (@UAS) {
 close $lf;
 
 sub export_now {
-    my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export --window 30 2>/dev/null`;
+    my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$EXTENSION\E --export --window 30 2>/dev/null`;
     return eval { decode_json($out) } || {};
 }
 

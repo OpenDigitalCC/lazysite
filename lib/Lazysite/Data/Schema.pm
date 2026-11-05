@@ -174,7 +174,7 @@ sub plan_migration {
         }
     }
 
-    # SM780: THE PLUGIN'S OWN COLUMNS ARE ADDITIVE TOO. A table that had
+    # SM780: THE EXTENSION'S OWN COLUMNS ARE ADDITIVE TOO. A table that had
     # `timestamps: true` before the author columns existed, or one whose flag
     # was turned on after it was made, lacks columns nothing declares as a
     # field - so the loop above never saw them, and the flag was a promise
@@ -185,7 +185,7 @@ sub plan_migration {
             next if $observed->{columns}{$c};
             push @additive,
                 { sql => add_reserved_column_sql( $d, $c ), binds => [],
-                why => "add the plugin's '$c' column (timestamps: true)" };
+                why => "add the extension's '$c' column (timestamps: true)" };
         }
     }
 

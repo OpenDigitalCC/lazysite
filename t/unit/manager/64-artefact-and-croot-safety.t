@@ -167,7 +167,7 @@ subtest 'snapshots are expired per kind' => sub {
     is( scalar(@kept_manual), 3, 'the manual snapshots are held to the limit' );
     is( scalar( grep { /prerestore/ } @files ), 2,
         'and a different kind keeps its own - expiring an operator\'s deliberate '
-            . 'snapshot because a plugin took twenty automatic ones would be the '
+            . 'snapshot because an extension took twenty automatic ones would be the '
             . 'wrong trade' );
 
     # The newest survive, not an arbitrary three.

@@ -15,8 +15,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_cmd);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-ok( -f $PLUGIN, 'stats plugin present' );
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+ok( -f $EXTENSION, 'stats extension present' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/$_") for qw(logs cache stats/form-events);
@@ -45,7 +45,7 @@ sub run {
     my (@args) = @_;
     # t/lint/40: list form, never a shell string - an argument containing a
     # space would otherwise re-split and fail every assertion in the file.
-    my $out = TestHelper::run_cmd( $^X, $PLUGIN, @args, '--docroot', $d );
+    my $out = TestHelper::run_cmd( $^X, $EXTENSION, @args, '--docroot', $d );
     return decode_json( $out || '{}' );
 }
 

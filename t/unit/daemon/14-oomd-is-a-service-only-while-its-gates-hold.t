@@ -51,7 +51,7 @@ sub conf_write {
         %o );
 }
 
-sub set_plugins {
+sub set_extensions {
     my (@p) = @_;
     open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$c} "site_name: t\nextensions:\n" . join( '', map { "  - extensions/$_.pl\n" } @p );
@@ -73,9 +73,9 @@ subtest 'the gate: all four must hold' => sub {
     conf_write( odoo_daemon => 'on', odoo_url => 'ftp://nonsense' );
     ok( !$w->(), 'a connection that does not load: not wanted' );
     conf_write();
-    set_plugins('daemon');
+    set_extensions('daemon');
     ok( !$w->(), 'the Odoo extension disabled: not wanted' );
-    set_plugins( 'odoo', 'daemon' );
+    set_extensions( 'odoo', 'daemon' );
     ok( $w->(), 'back on: wanted' );
 
     is_deeply( [ map { $_->{name} } Lazysite::Daemon::Supervisor::services($d) ], ['scheduler'],
@@ -87,12 +87,12 @@ subtest 'the gate: all four must hold' => sub {
 sub run_supervisor { return oomd_start( sub { Lazysite::Daemon::Supervisor::run( docroot => $d ) } ) }
 
 subtest 'with the daemon extension off no supervisor runs and no oomd exists' => sub {
-    set_plugins('odoo');
+    set_extensions('odoo');
     my $pid = run_supervisor();
     waitpid $pid, 0;
     is( $? >> 8, 0, 'the supervisor declines to start' );
     ok( !oomd_up($d), 'and there is no daemon' );
-    set_plugins( 'odoo', 'daemon' );
+    set_extensions( 'odoo', 'daemon' );
 };
 
 my ( $sup, $first_pid );

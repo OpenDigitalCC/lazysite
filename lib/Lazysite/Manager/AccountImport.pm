@@ -25,7 +25,7 @@ package Lazysite::Manager::AccountImport;
 #   list    (accounts-import-list, the operator): what is staged, and by whom.
 #
 # The store is written through the users tool (account-approve), its owner, as
-# a registration approval writes it (Plugins::action_form_submission_approve):
+# a registration approval writes it (Extensions::action_form_submission_approve):
 # the operator approves, and the operator is not bounded by the delegation
 # ceiling - no actor is passed, as no actor is passed for an approval.
 

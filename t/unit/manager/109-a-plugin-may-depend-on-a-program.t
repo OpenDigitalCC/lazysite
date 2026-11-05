@@ -1,15 +1,15 @@
 #!/usr/bin/perl
-# SM694: a plugin can declare an executable it needs, and is refused without it.
+# SM694: an extension can declare an executable it needs, and is refused without it.
 #
-# SM472 established the rule and the reason: A PLUGIN THAT CANNOT RUN IS NOT
-# ENABLED. It was learned expensively - the data plugin once enabled cleanly on
+# SM472 established the rule and the reason: AN EXTENSION THAT CANNOT RUN IS NOT
+# ENABLED. It was learned expensively - the data extension once enabled cleanly on
 # a host without YAML::PP, listed its empty set of tables happily, and answered
 # 500 to every attempt to declare one, because the parser is only reached once
 # there is something to parse. Five variations were bisected before anyone said
 # the module's name.
 #
 # That check asks `require`, which answers for Perl modules and nothing else. A
-# plugin wrapping an external tool had no way to declare what it needs, so the
+# extension wrapping an external tool had no way to declare what it needs, so the
 # rule could not protect it: the operator would enable it and it would fail at
 # first use, which is the state SM472 exists to prevent.
 use strict;
@@ -18,26 +18,26 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 subtest 'a command is found only when it is really there' => sub {
-    ok( Lazysite::Manager::Plugins::_bin_on_path('perl'),
+    ok( Lazysite::Manager::Extensions::_bin_on_path('perl'),
         'perl is on the path' );
-    ok( !Lazysite::Manager::Plugins::_bin_on_path('definitely-not-installed-xyz'),
+    ok( !Lazysite::Manager::Extensions::_bin_on_path('definitely-not-installed-xyz'),
         'a command that does not exist is absent' )
         or diag( 'A check that answers "installed" for everything would let a '
-            . 'plugin enable and fail at first use - the state this exists to '
+            . 'extension enable and fail at first use - the state this exists to '
             . 'prevent.' );
-    ok( !Lazysite::Manager::Plugins::_bin_on_path(''),
+    ok( !Lazysite::Manager::Extensions::_bin_on_path(''),
         'and an empty name is not a command' );
 };
 
 subtest 'a directory is not an executable' => sub {
-    # -x is true for a directory. Without the -d guard, a plugin declaring a
+    # -x is true for a directory. Without the -d guard, an extension declaring a
     # name that happens to match a directory on PATH would enable and then fail
     # on first use.
     my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Plugins.pm"
+        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Extensions.pm"
             or die $!;
         local $/;
         <$fh>;
@@ -54,7 +54,7 @@ subtest 'a directory is not an executable' => sub {
 
 subtest 'the descriptor cannot choose what gets executed' => sub {
     my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Plugins.pm"
+        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Extensions.pm"
             or die $!;
         local $/;
         <$fh>;
@@ -64,19 +64,19 @@ subtest 'the descriptor cannot choose what gets executed' => sub {
 
     like( $fn, qr/\Q[A-Za-z0-9][A-Za-z0-9._-]*\E/,
         'a declared command name is a bare name, checked against a pattern' )
-        or diag( 'This value comes from a plugin descriptor. A lookup that '
+        or diag( 'This value comes from an extension descriptor. A lookup that '
             . 'interpolated it would let a descriptor decide what runs - the '
             . 'module branch guards its names for exactly this reason.' );
     like( $fn, qr/\$desc->\{owns\}\{bins\}/, 'bins is read from the descriptor' );
     like( $fn, qr/return undef unless \@deps \|\| \@bins;/,
-        'and a plugin declaring only bins is still checked' )
-        or diag( 'The early return used to test @deps alone, so a plugin with '
+        'and an extension declaring only bins is still checked' )
+        or diag( 'The early return used to test @deps alone, so an extension with '
             . 'bins and no modules would skip the check entirely.' );
 };
 
 subtest 'the refusal names what is missing, as it does for a module' => sub {
     my $src = do {
-        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Plugins.pm"
+        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Extensions.pm"
             or die $!;
         local $/;
         <$fh>;

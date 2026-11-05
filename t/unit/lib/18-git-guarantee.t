@@ -19,7 +19,7 @@
 #      core.sharedRepository=group promise verified empirically.
 #   3. THE TRIPLE NEVER DISAGREES: one induced commit failure is reported in
 #      the same state by all surfaces - the WARN, the COMMIT_FAILED
-#      breadcrumb, the lazysite-check probe, the content-history plugin's
+#      breadcrumb, the lazysite-check probe, the content-history extension's
 #      status - and after check --fix plus one successful save all of them
 #      recover together, with the new commit present.
 #   4. EMPTY-STATE honesty: the Files page renders the failure-suspecting
@@ -71,9 +71,9 @@ sub sub_bodies {
 # Calling the unified lazysite.conf writer IS calling the hook, transitively -
 # the commit lives inside it (SM255). Match the writer through any wrapper name:
 # each manager module reaches it via its own thin bridge that localises that
-# module's $DOCROOT (Domains::_write, Plugins::_write_conf_content), so pinning
+# module's $DOCROOT (Domains::_write, Extensions::_write_conf_content), so pinning
 # the exact bridge names would fail the next module to grow one - which is how
-# Plugins::action_plugin_save was missed in the first place.
+# Extensions::action_extension_save was missed in the first place.
 my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
     | \bLazysite::Git::(?:commit_paths|commit_all|commit_move|init)\s*\(
     | \w*write_conf_(?:key|content)\s*\(
@@ -111,7 +111,7 @@ my %HOOKED = map { $_ => 1 } qw(
     Files::action_git_init
     Upload::action_file_upload
     Backups::action_backup_restore
-    Plugins::action_plugin_save
+    Extensions::action_extension_save
     Config::action_config_set
     Nav::action_nav_save
     SiteBackup::action_site_backup_apply
@@ -176,7 +176,7 @@ my %EXEMPT = (
     'SiteBackup::action_site_backup_inspect' => 'read-only',
     'SiteBackup::action_site_backup_download' => 'read-only (streams a package; no content write)',
     # SM732: a PDF is a RENDER of content, not a change to it. It writes only
-    # into lazysite/cache/pdf/, which is a cache the plugin's own Clear action
+    # into lazysite/cache/pdf/, which is a cache the extension's own Clear action
     # empties - nothing in the content tree moves, so there is nothing for the
     # content history to record.
     # SM944 S29: moved to Manager::PagePdf.
@@ -185,20 +185,20 @@ my %EXEMPT = (
         'removes a package under lazysite/backups/ - not versioned content',
     'SiteBackup::action_site_export_primary' =>
         'writes only a package under lazysite/backups/ - not versioned content',
-    # --- Plugins ---
-    'Plugins::action_plugin_list'   => 'read-only',
-    'Plugins::action_plugin_read'   => 'read-only',
-    'Plugins::action_plugin_action' => 'dispatches a plugin child process; a plugin '
+    # --- Extensions ---
+    'Extensions::action_extension_list'   => 'read-only',
+    'Extensions::action_extension_read'   => 'read-only',
+    'Extensions::action_extension_action' => 'dispatches an extension child process; an extension '
         . 'that mutates content owns its capture (git-sync commits via Lazysite::Git '
         . 'and snapshots before any apply)',
-    'Plugins::action_form_submissions'  => 'read-only',
-    'Plugins::action_form_submission'   => 'read-only',    # SM938 D5: one row
-    'Plugins::action_form_list'         => 'read-only',
-    'Plugins::dispatch_form_list'      => 'read-only',    # SM944 S33: form-list's branch
-    'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
+    'Extensions::action_form_submissions'  => 'read-only',
+    'Extensions::action_form_submission'   => 'read-only',    # SM938 D5: one row
+    'Extensions::action_form_list'         => 'read-only',
+    'Extensions::dispatch_form_list'      => 'read-only',    # SM944 S33: form-list's branch
+    'Extensions::action_extension_enable'     => 'rewrites the extensions: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',
-    'Plugins::action_plugin_disable' => 'as action_plugin_enable',
-    # --- Handlers (SM842: the handler contract moved out of Plugins) ---
+    'Extensions::action_extension_disable' => 'as action_extension_enable',
+    # --- Handlers (SM842: the handler contract moved out of Extensions) ---
     'Handlers::action_handler_list'      => 'read-only',
     'Handlers::action_form_targets_read' => 'read-only',
     'Handlers::action_schedule_list'     => 'read-only',
@@ -217,18 +217,18 @@ my %EXEMPT = (
     # SM632: removes a form REGISTRATION, which lives under lazysite/forms/ and
     # is outside the versioned content set for the same reason handler-save is.
     # The page that used the form is content and is edited separately.
-    'Plugins::action_form_delete' =>
+    'Extensions::action_form_delete' =>
         'removes a conf under lazysite/forms/ - excluded from the versioned set, as '
         . 'Handlers::action_handler_save',
-    'Plugins::action_form_submission_delete' =>
+    'Extensions::action_form_submission_delete' =>
         'rewrites a submissions store under lazysite/forms/ - excluded from the versioned set',
-    'Plugins::action_form_submission_confirm' =>
+    'Extensions::action_form_submission_confirm' =>
         'clears a row\'s quarantine flags in a submissions store under lazysite/forms/ - '
         . 'excluded from the versioned set (as action_form_submission_delete)',
-    'Plugins::action_form_submissions_delete_bulk' =>
+    'Extensions::action_form_submissions_delete_bulk' =>
         'rewrites a submissions store under lazysite/forms/ (bulk row delete) - '
         . 'excluded from the versioned set (as action_form_submission_delete)',
-    'Plugins::action_form_submission_approve' =>
+    'Extensions::action_form_submission_approve' =>
         'marks a row approved in a submissions store under lazysite/forms/ and creates '
         . 'the account through the users tool - neither is in the versioned set',
     # --- Layouts / Themes (artifact trees: captured wholesale by the
@@ -318,7 +318,7 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Files   => [ "$root/lib/Lazysite/Manager/Files.pm",   qr/^(?:action|dispatch)_/ ],
         Upload  => [ "$root/lib/Lazysite/Manager/Upload.pm",  qr/^(?:action|dispatch)_/ ],
         Backups => [ "$root/lib/Lazysite/Manager/Backups.pm", qr/^(?:action|dispatch)_/ ],
-        Plugins => [ "$root/lib/Lazysite/Manager/Plugins.pm", qr/^(?:action|dispatch)_/ ],
+        Extensions => [ "$root/lib/Lazysite/Manager/Extensions.pm", qr/^(?:action|dispatch)_/ ],
         Handlers => [ "$root/lib/Lazysite/Handlers.pm", qr/^(?:action|dispatch)_/ ], # SM842
         Layouts => [ "$root/lib/Lazysite/Manager/Layouts.pm", qr/^(?:action|dispatch)_/ ],
         Themes  => [ "$root/lib/Lazysite/Manager/Themes.pm",  qr/^(?:action|dispatch)_/ ],
@@ -532,7 +532,7 @@ subtest 'shared-repo promise: group access survives commits and gc under umask 0
 };
 
 # =========================================================================
-# 3. The triple never disagrees: WARN + breadcrumb + probe + plugin status
+# 3. The triple never disagrees: WARN + breadcrumb + probe + extension status
 # =========================================================================
 subtest 'one induced failure, every surface agrees; one fix, every surface recovers' => sub {
     my $d = mksite();
@@ -579,8 +579,8 @@ subtest 'one induced failure, every surface agrees; one fix, every surface recov
         'surface 3: the check reads the breadcrumb too' );
     isnt( $? >> 8, 0, 'check exits non-zero' );
     my $st = $status->();
-    ok( $st->{recording_failed}, 'surface 4: plugin status says recording is failing' );
-    like( $st->{message}, qr/FAILED/, 'plugin status message says so in plain language' );
+    ok( $st->{recording_failed}, 'surface 4: extension status says recording is failing' );
+    like( $st->{message}, qr/FAILED/, 'extension status message says so in plain language' );
     is( scalar @{ Lazysite::Git::file_log( $d, 'page.md' ) },
         0, 'and indeed: no version was recorded' );
 
@@ -602,7 +602,7 @@ subtest 'one induced failure, every surface agrees; one fix, every surface recov
     my $log = Lazysite::Git::file_log( $d, 'page.md' );
     is( $log->[0]{subject}, 'edit page.md', 'the new commit is in the history' );
     my $st2 = $status->();
-    ok( $st2->{ok} && !$st2->{recording_failed}, 'plugin status healthy again' );
+    ok( $st2->{ok} && !$st2->{recording_failed}, 'extension status healthy again' );
     unlike( $st2->{message}, qr/FAILED/, 'no failure language once recovered' );
     my $out2 = $check->();
     like( $out2, qr/the repo is usable by the CGI/, 'check probe ok again' );

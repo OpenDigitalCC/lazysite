@@ -50,7 +50,7 @@
 #                 collapsing them is how an inventory starts lying.
 #   the MANAGER   what an operator receives, signed in, on their own tooling.
 #                 Its head script is 349 lines carrying four per-user values, a
-#                 nav built from plugin conditionals, a theme prelude that must
+#                 nav built from extension conditionals, a theme prelude that must
 #                 run before first paint, and a fetch wrapper that must replace
 #                 window.fetch before anything captures a reference. Two of
 #                 those are ORDERING constraints an external file cannot

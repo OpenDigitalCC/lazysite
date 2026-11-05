@@ -3,8 +3,8 @@
 # states because a caller that moves files needs the third one.
 #
 # THE RULING (release manager, 2026-09-14): the ACL read lives in the engine as
-# one supported answer that plugins call, not as a private read inside whichever
-# plugin needs it next. The precedence already existed - `_acl_entry_for` has
+# one supported answer that extensions call, not as a private read inside whichever
+# extension needs it next. The precedence already existed - `_acl_entry_for` has
 # carried the full ladder since SM287 - and was simply not exported.
 #
 # WHY THREE STATES, which is the part of this test that matters most. The
@@ -175,7 +175,7 @@ subtest 'root_gating answers only on the site-wide key' => sub {
 };
 
 subtest 'the two answers are exported, which is the whole point of the ruling' => sub {
-    # The ruling was that a PLUGIN can ask. A sub that exists and is not exported
+    # The ruling was that a EXTENSION can ask. A sub that exists and is not exported
     # is the state this filing was raised about.
     my %ok = map { $_ => 1 } @Lazysite::Auth::Acl::EXPORT_OK;
     ok( $ok{gating_for},  'gating_for is in @EXPORT_OK' );

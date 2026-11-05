@@ -43,7 +43,7 @@ END {
 # process that ran it, which is how a test tells the daemon from itself).
 sub oomd_site {
     my (%over) = @_;
-    my $d = TestHelper::site_tempdir( plugins => 1 );
+    my $d = TestHelper::site_tempdir( extensions => 1 );
     make_path("$d/lazysite");
     open my $fh, '>>', "$d/lazysite/lazysite.conf" or die "lazysite.conf: $!";
     print {$fh} "extensions:\n  - extensions/odoo.pl\n  - extensions/daemon.pl\n";

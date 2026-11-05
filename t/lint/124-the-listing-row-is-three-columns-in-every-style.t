@@ -15,7 +15,7 @@
 # unset and suspected a stale stylesheet. It was neither.
 #
 # WHY A LINT AND NOT JUST A FIX. Two things recur here. MR-68 found this same
-# three-parts-in-two-columns defect on the Plugin Manager weeks earlier and fixed
+# three-parts-in-two-columns defect on the Extension Manager weeks earlier and fixed
 # it locally, so the shared row kept the fault. And there are THREE stylesheets -
 # modern, classic and accessible - which a reader edits one at a time, so a
 # template that drifts in one style lays rows out differently for whoever selected

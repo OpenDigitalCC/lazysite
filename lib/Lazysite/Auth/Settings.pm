@@ -77,7 +77,7 @@ our @CAP_KEYS = qw(
 # Self-healing operations (cache-invalidate, the registry sweeps) join neither:
 # they rebuild on the next request, so there is nothing to reserve.
 
-# SM447 / ADR 0009: `manage_data` is DECLARED BY THE DATA PLUGIN and mirrored
+# SM447 / ADR 0009: `manage_data` is DECLARED BY THE DATA EXTENSION and mirrored
 # here, which is a different thing from being a core capability. SM576 part 1
 # adds `manage_briefs` on exactly that pattern - declared by extensions/briefs.pl,
 # mirrored here, discovered by t/lint/76 - so briefs stop riding manage_content
@@ -85,16 +85,16 @@ our @CAP_KEYS = qw(
 # its own (SM575 measured what happens when it is not).
 #
 # The list must be static. caps_for() is consulted on every request through
-# every channel, and discovering capabilities by running each plugin's
+# every channel, and discovering capabilities by running each extension's
 # `--describe` would put ten subprocesses on that path. So the runtime keeps
-# this literal and t/lint/76 DISCOVERS the plugin declarations and fails if the
-# two disagree - which is ADR 0009's "the contract does not exempt a plugin
-# from the lints, it makes the lints discover the plugin's entries", applied
+# this literal and t/lint/76 DISCOVERS the extension declarations and fails if the
+# two disagree - which is ADR 0009's "the contract does not exempt an extension
+# from the lints, it makes the lints discover the extension's entries", applied
 # where it can be applied without a cost the request path cannot pay.
 #
-# The plugin remains the OWNER: it is the one place that says what it owns, and
-# a capability appearing here with no plugin claiming it, or claimed by two
-# plugins, is what the lint refuses. This entry is a mirror, not a second
+# The extension remains the OWNER: it is the one place that says what it owns, and
+# a capability appearing here with no extension claiming it, or claimed by two
+# extensions, is what the lint refuses. This entry is a mirror, not a second
 # owner.
 
 sub _settings_file       { "$AUTH_DIR/user-settings.json" }

@@ -23,8 +23,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $now = time();
 # Q14g (SM974): AND THE RECORDS ARE ONE DAY. They span a few minutes after
@@ -82,7 +82,7 @@ sub run_site {
         for ( 5400, 5360, 5300 );
     close $lf;
 
-    `DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export --window 30 2>/dev/null`;
+    `DOCUMENT_ROOT=\Q$d\E $^X \Q$EXTENSION\E --export --window 30 2>/dev/null`;
     return $d;
 }
 

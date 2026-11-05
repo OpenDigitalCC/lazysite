@@ -53,12 +53,12 @@ var caps = { manage_content: 1, manage_forms: 1 }, channelServices = {}, ge = 'o
 // sentence marker, which is the case it means to examine.
 var CAP_GRANTS = {};
 // SM675 added a second dormant marker to the row - a capability whose owning
-// PLUGIN is off, beside SM180's channel-service one. The row builder reads
-// `capabilityPlugin`, which the page defines at the top; this stub has to
+// EXTENSION is off, beside SM180's channel-service one. The row builder reads
+// `capabilityExtension`, which the page defines at the top; this stub has to
 // mirror the page's environment or the extracted function throws before it
 // renders anything. Empty here: this test is about the technical name on the
-// label, and no plugin state is the case it means to examine.
-var capabilityPlugin = {};
+// label, and no extension state is the case it means to examine.
+var capabilityExtension = {};
 // SM879 added inherited grants to the row. The page defines this map at the top
 // of renderGroups; the stub has to mirror it or the extracted function throws
 // before rendering anything. TWO capabilities here, so one row can be examined

@@ -15,11 +15,11 @@ use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper              qw(repo_root site_tempdir run_cmd);
 use OdooTest                qw(oom_lib);
-use Lazysite::Plugins::Owns qw(validate_owns parse_dep);
+use Lazysite::Extensions::Owns qw(validate_owns parse_dep);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/odoo.pl";
-my $d      = eval { decode_json( scalar run_cmd( $^X, $plugin, '--describe' ) ) };
+my $extension = "$root/extensions/odoo.pl";
+my $d      = eval { decode_json( scalar run_cmd( $^X, $extension, '--describe' ) ) };
 ok( ref $d eq 'HASH', '--describe answers JSON' ) or BAIL_OUT('no descriptor');
 
 subtest 'the declaration is sound' => sub {
@@ -49,10 +49,10 @@ subtest 'the dep grammar' => sub {
 sub missing_with {
     my (@inc) = @_;
     my $out = run_cmd( $^X, ( map { "-I$_" } @inc, "$root/lib" ), '-MJSON::PP=encode_json',
-        '-MLazysite::Manager::Plugins', '-e',
-        'my $d = JSON::PP::decode_json(qx($^X ' . $plugin . ' --describe));'
-            . 'my ($m, $b) = Lazysite::Manager::Plugins::_missing_deps("extensions/odoo.pl", "'
-            . $plugin . '", $d); print encode_json([$m, $b]);' );
+        '-MLazysite::Manager::Extensions', '-e',
+        'my $d = JSON::PP::decode_json(qx($^X ' . $extension . ' --describe));'
+            . 'my ($m, $b) = Lazysite::Manager::Extensions::_missing_deps("extensions/odoo.pl", "'
+            . $extension . '", $d); print encode_json([$m, $b]);' );
     return eval { decode_json($out) } // [ $out, [] ];
 }
 
@@ -72,7 +72,7 @@ subtest 'present and too old: refused, saying which version is here' => sub {
 
 subtest 'the Status button reports and repairs nothing' => sub {
     my $site = site_tempdir();
-    my $out  = run_cmd( $^X, $plugin, '--action', 'status', '--docroot', $site );
+    my $out  = run_cmd( $^X, $extension, '--action', 'status', '--docroot', $site );
     my $s    = eval { decode_json($out) } // {};
     like( $s->{message} // '', qr/libodoo-oom-perl|not configured/, 'it says what is missing' );
     ok( !-e "$site/lazysite/odoo", 'and created nothing' );

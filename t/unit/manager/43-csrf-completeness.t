@@ -69,7 +69,7 @@ close $pg;
 my @writes = qw(
     save delete mkdir move copy config-set domain-add domain-set domain-remove
     theme-activate layout-activate nav-save handler-save backup-create
-    rotate-auth-secret plugin-enable session-revoke user-revoke key-revoke
+    rotate-auth-secret extension-enable session-revoke user-revoke key-revoke
 );
 
 # --- 1. a POST WITHOUT a CSRF token is refused for every write ------------------

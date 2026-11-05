@@ -2,7 +2,7 @@
 # The WebDAV site toggle (webdav_enabled) must be settable + surfaced through the
 # control API so the manager Config page can enable it - the dav gate returns 404
 # for every method until it is on. SM042: site settings are now managed via
-# config-read / config-set (NOT the processor's pseudo-plugin schema), so this
+# config-read / config-set (NOT the processor's pseudo-extension schema), so this
 # pins the new source of truth and that the retired schema is gone.
 use strict;
 use warnings;

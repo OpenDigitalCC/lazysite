@@ -19,7 +19,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper                 qw(site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Handlers         ();
 
 my $d = site_tempdir();
@@ -34,7 +34,7 @@ spit( "$d/lazysite/forms/submissions/register.jsonl", join( '', map { "$_\n" } @
 my %id = map { $_->[0] => Lazysite::Handlers::submission_row_id( $_->[1] ) }
     [ ada => $rows[0] ], [ dee => $rows[1] ], [ kit => $rows[2] ];
 
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 my $STORE = 'lazysite/forms/submissions/register.jsonl';
 
 # The tool's answer to the narrow read: two existing accounts, one holding an
@@ -54,7 +54,7 @@ my $users = sub {
 };
 sub approve {
     @asked = ();
-    return Lazysite::Manager::Plugins::action_form_submission_approve( $STORE, $_[0],
+    return Lazysite::Manager::Extensions::action_form_submission_approve( $STORE, $_[0],
         users => $users, by => 'boss' );
 }
 

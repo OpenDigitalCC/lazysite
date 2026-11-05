@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # notify-xmpp.pl - XMPP notification delivery (SM136) - the descriptor.
 #
-# When enabled (Plugin Manager) and configured, operator notifications (the
+# When enabled (Extension Manager) and configured, operator notifications (the
 # manager bell: new form submissions, requests awaiting a response) are also
 # delivered over XMPP - one client config per site, like SMTP delivery, sending
 # to a single recipient: an individual JID or a group chat (MUC) room. Delivery
@@ -16,7 +16,7 @@ BEGIN {
     # Locate the Lazysite module tree relative to this script (run-in-place, tar
     # and Hestia installs), falling back to the system @INC (package installs).
     # Nothing is loaded here: --describe must answer even where the tree is not
-    # found, because the Plugin Manager calls it before anything is configured.
+    # found, because the Extension Manager calls it before anything is configured.
     require Cwd;
     require File::Basename;
     my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
@@ -113,16 +113,16 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             # nothing. An operator enabled this on a live site, configured it, and
             # spent an afternoon over four submissions before the cause turned out
             # to be that Net::XMPP was never installed. `_missing_deps` has read
-            # this field since ADR 0009 and two sibling plugins use it; the fact
+            # this field since ADR 0009 and two sibling extensions use it; the fact
             # was written down nine lines above, in prose, where the machinery
             # could not see it.
             #
             # WHY NO LINT COULD HAVE FOUND THIS. The `require Net::XMPP` is not in
-            # this file - delivery lives in Lazysite::Notify (:585) and this plugin
-            # is a descriptor. So scanning plugin sources for an undeclared module
+            # this file - delivery lives in Lazysite::Notify (:585) and this extension
+            # is a descriptor. So scanning extension sources for an undeclared module
             # finds nothing here, which is exactly what tmp/sm925-dep-audit.pl did
             # on its first run. t/lint/201 gates the derivable half instead: a
-            # plugin whose own text names a module must declare it.
+            # extension whose own text names a module must declare it.
             owns => {
                 # SM925 X2 adds Net::DNS: the SRV lookup that finds a domain's
                 # client endpoint needs it, and it is not core. Declared HERE and
@@ -137,7 +137,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             # `validate` and the config page shows "Validate SMTP connection";
             # this declared no actions at all, so eight fields including a
             # password could only be tested by waiting for a real event - and
-            # this plugin's failure mode is that a real event tells you nothing,
+            # this extension's failure mode is that a real event tells you nothing,
             # because a notice that never arrives looks like a quiet site.
             #
             # `needs` is the existing gate (git-sync's test connection uses it):
@@ -157,9 +157,9 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 
 # --- Test mode (the "Send a test notification" button) -----------------------
 #
-# Invoked by the manager's plugin-action as `--scan --docroot DIR`, the same shape
+# Invoked by the manager's extension-action as `--scan --docroot DIR`, the same shape
 # form-smtp's validate uses. The staging lives in Lazysite::Notify, with the
-# delivery it is testing: this plugin is a descriptor, and a copy of the flow here
+# delivery it is testing: this extension is a descriptor, and a copy of the flow here
 # would be a second definition that agrees with delivery until it does not.
 
 if ( grep { $_ eq '--scan' } @ARGV ) {

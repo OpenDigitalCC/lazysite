@@ -54,7 +54,7 @@ subtest 'the blocklist still refuses the key to the file editor' => sub {
         "$key is blocked for the generic file verbs" )
         or diag( 'That blocklist keeps the file editor out of the management '
             . 'tree. Writing a descriptor through it would bypass the data '
-            . "plugin's own gates, including SM682's writable_by check." );
+            . "extension's own gates, including SM682's writable_by check." );
 };
 
 subtest 'the table verb reaches the same rule the enforcement side reads' => sub {

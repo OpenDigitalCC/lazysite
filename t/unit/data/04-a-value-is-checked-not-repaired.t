@@ -143,7 +143,7 @@ subtest 'empty means absent, except for text' => sub {
 };
 
 # --- what must not be writable ---------------------------------------------
-subtest 'the plugin keeps what it owns' => sub {
+subtest 'the extension keeps what it owns' => sub {
     my $e = why( { ref => 'A1', created_at => '2025-01-01T00:00:00Z' } );
     ok( $e && $e->{rule} eq 'reserved', 'a timestamp column cannot be written' );
 

@@ -3,7 +3,7 @@
 #
 # THIS IS THE SECURITY PROPERTY OF THE WHOLE RUNTIME, so it is the first test.
 #
-# ADR 0009 says a disabled plugin executes nothing. For a CGI plugin that is
+# ADR 0009 says a disabled extension executes nothing. For a CGI extension that is
 # enforced at dispatch: a request arrives and is refused. A DAEMON HAS NO
 # DISPATCH TO REFUSE AT - nothing arrives, and the process either exists or it
 # does not. So conforming means the supervisor reads the enabled state and
@@ -25,7 +25,7 @@ use Lazysite::Daemon::Supervisor ();
 my $root = tempdir( CLEANUP => 1 );
 mkdir "$root/lazysite";
 
-sub set_plugins {
+sub set_extensions {
     my (@names) = @_;
     open my $fh, '>', "$root/lazysite/lazysite.conf" or die $!;
     print {$fh} "site_name: t\n";
@@ -37,38 +37,38 @@ sub set_plugins {
     return;
 }
 
-subtest 'born disabled: no plugins list at all' => sub {
-    set_plugins();
+subtest 'born disabled: no extensions list at all' => sub {
+    set_extensions();
     is( Lazysite::Daemon::Supervisor::should_run($root), 0,
         'a site that has never enabled it does not run the daemon' );
 };
 
-subtest 'another plugin enabled is not this plugin enabled' => sub {
-    # The gate must key on THIS plugin, not on "the plugins list exists".
-    set_plugins('extensions/data.pl');
+subtest 'another extension enabled is not this extension enabled' => sub {
+    # The gate must key on THIS extension, not on "the extensions list exists".
+    set_extensions('extensions/data.pl');
     is( Lazysite::Daemon::Supervisor::should_run($root), 0,
-        'enabling a different plugin does not start the daemon' );
+        'enabling a different extension does not start the daemon' );
 };
 
 subtest 'enabled when, and only when, it is listed' => sub {
-    set_plugins( 'extensions/data.pl', 'extensions/daemon.pl' );
+    set_extensions( 'extensions/data.pl', 'extensions/daemon.pl' );
     is( Lazysite::Daemon::Supervisor::should_run($root), 1,
         'listed alongside others - runs' );
 
-    set_plugins('extensions/daemon.pl');
+    set_extensions('extensions/daemon.pl');
     is( Lazysite::Daemon::Supervisor::should_run($root), 1,
         'listed alone - runs' );
 
     # SM759: the bare name is what the fixtures used to write and the conf
     # never holds. It must NOT count as enabled, or the gate is matching on
     # a word nothing writes.
-    set_plugins('daemon.pl');    # bare-name-on-purpose
+    set_extensions('daemon.pl');    # bare-name-on-purpose
     is( Lazysite::Daemon::Supervisor::should_run($root), 0,
         'a bare script name is not the registry key - not enabled' );
 };
 
 subtest 'run() on a disabled site starts nothing and touches nothing' => sub {
-    set_plugins();
+    set_extensions();
 
     my $rc = Lazysite::Daemon::Supervisor::run( docroot => $root );
     is( $rc, 0,
@@ -86,7 +86,7 @@ subtest 'status reports desired and verdict separately' => sub {
     # comments recorded is paid. `up`/`down` became `on`/`off` and the runtime
     # word became a VERDICT, because one vocabulary across every managed unit
     # is the point of having a contract at all.
-    set_plugins();
+    set_extensions();
     my $off = Lazysite::Daemon::Supervisor::status($root);
     is( $off->{desired}, 'off', 'disabled reads as desired: off' );
     is( $off->{verdict}, 'off', 'and the verdict agrees - nothing is wrong' );
@@ -94,7 +94,7 @@ subtest 'status reports desired and verdict separately' => sub {
         'off-because-you-turned-it-off is HEALTHY, not a problem to report' );
     like( $off->{message}, qr/disabled/, 'and says why, in words' );
 
-    set_plugins('extensions/daemon.pl');
+    set_extensions('extensions/daemon.pl');
     my $on = Lazysite::Daemon::Supervisor::status($root);
     is( $on->{desired}, 'on', 'enabled reads as desired: on' );
 

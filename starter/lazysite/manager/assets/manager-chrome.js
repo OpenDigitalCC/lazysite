@@ -13,7 +13,7 @@
  *
  * Deliberately NOT the manager's head script, which is a different problem and
  * is recorded as such in that inventory: 349 lines carrying four per-user
- * values, a nav built from plugin conditionals, a theme prelude that must run
+ * values, a nav built from extension conditionals, a theme prelude that must run
  * before first paint, and a fetch wrapper that must replace window.fetch
  * before anything captures a reference to it. Two of those are ordering
  * constraints an external file cannot satisfy without a round trip in front of

@@ -13,8 +13,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/audit.pl';
-ok( -f $PLUGIN, 'audit plugin present' );
+my $EXTENSION = repo_root() . '/extensions/audit.pl';
+ok( -f $EXTENSION, 'audit extension present' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite");
@@ -32,7 +32,7 @@ w( "$d/about.md",      "---\ntitle: About\n---\n[home](/index) [home2](/index.ht
         . "[docs home](/docs/index) [gone](/missing-page)\n" );
 w( "$d/docs/index.md", "---\ntitle: Docs\n---\n[up](/about)\n" );
 
-my $out = qx($^X \Q$PLUGIN\E --docroot \Q$d\E 2>/dev/null);
+my $out = qx($^X \Q$EXTENSION\E --docroot \Q$d\E 2>/dev/null);
 unlike( $out, qr{about\.md\s+->\s+/index\b},   '/index is not reported broken' );
 unlike( $out, qr{about\.md\s+->\s+/index\.html}, '/index.html is not reported broken' );
 unlike( $out, qr{->\s+/docs/index}, 'a trailing /index still resolves (unchanged)' );

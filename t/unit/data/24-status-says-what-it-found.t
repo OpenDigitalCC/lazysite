@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM495: the Status button's answer carries a message.
 #
-# The Plugin Manager renders data.message || 'Done.' - so a status() that
+# The Extension Manager renders data.message || 'Done.' - so a status() that
 # returns modules, store and tables but no message is a button that says
 # 'Done.' while three fields go unread. Reported from the field minutes
 # after SM477 made the button work at all: true, and useless.
@@ -21,11 +21,11 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/data.pl";
+my $extension = "$root/extensions/data.pl";
 
 sub status_for {
     my ($docroot) = @_;
-    my $out = qx($^X \Q$plugin\E --action status --docroot \Q$docroot\E 2>/dev/null);
+    my $out = qx($^X \Q$extension\E --action status --docroot \Q$docroot\E 2>/dev/null);
     return eval { decode_json($out) } || {};
 }
 

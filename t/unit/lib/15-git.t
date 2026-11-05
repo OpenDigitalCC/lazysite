@@ -89,7 +89,7 @@ my $d = site();
 
     # The adoption commit captured the versioned set and nothing excluded.
     my ( $ok, $files ) = Lazysite::Git::run_git( $d, 'ls-files' );
-    ok( $ok, 'run_git ls-files works (the sync-plugin plumbing)' );
+    ok( $ok, 'run_git ls-files works (the sync-extension plumbing)' );
     like( $files,   qr{^content/about\.md$}m,      'versioned: content page' );
     like( $files,   qr{^lazysite/lazysite\.conf$}m, 'versioned: lazysite.conf' );
     like( $files,   qr{^lazysite/nav\.conf$}m,      'versioned: nav.conf' );

@@ -19,7 +19,7 @@ use warnings;
 use JSON::PP qw(encode_json);
 
 BEGIN {
-    # As the data plugin: find the Lazysite tree beside this script, and leave
+    # As the data extension: find the Lazysite tree beside this script, and leave
     # --describe answerable when it is not found.
     require Cwd;
     require File::Basename;
@@ -146,7 +146,7 @@ sub describe {
             # SM1276 (rulings 10a-10c): who may say whether an Odoo change whose
             # answer never came was made, on another person's run, and dismiss a
             # run. Declared here because t/lint/76 requires every capability to
-            # be core or plugin-owned; mirrored in @CAP_KEYS.
+            # be core or extension-owned; mirrored in @CAP_KEYS.
             capabilities => ['settle_odoo_writes'],
 
             deps => ['Odoo::Ops (libodoo-oom-perl >= 0.03)'],

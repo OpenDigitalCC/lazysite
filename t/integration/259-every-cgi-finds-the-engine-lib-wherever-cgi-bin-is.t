@@ -5,7 +5,7 @@
 # /usr/lib/cgi-bin. It puts the CGIs in the cgi-bin and the Lazysite:: tree at
 # {DOCROOT}/../lib (/var/www/lib); the CGIs looked for it only beside
 # themselves (/usr/lib/cgi-bin/lib, /usr/lib/lib, /usr/lib), so every one of
-# them but the plugins install.pl links died "Can't locate Lazysite/Util.pm" -
+# them but the extensions install.pl links died "Can't locate Lazysite/Util.pm" -
 # and the health check at the end of the install did not notice. t/integration/
 # 227 met it and put the modules on PERL5LIB.
 #

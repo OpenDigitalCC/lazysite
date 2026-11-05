@@ -2,7 +2,7 @@
 # SM154 (P3): the manager layout shows the Domains nav entry only to a user who
 # may manage domains (manager_caps.manage_config), and exposes a domain-bound
 # editor's own content root + domain as JS globals so the file browser can root
-# there. Rendered directly through the layout, as the enabled_plugins nav test.
+# there. Rendered directly through the layout, as the enabled_extensions nav test.
 use strict;
 use warnings;
 use Test::More;
@@ -24,7 +24,7 @@ sub render {
         { page_title => 'Files',
             site_name        => 'Demo',
             request_uri      => '/manager/files',
-            enabled_plugins  => {},
+            enabled_extensions  => {},
             auth_user        => 'me',
             content          => 'BODY',
             year             => 2026,

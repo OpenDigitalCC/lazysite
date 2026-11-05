@@ -89,7 +89,7 @@ sub route {
             why => 'named cgi surface' };
     }
 
-    # SM1182: the two plugins install.pl links into cgi-bin under their own names
+    # SM1182: the two extensions install.pl links into cgi-bin under their own names
     #    (no lazysite- prefix). Every native form posts to /cgi-bin/form-handler.pl;
     #    under the one rule it matched nothing above and fell to the processor as a
     #    page miss, so a form was never delivered. By NAME, never a wider pattern:
@@ -97,7 +97,7 @@ sub route {
     #    the auth wrapper, as they do installed (SM402: the handler reads no identity).
     if ( $uri =~ m{\A/cgi-bin/(form-handler|payment-demo)\.pl\z} ) {
         return { surface => 'cgi', target => "$1.pl", wrapped => 0,
-            why => 'linked plugin cgi' };
+            why => 'linked extension cgi' };
     }
 
     # 2. WebDAV, at its own prefix. Its Basic auth is its own.

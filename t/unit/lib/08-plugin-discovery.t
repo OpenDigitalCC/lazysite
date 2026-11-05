@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# A plugin dropped into extensions/ is discovered by action_plugin_list without
+# An extension dropped into extensions/ is discovered by action_extension_list without
 # editing a hard-coded list (SM083: stats.pl was previously invisible).
 use strict;
 use warnings;
@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::Plugins qw(action_plugin_list);
+use Lazysite::Manager::Extensions qw(action_extension_list);
 
 my $root = tempdir( CLEANUP => 1 );
 make_path( "$root/public_html/lazysite", "$root/extensions" );
@@ -17,28 +17,28 @@ open my $cf, '>', "$root/public_html/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: T\n";
 close $cf;
 
-# A minimal valid plugin (id 'widget') dropped in - not in any hard-coded list.
+# A minimal valid extension (id 'widget') dropped in - not in any hard-coded list.
 open my $pf, '>', "$root/extensions/widget.pl" or die $!;
-print $pf <<'PLUGIN';
+print $pf <<'EXTENSION';
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json);
 if ( grep { $_ eq '--describe' } @ARGV ) {
     print encode_json({ id => 'widget', name => 'Widget', description => 'x',
         version => '1.0', config_file => '', config_schema => [] });
 }
-PLUGIN
+EXTENSION
 close $pf;
-# A non-plugin .pl that does not --describe must be dropped, not listed.
-open my $junk, '>', "$root/extensions/notaplugin.pl" or die $!;
+# A non-extension .pl that does not --describe must be dropped, not listed.
+open my $junk, '>', "$root/extensions/notaextension.pl" or die $!;
 print $junk "#!/usr/bin/perl\nprint qq(noise\\n);\n";
 close $junk;
 
-$Lazysite::Manager::Plugins::DOCROOT = "$root/public_html";
+$Lazysite::Manager::Extensions::DOCROOT = "$root/public_html";
 
-my $r = action_plugin_list();
-ok( $r->{ok}, 'plugin-list ok' );
-my %ids = map { $_->{id} => 1 } @{ $r->{plugins} };
+my $r = action_extension_list();
+ok( $r->{ok}, 'extension-list ok' );
+my %ids = map { $_->{id} => 1 } @{ $r->{extensions} };
 ok( $ids{widget}, 'a freshly dropped extensions/*.pl is discovered dynamically' );
-ok( !$ids{notaplugin}, 'a .pl without a valid --describe is not listed' );
+ok( !$ids{notaextension}, 'a .pl without a valid --describe is not listed' );
 
 done_testing;

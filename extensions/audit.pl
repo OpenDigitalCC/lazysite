@@ -8,7 +8,7 @@
 #   --exclude path,path,...   comma-separated canonical paths to exclude
 #   --exclude-file FILE       file containing one exclusion per line
 #   --scan                    write Markdown report and output JSON
-#   --describe                print plugin descriptor JSON and exit
+#   --describe                print extension descriptor JSON and exit
 #   --docroot PATH            set docroot explicitly
 
 use strict;
@@ -56,7 +56,7 @@ my %IGNORE_EXT = map { $_ => 1 } qw(
 # sweep still reported /login broken and that is what exposed it.
 my %SYSTEM_PAGE = map { $_ => 1 } qw(login claim logout forgot 402 403 404);
 
-# The page this plugin used to write its report into. Every site that has ever run
+# The page this extension used to write its report into. Every site that has ever run
 # the audit has one, and until the next scan removes it, it is sitting in the
 # docroot full of last run's findings written as links.
 #
@@ -244,7 +244,7 @@ sub _system_page_resolves {
     return 0;
 }
 
-# Pages in the private store, as canonical keys. Standalone plugin: the store's
+# Pages in the private store, as canonical keys. Standalone extension: the store's
 # name is composed here rather than through Lazysite::Private, which is the same
 # arrangement the alias-cache sweep in run_scan already uses - and the one place
 # this file would have to change if that naming ever moves.
@@ -282,7 +282,7 @@ sub _private_pages {
 # path, so the audit cannot find it however the extractor changes. The action
 # returns the findings in its own result, so the manager renders them directly.
 #
-# THE OLD PAGE IS DELETED ON RUN. Every site that has run this plugin has one in its
+# THE OLD PAGE IS DELETED ON RUN. Every site that has run this extension has one in its
 # docroot; leaving it would leave a stale report readable at a URL that nothing
 # updates, which is worse than removing it.
 sub run_scan {
@@ -325,7 +325,7 @@ sub run_scan {
     } );
 }
 
-# The page this plugin used to write, and its renders. Every site that ran the
+# The page this extension used to write, and its renders. Every site that ran the
 # audit before 0.15.2 has one.
 sub _remove_legacy_report_page {
     my @gone;
@@ -333,7 +333,7 @@ sub _remove_legacy_report_page {
     for my $f ( "$DOCROOT/$LEGACY_REPORT_REL", "$DOCROOT/$html" ) {
         push @gone, $f if -f $f && unlink $f;
     }
-    # SM110: the per-alias-host copies of the render too (standalone plugin -
+    # SM110: the per-alias-host copies of the render too (standalone extension -
     # inline rather than the Lazysite::Util helper).
     my $hosts_dir = _lz($DOCROOT) . "/cache/hosts";
     if ( opendir( my $hd, $hosts_dir ) ) {
@@ -344,7 +344,7 @@ sub _remove_legacy_report_page {
         }
         closedir $hd;
     }
-    log_event( 'INFO', $DOCROOT, 'removed the report page this plugin used to write',
+    log_event( 'INFO', $DOCROOT, 'removed the report page this extension used to write',
         files => join( ', ', @gone ) )
         if @gone;
     return;
@@ -401,7 +401,7 @@ sub print_report {
     print "\n";
 }
 
-# --- Plugin descriptor ---
+# --- Extension descriptor ---
 
 sub print_describe {
     require JSON::PP;
@@ -421,7 +421,7 @@ sub print_describe {
                     id    => 'run',
                     label => 'Run audit',
                     confirm => 'This will scan all pages and may take a moment on large sites.',
-                    endpoint => 'plugin-action',
+                    endpoint => 'extension-action',
                 }
             ],
     } );
@@ -702,10 +702,10 @@ sub _lz {
 }
 
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
-# forward_line, so this plugin's diagnostics are covered by the
+# forward_line, so this extension's diagnostics are covered by the
 # forward_diagnostics DEFAULT of WARN and above (SM932) as well as by an
 # explicit setting - it needed `forward_diagnostics: true` before that, and
-# the docs promised syslog either way. The rest of this plugin's
+# the docs promised syslog either way. The rest of this extension's
 # diagnostics as the docs promise. The module tree is found by the bootstrap at
 # the top (the SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the

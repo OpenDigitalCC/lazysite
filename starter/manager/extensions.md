@@ -16,14 +16,14 @@ search: false
 
 <div class="mg-note mg-note-info">Enable or disable extensions here. Configure an enabled extension under <a href="/manager/extension-config">Configure</a>; choose what each form delivers to under <a href="/manager/handlers">Handlers</a>.</div>
 
-<div id="plugin-status" class="mg-status"></div>
-<div id="plugin-registry">Loading&hellip;</div>
+<div id="extension-status" class="mg-status"></div>
+<div id="extension-registry">Loading&hellip;</div>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-// The processor publishes itself as a plugin (id 'lazysite') to expose the site
-// config schema; it is the host, not a togglable plugin, so it is filtered out.
-var SITE_PLUGIN_ID = 'lazysite';
+// The processor publishes itself as an extension (id 'lazysite') to expose the site
+// config schema; it is the host, not a togglable extension, so it is filtered out.
+var SITE_EXTENSION_ID = 'lazysite';
 
 // SEC-2026-07 (Low/Info): textContent->innerHTML escapes < > & but NOT quotes,
 // so it was unsafe in the attribute contexts below (data-script, title, the
@@ -36,7 +36,7 @@ function esc(s) {
 // SM1084: a refusal is styled as one (mg-status-error), not in the muted
 // colour of a progress line.
 function warn(msg, isError) {
-  var el = document.getElementById('plugin-status');
+  var el = document.getElementById('extension-status');
   if (!el) return;
   el.textContent = msg || '';
   el.style.display = msg ? '' : 'none';
@@ -49,67 +49,67 @@ function warn(msg, isError) {
 // enable"). The server's sentence names what is missing and how to install
 // it; this puts it under the extension it is about, where the eye already is.
 function showRowRefusal(input, msg) {
-  var row = input.closest('.mg-plugin-row');
-  var main = row && row.querySelector('.mg-plugin-main');
+  var row = input.closest('.mg-extension-row');
+  var main = row && row.querySelector('.mg-extension-main');
   if (!main) return;
-  var note = main.querySelector('.mg-plugin-refusal');
+  var note = main.querySelector('.mg-extension-refusal');
   if (!note) {
     note = document.createElement('div');
-    note.className = 'mg-note mg-note-danger mg-plugin-refusal';
+    note.className = 'mg-note mg-note-danger mg-extension-refusal';
     note.setAttribute('role', 'alert');
     main.appendChild(note);
   }
   note.textContent = msg;
 }
 function clearRowRefusal(input) {
-  var row = input.closest('.mg-plugin-row');
-  var note = row && row.querySelector('.mg-plugin-refusal');
+  var row = input.closest('.mg-extension-row');
+  var note = row && row.querySelector('.mg-extension-refusal');
   if (note) note.parentNode.removeChild(note);
 }
 
-function loadPluginRegistry() {
+function loadExtensionRegistry() {
   fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (data) {
-    var container = document.getElementById('plugin-registry');
+    var container = document.getElementById('extension-registry');
     if (!data.ok) { warn(data.error || 'Failed to load extensions'); container.textContent = ''; return; }
     warn('');
-    var plugins = (data.plugins || []).filter(function (p) { return p.id !== SITE_PLUGIN_ID; });
-    renderPluginRegistry(plugins);
-  }).catch(function (e) { warn('Error: ' + e.message); document.getElementById('plugin-registry').textContent = ''; });
+    var extensions = (data.extensions || []).filter(function (p) { return p.id !== SITE_EXTENSION_ID; });
+    renderExtensionRegistry(extensions);
+  }).catch(function (e) { warn('Error: ' + e.message); document.getElementById('extension-registry').textContent = ''; });
 }
 
-function renderPluginRegistry(plugins) {
-  var container = document.getElementById('plugin-registry');
-  if (!plugins.length) { container.innerHTML = '<p class="mg-empty">No extensions discovered.</p>'; return; }
+function renderExtensionRegistry(extensions) {
+  var container = document.getElementById('extension-registry');
+  if (!extensions.length) { container.innerHTML = '<p class="mg-empty">No extensions discovered.</p>'; return; }
   var html = '<div class="mg-list">';
-  plugins.forEach(function (p) {
-    // .mg-plugin-row, not the generic .mg-row: this line has THREE parts
+  extensions.forEach(function (p) {
+    // .mg-extension-row, not the generic .mg-row: this line has THREE parts
     // (controls, name and description, the end badge) and that class carries
     // the template for them. On the two-column .mg-row the third wrapped to a
     // second implicit row and the description ran over the checkbox.
-    html += '<div class="mg-plugin-row' + (p.core ? ' mg-plugin-core' : '') + '" data-script="' + esc(p._script) + '">';
+    html += '<div class="mg-extension-row' + (p.core ? ' mg-extension-core' : '') + '" data-script="' + esc(p._script) + '">';
     // Control column: the enable toggle, with Configure stacked beneath it when
     // enabled (so enabling never shifts the row across a column).
-    html += '<div class="mg-plugin-ctl">';
+    html += '<div class="mg-extension-ctl">';
     if (!p.core) {
       var checked = p._enabled ? ' checked' : '';
       // JS-string args in an attribute: JSON.stringify makes a valid literal,
       // esc() makes it safe inside the double-quoted attribute (the browser
       // decodes the entities back before the JS engine parses it).
       html += '<input type="checkbox" class="mg-toggle"' + checked
-        + ' onchange="togglePlugin(this,' + esc(JSON.stringify(p._script))
+        + ' onchange="toggleExtension(this,' + esc(JSON.stringify(p._script))
         + ',' + esc(JSON.stringify(p.name)) + ')">';
       if (p._enabled) {
-        html += '<a class="mg-plugin-row-config" href="/manager/extension-config">Edit</a>';
+        html += '<a class="mg-extension-row-config" href="/manager/extension-config">Edit</a>';
       }
     }
     html += '</div>';
     // Main column: name + description.
-    html += '<div class="mg-plugin-main">' +
-      '<div class="mg-plugin-row-name">' + esc(p.name) + '</div>' +
+    html += '<div class="mg-extension-main">' +
+      '<div class="mg-extension-row-name">' + esc(p.name) + '</div>' +
       '<div class="mg-muted">' + esc(p.description || '') + '</div></div>';
     // End column (info only): the core badge, or an info tooltip carrying the
-    // plugin details (its file is here, not cluttering the row).
-    html += '<div class="mg-plugin-end">';
+    // extension details (its file is here, not cluttering the row).
+    html += '<div class="mg-extension-end">';
     if (p.core) {
       html += '<span class="mg-tag enabled" title="Always on - wired in the web server config">core</span>';
     } else {
@@ -122,7 +122,7 @@ function renderPluginRegistry(plugins) {
   container.innerHTML = html;
 }
 
-function togglePlugin(input, script, name) {
+function toggleExtension(input, script, name) {
   var action = input.checked ? 'extension-enable' : 'extension-disable';
   input.disabled = true;
   clearRowRefusal(input);
@@ -143,13 +143,13 @@ function togglePlugin(input, script, name) {
       warn(why, true);
       showRowRefusal(input, why);
     } else {
-      // A plugin may run a setup/teardown step with its toggle (on_enable /
+      // An extension may run a setup/teardown step with its toggle (on_enable /
       // on_disable) - its outcome IS the news, so show it here.
       var h = data.hook;
       if (h && h.message) { warn(name + ': ' + h.message); }
       else if (h && !h.ok) { warn(name + ' is toggled, but its setup step failed: ' + (h.error || 'unknown') + ' - open its config page for status.'); }
       else { warn(''); }
-      loadPluginRegistry();
+      loadExtensionRegistry();
     }
   }).catch(function (e) {
     input.disabled = false; input.checked = !input.checked;
@@ -157,5 +157,5 @@ function togglePlugin(input, script, name) {
   });
 }
 
-loadPluginRegistry();
+loadExtensionRegistry();
 </script>

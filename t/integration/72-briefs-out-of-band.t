@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM245: briefs move out of band, into a store the plugin owns. The record
+# SM245: briefs move out of band, into a store the extension owns. The record
 # SM073 invented survives; the sidecar file does not - and with it goes
 # every engine rule that existed only because a brief was a file in the
 # content tree. What stays, deliberately: the extension-level DENIES.
@@ -66,7 +66,7 @@ sub api_post {
 
 subtest 'DISABLED MEANS DISABLED (ADR 0009, the SM469 clause)' => sub {
     my $r = api_get('action=brief-read&path=/content/page.md');
-    ok( !$r->{ok}, 'a contract plugin executes nothing while disabled' );
+    ok( !$r->{ok}, 'a contract extension executes nothing while disabled' );
     like( $r->{error} // '', qr/disabled|Extensions page/i, 'and says so' );
 };
 
@@ -143,7 +143,7 @@ subtest 'THE DENIES OUTLIVE THE FEATURE - a stray sidecar is still unserved' => 
 
 subtest 'SM504: A SIDECAR WRITE REFUSES ONCE THE STORE OWNS THE RECORD' => sub {
     # The operator's instruction: not an inert file - a refusal that names
-    # the replacement. Gated on the PLUGIN (enabled above), never version.
+    # the replacement. Gated on the EXTENSION (enabled above), never version.
     my $w = api_post( 'action=save&path=/content/late.md.brief',
         { content => "a note nobody would read\n", mtime => undef } );
     ok( !$w->{ok}, 'the manager/MCP write path refuses' ) or diag explain $w;
@@ -203,7 +203,7 @@ subtest 'SM504-B3: A SITE STILL ON SIDECARS KEEPS WORKING, INDEFINITELY' => sub 
     make_path("$other/lazysite/auth");
     make_path("$other/content");
     open my $cf2, '>', "$other/lazysite/lazysite.conf" or die $!;
-    print {$cf2} "site_name: Legacy\n";    # briefs plugin NOT enabled
+    print {$cf2} "site_name: Legacy\n";    # briefs extension NOT enabled
     close $cf2;
     local %ENV = ( cgi_env(), DOCUMENT_ROOT => $other,
         REQUEST_METHOD => 'GET', QUERY_STRING => 'action=csrf-token' );

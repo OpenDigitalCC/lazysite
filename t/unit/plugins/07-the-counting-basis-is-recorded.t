@@ -34,10 +34,10 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-ok( -f $plugin, 'the stats plugin is present' );
+my $extension = repo_root() . '/extensions/stats.pl';
+ok( -f $extension, 'the stats extension is present' );
 
-my $src = do { open my $fh, '<', $plugin or die $!; local $/; <$fh> };
+my $src = do { open my $fh, '<', $extension or die $!; local $/; <$fh> };
 
 my ($BASIS) = $src =~ /our \$COUNTING_BASIS = (\d+);/;
 
@@ -86,7 +86,7 @@ subtest 'the durable day and the index both carry it' => sub {
     close $cf;
 
     my $log = "$d/access.log";
-    # Q14g (SM974): one instant, stamped as what it says it is - the plugin
+    # Q14g (SM974): one instant, stamped as what it says it is - the extension
     # reads the +0000 - and its UTC day, which is the day it is filed under.
     my $t   = time;
     my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $t );
@@ -98,7 +98,7 @@ subtest 'the durable day and the index both carry it' => sub {
 
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $r = decode_json(qx($^X \Q$plugin\E --export --window 30 2>/dev/null));
+    my $r = decode_json(qx($^X \Q$extension\E --export --window 30 2>/dev/null));
     ok( $r->{ok}, 'the export ran' ) or return;
 
     my $today = strftime( '%Y-%m-%d', gmtime $t );
@@ -155,7 +155,7 @@ subtest 'a month spanning the change says it is mixed' => sub {
 
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $first = decode_json(qx($^X \Q$plugin\E --export --window 30 2>/dev/null));
+    my $first = decode_json(qx($^X \Q$extension\E --export --window 30 2>/dev/null));
     ok( $first->{ok}, 'a first run establishes a real cache' ) or return;
 
     my $cache_path = "$d/lazysite/cache/stats-export.json";
@@ -189,7 +189,7 @@ SKIP: {
             . qq{"Mozilla/5.0 Chrome/120"\n};
         close $ap;
 
-        my $r = decode_json(qx($^X \Q$plugin\E --export --window 30 2>/dev/null));
+        my $r = decode_json(qx($^X \Q$extension\E --export --window 30 2>/dev/null));
         ok( $r->{ok}, 'the export ran over a cache in the pre-upgrade shape' );
 
         my $m = decode_json( do {

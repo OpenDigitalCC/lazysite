@@ -153,7 +153,7 @@ sub build_site {
     make_path( $docroot, $ext );
     $LZ = Lazysite::Paths::lazysite_dir($docroot);    # asked, never built (t/lint/37)
     make_path( "$LZ/auth", "$LZ/cache", "$LZ/layouts/bench" );
-# The plugins the registry looks for beside the docroot (copies: SM152 refuses a symlink).
+# The extensions the registry looks for beside the docroot (copies: SM152 refuses a symlink).
     my $shipped = Lazysite::Extensions::extensions_dir($ROOT);
     opendir my $pd, $shipped or die "$shipped: $!";
     for my $f ( grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {

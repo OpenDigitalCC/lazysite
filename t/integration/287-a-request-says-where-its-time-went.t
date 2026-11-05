@@ -258,7 +258,7 @@ SKIP: {
 
 # --- the Odoo endpoint -----------------------------------------------------------
 subtest 'the Odoo endpoint' => sub {
-    my $d = site_tempdir( plugins => 1 );
+    my $d = site_tempdir( extensions => 1 );
     make_path("$d/lazysite/auth");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\nextensions:\n  - extensions/odoo.pl\n";

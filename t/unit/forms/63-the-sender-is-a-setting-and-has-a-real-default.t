@@ -18,7 +18,7 @@ use IO::Socket::INET;
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir run_child);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use File::Copy qw(copy);
 
 my $root   = repo_root();
@@ -106,8 +106,8 @@ subtest 'a From setting is validated when it is saved' => sub {
     copy( $script, "$parent/extensions/form-smtp.pl" ) or die $!;
     chmod 0755, "$parent/extensions/form-smtp.pl";
     local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
-    $Lazysite::Manager::Plugins::DOCROOT = $dr;
-    my $save = sub { Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/form-smtp.pl', {@_} ) };
+    $Lazysite::Manager::Extensions::DOCROOT = $dr;
+    my $save = sub { Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/form-smtp.pl', {@_} ) };
     my $conf = "$dr/lazysite/forms/smtp.conf";
 
     my $r = $save->( from => 'ops@example.org' );

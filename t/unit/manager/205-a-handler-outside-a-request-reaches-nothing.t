@@ -113,7 +113,7 @@ subtest 'the remap handlers, loaded outside a request, reach no domain' => sub {
 
     no warnings 'once';
     $Lazysite::Manager::Remap::DOCROOT = $s->docroot; # what an entry point that loads it would set:
-    $Lazysite::Manager::Plugins::DOCROOT = $s->docroot; # where the site is - never who is asking
+    $Lazysite::Manager::Extensions::DOCROOT = $s->docroot; # where the site is - never who is asking
     $Lazysite::Manager::Domains::DOCROOT = $s->docroot;
     $Lazysite::Manager::Common::DOCROOT  = $s->docroot;
     my $rule = [ { prefix => '/x', destination => 'https://elsewhere.example.com' } ];
@@ -283,7 +283,7 @@ subtest 'the describe actions, loaded outside a request, describe nothing' => su
     $s->grant( 'boss', 'bosses', [qw(ui api manage_content)], [qw(ui api manage_content)] );
     no warnings 'once';
     local $Lazysite::Manager::Describe::DOCROOT = $s->docroot;  # what the dispatcher sets
-    local $Lazysite::Manager::Plugins::DOCROOT  = $s->docroot;
+    local $Lazysite::Manager::Extensions::DOCROOT  = $s->docroot;
     local $Lazysite::Manager::Common::DOCROOT   = $s->docroot;
     local $ENV{LAZYSITE_USERS_TOOL} = repo_root() . '/tools/lazysite-users.pl';
     local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
@@ -295,7 +295,7 @@ subtest 'the describe actions, loaded outside a request, describe nothing' => su
     is( $r->{kind} // '', 'forbidden', 'actions-list refuses' ) or diag explain $r;
     ok( !exists $r->{actions}, '...listing nothing' );
     is_deeply( Lazysite::Manager::Describe::site_capabilities(), ['email-send'],
-        'site_capabilities, unchanged (d), still answers the site\'s enabled plugins\' provides' );
+        'site_capabilities, unchanged (d), still answers the site\'s enabled extensions\' provides' );
 
     # boss's own request, as the dispatcher passes the account.
     $auth_user = 'boss';
@@ -311,7 +311,7 @@ subtest 'the describe actions, loaded outside a request, describe nothing' => su
 };
 
 # SM944 S26: the services, version and stats area, moved into Manager::Services
-# after the ruled (c). Outside a request analyse_visitors ran the stats plugin
+# after the ruled (c). Outside a request analyse_visitors ran the stats extension
 # and returned its export with nobody asking; now it refuses and runs nothing.
 # (d) version, the transports' state and channel-services are unchanged - site
 # facts any signed-in caller reads, no account, no write, no tool run - and
@@ -333,7 +333,7 @@ subtest 'the services area, loaded outside a request, runs no stats tool' => sub
     no warnings 'once';
     local $Lazysite::Manager::Services::DOCROOT      = $d;    # what the dispatcher sets
     local $Lazysite::Manager::Services::LAZYSITE_DIR = "$d/lazysite";
-    local $Lazysite::Manager::Plugins::DOCROOT       = $d;
+    local $Lazysite::Manager::Extensions::DOCROOT       = $d;
 
     my $r = Lazysite::Manager::Services::action_analyse_visitors( window => 7 );
     is( $r->{kind} // '', 'forbidden', 'analyse_visitors refuses: no account is asking' ) or diag explain $r;
@@ -572,14 +572,14 @@ subtest 'the configuration verbs, loaded outside a request, write no setting' =>
 
 # SM944 S29: the page PDF area, moved into Manager::PagePdf after page-pdf took
 # the established fail-closed pattern. Outside a request it loaded the pandoc
-# plugin and converted a public page for account ''; now it refuses before the
-# plugin loads. With boss's context the page is streamed - the plugin loaded in
+# extension and converted a public page for account ''; now it refuses before the
+# extension loads. With boss's context the page is streamed - the extension loaded in
 # package main, where its converter is looked for - and after the reset it
 # refuses again. md-to-pdf is a stand-in on PATH (no network).
 subtest 'the page PDF render, loaded outside a request, converts nothing' => sub {
     require Lazysite::Manager::PagePdf;
     require TestHelper;
-    my $d = TestHelper::site_tempdir( plugins => 1 );
+    my $d = TestHelper::site_tempdir( extensions => 1 );
     ( my $t = $d ) =~ s{/site/public_html\z}{};
     mkdir "$d/lazysite";
     mkdir "$d/docs";
@@ -668,8 +668,8 @@ subtest 'the audit trail views and switch, loaded outside a request, read and sw
         'p.md', 'the line parser still parses' );
     is( $AT->can('_audit_implicit_target')->( 'config-set', { key => 'site_name' } ), 'site_name',
         'the implicit-target deriver still derives' );
-    is( $AT->can('_audit_plugin_target')->( { plugin => 'stats' }, undef ), 'stats',
-        'the plugin-target deriver still derives' );
+    is( $AT->can('_audit_extension_target')->( { extension => 'stats' }, undef ), 'stats',
+        'the extension-target deriver still derives' );
 
     # boss's own request: the views read; a token holding both grants switches.
     $auth_user  = 'boss';
@@ -723,7 +723,7 @@ subtest 'the users area, loaded outside a request, answers for nobody' => sub {
     local $Lazysite::Manager::Themes::LAZYSITE_DIR   = $lz;
     local $Lazysite::Manager::Layouts::DOCROOT       = $d;
     local $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $lz;
-    local $Lazysite::Manager::Plugins::DOCROOT       = $d;
+    local $Lazysite::Manager::Extensions::DOCROOT       = $d;
     local $Lazysite::Manager::Services::DOCROOT      = $d;
     local $Lazysite::Manager::Services::LAZYSITE_DIR = $lz;
     local $Lazysite::Manager::Describe::DOCROOT      = $d;
@@ -772,7 +772,7 @@ subtest 'the users area, loaded outside a request, answers for nobody' => sub {
 };
 
 # SM944 S33: the four listing branches extracted into their area modules -
-# themes-list-all (Themes), form-list (Plugins), briefs-list (Briefs),
+# themes-list-all (Themes), form-list (Extensions), briefs-list (Briefs),
 # backup-list (SiteBackup). Each filters by the caller's reach, and outside a
 # request the reset leaves a caller confined to no scope, so the three filtered
 # listings list nothing (as domains-list and remap-list do) and themes-list-all
@@ -782,7 +782,7 @@ subtest 'the users area, loaded outside a request, answers for nobody' => sub {
 # (tmp/sm944-s33-refusal-probe.out).
 subtest 'the listings extracted from the dispatch chain list nothing outside a request' => sub {
     require Lazysite::Manager::Themes;
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     require Lazysite::Manager::Briefs;
     require Lazysite::Manager::SiteBackup;
     require ManagerSession;
@@ -813,7 +813,7 @@ subtest 'the listings extracted from the dispatch chain list nothing outside a r
     local $Lazysite::Manager::Common::DOCROOT          = $d;
     local $Lazysite::Manager::Themes::DOCROOT          = $d;
     local $Lazysite::Manager::Themes::LAZYSITE_DIR     = $lz;
-    local $Lazysite::Manager::Plugins::DOCROOT         = $d;
+    local $Lazysite::Manager::Extensions::DOCROOT         = $d;
     local $Lazysite::Manager::Briefs::DOCROOT          = $d;
     local $Lazysite::Manager::SiteBackup::DOCROOT      = $d;
     local $Lazysite::Manager::SiteBackup::LAZYSITE_DIR = $lz;
@@ -824,7 +824,7 @@ subtest 'the listings extracted from the dispatch chain list nothing outside a r
     local $ENV{LAZYSITE_LOG_LEVEL}  = 'ERROR';
     my %list = (
         themes  => sub { Lazysite::Manager::Themes::dispatch_themes_list_all() },
-        forms   => sub { Lazysite::Manager::Plugins::dispatch_form_list() },
+        forms   => sub { Lazysite::Manager::Extensions::dispatch_form_list() },
         briefs  => sub { Lazysite::Manager::Briefs::dispatch_briefs_list() },
         backups => sub { Lazysite::Manager::SiteBackup::dispatch_backup_list() },
     );

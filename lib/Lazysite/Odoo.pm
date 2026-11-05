@@ -700,14 +700,14 @@ sub _refusal {
     return ( 0, { ok => 0, kind => $kind, error => $why } );
 }
 
-# SM409: the extension is a contract plugin, so off means off - on every path,
+# SM409: the extension is a contract extension, so off means off - on every path,
 # not only the manager's.
 sub _extension_enabled {
     my $ok = eval {
-        require Lazysite::Manager::Plugins;
+        require Lazysite::Manager::Extensions;
         no warnings 'once';
-        local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-        Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
+        local $Lazysite::Manager::Extensions::DOCROOT = $DOCROOT;
+        Lazysite::Manager::Extensions::extension_enabled('extensions/odoo.pl');
     };
     return $ok ? 1 : 0;
 }

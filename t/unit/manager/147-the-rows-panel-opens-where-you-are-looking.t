@@ -9,7 +9,7 @@
 # That is observation, not inference, which is the strongest evidence this
 # project gets and the hardest to argue with.
 #
-# It is the same objection SM640 answered on the Plugin Config page: a table's
+# It is the same objection SM640 answered on the Extension Config page: a table's
 # rows are a DIFFERENT SUBJECT from the list of tables, not more detail about
 # one entry in it - and the panel carries its own pager, filter and editor,
 # which is an application nested inside a listing.

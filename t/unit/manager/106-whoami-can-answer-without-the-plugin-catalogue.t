@@ -1,14 +1,14 @@
 #!/usr/bin/perl
-# SM671: `whoami` can answer without the plugin inventory.
+# SM671: `whoami` can answer without the extension inventory.
 #
 # WHAT WAS REPORTED. `whoami` is what an agent calls to learn who it is and what
-# it may do, and the field found the answer to be mostly a plugin catalogue.
+# it may do, and the field found the answer to be mostly an extension catalogue.
 # That is paid on every preflight - and a preflight per account per run is now
 # standing practice for the testing agent, precisely because a brief can be
 # stale (SM690).
 #
 # WHY OPT-OUT AND NOT OPT-IN. Omitting the array by default is the leaner answer
-# and a BREAKING one: a client reading `plugins` would silently start seeing an
+# and a BREAKING one: a client reading `extensions` would silently start seeing an
 # empty list rather than an error, and this line is bound for a stable fleet.
 # The caller who cares about the cost is the caller who will pass the flag, so
 # the cost falls where the benefit does.
@@ -28,10 +28,10 @@ my $users = do {
 };
 
 subtest 'the flag reaches the action' => sub {
-    like( $src, qr/action_whoami\(\s*\$auth_user,\s*\$params\{plugins\}\s*\)/,
+    like( $src, qr/action_whoami\(\s*\$auth_user,\s*\$params\{extensions\}\s*\)/,
         'the dispatch passes the parameter' )
         or diag( 'A flag the action never receives is a flag that lies.' );
-    like( $users, qr/my \( \$user, \$want_plugins \) = \@_;/,
+    like( $users, qr/my \( \$user, \$want_extensions \) = \@_;/,
         'and the action takes it' );
 };
 
@@ -47,9 +47,9 @@ subtest 'only an explicit falsey value omits the catalogue' => sub {
 
     # THE DEFAULT MUST BE THE OLD SHAPE. This is the assertion that protects
     # every existing client, and the reason the flag is opt-out.
-    like( $fn, qr/\$skip_plugins \? \(\) : \( plugins => \[/,
+    like( $fn, qr/\$skip_extensions \? \(\) : \( extensions => \[/,
         'the array is present unless the caller asks otherwise' )
-        or diag( 'If this inverts, every client reading `plugins` sees an '
+        or diag( 'If this inverts, every client reading `extensions` sees an '
             . 'empty list and no error - a silent break across a stable fleet.' );
 };
 
@@ -57,7 +57,7 @@ subtest 'nothing else in the answer moved' => sub {
     my ($fn) = $users =~ /(sub action_whoami \{.*?\n\})/s;
     # The parts a preflight actually reads must be unconditional: an agent
     # checking its grant before a run needs these whatever it asked about
-    # plugins.
+    # extensions.
     # SM821: capabilities and account (groups among it) come from the one
     # builder, spread unconditionally.
     like( $fn, qr/^\s*Lazysite::Capabilities::whoami_grant\(\$s\),/m,
@@ -65,7 +65,7 @@ subtest 'nothing else in the answer moved' => sub {
     for my $key (qw(reachable scope site_capabilities)) {
         like( $fn, qr/\b\Q$key\E\s*=>/, "$key is still answered unconditionally" )
             or diag( "A preflight reads $key. Making it conditional on the "
-                . 'plugin flag would trade one bloated answer for an '
+                . 'extension flag would trade one bloated answer for an '
                 . 'incomplete one.' );
     }
 };

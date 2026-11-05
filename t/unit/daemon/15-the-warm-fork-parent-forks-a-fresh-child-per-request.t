@@ -35,7 +35,7 @@ use Lazysite::WarmFork::Wire                ();
 use Lazysite::Daemon::Service::OdooEndpoint ();
 
 my $root = repo_root();
-my $d    = site_tempdir( plugins => 1 );
+my $d    = site_tempdir( extensions => 1 );
 ( my $base = $d ) =~ s{/public_html\z}{};
 my $LZ = "$d/lazysite";
 make_path($LZ);

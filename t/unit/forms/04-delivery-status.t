@@ -7,11 +7,11 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 
 # A form submission must only report success when a target actually accepted it.
-# If every target is disabled / unknown / failed (e.g. the delivery plugin is
+# If every target is disabled / unknown / failed (e.g. the delivery extension is
 # turned off) the submission is NOT saved, so the handler must ERROR rather than
 # show a false "thank you".
-my $PLUGIN = 'extensions/form-handler.pl';
-ok( -f $PLUGIN, 'form handler present' );
+my $EXTENSION = 'extensions/form-handler.pl';
+ok( -f $EXTENSION, 'form handler present' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/forms");
@@ -43,7 +43,7 @@ sub post {
     local $ENV{CONTENT_TYPE}   = 'application/x-www-form-urlencoded';
     local $ENV{CONTENT_LENGTH} = length $body;
     local $ENV{REMOTE_ADDR}    = '10.0.0.' . ( ++$IP );
-    my $out = qx($^X \Q$PLUGIN\E < \Q$bf\E 2>/dev/null);
+    my $out = qx($^X \Q$EXTENSION\E < \Q$bf\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;     # strip CGI headers
     return decode_json($out);
 }

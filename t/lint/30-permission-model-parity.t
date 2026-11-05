@@ -125,7 +125,7 @@ is_deeply( \@disagree, [],
 
 # --- applied_by is honoured --------------------------------------------------
 # A path the installer must NOT create (lazysite/git is made by the
-# content-history plugin at adoption) has to be excluded there, or adding it to
+# content-history extension at adoption) has to be excluded there, or adding it to
 # the model changes install behaviour - which report-before-repair forbids.
 {
     my $inst = do {

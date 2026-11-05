@@ -77,11 +77,11 @@ BEGIN {
     $FORM_TK_PLACEHOLDER = '__LAZYSITE_FORM_TK__';
 }
 
-# --- Plugin descriptor ---
+# --- Extension descriptor ---
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
-    # SM042: the processor stays a registered CORE plugin (the registry probes
+    # SM042: the processor stays a registered CORE extension (the registry probes
     # lazysite-processor.pl + lazysite-auth.pl via --describe), but it no longer
     # carries the site-config schema. Site settings are now read and written
     # directly through the control API (config-read / config-set); config.md's
@@ -486,7 +486,7 @@ our %ENV_ALLOWLIST = map { $_ => 1 } qw(
 );
 
 # SM110: domain aliases. An alias host serves the SAME site (same files,
-# users, plugins) with its own chrome. Only these lazysite.conf keys may
+# users, extensions) with its own chrome. Only these lazysite.conf keys may
 # vary per host via alias.<host>.<key> lines - a strict whitelist because
 # the Host header is request-supplied: were a security-relevant key
 # (manager, auth_*, webdav_*, update_*) overridable per host, any client

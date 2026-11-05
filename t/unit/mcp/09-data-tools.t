@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM447: the data tools over MCP.
 #
-# AN AGENT POPULATING A TABLE IS THE PRIMARY USE of the data plugin, which is
+# AN AGENT POPULATING A TABLE IS THE PRIMARY USE of the data extension, which is
 # why these exist rather than leaving agents to drive the control API. The gap
 # was recorded in t/lint/23 as a schedule rather than a decision, and this
 # closes it.
@@ -34,7 +34,7 @@ my $d = tempdir( CLEANUP => 1 );
 # is what hid the fact that no channel could.
 make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-# SM469: a contract plugin is born disabled, so an operator enables it - the
+# SM469: a contract extension is born disabled, so an operator enables it - the
 # fixture does what an operator would.
 print {$cf} "mcp_enabled: true\nextensions:\n  - extensions/data.pl\n";
 close $cf;
@@ -211,16 +211,16 @@ subtest 'the refusals an agent depends on survive the trip' => sub {
     ok( !$nosuch->{ok}, 'and an undeclared table is an error, not an empty list' );
 };
 
-subtest 'SM469: a disabled plugin refuses over MCP too' => sub {
-    # ADR 0009 says MCP tools backed by a plugin refuse the same way. They do
+subtest 'SM469: a disabled extension refuses over MCP too' => sub {
+    # ADR 0009 says MCP tools backed by an extension refuse the same way. They do
     # here because the gate lives in the module all three surfaces call, rather
     # than in each surface - which is the reason for that arrangement.
     open my $off, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$off} "mcp_enabled: true\n";    # no plugins: list
+    print {$off} "mcp_enabled: true\n";    # no extensions: list
     close $off;
 
     my $r = call('list_data_tables');
-    ok( !$r->{ok}, 'a read refuses while the plugin is disabled' );
+    ok( !$r->{ok}, 'a read refuses while the extension is disabled' );
     like( $r->{error}, qr/disabled/, 'and says so' );
 
     open my $on, '>', "$d/lazysite/lazysite.conf" or die $!;

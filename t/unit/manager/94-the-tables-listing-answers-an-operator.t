@@ -128,10 +128,10 @@ subtest 'OFF MEANS OFF here too' => sub {
     # store and runs a query.
     conf(0);
     my ($r) = listing();
-    ok( !$r->{ok}, 'a disabled plugin lists nothing' );
+    ok( !$r->{ok}, 'a disabled extension lists nothing' );
     like( $r->{error}, qr/disabled/i, 'and says why' )
         or diag( 'The page shows this text instead of an empty list, so a '
-            . 'switched-off plugin cannot look like a site with no data.' );
+            . 'switched-off extension cannot look like a site with no data.' );
     conf(1);
 };
 

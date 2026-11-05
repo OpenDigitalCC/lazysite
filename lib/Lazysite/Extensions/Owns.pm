@@ -1,9 +1,9 @@
-package Lazysite::Plugins::Owns;
+package Lazysite::Extensions::Owns;
 
-# ADR 0009: reading and VALIDATING a plugin's `owns` declaration.
+# ADR 0009: reading and VALIDATING an extension's `owns` declaration.
 #
 # WHY VALIDATION LIVES HERE AND NOT IN EACH CONSUMER. The whole contract is
-# that the platform consumes the declaration instead of knowing the plugin by
+# that the platform consumes the declaration instead of knowing the extension by
 # name: backup and site packages read `storage`, the SBOM gate reads `deps`,
 # the capability lints discover `capabilities`. Every one of those TRUSTS the
 # list. Trust established separately by each consumer is trust established
@@ -12,7 +12,7 @@ package Lazysite::Plugins::Owns;
 #
 # `storage` IS THE DANGEROUS ONE, and it is why this module exists before any
 # consumer does. A site package deliberately excludes `lazysite/` because that
-# is where secrets live; carrying plugin storage means carrying NAMED paths
+# is where secrets live; carrying extension storage means carrying NAMED paths
 # beneath it. A declaration of `lazysite/` or `../..` or `/etc` would turn a
 # feature that ships a site into one that ships an auth store. So the paths are
 # checked here, once, at the point they are read - and the check is
@@ -47,7 +47,7 @@ sub parse_dep {
 }
 
 # The declared keys, and nothing else. An unknown key is refused rather than
-# ignored: a plugin author writing `capability` for `capabilities` would
+# ignored: an extension author writing `capability` for `capabilities` would
 # otherwise get silence and a capability that never appears, which reads as the
 # platform being broken.
 my @KEYS = qw(config_keys storage endpoints capabilities deps bins);
@@ -56,7 +56,7 @@ sub owns_keys { my @k = @KEYS; return @k }
 
 sub _err {
     my ( $id, $key, $why ) = @_;
-    return { plugin => $id, key => $key, error => $why };
+    return { extension => $id, key => $key, error => $why };
 }
 
 # Returns a LIST of problems - empty when the declaration is sound.
@@ -97,11 +97,11 @@ sub validate_owns {
         }
 
         # UNDER lazysite/, and named. The site package excludes lazysite/
-        # wholesale precisely because secrets live there, so a plugin may claim
+        # wholesale precisely because secrets live there, so an extension may claim
         # a NAMED subtree of it and never the tree itself.
         if ( $p !~ m{\A lazysite/ [^/] }x ) {
             push @bad, _err( $id, 'storage',
-                "'$p' must be under lazysite/ - that is the only tree a plugin "
+                "'$p' must be under lazysite/ - that is the only tree an extension "
                     . 'owns storage in' );
             next;
         }
@@ -136,7 +136,7 @@ sub validate_owns {
 
     for my $e ( @{ $owns->{endpoints} || [] } ) {
         # A direct-CGI surface, named as the script it is. No path, because an
-        # endpoint elsewhere is not this plugin's to declare.
+        # endpoint elsewhere is not this extension's to declare.
         push @bad, _err( $id, 'endpoints',
             "'" . ( defined $e ? $e : '(undef)' )
                 . "' must be a bare script name ending in .pl" )
@@ -158,9 +158,9 @@ sub validate_owns {
             unless @parsed;
     }
 
-    # SM694: a PROGRAM the plugin needs, beside `deps` for a Perl module. A
+    # SM694: a PROGRAM the extension needs, beside `deps` for a Perl module. A
     # BARE NAME, never a path: resolution is PATH's job at enable time, and a
-    # plugin declaring /usr/local/bin/x would be naming one host's layout
+    # extension declaring /usr/local/bin/x would be naming one host's layout
     # rather than a dependency - which is how a declaration stops travelling
     # with the package it belongs to.
     for my $b ( @{ $owns->{bins} || [] } ) {

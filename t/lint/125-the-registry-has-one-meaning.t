@@ -2,7 +2,7 @@
 # SM222 L0: the two readers of the unit registry agree.
 #
 # `extensions:` in lazysite.conf is the registry. It has TWO readers by necessity,
-# not by accident: Lazysite::Manager::Plugins::_enabled_map for the manager tree,
+# not by accident: Lazysite::Manager::Extensions::_enabled_map for the manager tree,
 # and a marked copy in lazysite-processor.pl for the render path, which is
 # deliberately module-free under ADR 0001 and cannot call the first one.
 #
@@ -30,8 +30,8 @@ my $docroot = site_tempdir();
 setup_minimal_site($docroot);
 load_processor($docroot);
 
-eval { require Lazysite::Manager::Plugins; 1 }
-    or plan skip_all => "cannot load Lazysite::Manager::Plugins: $@";
+eval { require Lazysite::Manager::Extensions; 1 }
+    or plan skip_all => "cannot load Lazysite::Manager::Extensions: $@";
 
 my $conf = "$docroot/lazysite/lazysite.conf";
 
@@ -58,7 +58,7 @@ my @CASES = (
       "extensions:\nsite_name: Empty\n",
       [] ],
 
-    [ 'no plugins key at all enables nothing',
+    [ 'no extensions key at all enables nothing',
       "site_name: None\n",
       [] ],
 
@@ -98,14 +98,14 @@ for my $c (@CASES) {
     my %expect = map { $_ => 1 } @$on;
 
     main::_reset_units();
-    local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
 
     my ( @proc, @mgr, @want );
     for my $e (@UNIVERSE) {
         push @want, "$e=" . ( $expect{$e}       ? 1 : 0 );
         push @proc, "$e=" . ( main::_unit_enabled($e) ? 1 : 0 );
         push @mgr,
-            "$e=" . ( Lazysite::Manager::Plugins::plugin_enabled($e) ? 1 : 0 );
+            "$e=" . ( Lazysite::Manager::Extensions::extension_enabled($e) ? 1 : 0 );
     }
 
     is( "@proc", "@want", "render path reads '$name' correctly" );

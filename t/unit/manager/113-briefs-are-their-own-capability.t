@@ -148,14 +148,14 @@ like( $cap{read_brief} // '', qr/cap_also\s*=>\s*'manage_content'/,
 like( $cap{list_briefs} // '', qr/cap_also\s*=>\s*'manage_content'/,
     'as does list_briefs' );
 
-# --- 4. the plugin owns it, and the mirror is a mirror -----------------------
-# ADR 0009: the plugin is the one place that says what it owns. t/lint/76 does
+# --- 4. the extension owns it, and the mirror is a mirror -----------------------
+# ADR 0009: the extension is the one place that says what it owns. t/lint/76 does
 # the discovering; this asserts the declaration exists at all, because a lint
 # that finds no declarations passes while checking nothing.
 my $decl = eval { decode_json(`$^X \Q$root/extensions/briefs.pl\E --describe 2>/dev/null`) };
-ok( ref $decl eq 'HASH', 'the briefs plugin answers --describe' );
+ok( ref $decl eq 'HASH', 'the briefs extension answers --describe' );
 is_deeply( ( $decl || {} )->{owns}{capabilities}, ['manage_briefs'],
-    'and DECLARES manage_briefs, as the data plugin declares manage_data' );
+    'and DECLARES manage_briefs, as the data extension declares manage_data' );
 
 my %cap_key = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
 ok( $cap_key{manage_briefs}, 'manage_briefs is mirrored in @CAP_KEYS' );

@@ -7,7 +7,7 @@
 #
 #   1. The stats job ran whatever LAZYSITE_STATS_TOOL named, first and
 #      unconditionally. The seam existed for tests; production now looks only
-#      where a deploy puts the plugin, and so do the tests.
+#      where a deploy puts the extension, and so do the tests.
 #   2. ADOPT BY STOPPING trusted the pid and state files, which the site user can
 #      write: a pid and a kernel start time copied from /proc made the supervisor
 #      TERM and then KILL that process. An orphan it may stop is now also a copy
@@ -47,7 +47,7 @@ sub site {
 sub spit { my ( $p, $s ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $s; close $fh; return }
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; my $s = <$fh>; close $fh; return $s }
 
-subtest 'the stats job runs the deploy\'s plugin, not whatever the environment names' => sub {
+subtest 'the stats job runs the deploy\'s extension, not whatever the environment names' => sub {
     my ( $t, $d ) = site();
     add_account( $d, 'jobs-stats' );
     grant_caps( $d, 'jobs-stats', qw(run_jobs analytics) );
@@ -64,12 +64,12 @@ subtest 'the stats job runs the deploy\'s plugin, not whatever the environment n
 
     # The real lookup still works: the Hestia layout, extensions/ beside the docroot.
     mkdir "$t/site/extensions";
-    my $found = "$t/found-the-deploy-plugin";
+    my $found = "$t/found-the-deploy-extension";
     spit( "$t/site/extensions/stats.pl",
         "open my \$o, '>', '$found' or die; close \$o; print '{\"ok\":true,\"days\":[]}';\n" );
     unlink "$d/lazysite/daemon/scheduler-runs.json";
     Lazysite::Daemon::Service::Scheduler::tick( docroot => $d );
-    ok( -e $found, 'the plugin where a deploy puts it is the one that runs' );
+    ok( -e $found, 'the extension where a deploy puts it is the one that runs' );
 };
 
 subtest 'a forged service record cannot make the supervisor kill another process' => sub {

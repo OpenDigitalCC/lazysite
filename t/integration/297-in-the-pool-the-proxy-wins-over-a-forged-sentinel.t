@@ -157,7 +157,7 @@ subtest 'a page the worker renders: the proxy\'s user wins over the cookie' => s
 };
 
 subtest 'the manager API the worker relays: the proxy\'s user wins over the cookie' => sub {
-    my $uri = '/cgi-bin/lazysite-manager-api.pl?action=whoami&plugins=0';
+    my $uri = '/cgi-bin/lazysite-manager-api.pl?action=whoami&extensions=0';
     my %api = ( SCRIPT_NAME => '/cgi-bin/lazysite-manager-api.pl', CONTENT_TYPE => 'application/json' );
 
     my ( $out, $ran, $apiran ) = req( $uri, %api, %FROM_PROXY );

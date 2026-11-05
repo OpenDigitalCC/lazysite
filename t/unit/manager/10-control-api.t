@@ -51,7 +51,7 @@ sub mapi {
 sub basic { 'Basic ' . encode_base64( "$_[0]:$_[1]", '' ) }
 sub csrf  { hmac_sha256_hex( "csrf:$_[0]:" . int( time() / 3600 ), $secret ) }
 
-my $d = site_tempdir( plugins => 1 );    # the plugin inventory below needs real plugins
+my $d = site_tempdir( extensions => 1 );    # the extension inventory below needs real extensions
 make_path("$d/lazysite/auth");
 make_path("$d/lazysite/layouts/base/themes/live");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
@@ -410,9 +410,9 @@ ok( $who->{capabilities}{manage_themes},   'whoami reports manage_themes on' );
 ok( !$who->{capabilities}{manage_layouts}, 'whoami reports manage_layouts off' );
 ok( ( grep { $_ eq 'editors' } @{ $who->{account}{groups} || [] } ),
     'whoami lists the caller groups (editors), in the account block (SM821)' );
-ok( ref $who->{plugins} eq 'ARRAY',        'whoami lists plugins' );
+ok( ref $who->{extensions} eq 'ARRAY',        'whoami lists extensions' );
 ok( exists $who->{layouts}{active_layout}, 'whoami reports the active layout' );
-ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities from enabled plugins' );
+ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities from enabled extensions' );
 
 # whoami needs no special capability - nocap can still introspect itself
 my $who2 = mapi( $d, QUERY_STRING => 'action=whoami',
@@ -422,7 +422,7 @@ ok( $who2->{ok} && $who2->{user} eq 'nocap', 'whoami available without a capabil
 # --- SM565: whoami tells a stranger only its own shape ---------------------
 # Introspection stays open (above), but what it RETURNS to a caller at the
 # capability floor is its own grant: capabilities, reachability, scope. The
-# site's manager group names, plugin configuration schemas and theme
+# site's manager group names, extension configuration schemas and theme
 # inventory are each returned only to a caller holding a capability that
 # governs them (manage_users / manage_config / manage_themes|manage_layouts).
 ok( ref $who2->{capabilities} eq 'HASH' && ref $who2->{scope}{deny} eq 'ARRAY',
@@ -430,23 +430,23 @@ ok( ref $who2->{capabilities} eq 'HASH' && ref $who2->{scope}{deny} eq 'ARRAY',
 ok( !exists $who2->{manager_groups},
     'SM565: the floor caller is not told the manager group names' );
 ok( !exists $who2->{themes}, 'SM565: the floor caller is not told the theme inventory' );
-ok( ref $who2->{plugins} eq 'ARRAY'
-        && !( grep { exists $_->{config_schema} } @{ $who2->{plugins} } ),
-    'SM565: the floor caller sees no plugin config schema' );
+ok( ref $who2->{extensions} eq 'ARRAY'
+        && !( grep { exists $_->{config_schema} } @{ $who2->{extensions} } ),
+    'SM565: the floor caller sees no extension config schema' );
 # --- SM589: the floor is not told how the site is installed ----------------
 # SM565 withheld the schemas. What was still returned described the
 # INSTALLATION to a caller holding nothing: _script (where the code lives),
 # config_file (where its configuration lives) and _enabled (what is switched
 # on). None is needed to USE a feature, which is what the inventory is for.
 {
-    my @p = @{ $who2->{plugins} || [] };
-    ok( scalar @p, 'SM589: the floor caller still gets a plugin inventory' );
+    my @p = @{ $who2->{extensions} || [] };
+    ok( scalar @p, 'SM589: the floor caller still gets an extension inventory' );
     ok( !( grep { exists $_->{_script} } @p ),
-        'SM589: the floor caller is not told where a plugin script lives' );
+        'SM589: the floor caller is not told where an extension script lives' );
     ok( !( grep { exists $_->{config_file} } @p ),
-        'SM589: the floor caller is not told where a plugin keeps its config' );
+        'SM589: the floor caller is not told where an extension keeps its config' );
     ok( !( grep { exists $_->{_enabled} } @p ),
-        'SM589: the floor caller is not told which plugins are switched on' );
+        'SM589: the floor caller is not told which extensions are switched on' );
     ok( ( grep { length( $_->{id} // '' ) } @p ),
         'SM589: id survives - a partner still learns which features exist' );
 }
@@ -458,15 +458,15 @@ my $ctok = uapi( $d, { action => 'token', username => 'ucfg' } )->{token};
 my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'ucfg', $ctok ) );
 {
-    my @p = @{ $cw->{plugins} || [] };
+    my @p = @{ $cw->{extensions} || [] };
     ok( ( grep { exists $_->{_enabled} } @p ),
-        'SM589: a manage_config caller IS told which plugins are enabled' );
+        'SM589: a manage_config caller IS told which extensions are enabled' );
     ok( !( grep { exists $_->{_script} } @p ),
         'SM589: but _script is withheld from everyone - it is an internal path' );
 }
 
-# The capability-holder half: manage_briefs governs the briefs plugin, so its
-# holder is told that plugin's state - and only that one. This is the part that
+# The capability-holder half: manage_briefs governs the briefs extension, so its
+# holder is told that extension's state - and only that one. This is the part that
 # distinguishes the decision from "gate everything on manage_config".
 uapi( $d, { action => 'add', username => 'ubrf', password => 'x-long-enough' } );
 grant_caps( $d, 'ubrf', 'manage_briefs', 'api' );
@@ -474,14 +474,14 @@ my $btok = uapi( $d, { action => 'token', username => 'ubrf' } )->{token};
 my $bw   = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'ubrf', $btok ) );
 {
-    my @p = @{ $bw->{plugins} || [] };
+    my @p = @{ $bw->{extensions} || [] };
     my ($briefs) = grep { ( $_->{id} // '' ) eq 'briefs' } @p;
 SKIP: {
-        skip 'no briefs plugin in this tree', 2 unless $briefs;
+        skip 'no briefs extension in this tree', 2 unless $briefs;
         ok( exists $briefs->{_enabled},
-            'SM589: a manage_briefs holder is told the briefs plugin state' );
+            'SM589: a manage_briefs holder is told the briefs extension state' );
         ok( !( grep { ( $_->{id} // '' ) ne 'briefs' && exists $_->{_enabled} } @p ),
-            'SM589: and is told nothing about the state of plugins it does not govern' );
+            'SM589: and is told nothing about the state of extensions it does not govern' );
     }
 }
 
@@ -501,8 +501,8 @@ grant_caps( $d, 'cfg', 'manage_config', 'api' );
 my $ctok = uapi( $d, { action => 'token', username => 'cfg' } )->{token};
 my $cw   = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'cfg', $ctok ) );
-ok( $cw->{ok} && ( grep { ref $_->{config_schema} eq 'ARRAY' } @{ $cw->{plugins} || [] } ),
-    'SM565: manage_config holder sees the plugin config schemas' );
+ok( $cw->{ok} && ( grep { ref $_->{config_schema} eq 'ARRAY' } @{ $cw->{extensions} || [] } ),
+    'SM565: manage_config holder sees the extension config schemas' );
 
 # --- SM072: the audit trail records the POST actions above --------------
 my $aud = mapi( $d, QUERY_STRING => 'action=audit', HTTP_X_REMOTE_USER => 'boss' );

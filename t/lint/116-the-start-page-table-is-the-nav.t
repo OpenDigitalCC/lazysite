@@ -35,13 +35,13 @@ for my $line ( split /\n/, $nav ) {
         next if ( $attrs // '' ) =~ /\bmg-nav-locked\b/;
         $page = 'index' unless length $page;
         my @caps = $cond ? ( $cond =~ /manager_caps\.(\w+)/g ) : ();
-        my ($plugin) = $cond ? ( $cond =~ /enabled_plugins\.(\w+)/ ) : ();
-        # a page inside two IFs (data: plugin AND cap) - the outer IF is on the same line
-        if ( $line =~ /\[% IF enabled_plugins\.(\w+) %\]\[% IF ([^%]+?) %\]<a href=$q\/manager\/\Q$page\E$q/ ) {
-            $plugin = $1;
+        my ($extension) = $cond ? ( $cond =~ /enabled_extensions\.(\w+)/ ) : ();
+        # a page inside two IFs (data: extension AND cap) - the outer IF is on the same line
+        if ( $line =~ /\[% IF enabled_extensions\.(\w+) %\]\[% IF ([^%]+?) %\]<a href=$q\/manager\/\Q$page\E$q/ ) {
+            $extension = $1;
             @caps   = ( $2 =~ /manager_caps\.(\w+)/g );
         }
-        $nav{$page} = { caps => [ sort @caps ], plugin => $plugin };
+        $nav{$page} = { caps => [ sort @caps ], extension => $extension };
     }
 }
 cmp_ok( scalar keys %nav, '>=', 12, 'the nav names a dozen or more pages' );
@@ -53,8 +53,8 @@ subtest 'every nav page is a start page, with the same gate' => sub {
         ok( $table{$page}, "$page: in the table" ) or next;
         is_deeply( [ sort @{ $table{$page}{caps} } ], $nav{$page}{caps}, "$page: the same capabilities (any-of)" );
 # SM759: the table names the registry key (extensions/x.pl); the nav's condition is the id (x).
-        my $tp = $table{$page}{plugin} ? ( $table{$page}{plugin} =~ s{^extensions/}{}r =~ s/\.pl\z//r ) : undef;
-        is( $tp, $nav{$page}{plugin}, "$page: the same plugin condition" );
+        my $tp = $table{$page}{extension} ? ( $table{$page}{extension} =~ s{^extensions/}{}r =~ s/\.pl\z//r ) : undef;
+        is( $tp, $nav{$page}{extension}, "$page: the same extension condition" );
     }
 };
 

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # lazysite-briefs.pl - SM245: briefs move out of band, into a store this
-# plugin owns. The RECORD SM073 invented is worth keeping; the sidecar FILE
+# extension owns. The RECORD SM073 invented is worth keeping; the sidecar FILE
 # is not - every rule the engine carried (serve-refusal, index-skip,
 # listing metadata, move/copy carriage, private-store companionship) was a
 # consequence of the storage choice, not of the feature. The store lives at
@@ -32,18 +32,18 @@ sub describe {
             . 'this extension declares; READING one is admitted by manage_briefs '
             . 'or manage_content, so a site that has always granted '
             . 'manage_content keeps the reads it had.',
-        # SM469/ADR 0009: a contract plugin executes only while enabled, and
+        # SM469/ADR 0009: a contract extension executes only while enabled, and
         # is born disabled - except that install/upgrade enables it for any
         # site that already has sidecars to migrate (SM245's back-compat
         # rule; a site that never used briefs loses nothing it used).
         contract => 1,
 
-        # ADR 0009 / SM576 part 1: what this plugin OWNS, declared here and
+        # ADR 0009 / SM576 part 1: what this extension OWNS, declared here and
         # nowhere else. `manage_briefs` is mirrored statically in @CAP_KEYS
         # because caps_for() runs on every request through every channel and
-        # cannot afford a subprocess per plugin to discover it; t/lint/76 does
-        # the discovering instead and fails if the two disagree. The plugin
-        # stays the owner - a capability here that no plugin claims, or that
+        # cannot afford a subprocess per extension to discover it; t/lint/76 does
+        # the discovering instead and fails if the two disagree. The extension
+        # stays the owner - a capability here that no extension claims, or that
         # two claim, is what that lint refuses.
         owns          => { capabilities => ['manage_briefs'] },
         config_file   => 'lazysite/briefs.conf',
@@ -87,7 +87,7 @@ sub run {
     require Lazysite::Manager::Briefs;
     local $Lazysite::Manager::Briefs::DOCROOT = $docroot;
     if ( $act eq 'status' ) {
-        print encode_json( Lazysite::Manager::Briefs::plugin_status() );
+        print encode_json( Lazysite::Manager::Briefs::extension_status() );
         return 0;
     }
     if ( $act eq 'migrate' ) {

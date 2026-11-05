@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# DP-8: the data-plugin docs name tools, actions and types that exist.
+# DP-8: the data-extension docs name tools, actions and types that exist.
 #
 # DOCS ARE THE ONE SURFACE WITH NO RUNTIME. Code that names a tool wrongly
 # fails; prose that does is read, believed, and acted on - and the reader is

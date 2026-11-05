@@ -14,8 +14,8 @@
 # - the sessions sweep applies the reader's rule and no other: rows older than
 #   the session lifetime go, fresh rows stay byte-for-byte, and the revocation
 #   list ages out with it
-# - the stats rollup runs the plugin the way the manager does - list form,
-#   --export, the actor in the environment - and against the REAL plugin
+# - the stats rollup runs the extension the way the manager does - list form,
+#   --export, the actor in the environment - and against the REAL extension
 #   closes yesterday without anyone reading the statistics (SM343)
 # - a job that reports failure is recorded with its reason, distinct from one
 #   that died
@@ -68,7 +68,7 @@ sub slurp {
     return $s;
 }
 
-# SM792: the stats job runs only the plugin where a deploy puts it - here the
+# SM792: the stats job runs only the extension where a deploy puts it - here the
 # Hestia layout, extensions/ beside the docroot - so a stub is put there.
 sub install_stats {
     my ( $root, $tool ) = @_;
@@ -217,14 +217,14 @@ subtest 'sessions-sweep: the reader\'s rule, applied on a clock' => sub {
         'nothing to remove: the registry is not rewritten' );
 };
 
-subtest 'stats-rollup: runs the plugin the way the manager does' => sub {
+subtest 'stats-rollup: runs the extension the way the manager does' => sub {
     my $root = site();
     add_account( $root, 'jobs-stats' );
     grant_caps( $root, 'jobs-stats', qw(run_jobs analytics) );
     set_job_user( $root, 'jobs-stats' );
 
-    # A stub in the plugin's place records how it was called and answers as
-    # the real one does. What the job passes is the contract with the plugin.
+    # A stub in the extension's place records how it was called and answers as
+    # the real one does. What the job passes is the contract with the extension.
     my $stub = "$root/stub-stats.pl";
     open my $fh, '>', $stub or die $!;
     print {$fh} <<'STUB';
@@ -254,7 +254,7 @@ STUB
         'the record says how many days the index holds' );
 };
 
-subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub {
+subtest 'stats-rollup: against the real extension, yesterday closes unread' => sub {
     # SM343's finding was that a day file was complete only if nobody read the
     # statistics that day. Here nobody reads anything: one hit yesterday, one
     # tick, and the day file exists.
@@ -275,7 +275,7 @@ subtest 'stats-rollup: against the real plugin, yesterday closes unread' => sub 
 
     install_stats( $root, "$ROOT/extensions/stats.pl" );
     my $r = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
-    is( $r->{'stats-rollup'}{outcome}, 'ok', 'the real plugin ran under the job' )
+    is( $r->{'stats-rollup'}{outcome}, 'ok', 'the real extension ran under the job' )
         or diag explain $r;
     ok( -f "$root/lazysite/stats/daily/$day.json",
         "yesterday's durable day file exists without anyone opening the Stats page" );
@@ -295,7 +295,7 @@ subtest 'a job that reports failure is recorded with its reason' => sub {
 
     install_stats( $root, $stub );
     my $r = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
-    is( $r->{'stats-rollup'}{outcome}, 'error', 'a plugin that exits non-zero is an error' );
+    is( $r->{'stats-rollup'}{outcome}, 'error', 'an extension that exits non-zero is an error' );
     like( $r->{'stats-rollup'}{reason}, qr/exited 3/, 'with the exit status in the reason' );
 
     my $runs = JSON::PP::decode_json( slurp("$root/lazysite/daemon/scheduler-runs.json") );
@@ -304,7 +304,7 @@ subtest 'a job that reports failure is recorded with its reason' => sub {
         'and unlike a refusal, a failed RUN holds its slot - retrying a failing '
             . 'job every tick would hammer it' );
 
-    # No plugin at all: the failure names that, rather than "exited 2" or a
+    # No extension at all: the failure names that, rather than "exited 2" or a
     # shell error.
     unlink "$root/../extensions/stats.pl";
     delete $runs->{'stats-rollup'};
@@ -313,7 +313,7 @@ subtest 'a job that reports failure is recorded with its reason' => sub {
     close $w;
     local $0 = "$root/nowhere/lazysited.pl";    # so the sibling lookup misses too
     my $r2 = by_job( Lazysite::Daemon::Service::Scheduler::tick( docroot => $root ) );
-    is( $r2->{'stats-rollup'}{outcome}, 'error', 'no plugin: error' );
+    is( $r2->{'stats-rollup'}{outcome}, 'error', 'no extension: error' );
     like( $r2->{'stats-rollup'}{reason}, qr/not found/, 'saying it was not found' );
 };
 

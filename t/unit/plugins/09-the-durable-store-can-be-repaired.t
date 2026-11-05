@@ -39,8 +39,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_child);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-ok( -f $plugin, 'the stats plugin is present' );
+my $extension = repo_root() . '/extensions/stats.pl';
+ok( -f $extension, 'the stats extension is present' );
 
 sub site {
     my $d = tempdir( CLEANUP => 1 );
@@ -77,12 +77,12 @@ sub run {
     local $ENV{DOCUMENT_ROOT} = $d;
 
     # LIST FORM, no shell. The first version was
-    # `qx($^X \Q$plugin\E @args 2>/dev/null)`, which interpolates a list into a
+    # `qx($^X \Q$extension\E @args 2>/dev/null)`, which interpolates a list into a
     # command STRING - it re-splits on whitespace, so an argument containing a
     # space silently becomes two. t/lint/40 exists for exactly that and caught
     # this, which is the lint doing its job on the person who has been writing
     # lints all week.
-    my $out = run_child( [ $^X, $plugin, @args ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, $extension, @args ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) };
 }
 
@@ -95,8 +95,8 @@ sub day_file {
 
 # Q14g (SM974): A STATS DAY IS A UTC DAY, and these are anchored to it. This was
 # `time() - 86400` named with localtime: in the hour after local midnight under
-# BST the plugin's UTC day and this file's local one were different dates, so
-# every subtest below looked for a file the plugin had correctly never written.
+# BST the extension's UTC day and this file's local one were different dates, so
+# every subtest below looked for a file the extension had correctly never written.
 # 01:00 UTC yesterday keeps a fixture of a few minutes inside one UTC day
 # whatever the hour and the time zone the suite runs in.
 my $YEST    = int( time() / 86400 ) * 86400 - 86400 + 3600;

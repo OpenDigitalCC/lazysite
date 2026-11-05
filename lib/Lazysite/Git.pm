@@ -12,7 +12,7 @@ package Lazysite::Git;
 # are eval-guarded and no-op instantly when the feature is off - a git failure
 # must never break a save. All git invocations are LIST-FORM (no shell): paths
 # and commit messages are attacker-influenced. Shas and paths are validated
-# before any git call. run_git is the plumbing the git-sync remote plugin
+# before any git call. run_git is the plumbing the git-sync remote extension
 # (follow-up) builds on.
 
 use strict;
@@ -125,7 +125,7 @@ sub _clean_message {
 # shell anywhere - arguments are attacker-influenced), stdout captured. Returns
 # ( $ok, $output ); ( 0, undef ) when git is unavailable or cannot be run.
 # stderr passes through to the server error log. This is the seam the git-sync
-# remote plugin calls.
+# remote extension calls.
 sub run_git {
     my ( $docroot, @args ) = @_;
     return ( 0, undef ) unless defined $docroot && length $docroot;
@@ -149,7 +149,7 @@ sub run_git {
 # The never-versioned list (SM085 design decisions, binding). Written to
 # GIT_DIR/info/exclude at init. The auth/forms/notify-xmpp/git-sync/logs
 # entries are the SECURITY boundary (git-sync.conf holds the remote access
-# token; the sync plugin also self-heals this entry on repos initialised
+# token; the sync extension also self-heals this entry on repos initialised
 # before it existed); cache/backups/locks/git/assets/html/install-state keep the
 # history clean of runtime and generated artefacts. The CSRF secret and the
 # upload-rate DB are manager runtime state at lazysite/manager/ top level -
@@ -273,7 +273,7 @@ sub init {
 # without log-diving - the field defect 2026-07-11 was a doctored repo whose
 # 0755 object dirs silently lost every post-init version. The breadcrumb
 # GIT_DIR/COMMIT_FAILED is touched on any commit failure and removed by the
-# next successful commit; the content-history plugin's status action and the
+# next successful commit; the content-history extension's status action and the
 # lazysite-check doctor both read it, so "versioning is currently failing" is
 # visible without the server log.
 sub breadcrumb_path { return git_dir( $_[0] ) . '/COMMIT_FAILED' }

@@ -73,11 +73,11 @@ sub slurp {
 # --- extension-config.md: config forms (SM842 moved the handler forms) -------
 {
     my $page = slurp('starter/manager/extension-config.md');
-    like( $page, qr/class="mg-note mg-note-info"/, 'plugin-config: dirty-note markup present' );
-    like( $page, qr/markPluginDirty/,       'plugin-config: config forms mark dirty' );
-    like( $page, qr/clearPluginDirty\(pluginId\)/,
-        'plugin-config: config save success clears dirty (before the reload)' );
-    like( $page, qr/mgDirtyGuard\.clear/, 'plugin-config: clears route to the shared guard' );
+    like( $page, qr/class="mg-note mg-note-info"/, 'extension-config: dirty-note markup present' );
+    like( $page, qr/markExtensionDirty/,       'extension-config: config forms mark dirty' );
+    like( $page, qr/clearExtensionDirty\(extensionId\)/,
+        'extension-config: config save success clears dirty (before the reload)' );
+    like( $page, qr/mgDirtyGuard\.clear/, 'extension-config: clears route to the shared guard' );
 }
 
 # --- handlers.md: every editor on the page (SM842) -------------------------

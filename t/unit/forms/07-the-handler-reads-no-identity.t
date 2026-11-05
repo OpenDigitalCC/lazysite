@@ -12,7 +12,7 @@
 # IT WAS RECORDED TWICE, AND ONLY ONE OF THEM MATTERED.
 #
 #   `_auth_user` on the submission was DEAD. Every delivery target - file, SMTP,
-#   webhook, and the separate form-smtp plugin - skips _-prefixed keys, so it
+#   webhook, and the separate form-smtp extension - skips _-prefixed keys, so it
 #   never reached a stored record, an email or a webhook. Worth stating plainly
 #   because the original filing claimed an operator could see it in a
 #   submissions list, and that was wrong.
@@ -101,10 +101,10 @@ cmp_ok( scalar @users, '>=', 3,
 
 my $smtp = "$root/extensions/form-smtp.pl";
 SKIP: {
-    skip 'no form-smtp plugin', 1 unless -f $smtp;
+    skip 'no form-smtp extension', 1 unless -f $smtp;
     my $s = do { open my $fh, '<', $smtp or die $!; local $/; <$fh> };
     like( $s, qr/for my \$k \( sort keys %\$form \) \{\s*next if \$k =~/,
-        'and so does the separate SMTP plugin' );
+        'and so does the separate SMTP extension' );
 }
 
 done_testing();

@@ -97,9 +97,9 @@ sub api {
     $ENV{HTTP_X_REMOTE_GROUPS}  = 'managers';
     $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $ENV{LAZYSITE_USERS_TOOL}   = "$root/tools/lazysite-users.pl";
-    # The site's own copy of a plugin finds the module tree only beside an
+    # The site's own copy of an extension finds the module tree only beside an
     # install; prove -l passes it on as PERL5LIB and a plain `perl t/...` run
-    # does not, so plugin-save's control found no tree and did not land there.
+    # does not, so extension-save's control found no tree and did not land there.
     $ENV{PERL5LIB} = join ':', "$root/lib", grep { defined && length } $ENV{PERL5LIB};
     $ENV{LAZYSITE_LOG_LEVEL}    = $o{log_level} if defined $o{log_level};
     $ENV{HTTP_X_CSRF_TOKEN} = hmac_sha256_hex( 'csrf:admin:' . int( time() / 3600 ), $secret ) if $o{token};
@@ -130,7 +130,7 @@ sub multipart {
 # ---------------------------------------------------------------- the site
 # Prepared once, through the API itself where the API makes the thing, so each
 # action's control has something to act on. Copied fresh for every action.
-my $tpl_doc  = site_tempdir( plugins => 1 );
+my $tpl_doc  = site_tempdir( extensions => 1 );
 my $tpl_site = dirname($tpl_doc);              # <tmp>/site: the docroot and its siblings
 my $lz       = "$tpl_doc/lazysite";
 spit( "$lz/lazysite.conf",
@@ -323,10 +323,10 @@ my %REQ = (
     'move'             => { query => 'path=gone.md&to=moved.md' },
     'nav-save'         => { body  => { items => [ { label => 'Home', url => '/' } ] } },
     'page-pdf'         => { query => 'path=nosuch.md' },
-    'plugin-action'    => { query => 'plugin=nosuch' },
-    'plugin-disable'   => { body  => { script => 'extensions/briefs.pl' } },
-    'plugin-enable'    => { body  => { script => 'extensions/stats.pl' } },
-    'plugin-save' => { query => 'plugin=stats', body => { script => 'extensions/stats.pl', values => {} } },
+    'extension-action'    => { query => 'extension=nosuch' },
+    'extension-disable'   => { body  => { script => 'extensions/briefs.pl' } },
+    'extension-enable'    => { body  => { script => 'extensions/stats.pl' } },
+    'extension-save' => { query => 'extension=stats', body => { script => 'extensions/stats.pl', values => {} } },
     'preview-grant' => { query => 'layout=extra' },
     'remap-save' => { body => { host => 'b.test', rules => [ { prefix => '/a', destination => '/b', code => 301 } ] } },
     'renew-lock' => { query => 'path=page.md' },
@@ -354,7 +354,7 @@ my %RAN_ONLY = (
     'layouts-install' => 'installs a release from the layouts repository over the network; stops at its own check',
     'migrate-to-local' => 'fetches the .url page\'s remote source; the test makes no network call',
     'page-pdf' => 'its effect is the streamed document, made by an external converter the test does not need',
-    'plugin-action' => 'runs an extension\'s own declared script; no extension here declares one that writes',
+    'extension-action' => 'runs an extension\'s own declared script; no extension here declares one that writes',
     # SM1042: each needs a current code from an authenticator for a second factor
     # the site template does not enrol; t/unit/account/04 lands all three.
     'me-2fa-confirm'    => 'needs a code from the app for a pending set-up the template does not make',
@@ -434,7 +434,7 @@ for my $action (@actions) {
         or diag "changed: @diff";
     my @a1   = audit_rows($doc);
     my @rows = @a1[ scalar(@a0) .. $#a1 ];
-    # (The plugin-* names are the deprecated spellings of extension-*, which
+    # (The extension-* names are the deprecated spellings of extension-*, which
     # every audit row of theirs says.)
     is( scalar( grep { !/\| \Q$action\E \|.*\| fail \| ui \| denied: csrf(?:; spelling=deprecated)?$/ } @rows ), 0,
         "$action: ... and the handler never ran (no audit row but the refusal's)" )

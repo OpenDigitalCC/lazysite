@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # The manager layout shows the "Visitor statistics" nav item (sidebar + command
-# palette) only when the stats plugin is enabled, driven by the enabled_plugins
+# palette) only when the stats extension is enabled, driven by the enabled_extensions
 # var the processor passes. Regression for the item disappearing while enabled.
 use strict;
 use warnings;
@@ -22,7 +22,7 @@ sub render {
         page_title       => 'Files',
         site_name        => 'Demo',
         request_uri      => '/manager/files',
-        enabled_plugins  => $enabled,
+        enabled_extensions  => $enabled,
         manager_groups   => 'admin',
         auth_user        => 'me',
         user_groups      => ['admin'],
@@ -33,8 +33,8 @@ sub render {
     return $out;
 }
 
-# enabled_plugins keyed by the extensionless id (stats), as the processor builds.
-my $on = render( { 'stats.pl' => 1, 'stats' => 1 } );    # bare-name-on-purpose: the map _enabled_plugins builds
+# enabled_extensions keyed by the extensionless id (stats), as the processor builds.
+my $on = render( { 'stats.pl' => 1, 'stats' => 1 } );    # bare-name-on-purpose: the map _enabled_extensions builds
 like( $on, qr{/manager/stats}, 'enabled: stats nav link present' );
 like( $on, qr{Visitor statistics}, 'enabled: stats nav label present' );
 

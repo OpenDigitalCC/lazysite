@@ -19,7 +19,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             # SM842: the handler types, and which form calls which handler, are
             # the handler contract's (Lazysite::Handlers) - listed by
             # handler-list and configured on the Handlers page - rather than
-            # this plugin's to declare. It receives a POST and hands it on.
+            # this extension's to declare. It receives a POST and hands it on.
             description => 'Receives form submissions and hands each to the handlers its form '
                 . 'names. Delivery is configured on the Handlers page.',
             version       => '2.0',
@@ -35,7 +35,7 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
 
 # SM842: DELIVERY IS THE HANDLER CONTRACT'S, SO THE MODULE TREE IS REQUIRED.
 #
-# This plugin used to be module-free, so that a missing lib cost a member a
+# This extension used to be module-free, so that a missing lib cost a member a
 # rate-limit waiver and never anybody a submission. That held only for the
 # file, email and webhook targets it carried copies of; the table and connector
 # targets needed the lib all along. There is one implementation of delivery
@@ -381,7 +381,7 @@ eval {
     }
 
     # If NOTHING actually accepted the submission - every target disabled, unknown,
-    # or failed (e.g. the form handler / its delivery plugin is turned off) - the
+    # or failed (e.g. the form handler / its delivery extension is turned off) - the
     # submission was NOT saved. Fail loudly instead of showing a false "thank you".
     unless ($delivered) {
         log_event( 'ERROR', $name, 'form not delivered - no active target',
@@ -842,7 +842,7 @@ sub _one_value_everywhere {
 # SM115: one line per submission in the audit trail - the submitter is the
 # public, so the actor is blank (SM402), or since SM1018 the account a VERIFIED
 # session cookie names, and origin is "form". SM842: through
-# Lazysite::Audit, now that this plugin loads the module tree, so the trail
+# Lazysite::Audit, now that this extension loads the module tree, so the trail
 # has one writer and one reading of its own switch (N13-04's marked copy and
 # the lint that pinned the two together are gone with the copy). Each
 # handler's outcome is its own line, written by Lazysite::Handlers::deliver.
@@ -865,7 +865,7 @@ sub _audit_submission {
 # is deliberately not counted. extensions/stats.pl buckets whatever code arrives
 # and has its own `other` fallback, so it needs no matching list.
 
-# SM216-2: append one outcome line so the stats plugin can fold blocked-vs-stored
+# SM216-2: append one outcome line so the stats extension can fold blocked-vs-stored
 # counts into its day-buckets. Append-only, one line per event, so concurrent
 # POSTs never race (O_APPEND under a lock). Counts only - the form name, an
 # outcome (stored|quarantined|blocked) and, for a block, a reason code; never any
@@ -878,7 +878,7 @@ sub _record_form_event {
     my $dir = "$LAZYSITE_DIR/stats/form-events";
     eval {
         make_path($dir) unless -d $dir;
-        # Q14g (SM974): the UTC day, the calendar the stats plugin keys every
+        # Q14g (SM974): the UTC day, the calendar the stats extension keys every
         # day bucket by. The local date put an outcome in the wrong day's
         # bucket for as many hours as the host is from UTC.
         my $day = strftime( '%Y-%m-%d', gmtime );
@@ -999,7 +999,7 @@ sub _notify_submission {
     my $carry = $notify_mode eq 'full' ? _submitted_fields($fields) : undef;
 
     # SM136: prefer the shared notify path (bell + optional XMPP delivery). This
-    # plugin ships without `use lib`, so locate the module tree the same way the
+    # extension ships without `use lib`, so locate the module tree the same way the
     # processor's lazy-require does; on any failure fall through to the plain
     # bell-store append below so a submission notice is never lost.
     #
@@ -1737,10 +1737,10 @@ sub log_event {
 }
 
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
-# forward_line, so this plugin's diagnostics are covered by the
+# forward_line, so this extension's diagnostics are covered by the
 # forward_diagnostics DEFAULT of WARN and above (SM932) as well as by an
 # explicit setting - it needed `forward_diagnostics: true` before that, and
-# the docs promised syslog either way. The rest of this plugin's
+# the docs promised syslog either way. The rest of this extension's
 # diagnostics as the docs promise. The module tree is located at runtime (the
 # SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the

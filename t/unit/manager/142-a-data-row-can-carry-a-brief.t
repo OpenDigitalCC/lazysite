@@ -33,8 +33,8 @@ my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/briefs");
 make_path("$d/docs");
 
-# THE PLUGIN MUST BE ENABLED. Every brief action is gated on it, and a fixture
-# without it returns "the briefs plugin is disabled" for each one - which looks
+# THE EXTENSION MUST BE ENABLED. Every brief action is gated on it, and a fixture
+# without it returns "the briefs extension is disabled" for each one - which looks
 # exactly like the feature not working.
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nextensions:\n  - extensions/briefs.pl\n";

@@ -25,7 +25,7 @@ search: false
      tables or a short window. The control worked exactly as built and the
      person did not know it had.
 
-     It is the same objection SM640 answered on the Plugin Config page. A
+     It is the same objection SM640 answered on the Extension Config page. A
      table's rows are a DIFFERENT SUBJECT from the list of tables, not more
      detail about one entry in it - and the panel has its own pager, its own
      filter and its own editor, which is an application nested inside a
@@ -182,7 +182,7 @@ function loadTables() {
     .then(function(data) {
       var list = document.getElementById('table-list');
       if (!data.ok) {
-        /* The plugin being disabled is the ordinary case, not a fault: it ships
+        /* The extension being disabled is the ordinary case, not a fault: it ships
            off and an operator turns it on. Say which it is rather than showing
            a bare error. */
         list.innerHTML = '<div class="mg-row"><span class="mg-file-name">'
@@ -498,7 +498,7 @@ function openEditor(index) {
   /* A NATURAL KEY IS EDITABLE ON INSERT AND FIXED ON UPDATE. It is the row's
      identity: changing it on an existing row is a delete-and-insert wearing
      the name of an edit, and the API treats the key as the address, not a
-     value. An automatic id is never shown - the plugin owns it. */
+     value. An automatic id is never shown - the extension owns it. */
   if (desc.key && !desc.auto_key && names.indexOf(desc.key) >= 0) {
     names.splice(names.indexOf(desc.key), 1);
     names.unshift(desc.key);
@@ -883,7 +883,7 @@ var CAN_ACL = false;
 function tableAclKey(table) { return 'lazysite/db/tables/' + table; }
 
 // SM680: closing the rows modal. The editor inside it can hold an unsaved row,
-// so a backdrop click must ask first - the same care the plugin modal takes,
+// so a backdrop click must ask first - the same care the extension modal takes,
 // and using mgDirtyGuard.isDirty, which is the real method name (a previous
 // page guessed isSet and the guard silently never fired).
 function closeRows() {

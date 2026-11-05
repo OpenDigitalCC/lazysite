@@ -4,7 +4,7 @@ package Lazysite::Manager::SitePackage;
 # domain's SITE (its content root + nav + bundled theme/layout + a manifest of
 # the presentation keys) so an agency demo can be handed to a client's own
 # instance, or a site moved between domains/instances. Deliberately EXCLUDES
-# plugins, instance/site settings and auth secrets, so a package carries no
+# extensions, instance/site settings and auth secrets, so a package carries no
 # secrets and can be self-service (unlike the whole-docroot `full` backup, which
 # is system-user only). This module is the SINGLE source of the packaging logic,
 # shared by the manager control-API, MCP and the `lazysite-site` CLI.

@@ -118,7 +118,7 @@ our %GATE = (
     # manage_domains capability (carved out of manage_config), so an
     # orchestrating control panel drives the lazysite side of a deploy
     # with a manage_domains token, same as the CLI/UI.
-    # SM447: token clients are the point of the data plugin - an agent
+    # SM447: token clients are the point of the data extension - an agent
     # populating a table is the primary use, not an afterthought.
     'page-pdf'                   => [qw(manage_content)],
     'data-tables'                => [qw(manage_data)],
@@ -426,7 +426,7 @@ our %ACTION = (
     # long-standing manage_content grant keeps reading; a write takes
     # manage_briefs alone.
     # [cookie_cap] SM245: the brief store. SM576 part 1 splits it: WRITING a brief needs
-    # manage_briefs (the plugin-declared capability), READING one is
+    # manage_briefs (the extension-declared capability), READING one is
     # admitted by either, so an existing manage_content grant keeps the
     # reads it has always had and loses only the write.
     # [mcp] SM245: the brief store's twins.
@@ -504,7 +504,7 @@ our %ACTION = (
     'data-rows' => { mcp => 'read_data_rows', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
     'data-table' => { mcp => 'describe_data_table', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 } ] },
     # [mcp] SM566: the safety step and the descriptor as text. Both were API-only
-    # with reasons written when the plugin was new; an agent could migrate a
+    # with reasons written when the extension was new; an agent could migrate a
     # table without previewing what the migration would refuse.
     'data-table-source' => { mcp => 'read_data_table_source', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 } ] },
     'data-migrate-plan' => { mcp => 'plan_data_migration', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 } ] },
@@ -533,7 +533,7 @@ our %ACTION = (
     'data-table-drop' => { mcp => 'drop_data_table', mcp_open_world => 1, mutates => 1, destructive => 1, cookie_cap => 'housekeeping', params => [ { name => 'table', in => 'query_or_body', required => 1 }, { name => 'confirm', in => 'body' } ] },
     # [cookie_cap] SM160: domains + the portable site-package family are their own
     # capability (manage_domains), carved out of the broad manage_config.
-    # SM447: the data plugin's capability. Reads and writes alike -
+    # SM447: the data extension's capability. Reads and writes alike -
     # unlike content, a table row has no per-file ACL to self-authorize
     # against, so the capability IS the gate.
     # [mcp] SM447: the data tables. Both channels, one implementation - each pair
@@ -604,7 +604,7 @@ our %ACTION = (
     # row_count, which is a read of submission EXISTENCE.
     # [cookie_cap] SM214: names + submission COUNTS
     # SM979: OR approve_accounts, which the dispatcher shows only the forms that
-    # declare account_email (Manager::Plugins::account_request_store).
+    # declare account_email (Manager::Extensions::account_request_store).
     'form-list' => { mcp => 'form_list', cookie_cap => 'read_submissions|approve_accounts', params => [] },
     # [cookie_cap] SM216, SM660
     'form-submission-confirm' => { mutates => 1, cookie_cap => 'manage_forms+read_submissions', params => [ { name => 'file', in => 'query_or_body' }, { name => 'id', in => 'body' } ] },
@@ -685,12 +685,12 @@ our %ACTION = (
     # [mcp] set_form_notify: SM938 D4: a save; another call puts it back
     'form-notify-save' => { mcp => 'set_form_notify', mcp_open_world => 1, mutates => 1, params => [ { name => 'form', in => 'query_or_body', required => 1 }, { name => 'notify', in => 'body', required => 1, note => 'off (no notice), on (one line) or full (the notice carries the submission). The reply carries `announces`: where a submission notice now goes, and what stops it where it does not' } ] },
     'git-history' => { mcp => 'list_versions', scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'limit', in => 'query' } ] },
-    # SM664: reachable with either - the overview sits on the Plugin Config
+    # SM664: reachable with either - the overview sits on the Extension Config
     # page, whose audience holds manage_config, and is a reporting read.
-    # [cookie_cap] SM664: the overview moved to the content-history plugin's row on the
-    # Plugin Config page, whose audience holds manage_config. Either
+    # [cookie_cap] SM664: the overview moved to the content-history extension's row on the
+    # Extension Config page, whose audience holds manage_config. Either
     # capability reads it - a reporting read reachable from either the app
-    # that writes the content or the page that configures the plugin.
+    # that writes the content or the page that configures the extension.
     # [cookie_cap] SM199, SM664
     'git-history-summary' => { mcp => 'list_content_history', cookie_cap => 'manage_content|manage_config', params => [] },
     'git-init' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [] },
@@ -785,18 +785,18 @@ our %ACTION = (
         params => [ { name => 'id', in => 'query' }, { name => 'dismiss', in => 'query' } ] },
     # SM732: the PDF render, which SM706 shipped with no caller at all.
     # manage_content because converting a page is reading it in another format -
-    # the plugin's own reasoning, and the reason it declares no capability.
+    # the extension's own reasoning, and the reason it declares no capability.
     # [scoped] SM978 (ruled 2026-10-10, "Scope it + composed parts"): path-scoped
     # as preview is, so a caller confined to one domain is refused another's page
-    # before the plugin loads; read on the file surface for the same reason.
+    # before the extension loads; read on the file surface for the same reason.
     'page-pdf' => { mutates => 1, scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
     'pages' => { mcp => 'list_pages', params => [] },    # SM568
-    'plugin-action' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
-    'plugin-disable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
-    'plugin-enable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
-    'plugin-list'    => { params => [] },
-    'plugin-read' => { cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' } ] },
-    'plugin-save' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'plugin', in => 'query' }, { name => 'script', in => 'body' }, { name => 'values', in => 'body' }, { name => 'add', in => 'body' } ] },
+    'extension-action' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
+    'extension-disable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
+    'extension-enable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },
+    'extension-list'    => { params => [] },
+    'extension-read' => { cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' } ] },
+    'extension-save' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' }, { name => 'values', in => 'body' }, { name => 'add', in => 'body' } ] },
     'preview' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' }, { name => 'theme', in => 'query', note => 'SM1290: an installed theme to render with instead of the active one; needs manage_themes or manage_layouts' } ] },
     'preview-clear' => { mutates => 1, audited => 0, cookie_cap => 'manage_themes|manage_layouts', params => [] },
 # [changes_access deliberately unset] SM649: preview-grant and preview-clear are NOT here, and were. The comment
@@ -869,9 +869,9 @@ our %ACTION = (
     # the actor logic in the users tool.
     'users' => { audited => 1, cookie_cap => 'manage_users|create_sub_users|delegate_sub_user_creation', params => [] },
     'version'           => { params => [] },
-    # SM671: `plugins=0` omits the plugin catalogue, which is 82% of the answer
+    # SM671: `extensions=0` omits the extension catalogue, which is 82% of the answer
     # on a bare site. Opt-out rather than opt-in, so an existing client reading
-    # `plugins` keeps seeing it.
+    # `extensions` keeps seeing it.
     # SM579: connectors. connector-call's caps are undef because the CONNECTOR
     # gates it (callers groups or manage_connectors) - see Connectors::may_call.
     # [cookie_cap] SM579: see the cookie table; connector-call is gated by the connector.
@@ -930,7 +930,7 @@ our %ACTION = (
     'odoo-dismiss' => { mcp => 'odoo_dismiss', mutates => 1, cookie_cap => 'settle_odoo_writes', params => [ { name => 'run', in => 'body', required => 1 }, { name => 'reason', in => 'body', note => 'a line of text kept with the run' } ] },
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
-    'whoami' => { params => [ { name => 'plugins', in => 'query' } ] },
+    'whoami' => { params => [ { name => 'extensions', in => 'query' } ] },
 );
 
 # CAPS ARE DERIVED, NOT DECLARED TWICE. The three states come straight from

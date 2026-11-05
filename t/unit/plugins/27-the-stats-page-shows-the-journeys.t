@@ -13,7 +13,7 @@
 # "we deliberately did not add it" is invisible to a reader of the diff.
 #
 # WHAT IS ASSERTED
-#   the plugin declares the day as a CHOICE, built from the files that exist
+#   the extension declares the day as a CHOICE, built from the files that exist
 #   the choice list follows the files - an expired day stops being offered
 #   the route counts cover the WHOLE day even when the sample is capped
 #   the panel says so on the page, so a reader is never left to work it out
@@ -31,14 +31,14 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
+my $extension = "$root/extensions/stats.pl";
 my $pagef  = "$root/starter/manager/stats.md";
-plan skip_all => "no $plugin" unless -f $plugin && -f $pagef;
+plan skip_all => "no $extension" unless -f $extension && -f $pagef;
 
 my $page = do { open my $fh, '<', $pagef or die $!; local $/; <$fh> };
 
 # ---------------------------------------------------------------------
-# The plugin side
+# The extension side
 # ---------------------------------------------------------------------
 my $now = time();
 # Q14g (SM974): AND THE RECORDS ARE ONE DAY. They span a few minutes after
@@ -89,14 +89,14 @@ sub build {
     $ev->( 5180, '/',      'ODD' );
     close $lf;
 
-    `DOCUMENT_ROOT=\Q$d\E $^X \Q$plugin\E --export --window 30 2>/dev/null`;
+    `DOCUMENT_ROOT=\Q$d\E $^X \Q$extension\E --export --window 30 2>/dev/null`;
     return $d;
 }
 
 sub run_action {
     my ( $d, @a ) = @_;
     my $args = join ' ', map { quotemeta } @a;
-    my $out  = `DOCUMENT_ROOT=\Q$d\E $^X \Q$plugin\E $args 2>/dev/null`;
+    my $out  = `DOCUMENT_ROOT=\Q$d\E $^X \Q$extension\E $args 2>/dev/null`;
     return decode_json( $out || '{}' );
 }
 
@@ -105,7 +105,7 @@ sub run_action {
 
     my $desc = run_action( $d, '--describe' );
     my ($act) = grep { $_->{id} eq 'trails' } @{ $desc->{actions} || [] };
-    ok( $act, 'the plugin declares a trails action' ) or BAIL_OUT('no trails action');
+    ok( $act, 'the extension declares a trails action' ) or BAIL_OUT('no trails action');
     is( $act->{run}, 'action', 'as a parameterised action' );
     is_deeply( [ map { $_->{id} } @{ $act->{choices} || [] } ], [$today],
         'and offers the day as a CHOICE, built from the file that exists' );

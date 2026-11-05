@@ -27,11 +27,11 @@ use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 
 my $root = "$FindBin::Bin/../../..";
-require Lazysite::Manager::Plugins;
+require Lazysite::Manager::Extensions;
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/forms/submissions");
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 {
     no warnings 'once';
     $Lazysite::Manager::DOCROOT = $d;
@@ -53,7 +53,7 @@ sub store_rows {
 
 # --- 1. an unknown form is not silently "deleted" ---------------------------
 {
-    my $r = Lazysite::Manager::Plugins::action_form_delete( 'nope', 'nope' );
+    my $r = Lazysite::Manager::Extensions::action_form_delete( 'nope', 'nope' );
     is( $r->{ok},   0,              'deleting a form that is not registered fails' );
     is( $r->{kind}, 'no_such_form', 'and says which kind of nothing it found' );
 }
@@ -63,20 +63,20 @@ sub store_rows {
 # wrong id.
 {
     register('zz_probe');
-    my $r = Lazysite::Manager::Plugins::action_form_delete('zz_probe');
+    my $r = Lazysite::Manager::Extensions::action_form_delete('zz_probe');
     is( $r->{ok},   0,         'no confirmation, no deletion' );
     is( $r->{kind}, 'confirm', 'and it asks for one' );
     like( $r->{error}, qr/naming it exactly/, 'by name, not by yes' );
     ok( -f conf('zz_probe'), 'the registration is still there' );
 
-    my $w = Lazysite::Manager::Plugins::action_form_delete( 'zz_probe', 'zz_other' );
+    my $w = Lazysite::Manager::Extensions::action_form_delete( 'zz_probe', 'zz_other' );
     is( $w->{ok}, 0, 'a confirmation naming a DIFFERENT form is refused' );
     ok( -f conf('zz_probe'), 'and nothing is removed' );
 }
 
 # --- 3. the happy path ------------------------------------------------------
 {
-    my $r = Lazysite::Manager::Plugins::action_form_delete( 'zz_probe', 'zz_probe' );
+    my $r = Lazysite::Manager::Extensions::action_form_delete( 'zz_probe', 'zz_probe' );
     is( $r->{ok}, 1, 'confirmed, the registration goes' ) or diag( explain $r );
     ok( !-f conf('zz_probe'), 'the conf is gone from disk' );
     like( $r->{removed}, qr{lazysite/forms/zz_probe\.conf},
@@ -89,7 +89,7 @@ sub store_rows {
     register('zz_withdata');
     store_rows( 'zz_withdata', '{"name":"a"}', '{"name":"b"}' );
 
-    my $r = Lazysite::Manager::Plugins::action_form_delete( 'zz_withdata', 'zz_withdata' );
+    my $r = Lazysite::Manager::Extensions::action_form_delete( 'zz_withdata', 'zz_withdata' );
     is( $r->{ok},   0,                 'a form holding submissions is not deleted' );
     is( $r->{kind}, 'has_submissions', 'and says why' );
     is( $r->{rows}, 2,                 'naming how many are at stake' );
@@ -109,7 +109,7 @@ sub store_rows {
     register('zz_emptystore');
     open my $fh, '>', "$d/lazysite/forms/submissions/zz_emptystore.jsonl" or die $!;
     close $fh;
-    my $r = Lazysite::Manager::Plugins::action_form_delete( 'zz_emptystore', 'zz_emptystore' );
+    my $r = Lazysite::Manager::Extensions::action_form_delete( 'zz_emptystore', 'zz_emptystore' );
     is( $r->{ok}, 1, 'an empty store does not block the delete' ) or diag( explain $r );
     ok( !-f conf('zz_emptystore'), 'the registration goes' );
 }
@@ -128,7 +128,7 @@ for my $reserved (qw(handlers smtp)) {
     close $fh;
 }
 for my $reserved (qw(handlers smtp)) {
-    my $r = Lazysite::Manager::Plugins::action_form_delete( $reserved, $reserved );
+    my $r = Lazysite::Manager::Extensions::action_form_delete( $reserved, $reserved );
     is( $r->{ok},   0,         "'$reserved' is refused - it is not a form" );
     is( $r->{kind}, 'invalid', 'as an invalid target, not a missing one' );
     ok( -f conf($reserved), "and $reserved.conf survives" );
@@ -136,7 +136,7 @@ for my $reserved (qw(handlers smtp)) {
 
 # --- 7. a traversing name is refused ----------------------------------------
 {
-    my $r = Lazysite::Manager::Plugins::action_form_delete( '../lazysite.conf', '../lazysite.conf' );
+    my $r = Lazysite::Manager::Extensions::action_form_delete( '../lazysite.conf', '../lazysite.conf' );
     is( $r->{ok},   0,              'a path-shaped name is refused' );
     is( $r->{kind}, 'invalid-path', 'as a path problem, not a missing form' );
 }

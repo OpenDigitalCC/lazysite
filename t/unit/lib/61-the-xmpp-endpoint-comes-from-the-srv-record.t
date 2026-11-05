@@ -112,20 +112,20 @@ subtest 'the real resolver reports a failure rather than swallowing it' => sub {
         or diag "stderr was: $err";
 };
 
-# The resolver needs Net::DNS, which is not core, so the plugin must declare it or
+# The resolver needs Net::DNS, which is not core, so the extension must declare it or
 # X1 happens again inside X2's own repair: enable succeeds, and delivery fails at
 # the first notice on a host that has not installed it.
 #
-# ASSERTED HERE AND NOT IN t/lint/201, deliberately. That lint requires a plugin
+# ASSERTED HERE AND NOT IN t/lint/201, deliberately. That lint requires an extension
 # naming a Debian package to declare SOMETHING - it cannot know which modules a
-# plugin needs, because the requires live in Lazysite::Notify and the plugin is a
+# extension needs, because the requires live in Lazysite::Notify and the extension is a
 # descriptor, which was X1's whole finding. So removing Net::DNS passes the lint
 # (Net::XMPP is still there) and a sabotage pass proved it. This is the gate that
 # notices, and it sits beside the code that made the dependency load-bearing.
 subtest 'notify-xmpp declares the resolver dependency' => sub {
     require JSON::PP;
-    my $plugin = "$FindBin::Bin/../../../extensions/notify-xmpp.pl";
-    my $desc   = JSON::PP::decode_json( scalar qx{$^X "$plugin" --describe} );
+    my $extension = "$FindBin::Bin/../../../extensions/notify-xmpp.pl";
+    my $desc   = JSON::PP::decode_json( scalar qx{$^X "$extension" --describe} );
     my @deps   = @{ $desc->{owns}{deps} // [] };
     ok( ( grep { $_ eq 'Net::DNS' } @deps ),
         'Net::DNS is declared - the SRV lookup needs it and it is not core' )

@@ -31,7 +31,7 @@ sub render {
     my $t   = Template->new( EVAL_PERL => 0 ) or die Template->error;
     my $out = '';
     $t->process( \src($file),
-        { manager_caps => $caps, request_uri => '/manager/', enabled_plugins => { data => 1 },
+        { manager_caps => $caps, request_uri => '/manager/', enabled_extensions => { data => 1 },
             content => '', page_title => '', auth_user => 'u', query => {} },
         \$out ) or die "$file: " . $t->error;
     return $out;

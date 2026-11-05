@@ -17,7 +17,7 @@
 #   CANNOT be bound; they are interpolated into generated statements. So this
 #   validation is the whole defence, and it runs at LOAD rather than at query
 #   time. A name that passes here needs no escaping anywhere downstream, which
-#   is the property the rest of the plugin is allowed to assume.
+#   is the property the rest of the extension is allowed to assume.
 #
 # A loader that warns is indistinguishable from one that rejects until
 # something malformed arrives - so every case below asserts the REFUSAL, and
@@ -149,7 +149,7 @@ subtest 'KEYS: the key must exist and be usable as one' => sub {
     is( $ok->{auto_key}, 0, 'and is not flagged automatic' );
 };
 
-subtest 'the plugin owns the timestamp columns' => sub {
+subtest 'the extension owns the timestamp columns' => sub {
     for my $f (qw(created_at updated_at)) {
         my $d = load( 't', { fields => { $f => { type => 'datetime' } } } );
         ok( !$d->{ok}, "declaring '$f' is refused" );

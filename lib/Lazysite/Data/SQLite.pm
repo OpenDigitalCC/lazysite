@@ -178,7 +178,7 @@ sub create_table_sql {
     # on the id COLUMN, not as a table constraint, so appending after it is
     # harmless - which is exactly why the reporting site had one working table
     # and one that refused, and why this survived since the option shipped.
-    # Maintained by the plugin, which is why a descriptor declaring one of them
+    # Maintained by the extension, which is why a descriptor declaring one of them
     # is refused at load. TEXT for all of them, which is what
     # add_reserved_column_sql adds when a flag is turned on later - the two have
     # to agree or a table made before the flag differs from one made after it.
@@ -591,7 +591,7 @@ sub add_column_sql {
         . _ident($field) . ' ' . column_type($spec);
 }
 
-# SM780: a column the plugin OWNS added to a table that predates it - the flag
+# SM780: a column the extension OWNS added to a table that predates it - the flag
 # turned on after the table was made, or a table made before the author columns
 # existed. TEXT, as create_table_sql makes them; no field spec, because no field
 # declares them. Which names those are is Data::Owned's to say.

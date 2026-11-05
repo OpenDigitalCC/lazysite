@@ -18,7 +18,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(site_tempdir);
 
-require Lazysite::Manager::Plugins;
+require Lazysite::Manager::Extensions;
 
 # A site whose extension list is written under $header, with two entries.
 sub site {
@@ -47,8 +47,8 @@ sub lists { my ($c) = @_; return scalar( () = $c =~ /^extensions\s*:\s*$/mg ) }
 
 subtest 'enable writes ONE list' => sub {
     my $d = site('extensions');
-    local $Lazysite::Manager::Plugins::DOCROOT = $d;
-    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/notify-xmpp.pl', 'add' );
+    local $Lazysite::Manager::Extensions::DOCROOT = $d;
+    my $r = Lazysite::Manager::Extensions::_update_extensions_conf( 'extensions/notify-xmpp.pl', 'add' );
     ok( $r->{ok}, 'the enable is accepted' );
     my $c = conf($d);
     is( lists($c), 1, 'exactly one list in the conf' );
@@ -60,8 +60,8 @@ subtest 'enable writes ONE list' => sub {
 
 subtest 'disable actually removes the entry' => sub {
     my $d = site('extensions');
-    local $Lazysite::Manager::Plugins::DOCROOT = $d;
-    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/stats.pl', 'remove' );
+    local $Lazysite::Manager::Extensions::DOCROOT = $d;
+    my $r = Lazysite::Manager::Extensions::_update_extensions_conf( 'extensions/stats.pl', 'remove' );
     ok( $r->{ok}, 'the disable is accepted' );
     my $c = conf($d);
     unlike( $c, qr{^\s+-\s+extensions/stats\.pl$}m, 'the entry is gone' );
@@ -71,8 +71,8 @@ subtest 'disable actually removes the entry' => sub {
 
 subtest 'a site with no list at all gets `extensions:`' => sub {
     my $d = site(undef);
-    local $Lazysite::Manager::Plugins::DOCROOT = $d;
-    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/stats.pl', 'add' );
+    local $Lazysite::Manager::Extensions::DOCROOT = $d;
+    my $r = Lazysite::Manager::Extensions::_update_extensions_conf( 'extensions/stats.pl', 'add' );
     ok( $r->{ok}, 'the enable is accepted' );
     is( lists( conf($d) ), 1, 'the new list is written as `extensions:`' );
 };
@@ -80,15 +80,15 @@ subtest 'a site with no list at all gets `extensions:`' => sub {
 # old-name: begin (SM1142, the writer is shown to leave the old header alone)
 subtest 'a list under the old header is not the writer\'s, and is left as written' => sub {
     my $d = site('plugins');
-    local $Lazysite::Manager::Plugins::DOCROOT = $d;
-    my $r = Lazysite::Manager::Plugins::_update_plugins_conf( 'extensions/notify-xmpp.pl', 'add' );
+    local $Lazysite::Manager::Extensions::DOCROOT = $d;
+    my $r = Lazysite::Manager::Extensions::_update_extensions_conf( 'extensions/notify-xmpp.pl', 'add' );
     ok( $r->{ok}, 'the enable is accepted' );
     my $c = conf($d);
     like( $c, qr/^plugins:\n  - extensions\/stats\.pl\n  - extensions\/audit\.pl\n/m,
         'the old block is untouched' );
     like( $c, qr/^extensions:\n  - extensions\/notify-xmpp\.pl$/m,
         'and the enabled extension is listed under the one name' );
-    ok( !Lazysite::Manager::Plugins::plugin_enabled('extensions/stats.pl'),
+    ok( !Lazysite::Manager::Extensions::extension_enabled('extensions/stats.pl'),
         'an entry under the old header reads as off' );
 };
 # old-name: end

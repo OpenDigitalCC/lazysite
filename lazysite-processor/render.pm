@@ -22,7 +22,7 @@ package main;
 #         _esc_html, _esc_query_stash, _front_matter_reserved,
 #         _front_matter_private, _content_rel,
 #         _request_address, _trusted_proxy_spec, _lazysite_version,
-#         _manager_style, _enabled_plugins, _placeholder_key, _url_safe_filter,
+#         _manager_style, _enabled_extensions, _placeholder_key, _url_safe_filter,
 #         _lazy_lib (the address test, on first ask),
 #         log_event (the script and its parts); Template->new and make_path
 #         (loaded by the script's `use`, before its parts load).
@@ -472,7 +472,7 @@ sub _render_stash {
         # setting existed, so a typo degrades to the status quo rather than to
         # an unstyled manager.
         manager_style   => _manager_style(),
-        enabled_plugins => _enabled_plugins(),         # conditional manager nav
+        enabled_extensions => _enabled_extensions(),         # conditional manager nav
         manager_caps    => $manager_caps,              # SM154: gate the Domains nav
         scope_root      => $scope_root,                # SM154: a bound editor's root
         home_domain     => $home_domain,               # SM154: a bound editor's domain
@@ -672,7 +672,7 @@ sub render_content {
 # SM1160: is this an Odoo-sign-in site? The opt-in, read as the banner always read it.
 # SM1295: also what serves the ready-made /odoo-signin system page (_system_page_md).
 sub _odoo_site_signin_on {
-    my $en = _enabled_plugins();
+    my $en = _enabled_extensions();
     return 0 unless $en->{odoo};
     open my $fh, '<:utf8', "$LAZYSITE_DIR/odoo.conf" or return 0;
     my $on = '';

@@ -58,7 +58,7 @@ sub TYPES {
 # needs no quoting or escaping in any dialect we generate for.
 my $IDENT = qr/\A[a-z][a-z0-9_]*\z/;
 
-# Reserved because the plugin owns them: `timestamps: true` creates them, and
+# Reserved because the extension owns them: `timestamps: true` creates them, and
 # a descriptor declaring its own would collide with the ones we maintain. The
 # names live in Data::Owned, which is also where the per-table question ("does
 # this table have them?") is answered - a different question from this one, and
@@ -239,7 +239,7 @@ sub _check_field {
 #
 # Each returns ( <the value it validated>, undef ) or ( undef, $err ).
 
-# The key: 'id' means an auto integer the plugin owns and no field may
+# The key: 'id' means an auto integer the extension owns and no field may
 # shadow. Anything else must name a declared field.
 sub _check_key {
     my ( $name, $raw, $fields ) = @_;
@@ -307,7 +307,7 @@ sub _check_indexes {
 #
 # Returns ( $field, $dir, undef ) - $field undef when none was declared.
 # $flags is the part of the descriptor being built that decides which columns the
-# plugin owns - a hash shaped like a loaded descriptor so is_owned can read it.
+# extension owns - a hash shaped like a loaded descriptor so is_owned can read it.
 # It used to be the `timestamps` boolean alone, which meant this sub had to know
 # that the owned set IS the stamp set. That was true and is not a rule.
 sub _check_default_order {
@@ -433,7 +433,7 @@ sub load_descriptor {
                 field => $f, rule => 'identifier' );
         }
         return _err( 'descriptor',
-            "table '$name': '$f' is maintained by the plugin "
+            "table '$name': '$f' is maintained by the extension "
                 . '(set timestamps: true to have it)',
             field => $f, rule => 'reserved' )
             if reserved_column($f);
@@ -452,7 +452,7 @@ sub load_descriptor {
 
     # SM476: `public` is the publication flag, and it DEFAULTS TO FALSE.
     #
-    # Chosen while there was still no installed base to break - the plugin has
+    # Chosen while there was still no installed base to break - the extension has
     # only ever shipped to edge, is born disabled, and the only tables in
     # existence were three test tables. A closed default costs nothing today
     # and cannot be chosen at all once this reaches stable.

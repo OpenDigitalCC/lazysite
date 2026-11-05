@@ -46,8 +46,8 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $action $path $body %params);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download stream_bytes collect_zip_paths
     check_upload_rate is_editable_text parse_multipart_body);
-use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
-    action_plugin_read action_plugin_save action_plugin_action
+use Lazysite::Manager::Extensions qw(action_extension_list action_extension_enable action_extension_disable
+    action_extension_read action_extension_save action_extension_action
     action_form_submissions action_form_submission action_form_submission_delete dispatch_form_list
     action_form_submission_confirm action_form_submissions_delete_bulk
     action_form_submission_approve
@@ -89,7 +89,7 @@ use Lazysite::Manager::Services qw(action_channel_services action_analyse_visito
 use Lazysite::Manager::SiteBackup qw(action_site_backup_create action_site_backup_upload action_site_backup_apply action_site_export_primary action_site_backup_inspect action_site_backup_delete action_site_backup_download _package_scope_refusal); # SM944 S28
 use Lazysite::Manager::Config qw(action_config_read action_config_set action_lang_status); # SM944 S30
 use Lazysite::Manager::PagePdf qw(action_page_pdf);    # SM944 S29
-use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_plugin_target action_recent_changes dispatch_audit); # SM944 S31
+use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _audit_extension_target action_recent_changes dispatch_audit); # SM944 S31
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 use Lazysite::Manager::Groups        ();    # SM1050: groups-list, group-set
 use Lazysite::Manager::AccountImport ();    # SM1053: accounts-import-*
@@ -104,7 +104,7 @@ my $DOCROOT = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // die "No
 $Lazysite::Auth::Acl::DOCROOT            = $DOCROOT;
 $Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
-$Lazysite::Manager::Plugins::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Extensions::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Notices::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::StartPage::DOCROOT   = $DOCROOT;           # SM944 S23
 $Lazysite::Manager::Account::DOCROOT     = $DOCROOT;           # SM1043
@@ -456,69 +456,40 @@ for my $pair ( split /&/, $ENV{QUERY_STRING} // '' ) {
 
 $action = $params{action} // '';
 
-# SM817: `extension-*` IS THE NAME. `plugin-*` IS THE OLD ONE, KEPT AND
-# DEPRECATED THE DAY THE NEW ONE SHIPS.
+# SM817 named these units extensions on the wire (`extension-*`) and kept the
+# old spelling working; SM1142 (R3, R5: "fixup on upgrade, then its done", the
+# old namespace "fully free") removes it. There is no normalising here any
+# more: the dispatch below knows `extension-*` and nothing else, and every
+# caller the engine ships was moved by SM1125.
 #
-# These fourteen things are not plugged in by anybody: they ship in the package,
-# the engine declares their capabilities, and the operator's act is switching one
-# off, not installing one. `plugin` says came-from-outside, somebody-added-it,
-# host-didn't-know - none of which is true. What IS true is that the core
-# renderer requires nothing from them (lazysite-processor.pl loads no plugin at
-# all), so they extend it, and `extension` says that.
-#
-# It also keeps `plugin` free for the day something genuinely is authored
-# elsewhere and dropped in - SM823's ingestion sources would be the first - which
-# is the only condition under which the old word would have been right.
-#
-# NORMALISED HERE, in the one place the action is read, rather than by declaring
-# every verb twice. A second declaration is a second thing to keep in step, and
-# this codebase has a filing for every time that was tried: the two spellings
-# cannot drift because only one of them exists below this line.
-#
-# The seven: list, read, save, action, config, enable, disable.
+# A CALLER STILL USING THE OLD SPELLING IS TOLD THE NEW ONE, by name, rather
+# than meeting the generic "unrecognised action" - the sites agent's scripts
+# were the known external callers and have been told (ON UPGRADE, 0.16.4). The
+# same for the two old parameter names (?<old>=<id> on read, save and action;
+# whoami's catalogue switch). Answered before authentication: it says nothing
+# about the site, only how the action is spelled.
+# old-name: begin (SM1142, the refusal names the spelling it refuses)
 my $action_as_sent = $action;
-if ( $action =~ s/\Aextension-/plugin-/ ) {
-
-    # The new spelling. Nothing to say about it.
+{
+    my $old = 'plugin';
+    my $why;
+    if ( $action =~ /\A\Q$old\E-([a-z-]+)\z/ ) {
+        $why = "unknown action '$action': the extension actions are spelled "
+            . "extension-*, so use 'extension-$1' (SM1142)";
+    }
+    elsif ( $action =~ /\Aextension-/ && exists $params{$old} ) {
+        $why = "unknown parameter '$old' on $action: name the extension as "
+            . "'extension' (SM1142)";
+    }
+    elsif ( $action eq 'whoami' && exists $params{"${old}s"} ) {
+        $why = "unknown parameter '${old}s' on whoami: the switch is 'extensions' (SM1142)";
+    }
+    if ( defined $why ) {
+        respond( { ok => 0, kind => 'not-found', error => $why } );
+        exit 0;
+    }
 }
-elsif ( $action =~ /\Aplugin-/ ) {
-
-    # The old one. INFO rather than WARN: it still works, it is correct today,
-    # and a WARN on every call would train an operator to ignore the log before
-    # the removal it is warning about ever arrives.
-    log_event( 'INFO', $auth_user // '-',
-        "action '$action_as_sent' is the deprecated spelling; "
-            . "use '" . ( $action_as_sent =~ s/\Aplugin-/extension-/r ) . "'",
-        action => $action_as_sent );
-}
-
-# SM831: THE SPELLING AS SENT HAS TO REACH THE PLACES THAT ANSWER FOR IT.
-#
-# The field measured this on 0.13.11: four paired calls - plugin-action,
-# extension-action, plugin-save, extension-save - and all four audited as
-# `plugin-*`. The string "extension" appeared nowhere in 10,772 bytes of audit
-# across fifty entries.
-#
-# That defeats what the deprecation is FOR. You deprecate a spelling in order to
-# retire it, the question at retirement is "is anyone still calling the old
-# one", and the audit log is where an operator looks for the answer. Normalising
-# at one point is right and stays; throwing the original away before anything
-# recorded it was the mistake.
-#
-# A FLAG RATHER THAN A SECOND ACTION NAME. Recording `extension-save` in the
-# action field would split one act across two spellings for everything that
-# counts or filters audit lines - including readers already deployed, which
-# would silently stop matching. The canonical name stays; one boolean answers
-# the retirement question.
-my $deprecated_spelling = ( $action_as_sent =~ /\Aplugin-/ ) ? 1 : 0;
-
-sub _audit_detail {
-    my ($detail) = @_;
-    return $detail               unless $deprecated_spelling;
-    $detail = ''                 unless defined $detail;
-    return 'spelling=deprecated' unless length $detail;
-    return "$detail; spelling=deprecated";
-}
+# old-name: end
 
 $path = $params{path} // '/';
 # Mirror the per-request context into the modules that keep their own copy, for
@@ -527,7 +498,7 @@ $path = $params{path} // '/';
 # module below loses its copy at its own row and imports from Common instead.
 $Lazysite::Manager::Upload::auth_user   = $auth_user;
 $Lazysite::Manager::Backups::auth_user  = $auth_user;
-$Lazysite::Manager::Plugins::action     = $action;
+$Lazysite::Manager::Extensions::action     = $action;
 $Lazysite::Manager::Files::auth_user    = $auth_user;
 $Lazysite::Manager::Files::action       = $action;
 $Lazysite::Manager::Themes::auth_user   = $auth_user;
@@ -709,7 +680,7 @@ $IS_OPERATOR = undef;    # SM516 MO-3: the memo behind _operator(), empty until 
 # --- M-1: CSRF gate on write actions --------------------------------
 # The gate is keyed on HTTP method, not action name. Every write action
 # in this script is dispatched via POST; reads (list, cache-list,
-# theme-list, plugin-list, nav-read, handler-list, form-targets-read,
+# theme-list, extension-list, nav-read, handler-list, form-targets-read,
 # csrf-token itself, etc.) come in over GET and do not need a token.
 # Going by method rather than an action allowlist means we cannot
 # accidentally leave a new read action out of the list.
@@ -870,7 +841,7 @@ if ( !$token_auth ) {
     # SEC-2026-07 (H1/H2): cookie/manager path authorization. The %need map below
     # gates only TOKEN clients; a cookie session historically reached every action
     # ungated ("manager UI = trusted operator"), so a low-privilege interactive
-    # account (content-editors) could config-set, run backups, enable plugins, etc.
+    # account (content-editors) could config-set, run backups, enable extensions, etc.
     # Now the cookie path is capability-gated by the same model, and a state-changing
     # action must be POST (a GET would bypass the CSRF gate above - and be CSRF-able
     # from an admin's browser). Operators (SM991: a member of the operator group,
@@ -1857,7 +1828,7 @@ elsif ( $action eq 'data-import' ) {
     # THE RAW BODY GOES IN, AND THE DATA MODULE PARSES IT. An earlier version
     # parsed the multipart here and handed the CSV across, and t/lint/77
     # refused it: a module named in a data-* branch is one that answers for
-    # the plugin, and must consult its enabled state. The parser cannot
+    # the extension, and must consult its enabled state. The parser cannot
     # sensibly do that - so the whole path, parse included, lives behind the
     # one _gate() in Manager::Data, which is what SM469 wants anyway.
     #
@@ -2270,42 +2241,42 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
     || $action eq 'keys-list' || $action eq 'key-revoke' ) {
     $result = dispatch_sessions_keys();
 }
-elsif ( $action eq 'plugin-list' ) { $result = action_plugin_list() }
-elsif ( $action eq 'plugin-enable' ) {
+elsif ( $action eq 'extension-list' ) { $result = action_extension_list() }
+elsif ( $action eq 'extension-enable' ) {
     my $req = _json_body();
-    $result = action_plugin_enable( $req->{script} );
+    $result = action_extension_enable( $req->{script} );
 }
-elsif ( $action eq 'plugin-disable' ) {
+elsif ( $action eq 'extension-disable' ) {
     my $req = _json_body();
-    $result = action_plugin_disable( $req->{script} );
+    $result = action_extension_disable( $req->{script} );
 }
-elsif ( $action eq 'plugin-read' ) {
+elsif ( $action eq 'extension-read' ) {
     my $req = _json_body();
-    $result = action_plugin_read( $params{plugin}, $req->{script} );
+    $result = action_extension_read( $params{extension}, $req->{script} );
 }
-elsif ( $action eq 'plugin-save' ) {
+elsif ( $action eq 'extension-save' ) {
     my $req = _json_body();
-    $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {}, $req->{add} );
+    $result = action_extension_save( $params{extension}, $req->{script}, $req->{values} // {}, $req->{add} );
 }
 elsif ( $action eq 'page-pdf' ) {
     # SM732: THE RENDER, WIRED. SM706 built convert() and shipped it with no
     # caller: the composed-document refusal, the per-part ACL check and the
     # cache were all reachable only from a unit test. This is the route.
     #
-    # NOT A PLUGIN ACTION. plugin-action accepts only a `choice` from a declared
+    # NOT AN EXTENSION ACTION. extension-action accepts only a `choice` from a declared
     # list, deliberately - "nothing request-controlled ever reaches the command
     # line". A page path is arbitrary, so it cannot travel that way. Calling
     # convert() IN PROCESS keeps the same guarantee for a different reason: the
     # path is a Perl argument and never sees a shell at all.
     #
-    # manage_content, per the plugin's own reasoning: converting a page is
+    # manage_content, per the extension's own reasoning: converting a page is
     # reading it in another format, so it rides on the capability that already
     # governs reading content rather than inventing one.
     $result = action_page_pdf( $params{path} );
 }
-elsif ( $action eq 'plugin-action' ) {
+elsif ( $action eq 'extension-action' ) {
     my $req = _json_body();
-    $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id},
+    $result = action_extension_action( $params{extension}, $req->{script}, $req->{action_id},
         $req->{params} );
 }
 elsif ( $action eq 'nav-read' ) { $result = action_nav_read( $params{host} ) }
@@ -2386,7 +2357,7 @@ elsif ( $action eq 'analyse_visitors' ) {
         # SM1219: the signed-in accounts and their visits, for an analytics holder
         by_account => ( ( $params{by_account} // q{} ) =~ /\A(?:1|true|yes)\z/i ? 1 : 0 ) );
 }
-elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{plugins} ) }
+elsif ( $action eq 'whoami' ) { $result = action_whoami( $auth_user, $params{extensions} ) }
 elsif ( $action eq 'start-page' ) { $result = action_start_page( $params{username} ) }
 # SM1043: the member's own account. Every branch acts on $auth_user and reads no
 # account from the request; Lazysite::Manager::Account says why.
@@ -2568,7 +2539,7 @@ elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + typ
     # accounts - the ones whose rows it may read - and no other.
     if ( ref $result eq 'HASH' && ref $result->{forms} eq 'ARRAY' && _approval_only() ) {
         $result->{forms} = [ grep { ref $_ eq 'HASH'
-                    && Lazysite::Manager::Plugins::account_request_store( undef, $_->{name} ) }
+                    && Lazysite::Manager::Extensions::account_request_store( undef, $_->{name} ) }
                 @{ $result->{forms} } ];
     }
 }
@@ -2727,7 +2698,7 @@ $DISPATCH_CRASH_GUARD = 0;    # P24: the chain finished
 
 # Audit trail: record MATERIAL actions only - state changes and security grants
 # (who did what, TO WHAT, when, from where, outcome). Reads/browsing are NOT
-# audited; the access log and the stats plugin cover those, and the audit must
+# audited; the access log and the stats extension cover those, and the audit must
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
 #
 # SM943 RULING 1 (2026-10-09): "Audit is useful to see when a person or agent
@@ -2864,11 +2835,11 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         }
     }
 
-    # Plugin actions log '/' as their path; name the plugin instead (from the
-    # plugin param, else the body's script basename) so the audit says WHICH one.
-    if ( $action =~ /^plugin-/ ) {
-        my $plugin = _audit_plugin_target( \%params, $body, $action, $result );
-        $aud_target = $plugin if length $plugin;
+    # Extension actions log '/' as their path; name the extension instead (from the
+    # extension param, else the body's script basename) so the audit says WHICH one.
+    if ( $action =~ /^extension-/ ) {
+        my $extension = _audit_extension_target( \%params, $body, $action, $result );
+        $aud_target = $extension if length $extension;
     }
 
     # Actions with no path/key but a well-known target (nav-save edits the site
@@ -2969,7 +2940,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         for my $row (@$acct_rows) {
             my ( $a_act, $a_target, $a_ok, $a_detail ) = @$row;
             audit_log( $auth_user, $a_act, $a_target, _request_ip(), ( $a_ok ? 'ok' : 'fail' ),
-                ( $token_auth ? 'api' : 'ui' ), _audit_detail($a_detail) );
+                ( $token_auth ? 'api' : 'ui' ), $a_detail );
         }
         if ($per_path) {
             my $door = $token_auth ? 'api' : 'ui';
@@ -3042,7 +3013,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         }
         audit_log( $auth_user, $aud_action, $aud_target, _request_ip(),
             ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ),
-            _audit_detail($detail) )
+            $detail )
             unless $skip_audit || $per_path;
     }
 }
@@ -3104,7 +3075,7 @@ sub _approval_only {
 sub _refuse_beyond_account_requests {
     my ( $file, $form ) = @_;
     return unless _approval_only();
-    return if Lazysite::Manager::Plugins::account_request_store( $file, $form );
+    return if Lazysite::Manager::Extensions::account_request_store( $file, $form );
     _refuse(
         { ok => 0, kind => 'forbidden',
             error => 'This account approves account requests: it reads the submissions of a '
@@ -3254,7 +3225,7 @@ sub _audit_crashed_dispatch {
     eval {
         audit_log( $auth_user // '', $act, ( $path // '' ), _request_ip(), 'fail',
             ( $token_auth ? 'api' : 'ui' ),
-            _audit_detail('crashed: the handler failed - the error is in the error log') );
+            'crashed: the handler failed - the error is in the error log' );
         1;
     };
     $? = $status;
@@ -3302,7 +3273,7 @@ sub _odoo_who {
 sub _refuse {
     my ( $resp, $origin, $reason, $target ) = @_;
     audit_log( $auth_user, $action, ( defined $target ? $target : ( $path // '' ) ),
-        _request_ip(), 'fail', $origin, _audit_detail($reason) );
+        _request_ip(), 'fail', $origin, $reason );
     respond($resp);
     exit 0;
 }

@@ -21,7 +21,7 @@ use TestHelper qw(repo_root site_tempdir reap_child);
 
 my $root = repo_root();
 require "$root/tools/lazysite-server.pl";
-require Lazysite::Manager::Plugins;
+require Lazysite::Manager::Extensions;
 no warnings "once";
 
 my $site = site_tempdir();    # <t>/site/public_html
@@ -51,8 +51,8 @@ sub registry {
     local @ENV{qw(LAZYSITE_DEV_SERVER LAZYSITE_EXTENSION_DIRS)};
     delete @ENV{qw(LAZYSITE_DEV_SERVER LAZYSITE_EXTENSION_DIRS)};
     @ENV{ keys %env } = values %env;
-    local $Lazysite::Manager::Plugins::DOCROOT = $site;
-    return Lazysite::Manager::Plugins::plugin_registry();
+    local $Lazysite::Manager::Extensions::DOCROOT = $site;
+    return Lazysite::Manager::Extensions::extension_registry();
 }
 
 subtest 'two directories both load, and the first named wins a shared name' => sub {

@@ -296,7 +296,7 @@ __DATA__
    },
    "cap-site" : {
       "assignable" : 0,
-      "description" : "Domains, site packages, configuration and plugins. Changes what the whole site is, not what is on it.",
+      "description" : "Domains, site packages, configuration and extensions. Changes what the whole site is, not what is on it.",
       "label" : "Capability: site settings",
       "manage_config" : 1,
       "manage_domains" : 1,

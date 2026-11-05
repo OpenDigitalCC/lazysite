@@ -1,27 +1,27 @@
 #!/usr/bin/perl
-# SM477: every action a plugin DECLARES must be one its own run() can SERVE.
+# SM477: every action an extension DECLARES must be one its own run() can SERVE.
 #
 # THE FAULT THIS EXISTS TO CATCH, reported from the manager UI: clicking the
-# data plugin's Status button returned
+# data extension's Status button returned
 #
 #     usage: --describe | --action status --docroot DIR
 #
-# The two halves of one plugin disagreed about their own contract. The manager
+# The two halves of one extension disagreed about their own contract. The manager
 # invokes a declared action as `--scan` unless the action says
 # `run => 'action'`; data.pl declared no such thing and implemented only
 # `--action status`, so the button ran the fall-through and printed the usage
 # string at an operator.
 #
 # WHY THIS IS A TEST AND NOT A GREP. The obvious check - does the source
-# mention the action id - passes for a plugin that mentions it in a comment and
+# mention the action id - passes for an extension that mentions it in a comment and
 # fails for one that dispatches through a table. The only thing that settles it
-# is invoking the plugin the way the MANAGER does and seeing whether it
+# is invoking the extension the way the MANAGER does and seeing whether it
 # understood.
 #
 # WHAT IT ASSERTS, AND DELIBERATELY NOTHING MORE: the invocation was
 # RECOGNISED. Not that it succeeded - most of these refuse against an empty
 # docroot, which is correct and is the point of running them against one. A
-# plugin that answers "no SMTP configured" understood the question. A plugin
+# extension that answers "no SMTP configured" understood the question. An extension
 # that answers "usage:" did not.
 #
 # THE EMPTY DOCROOT IS THE SAFETY MECHANISM. Actions here include git-sync's
@@ -39,13 +39,13 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $root = repo_root();
-my @plugins = sort glob("$root/extensions/*.pl");
-ok( scalar @plugins, 'there are plugins to check' ) or BAIL_OUT('no plugins found');
+my @extensions = sort glob("$root/extensions/*.pl");
+ok( scalar @extensions, 'there are extensions to check' ) or BAIL_OUT('no extensions found');
 
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite");
 
-# The manager's own rule, from Lazysite::Manager::Plugins::action_plugin_action:
+# The manager's own rule, from Lazysite::Manager::Extensions::action_extension_action:
 # `--scan` by default, `--action <id>` when the action declares run => 'action'.
 # Restated here rather than imported, because a test that shares the code under
 # test cannot disagree with it - and disagreement is the entire fault.
@@ -56,14 +56,14 @@ sub argv_for {
         : ('--scan');
 }
 
-for my $script (@plugins) {
+for my $script (@extensions) {
     my $name = $script;
     $name =~ s{.*/}{};
 
     my $json = qx($^X \Q$script\E --describe 2>/dev/null);
     my $desc = eval { decode_json($json) };
     unless ( ref $desc eq 'HASH' ) {
-        ok( 1, "$name does not describe itself - not a plugin" );
+        ok( 1, "$name does not describe itself - not an extension" );
         next;
     }
 
@@ -92,9 +92,9 @@ for my $script (@plugins) {
 
         my $err = ( ref $r eq 'HASH' ) ? ( $r->{error} // '' ) : '';
         unlike( $err, qr/\busage\b|\bunknown (?:option|argument|action)\b/i,
-            "$name/$a->{id}: the plugin RECOGNISED how the manager invokes it" )
+            "$name/$a->{id}: the extension RECOGNISED how the manager invokes it" )
             or diag(
-                  "The manager runs `$shown` for this action, and the plugin "
+                  "The manager runs `$shown` for this action, and the extension "
                 . "did not understand it. Either declare run => 'action' so "
                 . "the manager sends --action $a->{id}, or serve --scan. "
                 . "This is what an operator sees when they click the button." );

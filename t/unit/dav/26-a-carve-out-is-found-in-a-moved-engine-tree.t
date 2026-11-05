@@ -35,7 +35,7 @@ is( $p->{code}, 207, 'and is found there' );
 
 ok( !-e "$doc/lazysite", 'no stray engine tree was made inside the served tree' );
 
-my $c = run_dav( $doc, 'PUT', '/lazysite/lazysite.conf', HTTP_AUTHORIZATION => $auth, body => "plugins: evil\n" );
+my $c = run_dav( $doc, 'PUT', '/lazysite/lazysite.conf', HTTP_AUTHORIZATION => $auth, body => "extensions: evil\n" );
 is( $c->{code}, 403, 'lazysite.conf stays refused - authorise() still rules by rel' );
 
 done_testing();

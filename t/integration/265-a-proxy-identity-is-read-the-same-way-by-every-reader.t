@@ -112,7 +112,7 @@ subtest 'the manager API takes the same identity' => sub {
     my $call = sub {
         my (%env) = @_;
         my $out = run_script( 'lazysite-manager-api.pl',
-            env => { DOCUMENT_ROOT => $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=pages&plugins=0',
+            env => { DOCUMENT_ROOT => $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=pages&extensions=0',
                 REMOTE_ADDR => '127.0.0.1', %CLEAR, %env } );
         my ($st) = $out =~ /^Status:\s*(\d+)/m;
         $out =~ s/\A.*?\r?\n\r?\n//s;
@@ -182,7 +182,7 @@ subtest 'with the flag on, a peer outside auth_proxy_trusted_from opens nothing'
     # an unlisted peer reaches the reader there: the reader's own ask of
     # proxy_identity is all that stands between it and an identity.
     my $out = run_script( 'lazysite-manager-api.pl',
-        env => { DOCUMENT_ROOT => $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=pages&plugins=0',
+        env => { DOCUMENT_ROOT => $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=pages&extensions=0',
             REMOTE_ADDR => '127.0.0.1', %CLEAR, %AK } );
     $out =~ s/\A.*?\r?\n\r?\n//s;
     my $body = eval { decode_json($out) } || {};

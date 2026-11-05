@@ -386,7 +386,7 @@ sub tick {
         }
 
         # A body that returns ok => 0 completed and is reporting that the work
-        # could not be done - the stats plugin missing, a file that would not
+        # could not be done - the stats extension missing, a file that would not
         # write. Distinct from dying, and carrying its own reason, which the
         # record keeps verbatim: an operator reading it should not have to
         # find the log line to learn which.

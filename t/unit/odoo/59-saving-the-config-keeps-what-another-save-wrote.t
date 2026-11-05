@@ -3,7 +3,7 @@
 # app is installed left the other app's operations answering 404 'no operation
 # installed' for a few seconds (the list is rewritten whole)."
 #
-# THE CAUSE. plugin-save writes lazysite/odoo.conf atomically (temp + rename), so
+# THE CAUSE. extension-save writes lazysite/odoo.conf atomically (temp + rename), so
 # a reader never sees a torn file. But it READ the file, changed it in memory and
 # wrote it back with no lock held across the three, while the lazysite.conf writer
 # beside it takes one. Two saves overlapping both read the old file and the second
@@ -24,7 +24,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 my $root   = repo_root();
 my $parent = site_tempdir();
@@ -41,15 +41,15 @@ sub reset_conf {
     print {$c} "odoo_url: https://odoo.example.com\nodoo_db: lab\n";
     close $c;
 }
-$Lazysite::Manager::Plugins::DOCROOT = $d;
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl', {@_} ) }
+$Lazysite::Manager::Extensions::DOCROOT = $d;
+sub save { return Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/odoo.pl', {@_} ) }
 
 # Run $second at the point the first save has read the file; say whether the lock
 # was free there. A held lock means the second save would wait, so it runs after.
 my ( $was_free, @later );
 {
     no warnings 'redefine';
-    my $real = \&Lazysite::Manager::Plugins::_slurp_or_empty;
+    my $real = \&Lazysite::Manager::Extensions::_slurp_or_empty;
     my $armed;
     sub arm_hook {
         my ($second) = @_;
@@ -57,7 +57,7 @@ my ( $was_free, @later );
         $was_free = undef;
         @later    = ();
     }
-    *Lazysite::Manager::Plugins::_slurp_or_empty = sub {
+    *Lazysite::Manager::Extensions::_slurp_or_empty = sub {
         my $content = $real->(@_);
         return $content unless $armed && $_[0] eq $conf;
         my $job = $armed;

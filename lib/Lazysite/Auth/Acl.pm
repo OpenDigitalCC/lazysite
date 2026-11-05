@@ -542,11 +542,11 @@ sub _acl_entry_and_key {
     return;
 }
 
-# SM881: IS THIS PATH GATED? THE ENGINE'S ONE ANSWER, FOR PLUGINS TO ASK.
+# SM881: IS THIS PATH GATED? THE ENGINE'S ONE ANSWER, FOR EXTENSIONS TO ASK.
 #
 # Ruled by the release manager on 2026-09-14: the ACL read lives in the engine as
-# one supported answer that plugins call, not as a private read inside whichever
-# plugin needs it next. The precedence this depends on already existed and was
+# one supported answer that extensions call, not as a private read inside whichever
+# extension needs it next. The precedence this depends on already existed and was
 # simply not reachable - `_acl_entry_for` has answered "which rule governs this
 # path?" with the full ladder (exact key, then the .md/.url/.html stem, then the
 # longest ancestor prefix, then the site-wide key) since SM287, and was never in

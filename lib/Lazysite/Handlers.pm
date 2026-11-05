@@ -2066,7 +2066,7 @@ sub _table_row {
     return { ok => 0, why => $why } unless $map;
     my $ok = eval {
         require Lazysite::Data::Tables;
-        require Lazysite::Manager::Plugins;
+        require Lazysite::Manager::Extensions;
         1;
     };
     return { ok => 0, why => 'the data modules could not be loaded: ' . ( $@ || 'unknown' ) } unless $ok;
@@ -2075,9 +2075,9 @@ sub _table_row {
         # extension an operator switched off would be the extension still
         # running after being turned off.
         no warnings 'once';
-        local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
+        local $Lazysite::Manager::Extensions::DOCROOT = $DOCROOT;
         return { ok => 0, why => 'the Data tables extension is disabled, so no row can be stored' }
-            unless Lazysite::Manager::Plugins::plugin_enabled('extensions/data.pl');
+            unless Lazysite::Manager::Extensions::extension_enabled('extensions/data.pl');
     }
     my %row;
     for my $from ( sort keys %$map ) {

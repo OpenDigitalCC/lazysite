@@ -18,8 +18,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $extension" unless -f $extension;
 
 # One export run against a hand-built access log. Each request is
 # [ ip, path, status, offset-seconds, user-agent? ].
@@ -48,7 +48,7 @@ sub export_into {
     open my $lf, '>>', $log or die $!;
     for my $r (@req) {
         my ( $ip, $path, $status, $offset, $ua ) = @$r;
-        # gmtime: the stamp says +0000, and the plugin reads the offset.
+        # gmtime: the stamp says +0000, and the extension reads the offset.
         my $when = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime( $base + $offset ) );
         print $lf qq{$ip - - [$when] "GET $path HTTP/1.1" $status 100 "-" "}
             . ( $ua // 'Mozilla/5.0 Chrome/120' ) . qq{"\n};
@@ -56,7 +56,7 @@ sub export_into {
     close $lf;
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $out = qx($^X \Q$plugin\E --export --window 30 2>/dev/null);
+    my $out = qx($^X \Q$extension\E --export --window 30 2>/dev/null);
     my $r   = decode_json($out);
     $r->{_docroot} = $d;
     return $r;

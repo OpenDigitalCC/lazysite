@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-# SM079a coverage: in-process tests for Manager::Plugins action handlers.
+# SM079a coverage: in-process tests for Manager::Extensions action handlers.
 # SM842: the handler, binding and schedule actions moved to Lazysite::Handlers
 # and are tested in t/unit/lib/34-one-way-to-deliver.t; what stays here is
-# the plugin registry and the submissions store.
+# the extension registry and the submissions store.
 # Verifies the conf mutations and round-trip fidelity, not just that the
 # handlers ran, and pins the specific refusal reasons.
 use strict;
@@ -13,14 +13,14 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Handlers ();
-use Lazysite::Manager::Plugins qw(
-    action_plugin_enable action_plugin_disable
+use Lazysite::Manager::Extensions qw(
+    action_extension_enable action_extension_disable
     action_form_submissions action_form_submission_delete
     action_form_list action_form_submission_confirm action_form_submissions_delete_bulk
-    resolve_plugin_script);
+    resolve_extension_script);
 
 # SM152: a real install layout - base holds extensions/, docroot is base/public_html
-# - so the plugin registry (base/extensions/*.pl + core) resolves. enable/disable
+# - so the extension registry (base/extensions/*.pl + core) resolves. enable/disable
 # and resolve now go through that registry, not an arbitrary path.
 my $base = tempdir( CLEANUP => 1 );
 my $d    = "$base/public_html";
@@ -30,48 +30,48 @@ for my $p (qw(log.pl audit.pl)) {
     print {$pf} "print '{\"id\":\"$p\",\"actions\":[]}' if \"@ARGV\"=~/--describe/; exit 0;\n";
     close $pf;
 }
-$Lazysite::Manager::Plugins::DOCROOT = $d;
-$Lazysite::Manager::Plugins::action  = 'test';
+$Lazysite::Manager::Extensions::DOCROOT = $d;
+$Lazysite::Manager::Extensions::action  = 'test';
 $Lazysite::Handlers::DOCROOT         = $d;
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$c} "site_name: T\n";
 close $c;
 
 sub slurp_conf { open my $f, '<', "$d/lazysite/lazysite.conf"; local $/; <$f> }
-# --- plugin enable / disable mutate the conf correctly ---
-ok( action_plugin_enable('extensions/log.pl')->{ok}, 'enable a plugin' );
+# --- extension enable / disable mutate the conf correctly ---
+ok( action_extension_enable('extensions/log.pl')->{ok}, 'enable an extension' );
 # SM915: this fixture's conf carries NO list, so there is no header the site
 # "already uses" and the writer creates one under `extensions:` - the name SM817
-# introduced - rather than reviving `plugins:` on a site that never had it. The
+# introduced - rather than reviving `extensions:` on a site that never had it. The
 # assertion used to expect the old spelling, which was correct only while the
 # writer hardcoded it. Both directions are checked so this cannot pass on either
 # spelling indifferently; t/unit/manager/198 holds the rest of the behaviour.
 like( slurp_conf(), qr{extensions:\s*\n\s+- extensions/log\.pl}s,
     'a new list is created under `extensions:`, the current name' );
-unlike( slurp_conf(), qr{^plugins:}m, 'and not under the retired spelling' );
-ok( action_plugin_enable('extensions/audit.pl')->{ok}, 'enable a second' );
-like( slurp_conf(), qr{audit\.pl}, 'second plugin present' );
-ok( action_plugin_disable('extensions/log.pl')->{ok}, 'disable a plugin' );
-unlike( slurp_conf(), qr{log\.pl}, 'disabled plugin removed' );
-like( slurp_conf(), qr{audit\.pl}, 'the other plugin survives the disable' );
-my $bad = action_plugin_enable('');
+unlike( slurp_conf(), qr{^extensions:}m, 'and not under the retired spelling' );
+ok( action_extension_enable('extensions/audit.pl')->{ok}, 'enable a second' );
+like( slurp_conf(), qr{audit\.pl}, 'second extension present' );
+ok( action_extension_disable('extensions/log.pl')->{ok}, 'disable an extension' );
+unlike( slurp_conf(), qr{log\.pl}, 'disabled extension removed' );
+like( slurp_conf(), qr{audit\.pl}, 'the other extension survives the disable' );
+my $bad = action_extension_enable('');
 ok( !$bad->{ok}, 'empty script rejected' );
 like( $bad->{error}, qr/no script/i, 'with a "No script" error' );
 
-# --- resolve_plugin_script (SM152: registry-only) ---
-is( resolve_plugin_script('extensions/log.pl'), "$base/extensions/log.pl",
-    'a registered plugin resolves to its canonical path' );
-ok( !defined resolve_plugin_script('does-not-exist.pl'),
+# --- resolve_extension_script (SM152: registry-only) ---
+is( resolve_extension_script('extensions/log.pl'), "$base/extensions/log.pl",
+    'a registered extension resolves to its canonical path' );
+ok( !defined resolve_extension_script('does-not-exist.pl'),
     'an unregistered name resolves to undef' );
 # A script placed beside the docroot is NOT a registry key -> no longer resolves
 # (this was the RCE: arbitrary path resolution). See 27-plugin-registry-rce.t.
-open my $p, '>', "$base/sample-plugin.pl" or die $!;
+open my $p, '>', "$base/sample-extension.pl" or die $!;
 print {$p} "1;\n"; close $p;
-ok( !defined resolve_plugin_script('sample-plugin.pl'),
+ok( !defined resolve_extension_script('sample-extension.pl'),
     'a script beside the install root is NOT resolvable (registry-only)' );
-ok( !defined resolve_plugin_script('../sample-plugin.pl'),
+ok( !defined resolve_extension_script('../sample-extension.pl'),
     'a traversal path is NOT resolvable' );
-unlink "$base/sample-plugin.pl";
+unlink "$base/sample-extension.pl";
 
 # --- SM182: read a submissions store as a structured table -------------------
 {

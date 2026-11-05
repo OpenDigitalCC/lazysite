@@ -68,7 +68,7 @@ sub guard {
 }
 
 # Built-in probe patterns. A lazysite site serves no PHP, so any .php is a probe.
-# Mirrors the stats plugin's noise set (kept in sync by t/unit/lib/12-bad-url.t).
+# Mirrors the stats extension's noise set (kept in sync by t/unit/lib/12-bad-url.t).
 my $BAD_RE = qr{
     (?: ^ | / )
     (?: wp-login\.php | wp-admin | wp-includes | wp-content | xmlrpc\.php

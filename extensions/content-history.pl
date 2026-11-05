@@ -5,16 +5,16 @@
 # Field feedback (2026-07-11): the enable/status controls used to be a card on
 # the Backups page, where they were lost - and content history is not a backup,
 # it is the enabling of change logging. Its sibling git-sync already presents
-# as a plugin, so the pair now lives coherently on the plugin surface. ONE
-# switch: ticking the plugin on Plugin Manager runs the on_enable hook (git
+# as an extension, so the pair now lives coherently on the extension surface. ONE
+# switch: ticking the extension on Extension Manager runs the on_enable hook (git
 # init + adoption commit), unticking runs on_disable (recording paused, every
 # version kept) - no second Enable on the config page. Status / Enable /
-# Pause on Plugin Config remain for inspection and recovery.
+# Pause on Extension Config remain for inspection and recovery.
 #
 # The ENGINE is untouched. The write hooks stay keyed on the `git_history`
 # conf key plus an initialised repo (lib/Lazysite/Git.pm), the Files page keeps
 # its per-file History/Diff/Restore panels (hidden while disabled), and the
-# manager-api git-* actions remain the control-API surface. This plugin drives
+# manager-api git-* actions remain the control-API surface. This extension drives
 # exactly the machinery action_git_init drives: ENABLE writes the conf key
 # through the manager's own _write_conf_key and takes the adoption commit via
 # Lazysite::Git::init (idempotent - re-enabling reports "already enabled" and
@@ -62,7 +62,7 @@ sub describe {
             { id => 'status', label => 'Status' },
             # enable/disable are the toggle's lifecycle hooks (on_enable /
             # on_disable), hidden from the config page so there is never an
-            # "Enable" button while it is already enabled - the Plugin-Manager
+            # "Enable" button while it is already enabled - the Extension-Manager
             # tick is the one switch.
             {
                 id     => 'enable',
@@ -77,8 +77,8 @@ sub describe {
                 hidden => JSON::PP::true(),
             },
         ],
-        # Lifecycle: the Plugin-Manager toggle is the ONE switch. Enabling the
-        # plugin enables recording (init + adoption commit); disabling pauses
+        # Lifecycle: the Extension-Manager toggle is the ONE switch. Enabling the
+        # extension enables recording (init + adoption commit); disabling pauses
         # it. Both hooks reference the actions above.
         on_enable  => 'enable',
         on_disable => 'disable',
@@ -234,7 +234,7 @@ sub do_disable {
     return { ok => 1, commits => $commits,
         message => "Content history paused - $commits recorded version"
             . ( $commits == 1 ? '' : 's' )
-            . ' kept. Enable the plugin again to resume recording.' };
+            . ' kept. Enable the extension again to resume recording.' };
 }
 
 1;

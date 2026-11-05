@@ -237,8 +237,8 @@ my %API_ONLY = (
     'data-table-acl-set' => 'undecided pending SM611: a table is addressed by name, not path',
     'data-table-acl-remove' => 'undecided pending SM611: a table is addressed by name, not path',
     # SM245: the sidecar migration is an operator's one-shot, reached from the
-    # Plugin Manager; an agent has no standing to run it.
-    'briefs-migrate' => 'a one-shot operator migration, driven from the Plugin Manager',
+    # Extension Manager; an agent has no standing to run it.
+    'briefs-migrate' => 'a one-shot operator migration, driven from the Extension Manager',
     # SM282: an operator-facing check - "what does a VISITOR get for this
     # path" - answered in the panel where the draft section is managed. An
     # agent has no equivalent question: it can already fetch the path

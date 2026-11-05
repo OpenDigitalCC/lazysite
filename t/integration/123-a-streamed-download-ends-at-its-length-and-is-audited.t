@@ -30,7 +30,7 @@ my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
 my $mapi   = "$root/lazysite-manager-api.pl";
 my $secret = 'sekret' x 6;
-my $d      = site_tempdir( plugins => 1 );
+my $d      = site_tempdir( extensions => 1 );
 ( my $t = $d ) =~ s{/site/public_html\z}{};
 make_path( "$d/lazysite/auth", "$d/lazysite/backups", "$d/content", "$t/bin" );
 my $audit = "$d/lazysite/logs/audit.log";

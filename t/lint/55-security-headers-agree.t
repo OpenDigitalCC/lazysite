@@ -199,7 +199,7 @@ subtest 'the manager is never enforced, whatever the site is set to' => sub {
         ok( ( grep { /^Content-Security-Policy-Report-Only:/ } @h ),
             "$uri is report-only even so" )
             or diag( 'Enforcing here disables the cache, audit, sessions and '
-                . 'plugins controls, and the operator gets no error - the '
+                . 'extensions controls, and the operator gets no error - the '
                 . 'button simply does nothing.' );
         ok( !( grep { /^Content-Security-Policy:/ } @h ),
             "and carries no enforcing header" );

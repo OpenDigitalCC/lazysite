@@ -28,12 +28,12 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Common  ();
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/forms", "$d/content/leads" );
 $Lazysite::Manager::Common::DOCROOT  = $d;
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 
 # A file handler storing OUTSIDE lazysite/forms - a supported configuration,
 # and the one the two guards disagreed about.
@@ -55,7 +55,7 @@ my $EDITOR = { manage_content => 1 };
 my $READER = { manage_content => 1, read_submissions => 1 };
 
 subtest 'the fixture really registers the outside store' => sub {
-    my @dirs = Lazysite::Manager::Plugins::submission_store_dirs();
+    my @dirs = Lazysite::Manager::Extensions::submission_store_dirs();
     ok( ( grep { $_ eq 'content/leads' } @dirs ),
         'content/leads is a configured store' )
         or diag( "dirs: " . join( ', ', @dirs ) );

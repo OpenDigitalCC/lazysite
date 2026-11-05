@@ -426,14 +426,14 @@ function ownerOptions(owner) {
   return h;
 }
 
-// SM245: briefs live in the plugin store, out of band - the listing no
+// SM245: briefs live in the extension store, out of band - the listing no
 // longer says whether one exists (is_brief/has_brief are gone), so the one
 // button reads the store when asked. prompt() for the append is the interim
 // affordance; SM502's modal rework is where this gets a real editor.
 function briefButton(f) {
   // Nothing to offer a caller who may neither read nor write one, and nothing
-  // to offer when the plugin that stores them is off.
-  if (!BRIEFS.read || !BRIEFS.plugin) return '';
+  // to offer when the extension that stores them is off.
+  if (!BRIEFS.read || !BRIEFS.extension) return '';
   // The label says which it is. A caller who may only READ gets a button that
   // does exactly that, rather than one that prompts and then refuses.
   var label = BRIEFS.append ? 'Brief' : 'Brief (read-only)';
@@ -1526,7 +1526,7 @@ var GIT = { enabled: false };
 // Fetched ONCE at page init, not per directory: it is a property of the
 // session, and asking again on every navigation would be three requests where
 // one does.
-var BRIEFS = { read: false, append: false, plugin: true };
+var BRIEFS = { read: false, append: false, extension: true };
 function loadBriefCaps() {
   return fetch(API + '?action=whoami')
     .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
@@ -1535,14 +1535,14 @@ function loadBriefCaps() {
       var c = d.capabilities || {};
       BRIEFS.read   = !!(c.manage_content || c.manage_briefs);
       BRIEFS.append = !!c.manage_briefs;
-      // The plugin's own state, where whoami is willing to say - it reports
-      // `_enabled` to a caller holding manage_config or a capability the plugin
+      // The extension's own state, where whoami is willing to say - it reports
+      // `_enabled` to a caller holding manage_config or a capability the extension
       // governs. When it does not say, the button still renders and the read
-      // reports the plugin being off, which is the behaviour that existed
+      // reports the extension being off, which is the behaviour that existed
       // before and is no worse.
-      (d.plugins || []).forEach(function(p) {
+      (d.extensions || []).forEach(function(p) {
         if (p && p.id === 'briefs' && typeof p._enabled !== 'undefined') {
-          BRIEFS.plugin = !!p._enabled;
+          BRIEFS.extension = !!p._enabled;
         }
       });
     })
@@ -1554,8 +1554,8 @@ function loadGitStatus() {
     .then(function(d) {
       if (d && d.ok) GIT.enabled = !!d.enabled;
       // SM461/SM664: the site-level History overview is no longer on this page.
-      // It opens as a modal from the content-history plugin's own row on the
-      // Plugin Config page, which is where SM461 argued it belonged when it was
+      // It opens as a modal from the content-history extension's own row on the
+      // Extension Config page, which is where SM461 argued it belonged when it was
       // filed on 2026-08-21. GIT.enabled still gates the PER-FILE History
       // control below, which is the part that is a file operation.
     })
@@ -1563,8 +1563,8 @@ function loadGitStatus() {
 }
 
 // SM199/SM664: the file-list over the whole history - per-file statistics and a
-// site-level summary, sortable - moved to the content-history plugin's
-// own row on the Plugin Config page, where it opens as a modal. It is a report
+// site-level summary, sortable - moved to the content-history extension's
+// own row on the Extension Config page, where it opens as a modal. It is a report
 // about the repository, and seeing it here required the Files app - full read
 // and write over content - for someone who only needed to know what changed.
 // The control-API action now accepts manage_content OR manage_config.

@@ -278,7 +278,7 @@ STUB
     ok( !$alive->($pool_pid), 'nginx dying: and the pool is stopped, not left serving nothing' );
     like( slurp("$t/run.log"), qr/exited \(?7|exited 7/, 'nginx dying: the log says why' );
 
-    # lazysited exiting 0 (plugin off) does not end the container
+    # lazysited exiting 0 (extension off) does not end the container
     unlink "$t/pool.out", "$t/daemon.out", "$t/nginx.out";
     $ep = $start->( DAEMON_ONCE => 1 );
     ok( $waitfile->("$t/nginx.out") && $waitfile->("$t/daemon.out"), 'daemon off: the others start' );

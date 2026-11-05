@@ -266,7 +266,7 @@ sub _claim_name {
 #
 # Per KIND, because the kinds are not interchangeable: ten manual snapshots and
 # ten prerestore snapshots are ten of each, and expiring a sysop's deliberate
-# snapshot because a plugin took twenty automatic ones would be the wrong
+# snapshot because an extension took twenty automatic ones would be the wrong
 # trade. `backup_retention: 0` means unlimited. SM753: the value comes from
 # Lazysite::Util::backup_retention, the ONE reader - the manager, the theme
 # store and the installer used to parse this key three ways with two defaults.

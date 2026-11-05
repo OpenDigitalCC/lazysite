@@ -594,7 +594,7 @@ sub extension_report {
 # processor, with no name. /cgi-bin/lazysite-*.pl names a script beside the
 # tools/ directory, run behind the auth wrapper when the site has accounts.
 #
-# P8 (WORK-PLAN-0154): /cgi-bin/form-handler.pl is the plugin an installed site
+# P8 (WORK-PLAN-0154): /cgi-bin/form-handler.pl is the extension an installed site
 # links into cgi-bin (install.pl post_install_steps), so every native form posts
 # there - and this server answered 404. It runs DIRECT ($direct = 1), as it does
 # installed: a plain CGI outside the auth wrapper, reading no identity (SM402).

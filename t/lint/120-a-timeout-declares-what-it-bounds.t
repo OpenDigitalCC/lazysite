@@ -3,8 +3,8 @@
 # bounds, because the release gate runs the suite under Devel::Cover at four
 # jobs and that makes every Perl process around a test several times slower.
 #
-# The 0.13.4 coverage stage failed on the pandoc plugin's 20-second render
-# ceiling - met under instrumentation, never met alone. Manager::Plugins had
+# The 0.13.4 coverage stage failed on the pandoc extension's 20-second render
+# ceiling - met under instrumentation, never met alone. Manager::Extensions had
 # already learned the rule for its --describe budget (2 s plain, 30 s under
 # Devel::Cover): measurement must not alter behaviour.
 #

@@ -22,8 +22,8 @@ use TestHelper     qw(repo_root);
 use ManagerSession qw(new_site);
 use Lazysite::ControlApi::Actions;
 
-my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/form-handler.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $s = new_site( root => repo_root() );
 my $d = $s->docroot;
@@ -53,7 +53,7 @@ sub post {
     local $ENV{DOCUMENT_ROOT}  = $d;
     local $ENV{REMOTE_ADDR}    = "10.9.$ip.1";
     local $ENV{HTTP_ACCEPT}    = 'application/json';
-    qx($^X \Q$PLUGIN\E < \Q$d/post.txt\E 2>/dev/null);
+    qx($^X \Q$EXTENSION\E < \Q$d/post.txt\E 2>/dev/null);
     return;
 }
 

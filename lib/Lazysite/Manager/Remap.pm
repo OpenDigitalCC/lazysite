@@ -25,7 +25,7 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Paths            ();
 use Lazysite::Manager::Common  qw($auth_user $token_auth %token_caps @REQUEST_SCOPES);
 use Lazysite::Manager::Domains ();
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 our @EXPORT_OK = qw(_remap_list _remap_save);
 
@@ -46,7 +46,7 @@ our $DOCROOT;    # set by the script
 # action asks the same question, which this check was the model for.
 
 sub _remap_unit_off {
-    return undef if Lazysite::Manager::Plugins::plugin_enabled('extensions/remap.pl');
+    return undef if Lazysite::Manager::Extensions::extension_enabled('extensions/remap.pl');
     return { ok => 0, kind => 'disabled',
         error => 'The URL remapper extension is switched off. An operator can '
             . 'enable it on the Extensions page.' };

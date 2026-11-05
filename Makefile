@@ -26,7 +26,7 @@ test:
 tier-dev:
 	prove -lj4 t/lint/04-compile.t t/lint/06-tidy.t
 ifeq ($(strip $(AREA)),)
-	@echo "  (set AREA=<manager|processor|users|mcp|dav|auth|lib|plugins> to add that area)"
+	@echo "  (set AREA=<manager|processor|users|mcp|dav|auth|lib|extensions> to add that area)"
 else
 	prove -lj4 -r t/unit/$(AREA)/
 endif

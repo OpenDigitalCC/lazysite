@@ -10,7 +10,7 @@
 # its namespace and saving the whole value is a read-modify-write across two requests,
 # so two installs that overlap each save a list without the other's namespace, and
 # the dropped app answers "no operation 'x' is installed" until something saves it
-# again. plugin-save has had no way to ADD to the list. It now has: `add`, merged into
+# again. extension-save has had no way to ADD to the list. It now has: `add`, merged into
 # the list the file holds when the lock is taken.
 #
 # What stays true of the call path while the list changes (checked here too):
@@ -31,7 +31,7 @@ use OdooTest   qw(oom_or_skip bind quiet write_conf odoo_site set_key fake_shop)
 
 BEGIN { oom_or_skip() }
 use Lazysite::Odoo             ();
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 
 OdooTest::pretend_released();
 my $root   = repo_root();
@@ -51,11 +51,11 @@ write_conf( $d, odoo_url => 'https://odoo.example', odoo_db => 'shopdb', odoo_lo
     odoo_allow_writes => 'true', odoo_packs => $PACK_A );
 set_key($d);
 { no warnings 'once'; $Lazysite::Odoo::TRANSPORT = fake_shop(); $Lazysite::Odoo::DOCROOT = $d; }
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 
 sub conf_text  { open my $h, '<', $conf or return ''; local $/; return <$h> }
 sub packs_line { return conf_text() =~ /^odoo_packs:[ \t]*(.*)$/m ? $1 : '' }
-sub save { return Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl', @_ ) }
+sub save { return Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/odoo.pl', @_ ) }
 
 bind( $d, id => 'products', operation => 'shop.products', modes => 'public', params => 'limit=limit' );
 sub call_a {

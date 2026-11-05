@@ -27,7 +27,7 @@ BEGIN {
 
 my $LOG_COMPONENT = 'payment-demo';
 
-# Plugin interface uniformity: every shipped plugin answers --describe (the
+# Extension interface uniformity: every shipped extension answers --describe (the
 # manager's discovery probe). Handled BEFORE the DOCUMENT_ROOT check - the probe
 # runs without a CGI environment, and without this handler the probe used to
 # fall through to a full page render under CGI. Minimal contract: id is the
@@ -42,7 +42,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 . 'X-Payment-Verified after on-chain validation.',
             version => '1.0',
             demo    => JSON::PP::true(),
-            # Hidden from the Plugin Manager until a real payment integration exists
+            # Hidden from the Extension Manager until a real payment integration exists
             # (it is a demo helper for the 402 paywall, wired via cgi-bin, not a
             # user-facing feature to toggle). The helper + docs stay in place.
             unlisted      => JSON::PP::true(),
@@ -270,10 +270,10 @@ sub _lz {
 }
 
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
-# forward_line, so this plugin's diagnostics are covered by the
+# forward_line, so this extension's diagnostics are covered by the
 # forward_diagnostics DEFAULT of WARN and above (SM932) as well as by an
 # explicit setting - it needed `forward_diagnostics: true` before that, and
-# the docs promised syslog either way. The rest of this plugin's
+# the docs promised syslog either way. The rest of this extension's
 # diagnostics as the docs promise. The module tree is found by the bootstrap at
 # the top (the SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the

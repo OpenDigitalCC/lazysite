@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# External log forwarding (the 'Logging & forwarding' plugin, log.pl):
+# External log forwarding (the 'Logging & forwarding' extension, log.pl):
 # forward_audit sends each audit entry to syslog at info priority,
 # forward_diagnostics sends log_event lines at their mapped priority, config
 # comes from env override or a one-shot lazysite.conf peek, and forwarding
@@ -120,7 +120,7 @@ use Lazysite::Audit qw(audit_log);
 audit_log( 'alice', 'user-add', 'bob', '', 'ok', 'cli' );
 });
     like( slurp($dump), qr/\| user-add \|/,
-        'forward_audit read from lazysite.conf (the plugin config path)' );
+        'forward_audit read from lazysite.conf (the extension config path)' );
 }
 
 # --- forwarding failure never breaks the caller, and WARNs once ---

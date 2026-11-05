@@ -25,17 +25,17 @@ use TestHelper qw(run_child);
 use Lazysite::Git ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
-my $PLUGIN = "$ROOT/extensions/git-sync.pl";
-ok( -f $PLUGIN, 'git-sync plugin present' );
+my $EXTENSION = "$ROOT/extensions/git-sync.pl";
+ok( -f $EXTENSION, 'git-sync extension present' );
 
 sub t_spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh }
 sub t_slurp { open my $fh, '<', $_[0] or return undef; local $/; my $t = <$fh>; close $fh; $t }
 
-# Run the plugin exactly as action_plugin_action does (child process, JSON on
+# Run the extension exactly as action_extension_action does (child process, JSON on
 # stdout), list-form - no shell.
-sub run_plugin {
+sub run_extension {
     my (@args) = @_;
-    my $out = run_child( [ $^X, $PLUGIN, @args ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, $EXTENSION, @args ], stderr => 'inherit' )->{out};
     my $r = eval { decode_json($out) };
     return $r // { ok => 0, error => "no JSON output: " . ( $out // '' ) };
 }
@@ -49,7 +49,7 @@ sub vocab_ok {
 
 # --- descriptor ---------------------------------------------------------------
 {
-    my $desc = run_plugin('--describe');
+    my $desc = run_extension('--describe');
     is( $desc->{id},          'git-sync',               '--describe: id' );
     is( $desc->{config_file}, 'lazysite/git-sync.conf', '--describe: config file' );
     my %field = map { $_->{key} => $_ } @{ $desc->{config_schema} // [] };
@@ -68,7 +68,7 @@ sub vocab_ok {
 }
 
 # --- remote-address validation (direct unit calls, modulino) -------------------
-require $PLUGIN;
+require $EXTENSION;
 {
     ok( main::valid_remote_url('https://forge.example.com/site/content.git'), 'https accepted' );
     ok( main::valid_remote_url('https://forge.example.com:3000/site/content'), 'https with port accepted' );
@@ -175,24 +175,24 @@ sub prerestore_count {
     make_path("$d/lazysite");
     t_spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
     Lazysite::Git::reset_cache();
-    my $r = run_plugin( '--action', 'push', '--docroot', $d );
+    my $r = run_extension( '--action', 'push', '--docroot', $d );
     ok( !$r->{ok}, 'push refuses when content history is off' );
     like( $r->{error}, qr/Content history/i, 'refusal names the missing feature' );
     vocab_ok( $r->{error}, 'history-off refusal' );
 }
 {
     my $d = mksite();
-    my $r = run_plugin( '--action', 'push', '--docroot', $d );
+    my $r = run_extension( '--action', 'push', '--docroot', $d );
     ok( !$r->{ok}, 'push refuses without a configured remote' );
     like( $r->{error}, qr/remote copy|remote address/i, 'refusal says the remote is unconfigured' );
     vocab_ok( $r->{error}, 'no-remote refusal' );
 
     t_spit( "$d/lazysite/git-sync.conf", "remote_url: javascript:alert(1)\n" );
-    $r = run_plugin( '--action', 'push', '--docroot', $d );
+    $r = run_extension( '--action', 'push', '--docroot', $d );
     ok( !$r->{ok}, 'push refuses a bad remote address' );
     like( $r->{error}, qr/https:\/\/|address/i, 'refusal explains the accepted forms' );
 
-    $r = run_plugin( '--action', 'pull', '--docroot', $d, '--choice', 'nonsense' );
+    $r = run_extension( '--action', 'pull', '--docroot', $d, '--choice', 'nonsense' );
     ok( !$r->{ok}, 'an unknown choice value is refused' );
 }
 
@@ -201,7 +201,7 @@ my $D      = mksite();
 my $REMOTE = mkremote();
 conf_sync( $D, $REMOTE );
 {
-    # Simulate the exclude list of a repo initialised before the sync plugin
+    # Simulate the exclude list of a repo initialised before the sync extension
     # existed: strip the git-sync.conf line and let the action self-heal it.
     my $x = t_slurp("$D/lazysite/git/info/exclude");
     $x =~ s{^/lazysite/git-sync\.conf\n}{}m;
@@ -210,7 +210,7 @@ conf_sync( $D, $REMOTE );
     t_spit( "$D/content/about.md", "hello v2\n" );
     Lazysite::Git::commit_paths( $D, 'alice', 'edit content/about.md', 'content/about.md' );
 
-    my $r = run_plugin( '--action', 'push', '--docroot', $D );
+    my $r = run_extension( '--action', 'push', '--docroot', $D );
     ok( $r->{ok}, 'push succeeds' ) or diag explain $r;
     like( $r->{message}, qr/Pushed \d+ new change/, 'push reports "Pushed N new changes"' );
     vocab_ok( $r->{message}, 'push success message' );
@@ -234,7 +234,7 @@ conf_sync( $D, $REMOTE );
     like( t_slurp("$D/lazysite/git/info/exclude"), qr{^/lazysite/git-sync\.conf$}m,
         'the exclude line was self-healed' );
 
-    my $r2 = run_plugin( '--action', 'push', '--docroot', $D );
+    my $r2 = run_extension( '--action', 'push', '--docroot', $D );
     ok( $r2->{ok}, 'a second push succeeds' );
     like( $r2->{message}, qr/up to date/i, 'nothing to push reads as up to date' );
     vocab_ok( $r2->{message}, 'push up-to-date message' );
@@ -242,7 +242,7 @@ conf_sync( $D, $REMOTE );
 
 # --- test connection -------------------------------------------------------------
 {
-    my $r = run_plugin( '--scan', '--docroot', $D );
+    my $r = run_extension( '--scan', '--docroot', $D );
     ok( $r->{ok}, 'test connection succeeds against the local remote' ) or diag explain $r;
     ok( $r->{reachable},     'reports reachable' );
     ok( $r->{branch_exists}, 'reports the content is present' );
@@ -250,7 +250,7 @@ conf_sync( $D, $REMOTE );
 
     my $d2 = mksite();
     conf_sync( $d2, mkremote() );    # empty remote
-    my $r2 = run_plugin( '--scan', '--docroot', $d2 );
+    my $r2 = run_extension( '--scan', '--docroot', $d2 );
     ok( $r2->{ok},             'test connection ok against an empty remote' );
     ok( !$r2->{branch_exists}, 'empty remote reported as having nothing yet' );
 }
@@ -270,7 +270,7 @@ conf_sync( $D, $REMOTE );
     t_spit( "$D/lazysite/cache/hosts/alias.example/content/about.html", "<html>stale</html>" );
 
     my $snaps = prerestore_count($D);
-    my $r     = run_plugin( '--action', 'pull', '--docroot', $D );
+    my $r     = run_extension( '--action', 'pull', '--docroot', $D );
     ok( $r->{ok}, 'fast-forward pull succeeds' ) or diag explain $r;
     cmp_ok( $r->{applied}, '>=', 1, 'reports changes applied' );
     like( $r->{message}, qr/\d+ change/i, 'plain-language applied message' );
@@ -284,7 +284,7 @@ conf_sync( $D, $REMOTE );
     my $aliases = t_slurp("$D/lazysite/aliases.json") // '';
     like( $aliases, qr{/old-url}, 'aliases reindexed for the pulled page' );
 
-    my $r2 = run_plugin( '--action', 'pull', '--docroot', $D );
+    my $r2 = run_extension( '--action', 'pull', '--docroot', $D );
     ok( $r2->{ok}, 'pull again succeeds' );
     like( $r2->{message}, qr/up to date/i, 'nothing to pull reads as up to date' );
     vocab_ok( $r2->{message}, 'pull up-to-date message' );
@@ -306,7 +306,7 @@ conf_sync( $D, $REMOTE );
     my $head  = head_of($D);
     my $snaps = prerestore_count($D);
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $D );
+    my $r = run_extension( '--action', 'pull', '--docroot', $D );
     ok( $r->{ok}, 'diverged pull returns a report, not a failure' ) or diag explain $r;
     ok( $r->{needs_choice}, 'diverged pull asks for a choice' );
     is_deeply( $r->{conflicts}, ['content/about.md'],
@@ -317,7 +317,7 @@ conf_sync( $D, $REMOTE );
     is( head_of($D),          $head,  'history untouched - nothing was combined yet' );
     is( prerestore_count($D), $snaps, 'no snapshot for a report-only run' );
 
-    my $r2 = run_plugin( '--action', 'pull', '--docroot', $D, '--choice', 'keep_mine' );
+    my $r2 = run_extension( '--action', 'pull', '--docroot', $D, '--choice', 'keep_mine' );
     ok( $r2->{ok}, 'keep_mine pull succeeds' ) or diag explain $r2;
     is( t_slurp("$D/content/about.md"), "mine v4\n", 'keep_mine keeps my version' );
     is( t_slurp("$D/content/theirs.md"), "their new page\n",
@@ -331,7 +331,7 @@ conf_sync( $D, $REMOTE );
         'reports the pages that changed on our side' );
 
     # After keeping ours we are ahead of the remote: push must be clean, never forced.
-    my $r3 = run_plugin( '--action', 'push', '--docroot', $D );
+    my $r3 = run_extension( '--action', 'push', '--docroot', $D );
     ok( $r3->{ok}, 'push after keep_mine succeeds' ) or diag explain $r3;
     is( remote_count($REMOTE), Lazysite::Git::count_commits($D), 'remote in step again' );
 }
@@ -347,7 +347,7 @@ conf_sync( $D, $REMOTE );
     t_spit( "$D/content/about.md", "mine v5\n" );
     Lazysite::Git::commit_paths( $D, 'alice', 'edit content/about.md', 'content/about.md' );
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $D, '--choice', 'take_theirs' );
+    my $r = run_extension( '--action', 'pull', '--docroot', $D, '--choice', 'take_theirs' );
     ok( $r->{ok}, 'take_theirs pull succeeds' ) or diag explain $r;
     is( t_slurp("$D/content/about.md"), "theirs v5\n", 'take_theirs takes the remote version' );
     ok( ( grep { $_ eq 'content/about.md' } @{ $r->{pages} // [] } ),
@@ -365,16 +365,16 @@ conf_sync( $D, $REMOTE );
     t_spit( "$D/content/local.md", "local-only\n" );
     Lazysite::Git::commit_paths( $D, 'alice', 'create content/local.md', 'content/local.md' );
 
-    my $r = run_plugin( '--action', 'push', '--docroot', $D );
+    my $r = run_extension( '--action', 'push', '--docroot', $D );
     ok( !$r->{ok}, 'push refuses when the remote has changes we lack' );
     like( $r->{error}, qr/Pull/i, 'the refusal points at Pull' );
     vocab_ok( $r->{error}, 'remote-ahead refusal' );
     ok( -f "$w/content/ahead.md", 'remote content was not overwritten' );
 }
 
-# --- the manager seam: action_plugin_action's run:'action' + choice gating --------
+# --- the manager seam: action_extension_action's run:'action' + choice gating --------
 {
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     my $base = tempdir( CLEANUP => 1 );
     symlink( "$ROOT/extensions", "$base/extensions" )
         or plan skip_all => 'no symlink support';
@@ -382,26 +382,26 @@ conf_sync( $D, $REMOTE );
     make_path($site);
     mksite($site);
     conf_sync( $site, mkremote() );
-    local $Lazysite::Manager::Plugins::DOCROOT  = $site;
+    local $Lazysite::Manager::Extensions::DOCROOT  = $site;
     local $Lazysite::Manager::Common::auth_user = 'bob';
 
     # A request-supplied choice must match a descriptor-declared id - nothing
     # request-controlled reaches the command line.
-    my $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
+    my $r = Lazysite::Manager::Extensions::action_extension_action( 'git-sync',
         'extensions/git-sync.pl', 'pull', { choice => 'bogus; rm -rf /' } );
     ok( !$r->{ok}, 'manager refuses an undeclared choice value' );
     like( $r->{error}, qr/Unknown choice/, 'with the Unknown choice error' );
 
-    $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
+    $r = Lazysite::Manager::Extensions::action_extension_action( 'git-sync',
         'extensions/git-sync.pl', 'push', undef );
     ok( $r->{ok}, 'push dispatches through the manager action seam' ) or diag explain $r;
     like( $r->{message}, qr/Pushed \d+ new change/, 'and reports as a push' );
 
-    $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
+    $r = Lazysite::Manager::Extensions::action_extension_action( 'git-sync',
         'extensions/git-sync.pl', 'test', undef );
     ok( $r->{ok} && $r->{reachable}, 'test connection rides the legacy --scan path' );
 
-    $r = Lazysite::Manager::Plugins::action_plugin_action( 'git-sync',
+    $r = Lazysite::Manager::Extensions::action_extension_action( 'git-sync',
         'extensions/git-sync.pl', 'nope', undef );
     ok( !$r->{ok}, 'an undeclared action id is refused' );
 }

@@ -5,11 +5,11 @@
 # before it runs, so its answer there is unchanged (t/unit/plugins/42 and
 # t/integration/122, 123 drive it through requests). Reached outside one - the
 # request context as its reset leaves it, nobody - action_page_pdf loaded the
-# pandoc plugin and converted a public page (tmp/sm944-s29-s30-refusal-probe.out).
-# Now it refuses before the plugin is loaded.
+# pandoc extension and converted a public page (tmp/sm944-s29-s30-refusal-probe.out).
+# Now it refuses before the extension is loaded.
 #
 # The same call for an account renders and streams the page: md-to-pdf is a
-# stand-in on PATH (no network). That half also holds the S29 move: the plugin
+# stand-in on PATH (no network). That half also holds the S29 move: the extension
 # declares no package and is found as main->can('convert'), so it must be loaded
 # in package main wherever action_page_pdf lives.
 #
@@ -24,7 +24,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 use lib repo_root() . '/lib';
 
-my $d = site_tempdir( plugins => 1 );
+my $d = site_tempdir( extensions => 1 );
 ( my $t = $d ) =~ s{/site/public_html\z}{};
 make_path( "$d/lazysite", "$d/docs", "$t/bin" );
 sub spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh; return }
@@ -64,7 +64,7 @@ subtest 'page-pdf, outside a request, loads nothing and converts nothing' => sub
     like( $r->{error} // '', qr/no account is asking/, '...saying why' );
     is( $printed, '', '...nothing printed' );
     ok( !-e "$t/ran",          '...md-to-pdf did not run' );
-    ok( !main->can('convert'), '...and the plugin was not loaded' );
+    ok( !main->can('convert'), '...and the extension was not loaded' );
 };
 
 subtest 'for an account the page is rendered, the converter found in package main' => sub {
@@ -76,7 +76,7 @@ subtest 'for an account the page is rendered, the converter found in package mai
     like( $printed, qr{^Content-Type: application/pdf\r$}m, '...a PDF' );
     like( $printed, qr/\r\n\r\n%PDF-1\.4 stand-in\z/, '...its bytes, and nothing after them' );
     ok( -e "$t/ran",          '...converted by md-to-pdf' );
-    ok( main->can('convert'), 'the plugin was loaded into package main, where it is looked for' );
+    ok( main->can('convert'), 'the extension was loaded into package main, where it is looked for' );
 
     Lazysite::Manager::Common::reset_request_context();
     unlink "$t/ran";

@@ -1,16 +1,16 @@
 #!/usr/bin/perl
-# ADR 0009: a plugin's `owns` declaration is validated where it is READ, once,
+# ADR 0009: an extension's `owns` declaration is validated where it is READ, once,
 # before any consumer trusts it.
 #
 # THE CONTRACT IS THAT THE PLATFORM CONSUMES THE DECLARATION instead of knowing
-# the plugin by name - backup and site packages read `storage`, the SBOM gate
+# the extension by name - backup and site packages read `storage`, the SBOM gate
 # reads `deps`, the capability lints discover `capabilities`. Each of those
 # TRUSTS the list. Trust established separately by each consumer is trust
 # established four times and correctly zero to three of them.
 #
 # `storage` IS THE DANGEROUS FIELD and the reason this exists before any
 # consumer does. A site package excludes `lazysite/` wholesale because that is
-# where the auth store, the sessions and the backups live. Carrying plugin
+# where the auth store, the sessions and the backups live. Carrying extension
 # storage means carrying NAMED paths beneath it - so a declaration of
 # `lazysite/`, or `../..`, or `/etc`, would turn a feature that ships a site
 # into one that ships an auth store.
@@ -24,14 +24,14 @@ use Test::More;
 use JSON::PP;
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Plugins::Owns qw(validate_owns owns_keys);
+use Lazysite::Extensions::Owns qw(validate_owns owns_keys);
 
 sub bad { return [ validate_owns( 'test', $_[0] ) ] }
 sub ok_decl { return !scalar @{ bad( $_[0] ) } }
 
 subtest 'the shape' => sub {
     ok( scalar @{ bad('not a hash') }, 'owns must be a mapping' );
-    ok( ok_decl( {} ), 'an empty declaration is legal - a plugin may own nothing' );
+    ok( ok_decl( {} ), 'an empty declaration is legal - an extension may own nothing' );
     my $u = bad( { capability => ['x'] } );
     ok( scalar @{$u}, 'an unknown key is REFUSED' )
         or diag( 'Ignoring it means an author writing `capability` for '
@@ -50,7 +50,7 @@ subtest 'storage: the paths a site package would carry' => sub {
     {
         ok( !ok_decl( { storage => [$p] } ), "refused: '" . $p . "'" )
             or diag( 'This path would be handed to backup and site packaging '
-                . 'as something the plugin owns.' );
+                . 'as something the extension owns.' );
     }
 
     my $e = bad( { storage => ['lazysite/db'] } );
@@ -69,7 +69,7 @@ subtest 'the other fields are shaped too' => sub {
 
     ok( !ok_decl( { endpoints => ['../lazysite-data.pl'] } ),
         'an endpoint may not carry a path' )
-        or diag( 'An endpoint elsewhere is not this plugin\'s to declare.' );
+        or diag( 'An endpoint elsewhere is not this extension\'s to declare.' );
     ok( ok_decl( { endpoints => ['lazysite-data.pl'] } ), 'a bare script name is fine' );
 
     ok( !ok_decl( { deps => ['dbi'] } ),     'a module name is not lower-case' );
@@ -96,7 +96,7 @@ subtest 'every problem is reported, not just the first' => sub {
     ok( ( grep { $_->{key} eq 'deps' } @{$e} ), 'including the one in another field' );
 };
 
-subtest 'the shipped plugins that declare owns, declare it soundly' => sub {
+subtest 'the shipped extensions that declare owns, declare it soundly' => sub {
     my $dir = "$FindBin::Bin/../../../extensions";
     my @declaring;
     for my $f ( sort glob "$dir/*.pl" ) {
@@ -107,12 +107,12 @@ subtest 'the shipped plugins that declare owns, declare it soundly' => sub {
         is_deeply( \@bad, [], "$d->{id}: declaration is sound" )
             or diag( join "\n  ", map { "$_->{key}: $_->{error}" } @bad );
     }
-    # ADR 0009 migrates the existing plugins one per SM, post-stable, so most
+    # ADR 0009 migrates the existing extensions one per SM, post-stable, so most
     # declare nothing yet. Recording WHICH conform makes that migration
-    # visible instead of implicit - and this test starts asserting a plugin's
+    # visible instead of implicit - and this test starts asserting an extension's
     # declaration the moment it grows one.
-    ok( scalar @declaring, 'at least one plugin conforms' )
-        or diag( 'The data plugin is ADR 0009\'s exemplar; if it stops '
+    ok( scalar @declaring, 'at least one extension conforms' )
+        or diag( 'The data extension is ADR 0009\'s exemplar; if it stops '
             . 'declaring, the contract has no implementation.' );
     diag( "conforming today: @declaring" );
 };

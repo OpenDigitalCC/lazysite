@@ -3,7 +3,7 @@
 # stats for an account. Inside a request the dispatcher has refused an empty
 # $auth_user and required `analytics` before it runs, so its answer there is
 # unchanged (t/unit/manager/10). Reached outside one - the request context as
-# its reset leaves it, nobody - action_analyse_visitors ran the stats plugin and
+# its reset leaves it, nobody - action_analyse_visitors ran the stats extension and
 # returned its export (tmp/sm944-s26-refusal-probe.out). Now it refuses before
 # it runs the tool.
 #

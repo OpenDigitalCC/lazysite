@@ -6,7 +6,7 @@ package Lazysite::Manager::Describe;
 # out of lazysite-manager-api.pl by SM944 S25.
 #
 # Index
-#   site_capabilities             the `provides` of enabled plugins (whoami reads it)
+#   site_capabilities             the `provides` of enabled extensions (whoami reads it)
 #   action_describe_capabilities  describe-capabilities: the map, for an account
 #   action_actions_list           actions-list: what an account may call
 #   _json_bool                    one spelling of a JSON boolean (whoami reads it)
@@ -25,7 +25,7 @@ use JSON::PP                      ();
 use Lazysite::Capabilities        qw(describe);
 use Lazysite::Auth::Settings      ();
 use Lazysite::ControlApi::Actions ();
-use Lazysite::Manager::Plugins    qw(action_plugin_list);
+use Lazysite::Manager::Extensions    qw(action_extension_list);
 use Lazysite::Manager::Common     qw($token_auth users_api);
 
 our @EXPORT_OK = qw(site_capabilities action_describe_capabilities action_actions_list _json_bool);
@@ -41,12 +41,12 @@ my %DESTRUCTIVE    = Lazysite::ControlApi::Actions::destructive();
 my %CHANGES_ACCESS = Lazysite::ControlApi::Actions::changes_access();
 
 # SM072: capabilities the site provides, collected from the `provides`
-# field of ENABLED plugins (e.g. form-smtp provides 'email-send'). Lets
+# field of ENABLED extensions (e.g. form-smtp provides 'email-send'). Lets
 # other code detect whether the site can, say, send email.
 sub site_capabilities {
     my %caps;
-    my $pl = action_plugin_list() || {};
-    for my $p ( @{ $pl->{plugins} || [] } ) {
+    my $pl = action_extension_list() || {};
+    for my $p ( @{ $pl->{extensions} || [] } ) {
         next unless $p->{_enabled} && ref $p->{provides} eq 'ARRAY';
         $caps{$_} = 1 for @{ $p->{provides} };
     }
@@ -54,7 +54,7 @@ sub site_capabilities {
 }
 
 # SM072: agent introspection. Returns the CALLER's grant (capabilities,
-# groups, scope) and what the site offers (plugins with status, layouts and
+# groups, scope) and what the site offers (extensions with status, layouts and
 # themes with their active flags) - so an agent learns its real grant rather
 # than parsing the bootstrap prose. Allowed for any authenticated caller.
 # SM126: the capability map - the static model (channels, what each capability

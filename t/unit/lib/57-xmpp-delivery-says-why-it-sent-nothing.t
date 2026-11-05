@@ -43,7 +43,7 @@ sub site {
 #
 # SM927 ADDED A SECOND AUDIENCE and this probe now returns both. The log line is
 # written during delivery and is addressed to whoever reads the error log later; the
-# returned reason is addressed to the operator standing in front of the Plugins page
+# returned reason is addressed to the operator standing in front of the Extensions page
 # pressing Test. They are deliberately two sentences in two voices - "so nothing is
 # sent" is the right thing to log while delivering and the wrong thing to say to
 # somebody who has not sent anything yet - and each subtest below asserts BOTH, so

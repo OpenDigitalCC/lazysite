@@ -33,8 +33,8 @@ use Lazysite::Git     ();
 use Lazysite::Private ();
 
 my $ROOT   = "$FindBin::Bin/../../..";
-my $PLUGIN = "$ROOT/extensions/git-sync.pl";
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = "$ROOT/extensions/git-sync.pl";
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 plan skip_all => 'git not installed on this host'
     unless Lazysite::Git::git_available();
 
@@ -44,9 +44,9 @@ $ENV{LAZYSITE_ACTING_USER}          = 'alice';
 sub t_spit { open my $fh, '>', $_[0] or die "$_[0]: $!"; print {$fh} $_[1]; close $fh }
 sub t_slurp { open my $fh, '<', $_[0] or return undef; local $/; my $t = <$fh>; close $fh; $t }
 
-sub run_plugin {
+sub run_extension {
     my (@args) = @_;
-    my $out = run_child( [ $^X, $PLUGIN, @args ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, $EXTENSION, @args ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) } // { ok => 0, error => "no JSON: " . ( $out // '' ) };
 }
 
@@ -87,7 +87,7 @@ sub site_with_remote {
     my $d      = mksite();
     my $remote = mkremote();
     conf_sync( $d, $remote );
-    my $p = run_plugin( '--action', 'push', '--docroot', $d );
+    my $p = run_extension( '--action', 'push', '--docroot', $d );
     die "push failed: " . ( $p->{error} // '' ) unless $p->{ok};
     my $w = tempdir( CLEANUP => 1 ) . '/work';
     system( 'git', 'clone', '-q', $remote, $w ) == 0 or die 'clone failed';
@@ -116,7 +116,7 @@ subtest 'THE EXPOSURE: a pull into a gated folder relocates instead of publishin
     set_acls( $d, '{"content/private":{"read":["@staff"]}}' );
     remote_adds( $w, 'content/private/secret.md', "---\ntitle: Secret\n---\nboard minutes\n" );
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $d );
+    my $r = run_extension( '--action', 'pull', '--docroot', $d );
     ok( $r->{ok}, 'the pull succeeds' ) or diag explain $r;
 
     ok( !-e "$d/content/private/secret.md",
@@ -140,7 +140,7 @@ subtest 'a pulled file outside any rule is left exactly where git put it' => sub
     set_acls( $d, '{"content/private":{"read":["@staff"]}}' );
     remote_adds( $w, 'content/open.md', "public news\n" );
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $d );
+    my $r = run_extension( '--action', 'pull', '--docroot', $d );
     ok( $r->{ok}, 'the pull succeeds' );
     is( t_slurp("$d/content/open.md"), "public news\n",
         'an ungated file stays public' )
@@ -155,7 +155,7 @@ subtest 'THE TRAP: an unreadable store stops the relocation and says so' => sub 
     set_acls( $d, '{ this is not json' );
     remote_adds( $w, 'content/private/secret.md', "board minutes\n" );
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $d );
+    my $r = run_extension( '--action', 'pull', '--docroot', $d );
     ok( $r->{ok},             'the pull still applies the changes' );
     ok( $r->{gating_unknown}, 'and reports that the check could not be made' );
     like( $r->{message}, qr/could not be read/i,
@@ -179,7 +179,7 @@ subtest 'a relocated page keeps its aliases' => sub {
     remote_adds( $w, 'content/private/secret.md',
         "---\ntitle: Secret\naliases:\n  - /old-secret-url\n---\nminutes\n" );
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $d );
+    my $r = run_extension( '--action', 'pull', '--docroot', $d );
     ok( $r->{ok}, 'the pull succeeds' );
     my $aliases = t_slurp("$d/lazysite/aliases.json") // '';
     like( $aliases, qr{/old-secret-url},
@@ -195,7 +195,7 @@ subtest 'the reserved tree is not relocated, whatever the rules say' => sub {
     set_acls( $d, '{"/":{"read":["@members"]}}' );
     remote_adds( $w, 'content/anything.md', "words\n" );
 
-    my $r = run_plugin( '--action', 'pull', '--docroot', $d );
+    my $r = run_extension( '--action', 'pull', '--docroot', $d );
     ok( $r->{ok},                  'the pull succeeds' );
     ok( -e "$d/lazysite/nav.conf", 'the reserved tree is still in place' );
     ok( !-e "$d/content/anything.md",

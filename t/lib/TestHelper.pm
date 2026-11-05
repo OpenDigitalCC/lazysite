@@ -403,24 +403,24 @@ sub env_passthrough {
 # lib/ at ../ - and File::Temp cleans only the directory it made. A bare
 # tempdir() docroot therefore leaks its siblings into /tmp: 15,386 entries and
 # 356 MB on the dev host when this was written, and one of them - a leaked
-# /tmp/extensions/stats.pl - made a "plugin not found" assertion pass for the
+# /tmp/extensions/stats.pl - made a "extension not found" assertion pass for the
 # wrong reason (t/unit/daemon/05, where this was first done by hand).
 #
 # Returns the docroot path; everything the engine writes beside it lands
 # inside the tempdir and goes with it. Pass a name for the leaf (default
 # public_html, the Hestia shape) when a test cares what the docroot is called.
-# plugins => 1 puts real copies of the repo's plugins at DOCROOT/../extensions,
-# where the plugin registry looks. A test that asks what a plugin owns or whether
+# extensions => 1 puts real copies of the repo's extensions at DOCROOT/../extensions,
+# where the extension registry looks. A test that asks what an extension owns or whether
 # it is enabled needs them; under a bare tempdir() that path is /tmp/extensions, and
 # such tests passed on whatever another test had left in /tmp - until a reboot
-# cleared it. Copies, not symlinks: the registry refuses a symlinked plugin
+# cleared it. Copies, not symlinks: the registry refuses a symlinked extension
 # (SM152).
 sub site_tempdir {
     my (%o) = @_;
     my $t   = File::Temp::tempdir( CLEANUP => 1 );
     my $d   = "$t/site/" . ( $o{leaf} // 'public_html' );
     make_path($d);
-    if ( $o{plugins} ) {
+    if ( $o{extensions} ) {
         my $src = repo_root() . '/extensions';
         make_path("$t/site/extensions");
         opendir my $pd, $src or die "$src: $!";

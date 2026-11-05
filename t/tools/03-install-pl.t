@@ -501,7 +501,7 @@ subtest 'manager CSS installs to the web-served manager/assets path' => sub {
         'no stale copy left under the Apache-denied /lazysite/ tree' );
 };
 
-# --- 12. cgi-bin plugin endpoints link/install ---
+# --- 12. cgi-bin extension endpoints link/install ---
 
 subtest 'cgi-bin: form-handler and payment-demo reachable' => sub {
     my ( $docroot, $cgibin ) = fresh_docroot();

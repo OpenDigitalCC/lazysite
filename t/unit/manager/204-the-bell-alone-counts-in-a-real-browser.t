@@ -39,7 +39,7 @@ $tt->process(
     { page_title => 'T',
         site_name        => 'Demo',
         request_uri      => '/manager/files',
-        enabled_plugins  => {},
+        enabled_extensions  => {},
         auth_user        => 'op',
         authenticated    => 1,
         content          => '',

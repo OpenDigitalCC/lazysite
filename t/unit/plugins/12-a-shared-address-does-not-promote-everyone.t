@@ -28,8 +28,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $d = tempdir( 'lazysite-nat-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
 make_path( "$d/lazysite/logs", "$d/lazysite/stats" );
@@ -55,7 +55,7 @@ ev( '/about',   200, 'Mozilla/5.0 (compatible; Googlebot/2.1)' );
 ev( '/pricing', 200, 'Mozilla/5.0 Chrome/120' );
 close $lf;
 
-my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export --window 30 2>/dev/null`;
+my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$EXTENSION\E --export --window 30 2>/dev/null`;
 my $r   = eval { decode_json($out) } || {};
 my $tc  = $r->{traffic_classes}      || {};
 

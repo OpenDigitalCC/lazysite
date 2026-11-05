@@ -92,7 +92,7 @@ sub api {
 
 sub site {
     my ($extra) = @_;
-    my $d = site_tempdir( plugins => 1 );
+    my $d = site_tempdir( extensions => 1 );
     make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print $cf "site_name: T\nmanager: enabled\ncontrol_api_enabled: true\n"

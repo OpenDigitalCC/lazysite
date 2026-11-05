@@ -387,10 +387,10 @@ sub _db_empty {
 sub resolve_db {
     my ( $spec, $key ) = @_;
 
-    # SM222 L0: the data unit is a CONTRACT plugin, so SM409 / ADR 0009 already
+    # SM222 L0: the data unit is a CONTRACT extension, so SM409 / ADR 0009 already
     # rule that it executes only when its script is listed, and that it defaults
     # to disabled. The manager honours that - Manager/Data.pm consults
-    # plugin_enabled - and this path did not, so a page bound to a table went on
+    # extension_enabled - and this path did not, so a page bound to a table went on
     # serving rows out of a unit the operator had switched off. This RESTORES the
     # ruling on the render path rather than changing anybody's behaviour: a site
     # using db: has the unit enabled already, because the Data manager refuses to

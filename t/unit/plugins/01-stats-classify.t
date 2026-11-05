@@ -14,7 +14,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
+my $extension = "$root/extensions/stats.pl";
 my $doc    = tempdir( CLEANUP => 1 );
 make_path("$doc/lazysite");
 
@@ -73,7 +73,7 @@ open my $lc, '>', "$doc/lazysite/lazysite.conf" or die $!;
 print $lc "site_url: https://mysite.test\n";
 close $lc;
 
-my $json = qx{$^X \Q$plugin\E --scan --docroot \Q$doc\E 2>&1};
+my $json = qx{$^X \Q$extension\E --scan --docroot \Q$doc\E 2>&1};
 my $r    = eval { decode_json($json) };
 ok( $r && $r->{ok}, 'scan ok' ) or diag $json;
 

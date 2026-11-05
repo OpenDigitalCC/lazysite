@@ -29,7 +29,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper                 qw(site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Handlers         ();
 
 my $docroot = site_tempdir();
@@ -48,13 +48,13 @@ open my $sf, '>', "$lz/forms/submissions/enquiry.jsonl" or die $!;
 print {$sf} qq({"name":"A Visitor","note":"hello"}\n);
 close $sf;
 
-$Lazysite::Manager::Plugins::DOCROOT      = $docroot;
+$Lazysite::Manager::Extensions::DOCROOT      = $docroot;
 $Lazysite::Handlers::DOCROOT              = $docroot;
-$Lazysite::Manager::Plugins::LAZYSITE_DIR = $lz;
+$Lazysite::Manager::Extensions::LAZYSITE_DIR = $lz;
 $Lazysite::Handlers::LAZYSITE_DIR         = $lz;
 
 subtest 'neither parameter: the refusal names them, and does not call it invalid' => sub {
-    my $r = Lazysite::Manager::Plugins::action_form_submissions( undef, undef );
+    my $r = Lazysite::Manager::Extensions::action_form_submissions( undef, undef );
     ok( !$r->{ok}, 'refused' );
     like( $r->{error}, qr/\bfile\b/, 'names `file`' );
     like( $r->{error}, qr/\bform\b/, 'and names `form`' );
@@ -67,14 +67,14 @@ subtest 'neither parameter: the refusal names them, and does not call it invalid
 };
 
 subtest 'a form name resolves to that form\'s own store' => sub {
-    my $r = Lazysite::Manager::Plugins::action_form_submissions( undef, 'enquiry' );
+    my $r = Lazysite::Manager::Extensions::action_form_submissions( undef, 'enquiry' );
     ok( $r->{ok}, 'the read succeeds on a form name alone' ) or diag( explain $r );
     is( $r->{total}, 1, 'and returns the submission' );
     like( $r->{file}, qr/enquiry\.jsonl\z/, 'reporting the file it resolved to' );
 };
 
 subtest 'file still works, and wins when both are sent' => sub {
-    my $r = Lazysite::Manager::Plugins::action_form_submissions(
+    my $r = Lazysite::Manager::Extensions::action_form_submissions(
         'lazysite/forms/submissions/enquiry.jsonl', undef );
     ok( $r->{ok}, 'an explicit path still reads' ) or diag( explain $r );
     is( $r->{total}, 1, 'and returns the submission' );
@@ -96,7 +96,7 @@ subtest 'file still works, and wins when both are sent' => sub {
 # The empty answer for a form that EXISTS with no submissions yet is correct and
 # must stay - that is the difference this asserts.
 subtest 'an unknown form is not-found, not an empty store' => sub {
-    my $r = Lazysite::Manager::Plugins::action_form_submissions( undef, 'no-such-form' );
+    my $r = Lazysite::Manager::Extensions::action_form_submissions( undef, 'no-such-form' );
     ok( !$r->{ok}, 'refused rather than answered' )
         or diag( 'ok:true/total:0 naming a file that was never created tells the '
             . 'operator nobody registered. It is the same sentence as SM855: a '
@@ -111,7 +111,7 @@ subtest 'a form that exists with no submissions yet still reads as empty' => sub
     open my $ff, '>', "$lz/forms/quiet.conf" or die $!;
     print {$ff} "targets:\n  - handler: to-file\n";
     close $ff;
-    my $r = Lazysite::Manager::Plugins::action_form_submissions( undef, 'quiet' );
+    my $r = Lazysite::Manager::Extensions::action_form_submissions( undef, 'quiet' );
     ok( $r->{ok}, 'a real form with no submissions answers, rather than refusing' )
         or diag( explain $r );
     is( $r->{total}, 0, 'with no rows' );

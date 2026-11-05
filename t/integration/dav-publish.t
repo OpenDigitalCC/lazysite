@@ -99,7 +99,7 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret-long-enough', '' );
     is( $b->{code}, 403, 'non-member (mallory) is denied by the @group ACL' );
 
     # Reads are NOT audited - the audit trail records material actions only
-    # (the access log + stats plugin cover browsing). A GET leaves no entry.
+    # (the access log + stats extension cover browsing). A GET leaves no entry.
     my $g = run_dav( $docroot, 'GET', '/grouped.md', HTTP_AUTHORIZATION => $eve );
     is( $g->{code}, 200, 'eve can GET the file (read open within scope)' );
     open my $l2, '<', "$docroot/lazysite/logs/audit.log" or die $!;

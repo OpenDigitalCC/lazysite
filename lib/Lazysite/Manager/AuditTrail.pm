@@ -11,7 +11,7 @@ package Lazysite::Manager::AuditTrail;
 # Index
 #   _audit_trail_set        audit-trail-set: switch recording off or on (N13-04)
 #   _audit_implicit_target  an audit line's subject when the action has no path
-#   _audit_plugin_target    an extension action's subject: the plugin, and what
+#   _audit_extension_target    an extension action's subject: the extension, and what
 #   _audit_parse_line       one trail line as a hash, whichever release wrote it
 #   _audit_cached_entries   the newest entries, parsed once (an append-only cache)
 #   _audit_trail_state      why the list is what it is (SM907)
@@ -39,7 +39,7 @@ use Lazysite::Manager::Common
     qw($auth_user $token_auth %token_caps _user_caps _request_ip _display_names
     %params users_api);
 
-our @EXPORT_OK = qw(_audit_trail_set _audit_implicit_target _audit_plugin_target
+our @EXPORT_OK = qw(_audit_trail_set _audit_implicit_target _audit_extension_target
     _audit_parse_line _audit_cached_entries _audit_trail_state
     action_recent_changes action_audit dispatch_audit);
 
@@ -246,28 +246,28 @@ sub _audit_implicit_target {
     return '';
 }
 
-# Derive a plugin's name for the audit target: the plugin param if present,
+# Derive an extension's name for the audit target: the extension param if present,
 # else the body's script basename (form-handler.pl -> form-handler). Returns ''
 # when neither is available.
-sub _audit_plugin_target {
+sub _audit_extension_target {
     my ( $params, $body, $action, $result ) = @_;
-    my $plugin = $params->{plugin} // '';
-    unless ( length $plugin ) {
+    my $extension = $params->{extension} // '';
+    unless ( length $extension ) {
         my $b      = eval { decode_json( $body // '' ) };
         my $script = ( ref $b eq 'HASH' ? $b->{script} : undef ) // '';
-        $plugin = $script =~ m{([^/]+?)(?:\.pl)?$} ? $1 : '';
+        $extension = $script =~ m{([^/]+?)(?:\.pl)?$} ? $1 : '';
     }
 
-    # plugin-save: name the setting(s) changed so the audit says WHICH config key
-    # was edited (e.g. "lazysite (site_name)"), not just the plugin. Keys only -
+    # extension-save: name the setting(s) changed so the audit says WHICH config key
+    # was edited (e.g. "lazysite (site_name)"), not just the extension. Keys only -
     # values may be secrets; capped so a whole-form save isn't a giant target.
     # Prefer the save handler's actual diff: the UI posts the WHOLE form, so
     # the submitted keys read "8 settings" for a one-field edit (field report).
-    if ( defined $action && $action eq 'plugin-save' && length $plugin ) {
+    if ( defined $action && $action eq 'extension-save' && length $extension ) {
         my @keys;
         if ( ref $result eq 'HASH' && ref $result->{changed} eq 'ARRAY' ) {
             @keys = @{ $result->{changed} };
-            $plugin .= ' (no changes)' unless @keys;
+            $extension .= ' (no changes)' unless @keys;
         }
         else {
             my $b    = eval { decode_json( $body // '' ) };
@@ -277,23 +277,23 @@ sub _audit_plugin_target {
         if (@keys) {
             my $list = @keys > 6 ? ( scalar(@keys) . ' settings' )
                 :   join( ', ', @keys );
-            $plugin .= " ($list)";
+            $extension .= " ($list)";
         }
     }
 
-    # plugin-action: name WHICH action ran (and any choice it carried), so a
+    # extension-action: name WHICH action ran (and any choice it carried), so a
     # git-sync push and pull are distinguishable in the trail - "git-sync
-    # (pull keep_mine)" rather than a bare plugin name (SM085).
-    if ( defined $action && $action eq 'plugin-action' && length $plugin ) {
+    # (pull keep_mine)" rather than a bare extension name (SM085).
+    if ( defined $action && $action eq 'extension-action' && length $extension ) {
         my $b      = eval { decode_json( $body // '' ) };
         my $aid    = ( ref $b eq 'HASH' ? $b->{action_id} : undef ) // '';
         my $choice = ( ref $b eq 'HASH' && ref $b->{params} eq 'HASH' )
             ? ( $b->{params}{choice} // '' ) : '';
         s/[^a-zA-Z0-9_-]//g for ( $aid, $choice );
         $aid    .= " $choice" if length $aid && length $choice;
-        $plugin .= " ($aid)"  if length $aid;
+        $extension .= " ($aid)"  if length $aid;
     }
-    return $plugin;
+    return $extension;
 }
 
 # SM072 audit trail: append one line per state-changing request to a

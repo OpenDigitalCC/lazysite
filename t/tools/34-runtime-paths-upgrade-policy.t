@@ -88,7 +88,7 @@ my @MODEL = (
     is( sprintf( '%04o', mode_of("$d/leftalone") ),  '2775', 'fresh: leftalone created' );
     ok( !-e "$d/checkonly",
         'a check-only path is NEVER created by the installer - lazysite/git is '
-            . 'made by the content-history plugin, not here' );
+            . 'made by the content-history extension, not here' );
 }
 
 # --- upgrade: repair fixes a wrong mode, leave does not ---------------------

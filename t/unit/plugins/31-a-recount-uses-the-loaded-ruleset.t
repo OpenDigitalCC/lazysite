@@ -18,8 +18,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_cmd);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-ok( -f $PLUGIN, 'stats plugin present' );
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+ok( -f $EXTENSION, 'stats extension present' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/$_") for qw(logs cache stats);
@@ -32,8 +32,8 @@ close $rf;
 
 my $now = time;
 # Q14g (SM974): the UTC day, which is the processor's file name and the
-# plugin's day bucket. The local date put this file's reader on a different day
-# from the plugin's writer for as many hours as the suite's zone is from UTC.
+# extension's day bucket. The local date put this file's reader on a different day
+# from the extension's writer for as many hours as the suite's zone is from UTC.
 my $ymd = strftime( '%Y%m%d',   gmtime $now );
 my $day = strftime( '%Y-%m-%d', gmtime $now );
 open my $lf, '>', "$d/lazysite/logs/access-$ymd.jsonl" or die $!;
@@ -45,7 +45,7 @@ sub run {
     my (@args) = @_;
     # t/lint/40: list form, never a shell string - an argument containing a
     # space would otherwise re-split and fail every assertion in the file.
-    my $out = TestHelper::run_cmd( $^X, $PLUGIN, @args, '--docroot', $d );
+    my $out = TestHelper::run_cmd( $^X, $EXTENSION, @args, '--docroot', $d );
     return decode_json( $out || '{}' );
 }
 

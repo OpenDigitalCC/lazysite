@@ -23,8 +23,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/form-handler.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $SECRET   = 'test-secret-1017-abcdefghij';
 my $BOUNDARY = 'Sbnd1017';
@@ -80,7 +80,7 @@ sub post {
     local $ENV{CONTENT_LENGTH} = length $body;
     local $ENV{DOCUMENT_ROOT}  = $d;
     local $ENV{REMOTE_ADDR}    = "10.0.17.$ip";
-    return scalar qx($^X \Q$PLUGIN\E < \Q$in\E 2>/dev/null);
+    return scalar qx($^X \Q$EXTENSION\E < \Q$in\E 2>/dev/null);
 }
 
 sub recipients {

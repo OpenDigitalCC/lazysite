@@ -50,12 +50,12 @@ unlike( $conf, qr/^\Q$OLD\E\s*:/m, 'the old list header is gone' );
 unlike( $conf, qr{^\s+-\s+\Q$OLD\E/}m, 'and so is every old-directory entry' );
 is( scalar( () = $conf =~ /^extensions:\s*$/mg ), 1, 'one list, under extensions:' );
 
-require Lazysite::Manager::Plugins;
+require Lazysite::Manager::Extensions;
 {
     no warnings 'once';
-    local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
     for my $f (@before) {
-        ok( Lazysite::Manager::Plugins::plugin_enabled("extensions/$f"), "extensions/$f is still on" );
+        ok( Lazysite::Manager::Extensions::extension_enabled("extensions/$f"), "extensions/$f is still on" );
     }
 }
 

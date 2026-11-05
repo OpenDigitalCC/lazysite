@@ -14,7 +14,7 @@
 #
 # Runtime directories come from the manifest's runtime_paths
 # array. Some install steps are not manifest-expressible and stay
-# imperative (cgi-bin symlinks for plugin endpoints, auth
+# imperative (cgi-bin symlinks for extension endpoints, auth
 # users/groups seed, nav.conf seed, lazysite.conf conditional
 # write, SGID on lazysite/).
 #
@@ -1099,7 +1099,7 @@ sub convert_retired_conf_keys {
 # and reported as an error, so the step is not recorded as done.
 #
 # The registry is the `extensions:` block, read by
-# Lazysite::Manager::Plugins::_enabled_map; SM1142's extensions-rename has
+# Lazysite::Manager::Extensions::_enabled_map; SM1142's extensions-rename has
 # converted a site's old list before this runs. Text in, text out: the installer
 # loads no Lazysite module (SM767). Commented lines are not a block, so the
 # shipped example's own `# extensions:` prose is untouched.
@@ -1134,6 +1134,7 @@ sub enable_extension_in_conf {
     return $ok ? ( 1, undef ) : ( 0, $why );
 }
 
+# old-name: begin (SM1142, the migration names what it migrates)
 # SM1142 S1: EXTENSIONS-RENAME, THE UPGRADE THAT MOVES A SITE TO THE ONE NAME.
 #
 # Ruled 2026-10-17 (R3): "fixup on upgrade, then its done" - nothing reads the
@@ -1163,7 +1164,6 @@ sub enable_extension_in_conf {
 # Idempotent: a second run finds nothing to move and nothing to rewrite.
 # Returns ( \@changed, \@warnings ). Text in, text out (SM767).
 #
-# old-name: begin (SM1142, the migration names what it migrates)
 # A sub, not a file-scope variable: cmd_install runs before the top level of
 # this file reaches any assignment below it.
 sub _old_ext_dir { return 'plugins' }
@@ -1757,7 +1757,7 @@ sub make_declared_path {
 #
 # The installer runs as ROOT by the documented deploy path, and SM246 guarantees
 # the docroot and lazysite/ are group-writable by design. So any account that can
-# create a name in the docroot - the CGI, the site user, a compromised plugin -
+# create a name in the docroot - the CGI, the site user, a compromised extension -
 # could pre-place a symlink and have the next upgrade write through it, chmod
 # through it, or chown through it, as root. An adversarial review landed five:
 # a write through a symlinked destination, a chmod through a symlinked .pl, a
@@ -1900,18 +1900,18 @@ sub post_install_steps {
 
     my $docroot    = $o->{docroot};
     my $cgibin     = $o->{cgibin};
-    my $plugin_dir = resolve_placeholders( '{DOCROOT}/../extensions', $subs );
+    my $extension_dir = resolve_placeholders( '{DOCROOT}/../extensions', $subs );
 
-    # --- cgi-bin symlinks for plugin endpoints ---
+    # --- cgi-bin symlinks for extension endpoints ---
     #
     # form-handler and payment-demo need /cgi-bin/<name>.pl presence
-    # so Apache routes POSTs at them. Symlink from plugins; fall
+    # so Apache routes POSTs at them. Symlink from extensions; fall
     # back to install if symlink unsupported (some shared hosts).
     # These paths are NOT tracked in .install-state.json - they are
     # links to files that ARE tracked.
-    for my $plugin (qw(form-handler payment-demo)) {
-        my $src = "$plugin_dir/$plugin.pl";
-        my $dst = "$cgibin/$plugin.pl";
+    for my $extension (qw(form-handler payment-demo)) {
+        my $src = "$extension_dir/$extension.pl";
+        my $dst = "$cgibin/$extension.pl";
         next unless -f $src;
         if ( -e $dst || -l $dst ) {
             # Already present from earlier install; refresh.
@@ -2034,7 +2034,7 @@ sub post_install_steps {
                     info("  seeded:    lazysite/lazysite.conf (from example)");
                 }
             }
-            # 0664, not 0644: the manager (config-set, plugin enable, channel
+            # 0664, not 0644: the manager (config-set, extension enable, channel
             # changes) runs as the web-server user and must be able to write the
             # conf. Group-writability only helps with the right group ownership -
             # see align_ownership below for the root-run case.
@@ -2161,7 +2161,7 @@ sub create_runtime_paths {
         # SM246: one model, three consumers - install applies, check verifies,
         # check --fix repairs. `applied_by` says which consumers own a path, so
         # the table can describe paths that are VERIFIED without being created
-        # or chmod'ed here (lazysite/git is made by the content-history plugin at
+        # or chmod'ed here (lazysite/git is made by the content-history extension at
         # adoption; lazysite/forms and the form-events log by the CGI). Absent
         # means install, so an entry that predates the field behaves as before.
         my $by = $rp->{applied_by};

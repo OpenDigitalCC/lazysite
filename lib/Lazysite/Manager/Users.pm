@@ -39,7 +39,7 @@ use Lazysite::Manager::Common qw($auth_user $token_auth %token_caps
     users_api _users_tool_path _user_caps _operator _display_names _users_tool_run);
 use Lazysite::Manager::Themes   qw(_read_active_layout_and_theme action_theme_list);
 use Lazysite::Manager::Layouts  qw(action_layouts_available);
-use Lazysite::Manager::Plugins  qw(action_plugin_list);
+use Lazysite::Manager::Extensions  qw(action_extension_list);
 use Lazysite::Manager::Services qw(action_version _service_state);
 use Lazysite::Manager::Describe qw(site_capabilities);
 use Lazysite::Manager::Config   qw(_language_context);
@@ -51,7 +51,7 @@ our $DOCROOT;         # set by the script
 our $LAZYSITE_DIR;    # set by the script
 
 sub action_whoami {
-    my ( $user, $want_plugins ) = @_;
+    my ( $user, $want_extensions ) = @_;
     # SM944 S32 (3), ruled 2026-10-10 ("Yes, all four"): WHOAMI ANSWERS FOR THE
     # ACCOUNT THAT IS ASKING, AND FOR NO OTHER. Inside a request the dispatcher
     # passes $auth_user, which it has refused empty, so the answer there is the
@@ -62,19 +62,19 @@ sub action_whoami {
         error => 'whoami answers for the signed-in account that is asking, and only for it.' }
         unless defined $user && length $user && $user eq $auth_user;
 
-    # SM671: THE PLUGIN INVENTORY IS OPT-OUT, NOT OPT-IN.
+    # SM671: THE EXTENSION INVENTORY IS OPT-OUT, NOT OPT-IN.
     #
     # `whoami` is what an agent calls to answer "who am I and what may I do",
-    # and the field reported the answer being mostly a plugin catalogue - paid
+    # and the field reported the answer being mostly an extension catalogue - paid
     # on every preflight, and preflight is now standing practice for a testing
     # agent, once per account per run.
     #
     # Omitting it by default would be the leaner answer and a BREAKING one: a
-    # client reading `plugins` would silently start seeing an empty list, and
+    # client reading `extensions` would silently start seeing an empty list, and
     # this release is bound for stable across a fleet. So the array stays, and
-    # `plugins=0` gets the lean response. Additive, nothing breaks, and the
+    # `extensions=0` gets the lean response. Additive, nothing breaks, and the
     # caller who cares about the cost is exactly the caller who will pass it.
-    my $skip_plugins = ( defined $want_plugins && $want_plugins =~ /\A(?:0|no|false|off)\z/i ) ? 1 : 0;
+    my $skip_extensions = ( defined $want_extensions && $want_extensions =~ /\A(?:0|no|false|off)\z/i ) ? 1 : 0;
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
 
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
@@ -139,7 +139,7 @@ sub action_whoami {
             available     => ( action_layouts_available() || {} )->{layouts} || [],
         },
         # SM565: the theme inventory answers a caller who may change themes or
-        # layouts; the plugin list stays for everyone (site_capabilities already
+        # layouts; the extension list stays for everyone (site_capabilities already
         # names the enabled ones) but its configuration schemas - keys, labels,
         # defaults, notes - answer only a caller holding manage_config.
         ( ( $s->{manage_themes} || $s->{manage_layouts} )
@@ -150,14 +150,14 @@ sub action_whoami {
         # the site is INSTALLED.
         #
         # `_script` and `config_file` are internal filesystem paths and are
-        # withheld from every caller here - the Plugin Manager reads them from
-        # `plugin-list`, which is gated separately, so nothing in the UI loses
+        # withheld from every caller here - the Extension Manager reads them from
+        # `extension-list`, which is gated separately, so nothing in the UI loses
         # them. `_enabled` is what is switched on: a caller who may configure
         # the site has a reason to know, and so does one holding a capability
-        # the plugin itself governs (a manage_briefs holder learning the briefs
-        # plugin is off is being told about its own capability, not about the
+        # the extension itself governs (a manage_briefs holder learning the briefs
+        # extension is off is being told about its own capability, not about the
         # site's shape). Everyone else gets id, name, description and version.
-        ( $skip_plugins ? () : ( plugins => [
+        ( $skip_extensions ? () : ( extensions => [
                     map {
                         my $p = $_;
                         my @owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
@@ -168,9 +168,9 @@ sub action_whoami {
                         delete $out{_enabled}                      unless $may_see_state;
                         delete @out{qw(config_schema config_keys)} unless $s->{manage_config};
                         \%out;
-                    } @{ ( action_plugin_list() || {} )->{plugins} || [] }
+                    } @{ ( action_extension_list() || {} )->{extensions} || [] }
         ] ) ),
-        # SM072: site-level capabilities from enabled plugins (e.g. email-send).
+        # SM072: site-level capabilities from enabled extensions (e.g. email-send).
         site_capabilities => site_capabilities(),
         # SM179 P7: when the bound site is a language-set member, tell the agent
         # its language, the group, and where every sibling's files live - so it

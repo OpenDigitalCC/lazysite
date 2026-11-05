@@ -51,10 +51,10 @@ var addressLists = [];        // SM1140: [{name, kind}] the address lists a grou
 var allUsers  = [];   // [username]
 var CAP_GRANTS = {};        // SM427: {capability: plain sentence}, served
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
-// SM675: {capability: {plugin, name, enabled}} - which capabilities a PLUGIN
-// owns, and whether it is on. A capability whose plugin is off grants nothing,
+// SM675: {capability: {extension, name, enabled}} - which capabilities a EXTENSION
+// owns, and whether it is on. A capability whose extension is off grants nothing,
 // and the grid used to offer it as an ordinary checkbox.
-var capabilityPlugin = {};
+var capabilityExtension = {};
 
 // The capability bools a group can carry (must match @CAP_KEYS in the users tool).
 // Channels = WHERE you may operate; Actions = WHAT you may do. You need both.
@@ -192,7 +192,7 @@ function loadGroups() {
     .then(function(d) {
       if (d.ok && d.grants) CAP_GRANTS = d.grants;
       if (d.ok && d.sections) CAP_SECTIONS = d.sections;
-      if (d.ok && d.capability_plugin) capabilityPlugin = d.capability_plugin;
+      if (d.ok && d.capability_extension) capabilityExtension = d.capability_extension;
       return (d.ok && d.services) ? d.services : {};
     })
     .catch(function() { return {}; });
@@ -575,20 +575,20 @@ function renderGroups() {
           + 'Settings → Services for this grant to take effect.">&#9888;</span>';
       }
       // SM675: the same statement about a different switch. A capability owned
-      // by a plugin does nothing while that plugin is off - manage_data grants
+      // by an extension does nothing while that extension is off - manage_data grants
       // no table access, manage_briefs no brief action.
       //
       // MARKED, NOT HIDDEN. Hiding the row would hide a grant that is still
       // recorded in the store: a group already holding it keeps holding it when
-      // the plugin goes off, and the operator could then neither see, audit nor
+      // the extension goes off, and the operator could then neither see, audit nor
       // revoke it. SM439, SM615 and SM668 all closed exactly that shape - there
       // must be no hidden case where access is active or potentially active.
-      // Hiding would also make the grid's contents depend on plugin state, so
+      // Hiding would also make the grid's contents depend on extension state, so
       // two instances with identical groups would show different rows.
-      var owner = capabilityPlugin[c[0]];
+      var owner = capabilityExtension[c[0]];
       if (!isChannel && held && owner && owner.enabled === false) {
         warn += ' <span class="mg-cap-dormant" title="Granted, but the '
-          + escHtml(owner.name || owner.plugin) + ' extension is switched OFF — this '
+          + escHtml(owner.name || owner.extension) + ' extension is switched OFF — this '
           + 'grant does nothing until a site admin enables it on the Extension '
           + 'Config page.">&#9888;</span>';
       }

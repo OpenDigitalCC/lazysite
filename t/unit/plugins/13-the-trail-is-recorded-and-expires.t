@@ -28,8 +28,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $d = tempdir( 'lazysite-trail-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
 # NOTE the trails directory is deliberately NOT created here. The engine has
@@ -108,7 +108,7 @@ ev( 5100 - $_, "/bot/$_", 'CRAWLER', 'Mozilla/5.0 (compatible; Googlebot/2.1)' )
     for 0 .. 3;
 close $lf;
 
-my $cmd = qq{DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export --window 30};
+my $cmd = qq{DOCUMENT_ROOT=\Q$d\E $^X \Q$EXTENSION\E --export --window 30};
 my $out = `$cmd 2>/dev/null`;
 ok( length $out, 'the export ran' );
 

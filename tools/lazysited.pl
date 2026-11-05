@@ -50,7 +50,7 @@ lazysited - the lazysite persistent runtime (SM666)
   lazysited --docroot DIR --status   report desired and runtime state
   lazysited --help
 
-It exits immediately, doing nothing, when the daemon plugin is disabled.
+It exits immediately, doing nothing, when the daemon extension is disabled.
 That is not an error: it is what disabled means for a process.
 USAGE
     exit 0;

@@ -13,7 +13,7 @@
 # the post fell through to the processor as a "page miss": the form was never
 # delivered and the visitor got a page-not-found.
 #
-# The list stays an allow-list: the two linked plugin names are added by name,
+# The list stays an allow-list: the two linked extension names are added by name,
 # and a made-up /cgi-bin/x.pl still runs nothing.
 use strict;
 use warnings;
@@ -45,7 +45,7 @@ sub spit {
 spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
 spit( "$d/index.md",               "---\ntitle: Home\n---\nHOME BODY\n" );
 
-# cgi-bin exactly as install.pl makes it: the surfaces, plus the plugin links.
+# cgi-bin exactly as install.pl makes it: the surfaces, plus the extension links.
 my $cgibin = "$base/cgi-bin";
 make_path($cgibin);
 for my $s (qw(lazysite-processor.pl lazysite-auth.pl)) {
@@ -135,9 +135,9 @@ subtest 'a page request still reaches the processor' => sub {
     like( req( { REDIRECT_URL => '/nope' } )->{stdout}, qr/Status: 404/, 'and a miss is the engine 404' );
 };
 
-subtest 'the other linked plugin is reached too' => sub {
+subtest 'the other linked extension is reached too' => sub {
     my $r = req( { REDIRECT_URL => '/cgi-bin/payment-demo.pl', REQUEST_URI => '/cgi-bin/payment-demo.pl?action=pay', QUERY_STRING => 'action=pay' } );
-    like( $r->{stdout}, qr/Status: 302 Found/, 'the plugin ran (it redirects)' );
+    like( $r->{stdout}, qr/Status: 302 Found/, 'the extension ran (it redirects)' );
     like( $r->{stdout}, qr/Set-Cookie: lazysite_payment_demo=/, 'and set its own cookie' );
 };
 

@@ -62,10 +62,10 @@ update_policy: manual
 # layout: default
 # theme: odcc
 
-# Plugins are auto-discovered from cgi-bin/ and tools/.
+# Extensions are auto-discovered from cgi-bin/ and tools/.
 # Scripts with --describe support appear in the manager.
-# Use the manager Plugins page to enable or disable them.
-# To pre-enable plugins without using the manager:
+# Use the manager Extensions page to enable or disable them.
+# To pre-enable extensions without using the manager:
 # extensions:
 #   - extensions/form-smtp.pl
 #   - extensions/audit.pl

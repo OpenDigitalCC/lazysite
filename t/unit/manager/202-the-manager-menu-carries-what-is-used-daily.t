@@ -41,7 +41,7 @@ sub render {
         { page_title => 'T',
             site_name        => 'Demo',
             request_uri      => '/manager/files',
-            enabled_plugins  => { data => 1, stats => 1 },
+            enabled_extensions  => { data => 1, stats => 1 },
             auth_user        => 'me',
             authenticated    => 1,
             content          => 'BODY',

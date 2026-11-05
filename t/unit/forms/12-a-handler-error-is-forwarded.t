@@ -1,10 +1,10 @@
 #!/usr/bin/perl
-# SM540: plugin diagnostics reach syslog when forward_diagnostics is on. The
-# four plugin copies of log_event (form-handler, form-smtp, audit,
+# SM540: extension diagnostics reach syslog when forward_diagnostics is on. The
+# four extension copies of log_event (form-handler, form-smtp, audit,
 # payment-demo) predated Lazysite::Util's forward_line, so an ERROR from a
 # submission stayed on STDERR while the docs promised syslog.
 #
-# Each plugin runs as a real subprocess with the LAZYSITE_SYSLOG_DUMP seam
+# Each extension runs as a real subprocess with the LAZYSITE_SYSLOG_DUMP seam
 # (test-only: "<priority> <line>" appended to a file instead of syslog), the
 # model being t/unit/lib/17-log-forwarding.
 use strict;
@@ -119,7 +119,7 @@ sub rig {
 }
 
 # --- SM932: a conf that says NOTHING forwards the ERROR anyway ---------------
-# The whole point of the ruling: this plugin's ERROR used to reach only STDERR on
+# The whole point of the ruling: this extension's ERROR used to reach only STDERR on
 # a site whose operator never found the forwarding key, and on a FastCGI stack
 # STDERR reaches nobody. Same rig as above with the key removed rather than set.
 {

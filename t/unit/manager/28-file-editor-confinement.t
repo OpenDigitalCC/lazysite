@@ -18,11 +18,11 @@ ok( is_blocked_path('lazysite/auth/acls.json'),        'H4: auth tree blocked' )
 ok( is_blocked_path('lazysite/backups/full-x.tar.gz'), 'H4: backups blocked' );
 ok( is_blocked_path('lazysite/logs/audit.log'),        'H4: logs blocked' );
 ok( is_blocked_path('lazysite/templates/registries/sitemap.xml.tt'), 'H4: templates blocked' );
-ok( is_blocked_path('lazysite/git-sync.conf'), 'H4: plugin-secret conf blocked' );
+ok( is_blocked_path('lazysite/git-sync.conf'), 'H4: extension-secret conf blocked' );
 ok( !is_blocked_path('lazysite/forms/submissions/2026.jsonl'), 'forms/submissions still readable' );
 ok( !is_blocked_path('content/page.md'), 'ordinary content not blocked' );
 
-# SM694/SM706: the BRAND folder. The plugin creates it under lazysite/ so that
+# SM694/SM706: the BRAND folder. The extension creates it under lazysite/ so that
 # a logo and a letterhead are not served to the web, and tells the operator to
 # manage it on the Files page - which answered "Path is blocked", so the
 # instruction was false and the folder invisible.

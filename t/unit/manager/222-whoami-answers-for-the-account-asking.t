@@ -30,7 +30,7 @@ local $ENV{LAZYSITE_FORWARD_DIAGNOSTICS} = 'off';
 
 subtest 'inside a request whoami answers for the account asking' => sub {
     delete local $ENV{LAZYSITE_API_LOAD_ONLY};  # set below, at compile time, for the load
-    my $r = $s->call( 'boss', 'whoami', query => 'action=whoami&plugins=0' );
+    my $r = $s->call( 'boss', 'whoami', query => 'action=whoami&extensions=0' );
     ok( $r->{ok}, 'answered' ) or diag explain $r;
     is( $r->{user}, 'boss', '...for boss' );
     ok( exists $r->{manager_groups}, '...with what boss may see' );

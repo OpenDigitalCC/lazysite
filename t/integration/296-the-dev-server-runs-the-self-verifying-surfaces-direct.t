@@ -199,7 +199,7 @@ subtest 'the page and the manager API are still wrapped' => sub {
     like( $raw, qr/HOME BODY/, 'the page renders' );
     is_deeply( $ran, [qw(auth processor)], 'through the wrapper, as before' );
 
-    ( $code, $res, $raw, $ran ) = hit( 'GET', '/cgi-bin/lazysite-manager-api.pl?action=whoami&plugins=0',
+    ( $code, $res, $raw, $ran ) = hit( 'GET', '/cgi-bin/lazysite-manager-api.pl?action=whoami&extensions=0',
         headers => { Cookie => cookie_for('boss') } );
     ok( $res->{ok}, 'the operator\'s whoami is answered' ) or diag($raw);
     is_deeply( $ran, [qw(auth manager-api)], 'through the wrapper, as before' );

@@ -22,7 +22,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 use Lazysite::Util             qw(log_event);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Data::Tables
     qw(list_tables load_table read_rows apply_schema
     insert_row update_row delete_row descriptor_dir rebuild_table export_all_rows
@@ -77,23 +77,23 @@ our $auth_user       = ''; # SM468: the actor for schema-history rows; set by ea
 # SM469: OFF MEANS OFF, on this path too.
 #
 # ADR 0009's first clause is that every dispatch path consults the enabled
-# state. SM409 built that gate and it covers plugin SCRIPT execution - the
-# `plugin-action` path. These actions dispatch straight into this module and
-# never went near it, so disabling the data plugin changed nothing about them.
+# state. SM409 built that gate and it covers extension SCRIPT execution - the
+# `extension-action` path. These actions dispatch straight into this module and
+# never went near it, so disabling the data extension changed nothing about them.
 #
-# A plugin owning control-API actions is a new shape; before this one there was
+# An extension owning control-API actions is a new shape; before this one there was
 # no such path for the gate to miss. Which is why the lint matters more than
-# these three lines: t/lint/77 asserts the property for any future plugin that
+# these three lines: t/lint/77 asserts the property for any future extension that
 # owns a capability, because the next one would reintroduce this silently.
 #
-# READS ARE GATED TOO. A disabled plugin executing nothing is the whole rule,
+# READS ARE GATED TOO. A disabled extension executing nothing is the whole rule,
 # and a read is execution - it opens the store and runs a query. "Disabled but
 # still answering" is the state SM409 exists to remove.
 sub _gate {
-    local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-    return undef if Lazysite::Manager::Plugins::plugin_enabled('extensions/data.pl');
+    local $Lazysite::Manager::Extensions::DOCROOT = $DOCROOT;
+    return undef if Lazysite::Manager::Extensions::extension_enabled('extensions/data.pl');
     return { ok => 0,
-        error => 'The data plugin is disabled. An operator can enable it on '
+        error => 'The data extension is disabled. An operator can enable it on '
             . 'the Extensions page.' };
 }
 
@@ -112,7 +112,7 @@ sub _gate {
 # The blocklist is right and stays. It guards the generic FILE EDITOR from the
 # management tree, and a descriptor is exactly the sort of file it should keep
 # out of reach: writing one through the file editor would bypass the data
-# plugin's own gates, including SM682's authority check on `writable_by`.
+# extension's own gates, including SM682's authority check on `writable_by`.
 #
 # So the fix is a verb that knows it is addressing a TABLE, not a path. The key
 # is synthesised from a validated table name through Data::Access::acl_key -
@@ -237,7 +237,7 @@ sub _need_table {
 }
 
 # Every action over a named table asks the same two questions in the same
-# order - is the plugin on, and was a table named - and answers with the same
+# order - is the extension on, and was a table named - and answers with the same
 # two refusals. Written out twelve times before this; one name now.
 sub _table_action {
     my ($table) = @_;
@@ -407,10 +407,10 @@ sub load_table_for_audit {
 # The account's REAL groups, for a write-authority decision.
 #
 # Wrapped here rather than called from the dispatch branch because t/lint/77
-# reads each plugin-owned action's branch and requires every module it names to
-# consult the plugin's enabled state. Naming Lazysite::Auth::Acl there pulled a
+# reads each extension-owned action's branch and requires every module it names to
+# consult the extension's enabled state. Naming Lazysite::Auth::Acl there pulled a
 # core module into that set - correctly refused, since Acl has no business
-# knowing about the data plugin. The dependency belongs on this side of the
+# knowing about the data extension. The dependency belongs on this side of the
 # boundary.
 #
 # Resolved from the ACCOUNT, not from X-Remote-Groups: that header is the stale
@@ -704,7 +704,7 @@ sub action_data_table {
 }
 
 # SM777 (the field's remaining question): a text field named like a stamp,
-# on a table without the plugin's stamps, is whatever the writer says it is.
+# on a table without the extension's stamps, is whatever the writer says it is.
 # The author had no signal that "added_at" was decoration. This is the
 # signal - on the descriptor's own reply, never a refusal.
 sub _provenance_notes {
@@ -717,7 +717,7 @@ sub _provenance_notes {
     # four of five after the set grows is a message that is wrong about the
     # feature it is recommending.
     return [ sprintf(
-            "%s %s written by the caller and can be any value: nothing stamps %s. For a time and an author the plugin stamps and no writer can forge, set timestamps: true (%s).",
+            "%s %s written by the caller and can be any value: nothing stamps %s. For a time and an author the extension stamps and no writer can forge, set timestamps: true (%s).",
             join( ', ', map { "'$_'" } @at ), ( @at > 1 ? 'are' : 'is' ), ( @at > 1 ? 'them' : 'it' ),
             join( ', ', Lazysite::Data::Owned::stamp_columns() ) ) ];
 }
@@ -1102,8 +1102,8 @@ sub action_data_import {
     if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }    # SM982
 
     # The CSV is the multipart part named `file`, as site-backup-upload takes
-    # its tarball. Parsed HERE, after the gate: a disabled plugin must not
-    # read the upload at all, and the parser is the plugin's to call.
+    # its tarball. Parsed HERE, after the gate: a disabled extension must not
+    # read the upload at all, and the parser is the extension's to call.
     require Lazysite::Manager::Upload;
     my @parts = Lazysite::Manager::Upload::parse_multipart_body( $body // '',
         $content_type // '' );

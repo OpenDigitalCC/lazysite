@@ -400,7 +400,7 @@ sub session_is_kept {
 # That is a retention that runs when there is new data to write - and a site
 # nobody signs in to for a month keeps a month of expired rows, each carrying
 # a visitor's IP and user agent (lazysite-check names them as personal data),
-# for no reason a reader could defend. The stats plugin states the rule this
+# for no reason a reader could defend. The stats extension states the rule this
 # breaks: a retention that only runs when there is fresh data is not a
 # retention.
 #

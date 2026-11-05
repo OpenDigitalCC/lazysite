@@ -16,7 +16,7 @@ package Lazysite::Lifecycle;
 # daemon is its first conforming consumer, because the daemon is the unit whose
 # lifecycle is least ambiguous: it is a process, so "running" is a fact rather
 # than an interpretation. The existing services - WebDAV, control API, MCP,
-# OAuth, token exchange - migrate afterwards, one per SM, exactly as the plugins
+# OAuth, token exchange - migrate afterwards, one per SM, exactly as the extensions
 # did. A contract extracted from one real consumer beats one designed in the
 # abstract and retrofitted five times.
 #

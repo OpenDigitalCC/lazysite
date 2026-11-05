@@ -21,7 +21,7 @@
 # The release manager's ruling: refuse over-length, and name the field.
 #
 # DRIVEN AS A REAL POST through the CGI, following 02-uploads.t: the defect is
-# in what the handler does with a request, and the plugin runs its whole flow
+# in what the handler does with a request, and the extension runs its whole flow
 # at load, so it cannot be poked at as a library.
 use strict;
 use warnings;
@@ -33,8 +33,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(site_tempdir);
 
-my $PLUGIN = 'extensions/form-handler.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = 'extensions/form-handler.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 # A real docroot a level down, not a bare tempdir: $d is handed to the engine as
 # DOCUMENT_ROOT below, which is exactly what t/lint/118 is about.
@@ -78,7 +78,7 @@ sub post {
     local $ENV{CONTENT_TYPE}   = 'application/x-www-form-urlencoded';
     local $ENV{CONTENT_LENGTH} = -s $bf;
     local $ENV{REMOTE_ADDR}    = '10.0.0.' . ( ++$IP );    # fresh IP: no rate limit
-    my $out = qx($^X \Q$PLUGIN\E < \Q$bf\E 2>/dev/null);
+    my $out = qx($^X \Q$EXTENSION\E < \Q$bf\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;                          # strip CGI headers
     return eval { decode_json($out) } // { _raw => $out };
 }

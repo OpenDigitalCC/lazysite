@@ -32,7 +32,7 @@
 #     whose load-time code launches, directly or through what IT loads.
 #
 # Everything else is IN: what the analysis cannot show to be inert counts. Every
-# module under lib/ and t/, every plugin (the CGIs `do` them), the measured CGIs,
+# module under lib/ and t/, every extension (the CGIs `do` them), the measured CGIs,
 # the floor file, coverage.sh and this file itself are always in - a change to
 # the rules here moves the digest too. Without PPI every test is in. `--list`
 # prints each test's classification and why.

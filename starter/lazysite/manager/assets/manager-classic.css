@@ -566,7 +566,7 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
 .mg-pager-info { color: var(--mg-text-muted); }
 
 /* ============================================================ Rows + THE expander
-   .mg-row is the one list row (files, plugins, handlers, notif items…).
+   .mg-row is the one list row (files, extensions, handlers, notif items…).
    .mg-expand is the one in-place detail card, opening as the row's
    next sibling; only one open at a time. */
 .mg-list { background: var(--mg-surface); border: 1px solid var(--mg-border); }
@@ -585,7 +585,7 @@ a.mg-nav-locked:hover { background: var(--mg-surface-alt); color: var(--mg-text-
        rows, descending the list diagonally. margin-left:auto was already there
        (SM807) and inert, resolving to 0 because that grid area has no free
        space, which is why it read as unset.
-       MR-68 found the same thing on the Plugin Manager and fixed it by using a
+       MR-68 found the same thing on the Extension Manager and fixed it by using a
        three-column template; this is that remedy applied to the shared row. */
     display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center; gap: 10px; min-height: 44px;
@@ -1243,18 +1243,18 @@ body.mg-sheet-open { overflow: hidden; }
 [data-theme="dark"] .CodeMirror .cm-variable-2, [data-theme="dark"] .CodeMirror .cm-attribute, [data-theme="dark"] .CodeMirror .cm-property { color: #a3e0ef; }
 [data-theme="dark"] .CodeMirror .cm-hr, [data-theme="dark"] .CodeMirror .cm-formatting { color: #a8a199; }
 
-/* --- Plugins + handlers */
-.mg-plugin-card { background: var(--mg-surface); border: 1px solid var(--mg-border); padding: 14px; margin-bottom: 14px; }
-.mg-plugin-title { font-weight: 600; margin-bottom: 2px; }
-.mg-plugin-desc { font-size: var(--mg-text-sm); color: var(--mg-text-muted); margin-bottom: 10px; }
-.mg-plugin-registry { display: flex; flex-direction: column; gap: 4px; }
-.mg-plugin-row { display: grid; grid-template-columns: 4.5rem 1fr auto; align-items: start; gap: 12px; padding: 9px 12px; border: 1px solid var(--mg-border); background: var(--mg-surface); }
-.mg-plugin-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 2px; }
-.mg-plugin-main { min-width: 0; }
-.mg-plugin-end { display: flex; align-items: center; justify-content: flex-end; }
-.mg-plugin-row-name { font-weight: 500; }
-.mg-plugin-row-config { font-size: var(--mg-text-sm); color: var(--mg-accent-deep); text-decoration: none; }
-.mg-plugin-row-config:hover { text-decoration: underline; }
+/* --- Extensions + handlers */
+.mg-extension-card { background: var(--mg-surface); border: 1px solid var(--mg-border); padding: 14px; margin-bottom: 14px; }
+.mg-extension-title { font-weight: 600; margin-bottom: 2px; }
+.mg-extension-desc { font-size: var(--mg-text-sm); color: var(--mg-text-muted); margin-bottom: 10px; }
+.mg-extension-registry { display: flex; flex-direction: column; gap: 4px; }
+.mg-extension-row { display: grid; grid-template-columns: 4.5rem 1fr auto; align-items: start; gap: 12px; padding: 9px 12px; border: 1px solid var(--mg-border); background: var(--mg-surface); }
+.mg-extension-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 2px; }
+.mg-extension-main { min-width: 0; }
+.mg-extension-end { display: flex; align-items: center; justify-content: flex-end; }
+.mg-extension-row-name { font-weight: 500; }
+.mg-extension-row-config { font-size: var(--mg-text-sm); color: var(--mg-accent-deep); text-decoration: none; }
+.mg-extension-row-config:hover { text-decoration: underline; }
 .mg-info { cursor: help; color: var(--mg-text-light); font-size: 1.1em; }
 .mg-info:hover, .mg-info:focus { color: var(--mg-accent-deep); outline: none; }
 .mg-handler-group { border: 1px solid var(--mg-border); background: var(--mg-surface); overflow: hidden; margin-bottom: 14px; }
@@ -1266,7 +1266,7 @@ body.mg-sheet-open { overflow: hidden; }
 .mg-handler-item-actions { display: flex; gap: 6px; }
 .mg-handler-name { font-weight: 500; flex: 1; }
 
-/* SM697: eight classes Plugin Config emits that no rule defined. Carried onto
+/* SM697: eight classes Extension Config emits that no rule defined. Carried onto
    the design sheets when they replaced manager.css wholesale - the fix landed
    on the old sheet, and a wholesale replacement silently undoes that kind of
    fix unless it is carried forward deliberately. An element whose class nothing
@@ -1337,7 +1337,7 @@ body.mg-sheet-open { overflow: hidden; }
 
 /* ---- Reported from the live manager, 0.11.8 ---- */
 
-/* A plugin's detail is NOT a column beside its row. .mg-plugin-card is a flex
+/* An extension's detail is NOT a column beside its row. .mg-extension-card is a flex
    row, so the Form Handler's whole configuration - three handler groups and an
    edit form - became one squeezed flex child against an empty left half. It
    wraps onto its own full-width line instead, which is the same shape as the
@@ -1347,12 +1347,12 @@ body.mg-sheet-open { overflow: hidden; }
    configuration squeezed into a narrow right-hand column with the left half
    empty. Its parts are a title, a description, a group of actions and the
    panels those open: one under the next, each as wide as the card. */
-.mg-plugin-card { display: block; }
-.mg-plugin-card > .mg-card-body,
-.mg-plugin-card > .mg-handler-edit-form,
-.mg-plugin-card > .mg-submissions-panel { width: 100%; min-width: 0; }
+.mg-extension-card { display: block; }
+.mg-extension-card > .mg-card-body,
+.mg-extension-card > .mg-handler-edit-form,
+.mg-extension-card > .mg-submissions-panel { width: 100%; min-width: 0; }
 /* The action group is the one row inside it. */
-.mg-plugin-card > .mg-wizard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.mg-extension-card > .mg-wizard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 
 /* A CHECKBOX BELONGS BESIDE ITS LABEL. .mg-field stacks label above control,
    which is right for a text box and wrong for a checkbox: the box landed on
@@ -1398,8 +1398,8 @@ body.mg-sheet-open { overflow: hidden; }
     border: 1px solid var(--mg-border); border-radius: var(--mg-radius, 0);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
-.mg-plugin-end .mg-info[data-note]:hover::after,
-.mg-plugin-end .mg-info[data-note]:focus-visible::after { left: auto; right: 0; }
+.mg-extension-end .mg-info[data-note]:hover::after,
+.mg-extension-end .mg-info[data-note]:focus-visible::after { left: auto; right: 0; }
 .mg-info:focus-visible { border-color: var(--mg-accent); background: var(--mg-accent-bg); }
 
 /* "Turn these on" read as prose because it sat inline against its note with
@@ -1570,7 +1570,7 @@ body.mg-sheet-open { overflow: hidden; }
 
 .mg-config-group, .mg-section-label, .mg-handler-group-label, .mg-wizard-section-label, .mg-fm-section summary, .mg-jsonl-table thead th, .mg-file-table th, .audit-table th, .mg-wizard-title { font-family: var(--mg-font); letter-spacing: 0.03em; }
 
-.mg-plugin-card, .mg-plugin-row, .mg-handler-group, .mg-wizard, .mg-onb-card, .mg-badge, .mg-dom-chip, .mg-nav-item { border-radius: var(--mg-r); }
+.mg-extension-card, .mg-extension-row, .mg-handler-group, .mg-wizard, .mg-onb-card, .mg-badge, .mg-dom-chip, .mg-nav-item { border-radius: var(--mg-r); }
 
 
 /* ============================================================

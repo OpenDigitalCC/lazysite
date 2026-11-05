@@ -8,7 +8,7 @@ package main;
 #         _visitor_key (a daily-salted keyed hash, never the address),
 #         _access_salt, _access_field and _access_prune (retention);
 #         _unit_enabled($entry) and _reset_units(): the SM222 L0 marked copy of
-#         the `plugins:` registry read, memoised per request in a bare block.
+#         the `extensions:` registry read, memoised per request in a bare block.
 # OWNS    what a request leaves in the access log; whether a unit is listed.
 # CALLS   _request_address, _trusted_proxy_spec, _request_host, _cannot_read,
 #         _draft_requested, _request_identity (auth.pm, the one identity reader),
@@ -80,7 +80,7 @@ sub _timing_header {
 }
 
 # --- SM222 L0: the unit registry, read from the render path -------------------
-# `plugins:` in lazysite.conf IS the registry, and until now nothing on the
+# `extensions:` in lazysite.conf IS the registry, and until now nothing on the
 # request path read it. Enablement was consulted at fourteen sites in nine files
 # across the manager tree and at ZERO sites here, so a unit switched off in the
 # manager went on doing its work inside an ordinary page render. Truly-off has to
@@ -88,7 +88,7 @@ sub _timing_header {
 #
 # A MARKED COPY, by the convention ADR 0001 sets for the capability gate: this
 # render path is deliberately module-free, so it cannot call
-# Lazysite::Manager::Plugins::plugin_enabled. What is copied is a five-line list
+# Lazysite::Manager::Extensions::extension_enabled. What is copied is a five-line list
 # scan rather than a semantic, which is the cheapest kind of copy to keep honest,
 # and t/lint/125 asserts the two readers agree on the same conf rather than
 # trusting this comment.
@@ -103,19 +103,19 @@ sub _timing_header {
         if ( !$_UNITS ) {
             $_UNITS = {};
             if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
-                my $in_plugins = 0;
+                my $in_extensions = 0;
                 while ( my $l = <$fh> ) {
                     chomp $l;
                     # SM1142: the one header; the upgrade rewrote the old one.
                     if ( $l =~ /^extensions\s*:\s*$/ ) {
-                        $in_plugins = 1;
+                        $in_extensions = 1;
                         next;
                     }
-                    if ( $in_plugins && $l =~ /^\s+-\s+(.+?)\s*$/ ) {
+                    if ( $in_extensions && $l =~ /^\s+-\s+(.+?)\s*$/ ) {
                         $_UNITS->{$1} = 1;
                         next;
                     }
-                    $in_plugins = 0 if $in_plugins && $l !~ /^\s/;
+                    $in_extensions = 0 if $in_extensions && $l !~ /^\s/;
                 }
                 close $fh;
             }
@@ -126,7 +126,7 @@ sub _timing_header {
     sub _reset_units { $_UNITS = undef; return }
 }
 
-# stats.conf knobs the recorder honours (shared with the stats plugin).
+# stats.conf knobs the recorder honours (shared with the stats extension).
 sub _access_conf {
     my %c = ( first_party => 1, retention_days => 90 );
     if ( open my $fh, '<', "$LAZYSITE_DIR/stats.conf" ) {
@@ -251,17 +251,17 @@ sub _access_record {
         # SM222 L0: DELIBERATELY NOT GATED ON THE REGISTRY YET, and the reason
         # is a ruling rather than an oversight.
         #
-        # `_unit_enabled` exists below and reads `plugins:` correctly. Gating
+        # `_unit_enabled` exists below and reads `extensions:` correctly. Gating
         # here was built, tested and reverted, because extensions/stats.pl declares
         # no `contract` key and is therefore a LEGACY descriptor. SM409 / ADR
-        # 0009 carry the release manager's ruling for those: a legacy plugin
+        # 0009 carry the release manager's ruling for those: a legacy extension
         # keeps running exactly as it always has until its own migration SM
         # enables it explicitly to replicate its current effective state, so
         # that nothing in the field changes behaviour on upgrade. Gating on the
         # list stops recording for every site that never listed stats - which is
         # every site that never had a reason to.
         #
-        # AND ABSENCE IS NOT A DECISION. `plugins:` can say a unit is ON by
+        # AND ABSENCE IS NOT A DECISION. `extensions:` can say a unit is ON by
         # listing it; it has no way to say a unit is OFF. So "absent" means both
         # "the operator switched it off" and "nobody has ever been asked", and
         # nothing here can tell those apart. Truly-off for a legacy unit needs

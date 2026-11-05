@@ -56,7 +56,7 @@ use Lazysite::Manager::Groups      ();    # SM1050: list_groups, set_group
 use Lazysite::Manager::AddressLists ();    # SM1138: list_address_lists
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
-use Lazysite::Manager::Plugins qw(action_form_submissions action_form_submission action_form_list);
+use Lazysite::Manager::Extensions qw(action_form_submissions action_form_submission action_form_list);
 # SM918: the one notice reader, shared with the control API
 use Lazysite::Manager::Notices ();
 use Lazysite::Handlers         ();               # SM842: handlers, bindings, the schedule
@@ -374,7 +374,7 @@ sub _stats_tool {
 sub _stats_export {
     my ( $opt, $caps ) = @_;
     my $tool = _stats_tool()
-        or return { ok => 0, error => 'stats plugin not found' };
+        or return { ok => 0, error => 'stats extension not found' };
     my $window = ( defined $opt->{window} && $opt->{window} =~ /^\d+$/ ) ? $opt->{window} : 30;
 
     # SM213: durable-store selectors, validated + passed as exec args (no shell).
@@ -401,7 +401,7 @@ sub _stats_export {
 
     my ( $ran, $resp ) = _run_json_tool(
         [ $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel, @$scope ] );
-    return { ok => 0, error => 'could not run the stats plugin' } unless $ran;
+    return { ok => 0, error => 'could not run the stats extension' } unless $ran;
     return eval { decode_json( $resp // '{}' ) }
         || { ok => 0, error => 'stats export produced no JSON' };
 }
@@ -511,7 +511,7 @@ sub setup_context {
     $Lazysite::Manager::Domains::DOCROOT      = $DOCROOT;
     $Lazysite::Manager::Domains::auth_user    = $user;
     $Lazysite::Manager::SitePackage::DOCROOT  = $DOCROOT;
-    $Lazysite::Manager::Plugins::DOCROOT      = $DOCROOT;
+    $Lazysite::Manager::Extensions::DOCROOT      = $DOCROOT;
     # SM918: the shared notice reader
     $Lazysite::Manager::Notices::DOCROOT       = $DOCROOT;
     $Lazysite::Handlers::DOCROOT               = $DOCROOT;
@@ -1050,7 +1050,7 @@ my %TOOLS = (
         },
     },
     # SM447: the data tables. An agent populating a table is the PRIMARY use
-    # of the data plugin, which is why these exist rather than leaving agents
+    # of the data extension, which is why these exist rather than leaving agents
     # to drive the control API - and why the API-only gap was recorded in
     # t/lint/23 as a schedule rather than a decision.
     #
@@ -1060,7 +1060,7 @@ my %TOOLS = (
     # data layer for themselves is how they come to disagree about the same
     # question, and t/lint/57 exists because that has happened.
     #
-    # The plugin's enabled gate lives in that module (SM469), so these refuse
+    # The extension's enabled gate lives in that module (SM469), so these refuse
     # when it is disabled without each tool having to remember to ask.
     list_data_tables => {
         description => 'List the data tables this site declares - each with its title, and whether its descriptor is valid. A table is declared by a YAML file at lazysite/db/tables/<name>.yaml and holds SITE data: a product list, an events calendar, a directory. Call this FIRST on any task that mentions stored records, so you learn what exists rather than guessing a name. A table whose descriptor is broken is reported WITH its error rather than omitted, because a silently shorter list is the least useful thing this could do. Read-only.',
@@ -1507,7 +1507,7 @@ my %TOOLS = (
         },
     },
     site_backup => {
-        description => 'Package one configured domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_domains and access to that domain.',
+        description => 'Package one configured domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes extensions, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_domains and access to that domain.',
         cap         => 'manage_domains',
         inputSchema => {
             type       => 'object',
@@ -2140,8 +2140,8 @@ my %TOOLS = (
         },
         run => sub {
             if ( my $no = _form_refusal( $_[2], $_[0]->{form} ) ) { return $no } # SM976 F2
-            require Lazysite::Manager::Plugins;
-            return Lazysite::Manager::Plugins::action_form_delete(
+            require Lazysite::Manager::Extensions;
+            return Lazysite::Manager::Extensions::action_form_delete(
                 $_[0]->{form}, $_[0]->{confirm} );
         },
     },
@@ -2441,10 +2441,10 @@ my %TOOLS = (
     # SM085 over MCP: the content-history surface the control API already has
     # (git-history / git-show / git-restore), so a connector agent can inspect
     # and undo content changes. Available when the site's Content history
-    # plugin is enabled; list_versions says so honestly when it is not.
+    # extension is enabled; list_versions says so honestly when it is not.
     list_versions => {
         path_args => [qw(path)],
-        description => 'List a file\'s recorded versions (content history): newest first, each with a version id, author, date and message. Works when the site\'s Content history plugin is enabled - if the result says enabled:false, versions are not being recorded and there is nothing to restore (ask the sysop to enable the plugin).',
+        description => 'List a file\'s recorded versions (content history): newest first, each with a version id, author, date and message. Works when the site\'s Content history extension is enabled - if the result says enabled:false, versions are not being recorded and there is nothing to restore (ask the sysop to enable the extension).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -2466,7 +2466,7 @@ my %TOOLS = (
             . 'last author - plus a site-level summary (total files, total revisions). This '
             . 'is the overview complement of list_versions (which lists one file\'s versions): '
             . 'use it to see where change is happening across the site. Works when the site\'s '
-            . 'Content history plugin is enabled - if enabled:false, nothing is being recorded.',
+            . 'Content history extension is enabled - if enabled:false, nothing is being recorded.',
         cap         => 'manage_content',
         inputSchema => { type => 'object', properties => {},
             additionalProperties => JSON::PP::false },

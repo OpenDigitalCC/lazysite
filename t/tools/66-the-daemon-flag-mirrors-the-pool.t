@@ -50,7 +50,7 @@ my $unit_src = slurp($UNIT);
 #
 # What is still worth asserting is the part that has not changed: `--daemon` is
 # STILL ACCEPTED, so runbooks and scripts that pass it do not start erroring,
-# and the usage still says the plugin is the other switch - which is the one
+# and the usage still says the extension is the other switch - which is the one
 # sentence an operator must not miss, now more than before, because an armed
 # site that is doing nothing is the normal case rather than the unusual one.
 subtest 'the flag is still accepted, and the usage explains the two switches' => sub {
@@ -71,8 +71,8 @@ subtest 'the flag is still accepted, and the usage explains the two switches' =>
 
     # Whitespace-tolerant: this sentence wraps, and where it wraps is not the
     # contract - that the sentence is THERE is.
-    like( $out, qr/until\s+the\s+site's\s+sysop\s+also\s+enables\s+the\s+`daemon`\s+plugin/,
-        'usage says the plugin is the other switch' );
+    like( $out, qr/until\s+the\s+site's\s+sysop\s+also\s+enables\s+the\s+`daemon`\s+extension/,
+        'usage says the extension is the other switch' );
     like( $tool_src, qr/two switches/i, 'and so does the POD' );
 };
 

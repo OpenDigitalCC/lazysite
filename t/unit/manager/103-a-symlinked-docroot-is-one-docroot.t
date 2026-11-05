@@ -4,7 +4,7 @@
 # Every manager module confines a target by comparing realpath($target)
 # against the $DOCROOT the dispatcher handed it, assuming that docroot is
 # canonical. Neither dispatcher made it so. Under a symlinked DOCUMENT_ROOT
-# three modules refused (Themes delete and cache invalidate, Plugins
+# three modules refused (Themes delete and cache invalidate, Extensions
 # submissions - "Invalid theme path", blocked, "Invalid submissions file") and
 # two succeeded (Layouts delete, Domains purge), because the latter resolve
 # both sides (tmp/tl-probe-symlink-docroot.pl).
@@ -69,7 +69,7 @@ subtest 'the control API hands every module one canonical docroot' => sub {
     is( $Lazysite::Manager::Themes::DOCROOT, $real,
         'Themes sees the resolved tree' )
         or diag('The dispatcher passed DOCUMENT_ROOT as the web server spelled it.');
-    is( $Lazysite::Manager::Plugins::DOCROOT, $real, 'so does Plugins' );
+    is( $Lazysite::Manager::Extensions::DOCROOT, $real, 'so does Extensions' );
     is( $Lazysite::Manager::Common::DOCROOT,  $real, 'and Common' );
 };
 
@@ -79,7 +79,7 @@ subtest 'the three actions that refused now succeed' => sub {
     my $ci = main::action_cache_invalidate('/page');
     is( $ci->{ok}, 1, 'Themes::action_cache_invalidate' ) or diag explain $ci;
     my $fs = main::action_form_submissions('lazysite/forms/submissions/contact.jsonl');
-    is( $fs->{ok}, 1, 'Plugins::action_form_submissions' ) or diag explain $fs;
+    is( $fs->{ok}, 1, 'Extensions::action_form_submissions' ) or diag explain $fs;
 };
 
 subtest 'the two that already succeeded still do' => sub {

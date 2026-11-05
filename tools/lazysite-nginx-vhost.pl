@@ -239,7 +239,7 @@ sub cmd_add {
     # Enablement is printed, never run: linking sites-enabled and
     # reloading nginx are host-wide actions the sysop should see and
     # choose. Both patterns need fcgiwrap - it runs the CGI path
-    # (/manager, /login, /dav, plugin endpoints) even when the pool
+    # (/manager, /login, /dav, extension endpoints) even when the pool
     # serves the visitor pages.
     print "This vhost runs lazysite's CGI path through fcgiwrap (once per host):\n"
         . "    apt-get install fcgiwrap\n\n"

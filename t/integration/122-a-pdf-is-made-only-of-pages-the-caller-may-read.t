@@ -11,7 +11,7 @@
 # account got a page whose read rule named someone else (tmp/q16b-acl-probe.out).
 #
 # A PART OUTSIDE THE SCOPE REFUSES THE DOCUMENT, naming the part - fail closed,
-# as the page's own refusal does, and as the plugin already refuses a part the
+# as the page's own refusal does, and as the extension already refuses a part the
 # ACL denies ("refused rather than built without that part"). Excluding it would
 # hand back a document that looks complete and is not.
 #
@@ -32,7 +32,7 @@ my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
 my $mapi   = "$root/lazysite-manager-api.pl";
 my $secret = 'sekret' x 6;
-my $d      = site_tempdir( plugins => 1 );
+my $d      = site_tempdir( extensions => 1 );
 ( my $t = $d ) =~ s{/site/public_html\z}{};
 make_path( "$d/lazysite/auth", "$d/content/clientA", "$d/content/clientB", "$t/bin" );
 

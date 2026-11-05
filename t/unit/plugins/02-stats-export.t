@@ -12,8 +12,8 @@ use TestHelper qw(repo_root run_cmd);
 # The AI visitor-stats export: a SANITISED, cached, incremental JSON the agent
 # reasons over - aggregates + an event stream, never the raw log, a filesystem
 # path, or a visitor IP.
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-ok( -f $PLUGIN, 'stats plugin present' );
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+ok( -f $EXTENSION, 'stats extension present' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/cache");
@@ -22,7 +22,7 @@ print $cf "site_url: https://demo.example.io\n";
 close $cf;
 my $LOG = "$d/access.log";
 # Q14g (SM974): ONE instant, stamped as what it says it is. This was localtime
-# labelled +0000; the plugin now reads the offset, and a stats day is a UTC day.
+# labelled +0000; the extension now reads the offset, and a stats day is a UTC day.
 my $T   = time;
 my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $T );
 
@@ -41,7 +41,7 @@ close $lf;
 sub run_export {
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $LOG;
-    my $out = qx($^X \Q$PLUGIN\E --export --window 30 2>/dev/null);
+    my $out = qx($^X \Q$EXTENSION\E --export --window 30 2>/dev/null);
     return decode_json($out);
 }
 
@@ -148,7 +148,7 @@ sub run_sel {
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $LOG;
     # List form: @a interpolated into a shell string re-splits on any space.
-    return decode_json( run_cmd( $^X, $PLUGIN, '--export', @a ) );
+    return decode_json( run_cmd( $^X, $EXTENSION, '--export', @a ) );
 }
 my $idx = run_sel('--index');
 ok( $idx->{ok} && $idx->{data_from} && ref $idx->{days} eq 'ARRAY' && ref $idx->{months} eq 'ARRAY',

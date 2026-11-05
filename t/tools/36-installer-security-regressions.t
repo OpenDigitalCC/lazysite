@@ -5,7 +5,7 @@
 # deploy path, and SM246 GUARANTEES the docroot and lazysite/ are group-writable.
 # That combination is what turned "the installer trusts its destinations" into
 # local privilege escalation: any account that can create a name in the docroot -
-# the CGI, the site user, a compromised plugin - chose a file for the next
+# the CGI, the site user, a compromised extension - chose a file for the next
 # upgrade to overwrite, chmod or chown as root.
 #
 #   H5   every write and every mode change followed symlinks. Five attacks

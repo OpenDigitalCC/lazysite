@@ -1,10 +1,10 @@
 package Lazysite::Manager::PagePdf;
 
 # A page, or a composed document and its parts, rendered to a branded PDF by
-# the pandoc plugin and streamed back (page-pdf, SM732). Moved out of
+# the pandoc extension and streamed back (page-pdf, SM732). Moved out of
 # lazysite-manager-api.pl by SM944 S29 with one line changed, as ruled
-# 2026-10-10 ("(a) load in main"): the plugin is loaded in package main.
-# `do FILE` compiles a file into the CALLER's package, and the plugin declares
+# 2026-10-10 ("(a) load in main"): the extension is loaded in package main.
+# `do FILE` compiles a file into the CALLER's package, and the extension declares
 # none; it is found as main->can('convert'), so it is loaded where the script
 # loaded it (t/unit/manager/219 fails without that line).
 #
@@ -15,7 +15,7 @@ package Lazysite::Manager::PagePdf;
 # Lazysite::Manager::Common, which lazysite-manager-api.pl sets and nothing here
 # assigns (t/lint/217). page-pdf is path-scoped: the dispatcher refuses a page
 # outside the caller's scope before it runs (SM978). Loaded where no request set
-# the context, it refuses before the plugin loads (t/unit/manager/205, 219).
+# the context, it refuses before the extension loads (t/unit/manager/205, 219).
 # The body goes out through Manager::Upload's one streamed path (Q16b). $DOCROOT
 # is set by the dispatcher, as for every manager module.
 
@@ -44,8 +44,8 @@ sub action_page_pdf {
     # dispatcher has refused an empty $auth_user (and required
     # `manage_content`) before this runs, so it is never empty here; reached
     # outside one (the request context's reset leaves nobody) it loaded the
-    # plugin and converted a public page for account ''
-    # (tmp/sm944-s29-s30-refusal-probe.out). Refused before the plugin loads.
+    # extension and converted a public page for account ''
+    # (tmp/sm944-s29-s30-refusal-probe.out). Refused before the extension loads.
     return { ok => 0, kind => 'forbidden',
         error => 'A page is rendered to PDF for a signed-in account, and no account is asking.' }
         unless length $auth_user;
@@ -61,7 +61,7 @@ sub action_page_pdf {
     # page as a part and any manage_content account got a page its rule denied
     # it (tmp/q16b-acl-probe.out). A part outside the scope REFUSES THE
     # DOCUMENT, naming the part - fail closed, as the page's own refusal does
-    # and as the plugin already refuses a part the ACL denies.
+    # and as the extension already refuses a part the ACL denies.
     my @scopes  = grep { defined } @REQUEST_SCOPES;
     my $outside = sub {
         ( my $p = $_[0] // '' ) =~ s{\A/+}{};
@@ -75,27 +75,27 @@ sub action_page_pdf {
     my $part_outside;    # the first part refused for scope, to say so below
 
     require Lazysite::Extensions;
-    my $plugin = Lazysite::Extensions::locate( 'pandoc.pl', "$DOCROOT/.." );
-    return { ok => 0, error => 'The Branded PDF plugin is not installed' }
-        unless defined $plugin;
+    my $extension = Lazysite::Extensions::locate( 'pandoc.pl', "$DOCROOT/.." );
+    return { ok => 0, error => 'The Branded PDF extension is not installed' }
+        unless defined $extension;
 
-    # The plugin decides everything about the conversion. This supplies only
+    # The extension decides everything about the conversion. This supplies only
     # what it cannot reach for: the docroot, and an answer to "may this reader
     # read that path?" - the content ACL, as SM706 asked for it.
-    # The plugin is a PROGRAM, and declares no package - but it guards its own
+    # The extension is a PROGRAM, and declares no package - but it guards its own
     # entry point with `run(@ARGV) unless caller`, and `do` sets a caller frame.
     # So loading it defines its subs without executing it, which was tested
-    # rather than assumed: a plugin that ran on load would print JSON into the
+    # rather than assumed: an extension that ran on load would print JSON into the
     # middle of this response.
-    my $loaded = do { package main; do $plugin }; ## no critic (Modules::ProhibitMultiplePackages)
-    return { ok => 0, error => "The Branded PDF plugin could not be loaded: $@" }
+    my $loaded = do { package main; do $extension }; ## no critic (Modules::ProhibitMultiplePackages)
+    return { ok => 0, error => "The Branded PDF extension could not be loaded: $@" }
         if $@;
-    return { ok => 0, error => 'The Branded PDF plugin could not be loaded' }
+    return { ok => 0, error => 'The Branded PDF extension could not be loaded' }
         unless $loaded;
 
     # Resolved at run time, because the sub does not exist until the line above.
     my $conv = main->can('convert')
-        or return { ok => 0, error => 'The Branded PDF plugin has no converter' };
+        or return { ok => 0, error => 'The Branded PDF extension has no converter' };
 
     my $out = eval {
         $conv->(
@@ -107,10 +107,10 @@ sub action_page_pdf {
             },
 
             # SM738: WHERE a file lives is the engine's business, not the
-            # plugin's. A read ACL moves content into the private store, and the
-            # plugin used to look only in the docroot - so a gated part was
+            # extension's. A read ACL moves content into the private store, and the
+            # extension used to look only in the docroot - so a gated part was
             # "no such part" even to a reader authorised to read it, and the
-            # may_read refusal above could never fire. The plugin asks; this
+            # may_read refusal above could never fire. The extension asks; this
             # answers, the same way it answers may_read.
             resolve => sub {
                 my ($rel) = @_;
@@ -121,7 +121,7 @@ sub action_page_pdf {
         );
     };
     return { ok => 0, error => "PDF render failed: $@" } if $@;
-    return { ok => 0, error => 'The PDF plugin returned nothing' }
+    return { ok => 0, error => 'The PDF extension returned nothing' }
         unless ref $out eq 'HASH';
     return { ok => 0, kind => 'forbidden',
         error => "This document includes '$part_outside', which is outside your assigned "

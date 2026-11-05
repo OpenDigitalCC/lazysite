@@ -152,9 +152,9 @@ subtest 'when every placement takes, unplaced is present and empty' => sub {
 
 # --- SM858's button, through the manager API --------------------------------
 
-my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
+my $EXTENSION = repo_root() . '/extensions/form-handler.pl';
 SKIP: {
-    skip "no $PLUGIN", 1 unless -f $PLUGIN;
+    skip "no $EXTENSION", 1 unless -f $EXTENSION;
     subtest 'the approve button reports it, and its trail records it' => sub {
         my $s = new_site( root => repo_root() );
         my $d = $s->docroot;
@@ -185,7 +185,7 @@ SKIP: {
             local $ENV{DOCUMENT_ROOT}  = $d;
             local $ENV{REMOTE_ADDR}    = '10.9.49.1';
             local $ENV{HTTP_ACCEPT}    = 'application/json';
-            qx($^X \Q$PLUGIN\E < \Q$d/post.txt\E 2>/dev/null);
+            qx($^X \Q$EXTENSION\E < \Q$d/post.txt\E 2>/dev/null);
         }
 
         my @ALL = qw(ui manage_users read_submissions);

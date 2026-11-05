@@ -3,7 +3,7 @@
 #
 # TWICE NOW. SM686: the capability grid's hint marker carried `mg-cap-what`,
 # which had NO rule at all, so a `?` sat in the label text reading as
-# punctuation rather than as a control. SM697: the Plugin Config page emitted
+# punctuation rather than as a control. SM697: the Extension Config page emitted
 # EIGHT such classes, so a list of forms ran together as a paragraph and a
 # submissions table had no table styling.
 #

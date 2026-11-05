@@ -5,7 +5,7 @@
 # while the original hit went to devices{desktop} - and a term they had pushed
 # over the floor stayed counted. Devices and terms drifted on every promotion.
 #
-# Driven through the plugin as it runs (t/unit/plugins/25's rig): a first
+# Driven through the extension as it runs (t/unit/plugins/25's rig): a first
 # export counts the visit, a second export sees the sweep and promotes.
 use strict;
 use warnings;
@@ -18,11 +18,11 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-ok( -f $PLUGIN, 'stats plugin present' );
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+ok( -f $EXTENSION, 'stats extension present' );
 
 # Q14g (SM974): one instant, stamped as what it says it is - this was localtime
-# labelled +0000, and the plugin reads the offset. A stats day is a UTC day.
+# labelled +0000, and the extension reads the offset. A stats day is a UTC day.
 my $T   = time;
 my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $T );
 my $DAY = strftime( '%Y-%m-%d',                gmtime $T );
@@ -60,7 +60,7 @@ sub day_rollup {
     my ( $d, $log ) = @_;
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $out = qx($^X \Q$PLUGIN\E --export --day \Q$DAY\E 2>/dev/null);
+    my $out = qx($^X \Q$EXTENSION\E --export --day \Q$DAY\E 2>/dev/null);
     return decode_json( $out || '{}' )->{day} || {};
 }
 

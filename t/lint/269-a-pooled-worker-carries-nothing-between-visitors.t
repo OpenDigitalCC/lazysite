@@ -207,7 +207,7 @@ my %GENERIC = (
 # own processes. Held by the `unset` check below: nothing in the processor or its
 # parts assigns a package variable of any of them.
 my $OTHER_SURFACE = 'the manager / scheduler / mail surfaces\' own state, set by those surfaces\' processes; the pooled processor never assigns it (checked below)';
-my @OTHER_SURFACE = qr{\Alib/Lazysite/(?:Manager/|Daemon/|Outbox\.pm|Notify\.pm|Git\.pm|Plugins/|Lifecycle\.pm|Mail\.pm|Unsubscribe\.pm)};
+my @OTHER_SURFACE = qr{\Alib/Lazysite/(?:Manager/|Daemon/|Outbox\.pm|Notify\.pm|Git\.pm|Extensions/|Lifecycle\.pm|Mail\.pm|Unsubscribe\.pm)};
 
 my %T = (
     'lazysite-processor.pl' => {

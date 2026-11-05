@@ -42,7 +42,7 @@ SKIP: {
     skip 'node not installed', 1 unless length $node && -x $node;
     my $page = PageScript::page_source("$root/starter/manager/extension-config.md");
     my $fns  = join "\n", map { PageScript::extract_function( $page, $_ ) } qw(esc renderForm);
-    my $plugin = encode_json(
+    my $extension = encode_json(
         {   id => 'x', _script => 'x.pl',
             config_schema => [
                 { key => 'a', label => 'Explained', type => 'text', note => 'Says "why" & <how>' },
@@ -52,7 +52,7 @@ SKIP: {
     );
     my $dir = File::Temp->newdir;
     open my $fh, '>', "$dir/t.js" or die "t.js: $!";
-    print {$fh} $fns, "\nconsole.log(renderForm($plugin, {}));\n";
+    print {$fh} $fns, "\nconsole.log(renderForm($extension, {}));\n";
     close $fh;
     my $html = `\Q$node\E \Q$dir/t.js\E 2>&1`;
 

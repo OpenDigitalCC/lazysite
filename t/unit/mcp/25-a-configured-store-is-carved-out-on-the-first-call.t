@@ -4,7 +4,7 @@
 # SM268 H1 made every file handler's configured path a submission store, so the
 # read gate asks for read_submissions there as it does for the default
 # lazysite/forms/submissions. The gate learns those paths by reading
-# handlers.conf through Lazysite::Manager::Plugins - whose DOCROOT the MCP sets
+# handlers.conf through Lazysite::Manager::Extensions - whose DOCROOT the MCP sets
 # in setup_context, which ran AFTER the carve-out pass. Under CGI every request
 # is its process's first, so the pass read no handlers.conf, knew only the
 # default store, and an mcp + manage_content partner read a configured store

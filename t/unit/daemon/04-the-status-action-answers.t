@@ -1,13 +1,13 @@
 #!/usr/bin/perl
-# SM752: the daemon plugin's Status action produces output, in the state an
+# SM752: the daemon extension's Status action produces output, in the state an
 # operator actually clicks it.
 #
 # 0.13.0 shipped with `require Lazysite::Daemon::Supervisor` in extensions/daemon.pl
-# and no @INC bootstrap. The manager runs a plugin action as a SUBPROCESS, so
-# the require died, and a plugin action that dies prints nothing to stdout - so
+# and no @INC bootstrap. The manager runs an extension action as a SUBPROCESS, so
+# the require died, and an extension action that dies prints nothing to stdout - so
 # the manager answered "Action produced no output".
 #
-# THE STATE IT FAILED IN IS THE ONE THE FEATURE IS FOR. Plugin enabled, runtime
+# THE STATE IT FAILED IN IS THE ONE THE FEATURE IS FOR. Extension enabled, runtime
 # not started, an operator asking why nothing is happening: that is precisely
 # when the desired/runtime split is worth having, and it was the one moment it
 # said nothing at all. The safety half held - nothing was dishonestly claimed to
@@ -17,7 +17,7 @@
 # t/unit/daemon/01 tests Supervisor::status() directly and passed throughout,
 # because calling a function in-process never exercises the subprocess load. The
 # field found it in one click. This file is the assertion that would have caught
-# it: run the plugin THE WAY THE MANAGER DOES, and require that something comes
+# it: run the extension THE WAY THE MANAGER DOES, and require that something comes
 # back.
 use strict;
 use warnings;
@@ -30,8 +30,8 @@ use TestHelper qw(repo_root);
 use JSON::PP   ();
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/daemon.pl";
-plan skip_all => 'no daemon plugin' unless -f $plugin;
+my $extension = "$root/extensions/daemon.pl";
+plan skip_all => 'no daemon extension' unless -f $extension;
 
 sub status_for {
     my ($docroot) = @_;
@@ -43,18 +43,18 @@ sub status_for {
     local $ENV{PERL5LIB}              = '';
     return
         scalar
-        qx($^X \Q$plugin\E --action status --docroot \Q$docroot\E 2>/dev/null);
+        qx($^X \Q$extension\E --action status --docroot \Q$docroot\E 2>/dev/null);
 }
 
 sub site {
-    my (@plugins) = @_;
+    my (@extensions) = @_;
     my $d = tempdir( CLEANUP => 1 );
     make_path("$d/lazysite");
     open my $fh, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$fh} "site_name: t\n";
-    if (@plugins) {
+    if (@extensions) {
         print {$fh} "extensions:\n";
-        print {$fh} "  - $_\n" for @plugins;
+        print {$fh} "  - $_\n" for @extensions;
     }
     close $fh;
     return $d;
@@ -74,7 +74,7 @@ subtest 'enabled but not started - the state the field found empty' => sub {
     # SM222's vocabulary: desired is what the configuration says, verdict is
     # what the runtime is doing, and when they disagree the verdict SAYS so.
     is( $st->{desired}, 'on',
-        'desired: on - the plugin is enabled, which the manager knows' );
+        'desired: on - the extension is enabled, which the manager knows' );
     is( $st->{verdict}, 'inconsistent',
         'verdict: inconsistent - switched on and not running, NOT a claim '
             . 'to be running' );
@@ -95,7 +95,7 @@ subtest 'enabled but not started - the state the field found empty' => sub {
 
 subtest 'disabled - the other half of the same question' => sub {
     my $out = status_for( site() );
-    ok( defined $out && length $out, 'still answers when the plugin is off' )
+    ok( defined $out && length $out, 'still answers when the extension is off' )
         or return;
 
     my $st = eval { JSON::PP->new->decode($out) };
@@ -106,7 +106,7 @@ subtest 'disabled - the other half of the same question' => sub {
     ok( $st->{healthy},        'so it is healthy, and carries no remedy' );
     ok( !exists $st->{remedy}, 'no remedy on a healthy status' );
     like( $st->{message}, qr/disabled/,
-        'and says the plugin is disabled, which is why nothing runs' );
+        'and says the extension is disabled, which is why nothing runs' );
 };
 
 subtest 'the action is declared, so the button exists to be pressed' => sub {
@@ -120,11 +120,11 @@ subtest 'the action is declared, so the button exists to be pressed' => sub {
     # SCALAR FIRST. `qx` as an argument is in LIST context and returns a list
     # of LINES, so decode would get only "{" - which is the bug this session
     # fixed in t/lint/76 and which I then wrote again here, three hours later,
-    # in a test about a plugin that prints multi-line JSON. The first version
+    # in a test about an extension that prints multi-line JSON. The first version
     # failed for exactly that reason.
-    my $raw  = qx($^X \Q$plugin\E --describe 2>/dev/null);
+    my $raw  = qx($^X \Q$extension\E --describe 2>/dev/null);
     my $desc = eval { JSON::PP->new->decode($raw) };
-    ok( ref $desc eq 'HASH', 'the plugin describes itself' ) or return;
+    ok( ref $desc eq 'HASH', 'the extension describes itself' ) or return;
 
     my @ids = map { $_->{id} } @{ $desc->{actions} || [] };
     ok( ( grep { $_ eq 'status' } @ids ), 'and declares the status action' );

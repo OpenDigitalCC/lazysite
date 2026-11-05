@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM777: `timestamps: true` created created_at and updated_at, the value layer
-# refused them from every writer ("maintained by the plugin"), and nothing ever
+# refused them from every writer ("maintained by the extension"), and nothing ever
 # wrote them. A site that turned the flag on to get trustworthy provenance got
 # neither a stamp nor its own field back - rows with created_at=None on the
 # table with the flag, and a sister table carrying client-supplied "added_at"
@@ -45,7 +45,7 @@ sub row {
     return $row;
 }
 
-subtest 'an insert is stamped by the plugin, not the writer' => sub {
+subtest 'an insert is stamped by the extension, not the writer' => sub {
     my $r = insert_row( $docroot, 'notes', { body => 'first' } );
     ok( $r->{ok}, 'inserted' ) or diag $r->{error};
     my $row = row( $r->{key} );
@@ -75,11 +75,11 @@ subtest 'a CSV import is stamped too, and does not write the columns it carries'
     my $all = read_rows( $docroot, 'notes', as => 'operator' );
     my ($row) = grep { $_->{body} eq 'imported' } @{ $all->{rows} };
     like( $row->{created_at}, $ISO, 'stamped' );
-    isnt( $row->{created_at}, '2001-01-01T00:00:00Z', 'with the plugin\'s clock, not the file\'s' );
+    isnt( $row->{created_at}, '2001-01-01T00:00:00Z', 'with the extension\'s clock, not the file\'s' );
 };
 
 # The field's remaining question: a text field named like a stamp on a table
-# without the plugin's stamps is whatever the writer says. The descriptor's
+# without the extension's stamps is whatever the writer says. The descriptor's
 # reply says so.
 subtest 'a table without stamps is told which of its fields only look like one' => sub {
     open my $y, '>', "$docroot/lazysite/db/tables/qa.yaml" or die $!;
@@ -98,13 +98,13 @@ subtest 'a table without stamps is told which of its fields only look like one' 
     like( $t->{notes}[0], qr/created_by, updated_by/, 'and names the author columns the flag adds (SM780)' );
     like( $t->{notes}[0], qr/timestamps: true/, 'and the remedy' );
     my $n = Lazysite::Manager::Data::action_data_table('notes');
-    ok( !exists $n->{notes}, 'a table with the plugin\'s stamps carries no note' );
+    ok( !exists $n->{notes}, 'a table with the extension\'s stamps carries no note' );
 };
 
 # SM780: AND WHO. The actor the caller passes is stamped as created_by and
 # updated_by, reserved from the payload on the same terms; a writer with no
 # signed-in account leaves them empty rather than guessed.
-subtest 'the plugin stamps who wrote the row' => sub {
+subtest 'the extension stamps who wrote the row' => sub {
     my $r = insert_row( $docroot, 'notes', { body => 'signed' }, actor => 'alice' );
     ok( $r->{ok}, 'inserted as alice' ) or diag $r->{error};
     my $row = row( $r->{key} );

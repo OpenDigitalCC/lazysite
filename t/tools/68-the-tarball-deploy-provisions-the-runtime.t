@@ -48,7 +48,7 @@ subtest 'the units are installed from the stage and refreshed when they change' 
 
 subtest 'the timer is enabled, a running runtime is restarted, nothing else is started' => sub {
     like( $block, qr/systemctl enable --now "lazysited\@\$DOMAIN\.timer"/, 'the TIMER is what is enabled' );
-    unlike( $block, qr/systemctl enable --now "lazysited\@\$DOMAIN\.service"/, 'the service is not force-started - the plugin is the site\'s switch' );
+    unlike( $block, qr/systemctl enable --now "lazysited\@\$DOMAIN\.service"/, 'the service is not force-started - the extension is the site\'s switch' );
     like( $block, qr/if systemctl is-active --quiet "lazysited\@\$DOMAIN\.service"; then\s*systemctl restart/s, 'a running runtime is restarted on the new release' );
     like( $block, qr/command -v systemctl .* \[ -d \/run\/systemd\/system \]/, 'guarded on a running systemd' );
     unlike( $block, qr/\$DOC\/[^\s"]*\s*(>|>>)/, 'nothing is written into the site tree' );

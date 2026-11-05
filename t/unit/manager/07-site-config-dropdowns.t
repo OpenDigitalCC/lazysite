@@ -52,7 +52,7 @@ sub write_theme {
 
 subtest 'site-config schema retired from the processor (SM042)' => sub {
     # SM042: the site-config schema is no longer carried by the processor's
-    # --describe pseudo-plugin. config.md's SITE_SCHEMA is the sole form
+    # --describe pseudo-extension. config.md's SITE_SCHEMA is the sole form
     # definition; the page loads via config-read and saves via config-set. The
     # active layout/theme/layouts_repo live on /manager/appearance and are only
     # READ here (config-read surfaces layout+theme for the theme dropdown).
@@ -60,7 +60,7 @@ subtest 'site-config schema retired from the processor (SM042)' => sub {
     my $desc = decode_json($out);
     ok( !exists $desc->{config_schema} && !exists $desc->{config_keys},
         'processor --describe no longer carries the retired config schema/keys' );
-    is( $desc->{id}, 'lazysite', 'processor is still a valid core plugin (id present)' );
+    is( $desc->{id}, 'lazysite', 'processor is still a valid core extension (id present)' );
 
     # SM944 S30: config-read lives in Manager::Config.
     my $api = do { open my $f, '<', "$root/lib/Lazysite/Manager/Config.pm" or die $!; local $/; <$f> };

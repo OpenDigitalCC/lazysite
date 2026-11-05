@@ -24,7 +24,7 @@ use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
 my $page = repo_root() . '/starter/manager/files.md';
-# SM664: the all-files overview moved to the Plugin Config page, so the decision
+# SM664: the all-files overview moved to the Extension Config page, so the decision
 # recorded below is now held across two files - one that must NOT carry it, and
 # one that must.
 my $ppage = repo_root() . '/starter/manager/extension-config.md';
@@ -57,22 +57,22 @@ subtest 'SM461/SM664: the overview was hidden, then shown, and has now moved' =>
     # data - so the decision has been SUPERSEDED rather than abandoned.
     #
     # AND SUPERSEDED AGAIN, by SM664 on 2026-08-28: the overview is no longer on
-    # this page at all. It moved to the content-history plugin's own row, which
+    # this page at all. It moved to the content-history extension's own row, which
     # is where SM461's placement half argued it belonged before that half was
     # declined. So this assertion flips a THIRD time - hidden, then shown, now
     # moved - and what it guards is that the move was complete: the Files page
-    # keeps no copy, and the control is offered where the plugin lives.
+    # keeps no copy, and the control is offered where the extension lives.
     #
     # The enabled-check that used to matter here is now structural rather than
-    # conditional: the Plugin Config page renders a row only for an ENABLED
-    # plugin, so there is no state in which the button appears and can only
+    # conditional: the Extension Config page renders a row only for an ENABLED
+    # extension, so there is no state in which the button appears and can only
     # answer "not enabled".
     unlike( $src, qr/hist-overview/,
         'the Files page keeps no copy of the overview' )
         or diag( 'Two copies drift, and only one of them gets fixed.' );
     like( $plug, qr/openHistoryOverview\(\)/,
-        'and the Plugin Config page offers it' );
-    like( $plug, qr/plugin\.id === 'content-history'/,
+        'and the Extension Config page offers it' );
+    like( $plug, qr/extension\.id === 'content-history'/,
         'on the content-history row, which renders only when enabled' );
 
     # The per-file panel must survive, as it had to before. Hiding it would

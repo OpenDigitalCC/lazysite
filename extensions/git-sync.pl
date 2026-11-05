@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # git-sync.pl - remote sync for the content history (SM085; the follow-up
-# plugin to the git backend core in lib/Lazysite/Git.pm).
+# extension to the git backend core in lib/Lazysite/Git.pm).
 #
-# Opt-in: enable on Plugin Manager, configure on Plugin Config (remote
+# Opt-in: enable on Extension Manager, configure on Extension Config (remote
 # address, branch, access token). Two on-demand actions - PUSH (send the
 # local history to the remote branch) and PULL (fetch and apply the remote's
 # changes) - plus a Test connection probe (--scan). Collision handling
@@ -25,7 +25,7 @@
 # leak could expose, and present only for the duration of the action.
 # GIT_TERMINAL_PROMPT=0 and ssh BatchMode turn a missing credential into a
 # clean failure instead of a hang. The token's at-rest home is
-# lazysite/git-sync.conf (0660 via the password-field rule in plugin-save),
+# lazysite/git-sync.conf (0660 via the password-field rule in extension-save),
 # which is ALSO excluded from the versioned set - enforced self-healingly
 # before every sync - so the history that gets pushed can never carry it.
 #
@@ -235,7 +235,7 @@ sub _gate {
     return ( undef,
         { ok => 0,
             error => 'No remote copy is configured. Set the remote address in '
-                . "this plugin's settings and save."
+                . "this extension's settings and save."
         }
     ) unless length( $conf->{remote_url} // '' );
     return ( undef,
@@ -355,7 +355,7 @@ sub _set_remote {
 }
 
 # The token file must never be pushable. init() excludes it for new repos;
-# a repo initialised before this plugin existed self-heals here - the line is
+# a repo initialised before this extension existed self-heals here - the line is
 # (re)added and an already-tracked copy is untracked - BEFORE any staging.
 sub _ensure_conf_excluded {
     my ($docroot) = @_;

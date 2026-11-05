@@ -18,7 +18,7 @@ use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper                 qw(repo_root);
 use Lazysite::Manager::Common  ();
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Manager::Backups ();
 
 sub spit { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh }
@@ -140,15 +140,15 @@ subtest 'form-submissions is confined to the submission stores' => sub {
     spit( "$d/lazysite/forms/submissions/contact.jsonl",
         qq({"name":"a real submission"}\n) );
 
-    local $Lazysite::Manager::Plugins::DOCROOT = $d;
+    local $Lazysite::Manager::Extensions::DOCROOT = $d;
 
     for my $bad (qw(lazysite/auth/sessions.jsonl content/clientB/leads.jsonl)) {
-        my $r = Lazysite::Manager::Plugins::action_form_submissions($bad);
+        my $r = Lazysite::Manager::Extensions::action_form_submissions($bad);
         ok( !$r->{ok}, "refused: $bad" );
         is( scalar @{ $r->{rows} || [] }, 0, "and returned no rows: $bad" );
     }
 
-    my $good = Lazysite::Manager::Plugins::action_form_submissions(
+    my $good = Lazysite::Manager::Extensions::action_form_submissions(
         'lazysite/forms/submissions/contact.jsonl');
     ok( $good->{ok}, 'a real submissions store still reads' );
     is( scalar @{ $good->{rows} || [] }, 1, 'and returns its rows' );

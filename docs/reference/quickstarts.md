@@ -36,7 +36,7 @@ Requires: `manage_layouts`
 
 Requires: `manage_content`
 
-1. call list_versions (MCP) or GET action=git-history (control API) for the file - needs the site's Content history plugin enabled
+1. call list_versions (MCP) or GET action=git-history (control API) for the file - needs the site's Content history extension enabled
 2. call view_version / git-show to confirm the version (content + diff against the current file)
 3. call restore_version / git-restore - the historic content is saved back through the normal save path and the restore itself becomes the newest version, so nothing is lost
 
@@ -70,7 +70,7 @@ Requires: `manage_forms`
 
 Requires: `manage_domains`
 
-1. ON THE SOURCE: call site_backup (MCP) or POST action=site-backup-create (control API) with the domain host - this writes a portable package (lazysite-site-<host>-<stamp>.tar.gz) holding that domain's content + nav + its theme/layout + a manifest. It excludes plugins, instance settings and secrets, so it is safe to hand over
+1. ON THE SOURCE: call site_backup (MCP) or POST action=site-backup-create (control API) with the domain host - this writes a portable package (lazysite-site-<host>-<stamp>.tar.gz) holding that domain's content + nav + its theme/layout + a manifest. It excludes extensions, instance settings and secrets, so it is safe to hand over
 2. MOVE THE PACKAGE to the target instance if different: GET action=backup-download to fetch it, then POST action=site-backup-upload (multipart) on the target to import it into that instance's backups area. Same-instance moves skip this - the package is already there
 3. BEFORE APPLYING, make sure the target domain exists (register it with domain-add if needed) and, if you want a rollback point, take a backup - apply overwrites the target content root
 4. ON THE TARGET: call site_apply (MCP) or POST action=site-backup-apply (control API) with the package name and the target host (omit host to apply to the default site; pass clean:true to clear the target content first). This copies the content in, installs the bundled theme/layout if the target lacks it, places the nav, and sets the target domain's presentation. The control-API action also takes a safety snapshot automatically

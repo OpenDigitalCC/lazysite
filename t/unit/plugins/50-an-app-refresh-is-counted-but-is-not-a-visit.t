@@ -18,8 +18,8 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = "$root/extensions/stats.pl";
+plan skip_all => "no $extension" unless -f $extension;
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/logs", "$d/lazysite/stats", "$d/lazysite/cache" );
@@ -52,7 +52,7 @@ ev( '/about',   'app',  'V1' );
 ev( '/about',   'page', 'V2' );
 close $lf;
 
-my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$plugin\E --export --day \Q$day\E 2>/dev/null`;
+my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$extension\E --export --day \Q$day\E 2>/dev/null`;
 my $r   = eval { decode_json($out) } || {};
 my $b   = $r->{day}                  || {};
 

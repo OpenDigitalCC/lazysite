@@ -9,8 +9,8 @@ use File::Path qw(make_path);
 # Binary uploads on the form handler: multipart files are parsed binary-safe,
 # validated against the form's upload constraints, stored in a per-submission
 # subdir next to the <form>.jsonl, and their names recorded in the submission.
-my $PLUGIN = 'extensions/form-handler.pl';
-ok( -f $PLUGIN, 'form handler present' );
+my $EXTENSION = 'extensions/form-handler.pl';
+ok( -f $EXTENSION, 'form handler present' );
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/forms");
@@ -56,7 +56,7 @@ sub post {
     local $ENV{CONTENT_TYPE}   = "multipart/form-data; boundary=$BOUNDARY";
     local $ENV{CONTENT_LENGTH} = -s $bf;
     local $ENV{REMOTE_ADDR}    = '10.0.0.' . ( ++$IP );   # fresh IP -> no rate limit
-    my $out = qx($^X \Q$PLUGIN\E < \Q$bf\E 2>/dev/null);
+    my $out = qx($^X \Q$EXTENSION\E < \Q$bf\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;     # strip CGI headers
     return decode_json($out);
 }

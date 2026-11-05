@@ -3,7 +3,7 @@
 # came, and that cannot be read back, is settled by a person: the run's own maker,
 # or a holder of a new capability, `settle_odoo_writes`, who may decide on any run
 # and dismiss one. The Odoo extension declares it (t/lint/76: a capability is core
-# or plugin-owned), it is grantable (@CAP_KEYS), and an operator (manager) group
+# or extension-owned), it is grantable (@CAP_KEYS), and an operator (manager) group
 # holds it: on a new site, and by the SM645 top-up on a site seeded before it
 # existed. A declined 0 stays declined.
 use strict;

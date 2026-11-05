@@ -79,7 +79,7 @@ my $RAN    = "$base/wrapper-ran.log";
 my $API    = "$base/api-ran.log";
 make_path($cgibin);
 symlink "$root/lazysite-processor.pl", "$cgibin/lazysite-processor.pl" or die "symlink: $!";
-# The wrapper shim records a request's run only: the API's plugin inventory runs
+# The wrapper shim records a request's run only: the API's extension inventory runs
 # the core scripts it finds with --describe, and that is not the wrapper serving.
 spit( "$cgibin/lazysite-auth.pl", <<"PERL" );
 #!/usr/bin/perl
@@ -169,7 +169,7 @@ like( $up // '', qr/HOME BODY/, 'the one-worker pool is up with the front door o
     or do { diag( slurp($LOG) ); kill 'TERM', $pid; waitpid $pid, 0; done_testing(); exit };
 
 subtest 'an operator\'s call is ONE program: the API, handed the contract from the value' => sub {
-    my ( $res, $raw, $ran, $apiran ) = as( 'boss', 'whoami', query => 'action=whoami&plugins=0' );
+    my ( $res, $raw, $ran, $apiran ) = as( 'boss', 'whoami', query => 'action=whoami&extensions=0' );
     ok( $res->{ok}, 'the operator\'s whoami is answered' ) or diag($raw);
     is( $res->{user} // $res->{username}, 'boss', 'for the operator' );
     is( $ran, '', 'the auth wrapper did not run' );
@@ -216,7 +216,7 @@ subtest 'the sentinel as a FastCGI parameter and a forged X-Remote-User are nobo
     like( $apiran, qr/\ALAZYSITE_AUTH_TRUSTED= HTTP_X_REMOTE_USER= HTTP_X_REMOTE_GROUPS= LAZYSITE_AUTH_SID= LAZYSITE_AUTH_NO_PASSWORD= HTTP_X_PAYMENT_VERIFIED=\n\z/,
         'the API was handed no sentinel, no identity header, no sid, no flag' );
 
-    my ( $ed, undef, undef, $edran ) = as( 'ed', 'whoami', %FORGED, query => 'action=whoami&plugins=0' );
+    my ( $ed, undef, undef, $edran ) = as( 'ed', 'whoami', %FORGED, query => 'action=whoami&extensions=0' );
     ok( $ed->{ok}, 'with a member\'s cookie the call is answered' );
     is( $ed->{user} // $ed->{username}, 'ed', 'for the member, not the forged operator' );
     like( $edran, qr/HTTP_X_REMOTE_USER=ed HTTP_X_REMOTE_GROUPS=\S*role-ed\S* LAZYSITE_AUTH_SID=\Q${\ sid_for('ed')}\E LAZYSITE_AUTH_NO_PASSWORD= HTTP_X_PAYMENT_VERIFIED=\n/,
@@ -228,13 +228,13 @@ subtest 'the sentinel as a FastCGI parameter and a forged X-Remote-User are nobo
 };
 
 subtest 'CSRF is still the API\'s' => sub {
-    my ( $no, $raw ) = as( 'boss', 'whoami', body => '{}', query => 'action=whoami&plugins=0' );
+    my ( $no, $raw ) = as( 'boss', 'whoami', body => '{}', query => 'action=whoami&extensions=0' );
     ok( !$no->{ok}, 'a cookie POST without the CSRF token is refused' );
     like( $raw, qr/^Status: 403/m, 'with a 403' );
     like( $no->{error} // '', qr/csrf/i, 'naming CSRF' );
-    my ($yes) = as( 'boss', 'whoami', body => '{}', query => 'action=whoami&plugins=0', HTTP_X_CSRF_TOKEN => csrf_for('boss') );
+    my ($yes) = as( 'boss', 'whoami', body => '{}', query => 'action=whoami&extensions=0', HTTP_X_CSRF_TOKEN => csrf_for('boss') );
     ok( $yes->{ok}, 'with the token it is served' );
-    my ($wrong) = as( 'ed', 'whoami', body => '{}', query => 'action=whoami&plugins=0', HTTP_X_CSRF_TOKEN => csrf_for('boss') );
+    my ($wrong) = as( 'ed', 'whoami', body => '{}', query => 'action=whoami&extensions=0', HTTP_X_CSRF_TOKEN => csrf_for('boss') );
     ok( !$wrong->{ok}, 'another account\'s token is refused' );
 };
 
@@ -258,7 +258,7 @@ subtest 'the wrapper\'s own ?action= on the API\'s address is still the wrapper\
 
 subtest 'T4: a trusted proxy\'s user reaches the API in the proxy\'s own headers' => sub {
     spit( "$LZ/lazysite.conf", $CONF . "auth_proxy_trusted: true\nauth_proxy_trusted_from: 192.0.2.7\n" );
-    my ( $res, $raw, $ran, $apiran ) = api( 'whoami', query => 'action=whoami&plugins=0', REMOTE_ADDR => '192.0.2.7',
+    my ( $res, $raw, $ran, $apiran ) = api( 'whoami', query => 'action=whoami&extensions=0', REMOTE_ADDR => '192.0.2.7',
         HTTP_X_REMOTE_USER => 'ed' );
     ok( $res->{ok}, 'the proxy\'s user is answered' ) or diag($raw);
     is( $res->{user} // $res->{username}, 'ed', 'as the proxy named them' );

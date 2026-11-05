@@ -81,8 +81,8 @@ subtest 'choices come from the TARGET account\'s grants and confinement' => sub 
     my $a  = start_page_choices('admin');
     my %ap = map { $_->{value} => 1 } @{ $a->{pages} };
     ok( $ap{'manager:files'} && $ap{'manager:domains'} && $ap{'manager:audit'}, 'admin: files, domains, audit' );
-    ok( $ap{'manager:stats'}, 'stats: the plugin is enabled' );
-    ok( !$ap{'manager:data'}, 'data: the plugin is not enabled, so not offered' );
+    ok( $ap{'manager:stats'}, 'stats: the extension is enabled' );
+    ok( !$ap{'manager:data'}, 'data: the extension is not enabled, so not offered' );
     is( scalar @{ $a->{domains} }, 3, 'admin is unbound: every domain, primary included' );
 
     my $e  = start_page_choices('editor');
@@ -99,7 +99,7 @@ subtest 'choices come from the TARGET account\'s grants and confinement' => sub 
 subtest 'a start page the account cannot reach is refused, by reason' => sub {
     ok( !defined validate_start_page( 'editor', 'manager:files' ), 'editor may choose files' );
     like( validate_start_page( 'editor', 'manager:domains' ), qr/cannot reach the manager page 'domains'.*manage_domains/, 'domains: refused, naming the capability' );
-    like( validate_start_page( 'editor', 'manager:data' ), qr/data\.pl plugin enabled/, 'data: refused, naming the plugin' );
+    like( validate_start_page( 'editor', 'manager:data' ), qr/data\.pl extension enabled/, 'data: refused, naming the extension' );
     like( validate_start_page( 'editor', 'manager:edit' ), qr/not a manager page a start page may name/, 'edit takes a path and is not a start page' );
     like( validate_start_page( 'editor', 'domain:evil.example|/' ), qr/not a domain this instance serves/, 'a foreign host is refused by name - not by character class' );
     like( validate_start_page( 'shopper', 'domain:blog.example|/' ), qr/outside the account's confinement/, 'a confined account is refused a domain outside its scope' );

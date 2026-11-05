@@ -35,10 +35,10 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
-ok( -f $plugin, 'the stats plugin is present' );
+my $extension = "$root/extensions/stats.pl";
+ok( -f $extension, 'the stats extension is present' );
 
-my $src = do { open my $fh, '<', $plugin or die $!; local $/; <$fh> };
+my $src = do { open my $fh, '<', $extension or die $!; local $/; <$fh> };
 
 # The predicate, evaluated in isolation so this tests behaviour rather than
 # matching the source text.
@@ -121,7 +121,7 @@ subtest 'EVERY counting site uses the one predicate' => sub {
 };
 
 subtest 'the durable record measures it, not just the window' => sub {
-    # Driven through the real plugin rather than asserted against the source,
+    # Driven through the real extension rather than asserted against the source,
     # because the source-level version of this passed with two of three sites
     # fixed. The durable day file is what survives retention and what every
     # rollup is built from.
@@ -132,7 +132,7 @@ subtest 'the durable record measures it, not just the window' => sub {
     close $cf;
 
     my $log = "$d/access.log";
-    # Q14g (SM974): one instant, stamped as what it says it is - the plugin
+    # Q14g (SM974): one instant, stamped as what it says it is - the extension
     # reads the +0000 - and its UTC day, which is the day it is filed under.
     my $t   = time;
     my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $t );
@@ -147,7 +147,7 @@ subtest 'the durable record measures it, not just the window' => sub {
 
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $out = qx($^X \Q$plugin\E --export --window 30 2>/dev/null);
+    my $out = qx($^X \Q$extension\E --export --window 30 2>/dev/null);
     my $r   = eval { decode_json($out) };
     ok( $r && $r->{ok}, 'the export ran' ) or return;
 

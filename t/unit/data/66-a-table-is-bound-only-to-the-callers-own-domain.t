@@ -27,7 +27,7 @@ BEGIN {
     }
 }
 
-my $d = Cwd::realpath( TestHelper::site_tempdir( plugins => 1 ) );
+my $d = Cwd::realpath( TestHelper::site_tempdir( extensions => 1 ) );
 make_path( "$d/lazysite/db/tables", "$d/lazysite/auth", "$d/sites/alpha", "$d/sites/beta" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\nalias_hosts: alpha.test, beta.test\n"

@@ -3,7 +3,7 @@
 #
 # WHY THIS EXISTS. SM255 unified the two writers it found - config-set's and the
 # domain verbs' - and its commit message asserted that all callers now shared a
-# single path. That assertion was wrong: Lazysite::Manager::Plugins wrote the
+# single path. That assertion was wrong: Lazysite::Manager::Extensions wrote the
 # same file twice more by hand, once without committing and once with a private
 # commit of its own, which is precisely the split SM255 set out to remove. It
 # reached main and was caught by an unrelated test, three commits later.
@@ -26,7 +26,7 @@ use File::Find ();
 
 my $root = repo_root();
 
-# Common owns the writer; Git owns the commit primitive. The plugin that
+# Common owns the writer; Git owns the commit primitive. The extension that
 # implements content history legitimately manages its own conf key at
 # adoption time, before the writer is reachable.
 my %EXEMPT = (
@@ -77,8 +77,8 @@ for my $file (@sources) {
     close $fh;
 
     # PER-SUB, not per-file. $conf_path is a common local name and several
-    # modules use it for a DIFFERENT file in a different sub - Plugins writes a
-    # plugin's own config_file that way. Judging a whole file at once cannot
+    # modules use it for a DIFFERENT file in a different sub - Extensions writes a
+    # extension's own config_file that way. Judging a whole file at once cannot
     # tell those apart and reports the innocent sub alongside the guilty one.
     my @subs = split /^(?=sub\s+\w+)/m, $src;
     for my $body (@subs) {

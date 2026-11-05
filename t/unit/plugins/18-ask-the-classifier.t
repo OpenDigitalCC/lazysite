@@ -21,8 +21,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $extension" unless -f $extension;
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite");
@@ -30,7 +30,7 @@ make_path("$d/lazysite");
 sub ask {
     my (@argv) = @_;
     my $args   = join ' ', map { quotemeta } ( '--classify', @argv, '--docroot', $d );
-    my $out    = qx($^X \Q$plugin\E $args 2>/dev/null);
+    my $out    = qx($^X \Q$extension\E $args 2>/dev/null);
     my $r      = eval { decode_json($out) };
     return $r // { ok => 0, error => "unparseable: $out" };
 }
@@ -112,7 +112,7 @@ subtest 'asking writes nothing' => sub {
         [ '--path', '/about',        '--ua', $BROWSER, '--status', '404' ],
     ) {
         my $args = join ' ', map { quotemeta } ( '--classify', @$probe, '--docroot', $fresh );
-        my $out = qx($^X \Q$plugin\E $args 2>/dev/null);
+        my $out = qx($^X \Q$extension\E $args 2>/dev/null);
         ok( ( eval { decode_json($out) } // {} )->{ok}, 'the ask itself worked' );
     }
     is_deeply( $deep->(), $before,

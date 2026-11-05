@@ -32,7 +32,7 @@ my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite/db/tables");
 
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-# SM469: a contract plugin is born DISABLED, so enabling it is part of
+# SM469: a contract extension is born DISABLED, so enabling it is part of
 # setting a site up - and the refusal when it is off is asserted below.
 print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";
 close $cf;
@@ -103,11 +103,11 @@ sub api_post {
     return eval { decode_json($out) } || { ok => 0, error => "unparseable: $out" };
 }
 
-subtest 'SM469: with the plugin DISABLED, every action refuses' => sub {
-    # ADR 0009's first clause: a disabled plugin executes nothing and says so.
-    # The gate covered plugin SCRIPT execution, and these actions dispatch
-    # straight into the manager module - so disabling the plugin changed
-    # nothing about them. A plugin owning control-API actions is a new shape,
+subtest 'SM469: with the extension DISABLED, every action refuses' => sub {
+    # ADR 0009's first clause: a disabled extension executes nothing and says so.
+    # The gate covered extension SCRIPT execution, and these actions dispatch
+    # straight into the manager module - so disabling the extension changed
+    # nothing about them. An extension owning control-API actions is a new shape,
     # and before this one there was no such path for the gate to miss.
     #
     # READS ARE REFUSED TOO. A read is execution: it opens the store and runs a
@@ -115,7 +115,7 @@ subtest 'SM469: with the plugin DISABLED, every action refuses' => sub {
     # remove.
     my $conf = "$docroot/lazysite/lazysite.conf";
     open my $off, '>', $conf or die $!;
-    print {$off} "site_name: T\n";    # no plugins: list - disabled
+    print {$off} "site_name: T\n";    # no extensions: list - disabled
     close $off;
 
     for my $a (qw(data-tables data-table data-rows)) {

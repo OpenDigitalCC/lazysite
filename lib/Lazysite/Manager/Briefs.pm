@@ -16,18 +16,18 @@ use Lazysite::Paths           ();
 use Exporter 'import';
 our @EXPORT_OK = qw(action_brief_read action_brief_append
     action_briefs_list dispatch_briefs_list action_brief_delete
-    action_briefs_migrate plugin_status store_entry_move store_entry_remove);
+    action_briefs_migrate extension_status store_entry_move store_entry_remove);
 
 our $DOCROOT;
 our $auth_user = '';
 
 sub _gate {
-    local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-    require Lazysite::Manager::Plugins;
+    local $Lazysite::Manager::Extensions::DOCROOT = $DOCROOT;
+    require Lazysite::Manager::Extensions;
     return undef
-        if Lazysite::Manager::Plugins::plugin_enabled('extensions/briefs.pl');
+        if Lazysite::Manager::Extensions::extension_enabled('extensions/briefs.pl');
     return { ok => 0,
-        error => 'The briefs plugin is disabled. An operator can enable it '
+        error => 'The briefs extension is disabled. An operator can enable it '
             . 'on the Extensions page.' };
 }
 
@@ -38,7 +38,7 @@ sub _gate {
 # and undiscoverable). These two helpers are that reconcile, called by every
 # surface that moves or deletes content. They are DELIBERATELY UNGATED:
 # carrying a store entry is filesystem consistency, not an agent surface -
-# a site with the plugin disabled but entries on disk still deserves them
+# a site with the extension disabled but entries on disk still deserves them
 # kept consistent. The docroot is a PARAMETER, never the package var: the
 # DAV process does not set it (the SM504 lesson).
 sub store_entry_move {
@@ -285,8 +285,8 @@ sub action_brief_delete {
     return { ok => 1, path => "/$rel", deleted => 1 };
 }
 
-# The status the Plugin Manager shows (SM495's lesson: a message, always).
-sub plugin_status {
+# The status the Extension Manager shows (SM495's lesson: a message, always).
+sub extension_status {
     my $dir = Lazysite::Paths::lazysite_dir($DOCROOT) . "/briefs";
     my ( $entries, $sidecars ) = ( 0, 0 );
     if ( -d $dir ) {

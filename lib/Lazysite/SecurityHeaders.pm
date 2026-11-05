@@ -384,7 +384,7 @@ sub security_headers {
     # wrong for a reason the tests could not see: a CSP hash covers a <script>
     # BLOCK and does not cover an inline event-handler ATTRIBUTE. The manager's
     # own pages are built on onclick= - cache invalidation, audit, sessions,
-    # plugins - so an enforcing policy silently stops the sysop's controls
+    # extensions - so an enforcing policy silently stops the sysop's controls
     # firing. Nothing in a processor-driven test notices, because the failure
     # happens in a browser.
     #

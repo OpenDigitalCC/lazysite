@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM085 over MCP: the content-history tools (list_versions / view_version /
 # restore_version) through the real CGI dispatch. What matters: honest
-# enabled:false before the plugin is on, MCP writes become recorded versions
+# enabled:false before the extension is on, MCP writes become recorded versions
 # once it is, view returns the exact historic content plus a diff, restore
 # routes through the normal save path and becomes the newest version (nothing
 # lost), and the capability gate holds (a no-content partner is refused).
@@ -86,12 +86,12 @@ ok( !$names{restore_version}{annotations}{readOnlyHint}
         && $names{restore_version}{annotations}{openWorldHint},
     'restore_version annotated as a live-site write' );
 
-# --- honest before the plugin is on --------------------------------------------
+# --- honest before the extension is on --------------------------------------------
 ( $st, $r ) = call( 'list_versions', { path => '/content/page.md' }, $agent );
 ok( sc($r)->{ok} && !sc($r)->{enabled}, 'history off: ok with enabled:false (no invented history)' )
     or diag encode_json($r);
 
-# --- enable history (as the operator's plugin toggle would) --------------------
+# --- enable history (as the operator's extension toggle would) --------------------
 open my $ap, '>>', "$d/lazysite/lazysite.conf" or die $!;
 print $ap "git_history: enabled\n";
 close $ap;

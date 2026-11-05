@@ -46,7 +46,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             description => 'Cookie-based authentication with user and group management',
             version     => '1.0',
             # Wired in the web-server config (FallbackResource), not toggled via
-            # the plugins list - the manager renders core plugins as "always on".
+            # the extensions list - the manager renders core extensions as "always on".
             core        => 1,
             config_file => '',
             config_keys => [ qw(auth_default auth_redirect auth_header_user
@@ -1091,7 +1091,7 @@ sub _resolve_account {
     return ( $ident, $s->{email} );
 }
 
-# Send the setup link by invoking the form-smtp plugin (--pipe).
+# Send the setup link by invoking the form-smtp extension (--pipe).
 sub _send_setup_email {
     my ( $to, $user, $link ) = @_;
     require Lazysite::Extensions;

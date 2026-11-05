@@ -9,7 +9,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-# Exercise lazysite-manager-api.pl's plugin-list action. It spawns one
+# Exercise lazysite-manager-api.pl's extension-list action. It spawns one
 # subprocess per candidate script (--describe) with alarm(2). These tests
 # verify:
 #   - the result is valid JSON with the expected shape
@@ -18,7 +18,7 @@ use TestHelper qw(repo_root);
 
 my $root = repo_root();
 
-# We need the plugin discovery to find scripts at $DOCROOT/..  — set up
+# We need the extension discovery to find scripts at $DOCROOT/..  — set up
 # a fake repo structure that points back at the real scripts.
 my $tmp       = tempdir( CLEANUP => 1 );
 my $fake_root = "$tmp/fake-repo";
@@ -27,8 +27,8 @@ make_path( "$docroot/lazysite/cache",
     "$fake_root/tools",
     "$fake_root/extensions" );
 
-# Symlink each discoverable script so plugin-list can spawn them.
-# D022: plugins moved under extensions/ (form-handler, form-smtp, log,
+# Symlink each discoverable script so extension-list can spawn them.
+# D022: extensions moved under extensions/ (form-handler, form-smtp, log,
 # audit, payment-demo), core scripts stay at root.
 for my $rel ( qw(
     lazysite-auth.pl
@@ -85,7 +85,7 @@ my $out;
     local %ENV = %ENV;
     $ENV{DOCUMENT_ROOT}      = $docroot;
     $ENV{REQUEST_METHOD}     = 'GET';
-    $ENV{QUERY_STRING}       = 'action=plugin-list';
+    $ENV{QUERY_STRING}       = 'action=extension-list';
     $ENV{HTTP_X_REMOTE_USER} = 'admin';
     # SM268 H9: see 17-theme-upload - the untrusted-header + `local` fallback
     # this relied on is gone; vouch for the identity as the auth wrapper does.
@@ -97,30 +97,30 @@ my $out;
 $out =~ s/\A.*?\r?\n\r?\n//s;
 
 my $data = eval { decode_json($out) };
-ok( ref $data eq 'HASH', 'plugin-list returns JSON hash' )
+ok( ref $data eq 'HASH', 'extension-list returns JSON hash' )
     or diag("Raw output: $out");
 
 SKIP: {
     skip "no JSON body", 10 unless ref $data eq 'HASH';
 
-    is( $data->{ok}, 1, 'plugin-list ok=1' );
-    ok( ref $data->{plugins} eq 'ARRAY', 'plugins is array' );
+    is( $data->{ok}, 1, 'extension-list ok=1' );
+    ok( ref $data->{extensions} eq 'ARRAY', 'extensions is array' );
 
-    my @ids = map { $_->{id} // '' } @{ $data->{plugins} };
+    my @ids = map { $_->{id} // '' } @{ $data->{extensions} };
     # SM028: processor is listed server-side (id=lazysite) so the
     # manager config page can discover its script path. The config
-    # UI filters it out of the togglable plugin registry — that's
+    # UI filters it out of the togglable extension registry — that's
     # a UI concern, not an API one.
     ok( ( grep { $_ eq 'lazysite' } @ids ),
         'core processor (id=lazysite) IS listed for UI discovery' );
 
-    ok( scalar @{ $data->{plugins} } > 0,
-        'at least one plugin discovered' );
+    ok( scalar @{ $data->{extensions} } > 0,
+        'at least one extension discovered' );
 
-    for my $p ( @{ $data->{plugins} } ) {
-        ok( defined $p->{id},      "plugin has id ($p->{id})" );
-        ok( defined $p->{name},    "plugin has name" );
-        ok( defined $p->{_script}, "plugin has _script field" );
+    for my $p ( @{ $data->{extensions} } ) {
+        ok( defined $p->{id},      "extension has id ($p->{id})" );
+        ok( defined $p->{name},    "extension has name" );
+        ok( defined $p->{_script}, "extension has _script field" );
     }
 }
 

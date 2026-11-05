@@ -3,12 +3,12 @@ package Lazysite::Manager::Services;
 # The instance's services, its version and the visitor stats: which channels are
 # switched on and what each capability hands over (channel-services, and
 # _service_state for whoami), the installed version (version), and the stats
-# plugin's export (analyse_visitors). Moved unchanged out of
+# extension's export (analyse_visitors). Moved unchanged out of
 # lazysite-manager-api.pl by SM944 S26.
 #
 # Index
 #   action_channel_services  channel-services: killswitches, sentences, owners
-#   _stats_tool_path         the stats plugin (LAZYSITE_STATS_TOOL wins)
+#   _stats_tool_path         the stats extension (LAZYSITE_STATS_TOOL wins)
 #   action_analyse_visitors  analyse_visitors: the stats export, for an account
 #   visitor_scope_args       P15: which domains' traffic a caller asks for, and may
 #   _service_state           which transports are on (whoami reads it)
@@ -27,7 +27,7 @@ use IPC::Open2;
 use JSON::PP                   qw(decode_json);
 use Lazysite::Util             ();
 use Lazysite::Capabilities     qw(channel_service);
-use Lazysite::Manager::Plugins qw(action_plugin_list);
+use Lazysite::Manager::Extensions qw(action_extension_list);
 use Lazysite::Manager::Common  qw($auth_user);
 use File::Basename             qw(dirname);
 
@@ -63,29 +63,29 @@ sub action_channel_services {
     my %grants = map { $_ => ( $desc->{$_}{grants} // '' ) }
         grep { length( $desc->{$_}{grants} // '' ) } keys %$desc;
 
-    # SM675: which capabilities are owned by a PLUGIN, and whether that plugin
-    # is on. `manage_data` grants nothing while the data plugin is disabled;
+    # SM675: which capabilities are owned by a EXTENSION, and whether that extension
+    # is on. `manage_data` grants nothing while the data extension is disabled;
     # `manage_briefs` grants nothing while briefs is - every brief action
-    # returns "the briefs plugin is disabled" before it looks at capabilities at
+    # returns "the briefs extension is disabled" before it looks at capabilities at
     # all. The Groups grid offered both as ordinary checkboxes, so an operator
     # granted one, the grid showed it on, whoami reported it held, and the
     # surface refused.
     #
-    # DERIVED FROM THE PLUGIN'S OWN DECLARATION (`owns.capabilities`, ADR 0009),
+    # DERIVED FROM THE EXTENSION'S OWN DECLARATION (`owns.capabilities`, ADR 0009),
     # not from a list here. A hand-kept map would be another copy of a fact the
-    # plugins already state, and wrong the first time one changed.
+    # extensions already state, and wrong the first time one changed.
     #
     # Served alongside the channel services for the same reason SM277 and SM427
     # put their maps here: the Groups page must not carry a second copy of
     # capability metadata in JavaScript.
-    my %cap_plugin;
-    for my $p ( @{ ( action_plugin_list() || {} )->{plugins} || [] } ) {
+    my %cap_extension;
+    for my $p ( @{ ( action_extension_list() || {} )->{extensions} || [] } ) {
         my $owns = ( ref $p->{owns} eq 'HASH' && ref $p->{owns}{capabilities} eq 'ARRAY' )
             ? $p->{owns}{capabilities}
             : [];
         for my $c ( @{$owns} ) {
-            $cap_plugin{$c} = {
-                plugin  => $p->{id},
+            $cap_extension{$c} = {
+                extension  => $p->{id},
                 name    => ( $p->{name} // $p->{id} ),
                 enabled => ( $p->{_enabled} ? JSON::PP::true : JSON::PP::false ),
             };
@@ -93,12 +93,12 @@ sub action_channel_services {
     }
 
     return { ok => 1, services => \%svc, channel_for_key => \%by_key,
-        grants => \%grants, capability_plugin => \%cap_plugin,
+        grants => \%grants, capability_extension => \%cap_extension,
         # SM758: the categories the Actions grid is drawn by, from the registry.
         sections => Lazysite::Capabilities::sections() };
 }
 
-# The visitor-stats plugin. LAZYSITE_STATS_TOOL wins.
+# The visitor-stats extension. LAZYSITE_STATS_TOOL wins.
 sub _stats_tool_path {
     return $ENV{LAZYSITE_STATS_TOOL} if defined $ENV{LAZYSITE_STATS_TOOL} && -f $ENV{LAZYSITE_STATS_TOOL};
     require Lazysite::Extensions;
@@ -117,7 +117,7 @@ sub _stats_tool_path {
 # the caller as caller_may_reach_domain takes it (MCP passes its grant's
 # scopes; the manager request passes nothing and is asked from its own state).
 # Returns ( \@stats_args ) - the --host/--by-host arguments for the stats
-# plugin - or ( undef, $refusal ).
+# extension - or ( undef, $refusal ).
 #
 # CONFINED: no `host` means every domain the caller reaches, and nothing else;
 # a `host` it does not reach is refused as domain_reach_refusal refuses; a
@@ -174,20 +174,20 @@ sub visitor_scope_args {
 }
 
 # SM095: visitor-log analysis over the control API (gated on `analytics`, like the
-# MCP analyse_visitors tool). Returns the stats plugin's sanitised, cached export -
+# MCP analyse_visitors tool). Returns the stats extension's sanitised, cached export -
 # aggregates + a capped event stream; never the raw log, a path, or a visitor IP.
 sub action_analyse_visitors {
     my (%opt) = @_;
     # SM944 S26 (c), ruled 2026-10-10: THE STATS ARE READ FOR AN ACCOUNT. Inside
     # a request the dispatcher has refused an empty $auth_user (and required
     # `analytics`) before this runs, so it is never empty here; reached outside
-    # one (the request context's reset leaves nobody) it ran the stats plugin and
+    # one (the request context's reset leaves nobody) it ran the stats extension and
     # returned its export with nobody asking (tmp/sm944-s26-refusal-probe.out).
     return { ok => 0, kind => 'forbidden',
         error => 'Visitor analysis is read for a signed-in account, and no account is asking.' }
         unless length $auth_user;
     my $tool = _stats_tool_path()
-        or return { ok => 0, error => 'Visitor stats plugin not found' };
+        or return { ok => 0, error => 'Visitor stats extension not found' };
     my $window = ( defined $opt{window} && $opt{window} =~ /^\d+$/ ) ? $opt{window} : 30;
 
     # SM213: durable-store selectors. Validated to strict shapes and passed as exec
@@ -215,7 +215,7 @@ sub action_analyse_visitors {
     local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us
     my $pid = eval {
         open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel, @$scope );
-    } or return { ok => 0, error => 'Cannot run the stats plugin' };
+    } or return { ok => 0, error => 'Cannot run the stats extension' };
     close $in;
     my $resp = do { local $/; <$out> };
     close $out;

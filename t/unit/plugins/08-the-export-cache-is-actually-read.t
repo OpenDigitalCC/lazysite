@@ -31,8 +31,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-ok( -f $plugin, 'the stats plugin is present' );
+my $extension = repo_root() . '/extensions/stats.pl';
+ok( -f $extension, 'the stats extension is present' );
 
 # A docroot on the FIRST-PARTY path, which is the default and the one that was
 # broken. A fixture without first-party logs falls back to the server-log path,
@@ -75,7 +75,7 @@ sub log_event {
 sub export {
     my ($d) = @_;
     local $ENV{DOCUMENT_ROOT} = $d;
-    my $out = qx($^X \Q$plugin\E --export --window 30 2>/dev/null);
+    my $out = qx($^X \Q$extension\E --export --window 30 2>/dev/null);
     return decode_json($out);
 }
 
@@ -100,7 +100,7 @@ subtest 'the shape check does not depend on where it sits in the file' => sub {
     # was rejected - the same symptom as the original bug, for a completely
     # different reason. This file already carries three comments warning about
     # that trap for its regexes and its month map.
-    my $src = do { open my $fh, '<', $plugin or die $!; local $/; <$fh> };
+    my $src = do { open my $fh, '<', $extension or die $!; local $/; <$fh> };
     like( $src, qr/sub _known_cache_shape \{/,
         'the check is a sub, which is bound at compile time' )
         or diag( 'A package variable assigned at file scope is not available to '

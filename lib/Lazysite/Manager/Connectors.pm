@@ -886,7 +886,7 @@ sub _answer_of {
 }
 
 # THE ANSWER LIVES IN A TABLE ROW (decision 1). The table is the site's own,
-# declared through the data plugin, with the columns named here; a missing
+# declared through the data extension, with the columns named here; a missing
 # table or column is reported on the call, not silently skipped.
 sub _keep_answer {
     my ( $c, $rec, $answer ) = @_;

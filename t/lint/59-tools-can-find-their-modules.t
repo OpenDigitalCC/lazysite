@@ -30,19 +30,19 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
-# SM752: PLUGINS TOO, and the reason is that the property was never about
+# SM752: EXTENSIONS TOO, and the reason is that the property was never about
 # tools.
 #
 # extensions/daemon.pl shipped in 0.13.0 with `require Lazysite::Daemon::Supervisor`
-# and no bootstrap. The manager runs a plugin action as a SUBPROCESS, exactly as
-# it runs a tool, so the require died - and a plugin action that dies prints
+# and no bootstrap. The manager runs an extension action as a SUBPROCESS, exactly as
+# it runs a tool, so the require died - and an extension action that dies prints
 # nothing to stdout, so the manager reported "Action produced no output". The
-# field met it in the state the release was proudest of: plugin enabled, runtime
+# field met it in the state the release was proudest of: extension enabled, runtime
 # not started, which is the moment the Status button exists for.
 #
 # This test's own comment already said it "asserts the property rather than the
 # six files". It asserted the property over one directory. The hazard is any
-# script started as a subprocess with a bare @INC, and plugins are that.
+# script started as a subprocess with a bare @INC, and extensions are that.
 my $root = repo_root();
 
 my @scripts;

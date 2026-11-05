@@ -28,7 +28,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             name        => 'Form SMTP',
             description => 'SMTP connection settings for form email delivery',
             version     => '1.1',
-            # SM072: capabilities this plugin provides when enabled, so other
+            # SM072: capabilities this extension provides when enabled, so other
             # code can detect (e.g.) that the site can send email.
             provides      => ['email-send'],
             config_file   => 'lazysite/forms/smtp.conf',
@@ -68,7 +68,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 # --- Validate mode (the "Validate SMTP connection" button): staged connection
 # check against the SAVED smtp.conf, reporting WHICH stage fails - host (DNS),
 # port (TCP), TLS, or authentication - so a misconfiguration names itself.
-# Invoked by the manager's plugin-action as `--scan --docroot DIR`.
+# Invoked by the manager's extension-action as `--scan --docroot DIR`.
 
 if ( grep { $_ eq '--scan' } @ARGV ) {
     my $docroot = '';
@@ -696,10 +696,10 @@ sub _lz {
 }
 
 # SM540: a best-effort copy of the line to syslog through Lazysite::Util's
-# forward_line, so this plugin's diagnostics are covered by the
+# forward_line, so this extension's diagnostics are covered by the
 # forward_diagnostics DEFAULT of WARN and above (SM932) as well as by an
 # explicit setting - it needed `forward_diagnostics: true` before that, and
-# the docs promised syslog either way. The rest of this plugin's
+# the docs promised syslog either way. The rest of this extension's
 # diagnostics as the docs promise. The module tree is found by the bootstrap at
 # the top (the SM473 lesson: `prove -l` puts lib/ on @INC and a real install does not) and
 # the require is eval-guarded, the SM425 posture: a missing lib costs the

@@ -58,8 +58,8 @@ subtest 'the button is no longer unconditional' => sub {
     ok( defined $fn, 'briefButton is present' ) or return;
 
     like( $fn, qr/BRIEFS\.read/, 'it consults what the caller may read' );
-    like( $fn, qr/BRIEFS\.plugin/,
-        'and whether the plugin that stores briefs is on' );
+    like( $fn, qr/BRIEFS\.extension/,
+        'and whether the extension that stores briefs is on' );
     like( $fn, qr/return ''/,
         'and renders nothing when there is nothing to offer' );
     like( $fn, qr/read-only/,

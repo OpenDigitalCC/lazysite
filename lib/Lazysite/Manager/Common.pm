@@ -354,7 +354,7 @@ sub path_is_reserved {
 # SEC-2026-07: extensions that must never be written or served as site content -
 # they execute (CGI/SSI/PHP) or reconfigure the web server. Case-insensitive.
 # Kept in sync with the upload blocked_extensions default and the WebDAV
-# blocklist. (perl doesn't care about extension, but the plugin runner is now
+# blocklist. (perl doesn't care about a file's extension, but the extension runner is now
 # registry-confined; these stop the *web server* executing an authored file.)
 our @DANGEROUS_EXT
     = qw(pl pm cgi fcgi shtml shtm phtml php php3 php4 php5 phps phar htaccess htpasswd);
@@ -1568,7 +1568,7 @@ sub is_blocked_path {
 # SM422: is this path inside ANY configured submission store?
 #
 # The default store, plus each file-handler `path` - the same set the control
-# API's form-submissions route admits. Loaded through Manager::Plugins so there
+# API's form-submissions route admits. Loaded through Manager::Extensions so there
 # is one definition of "a submission store" rather than a prefix here and an
 # allowlist there.
 #
@@ -1589,8 +1589,8 @@ sub _is_submission_store_path {
         if index( $rel, 'lazysite/forms/submissions/' ) == 0
         || $rel eq 'lazysite/forms/submissions';
     my @dirs = eval {
-        require Lazysite::Manager::Plugins;
-        Lazysite::Manager::Plugins::submission_store_dirs();
+        require Lazysite::Manager::Extensions;
+        Lazysite::Manager::Extensions::submission_store_dirs();
     };
     return 0 unless @dirs;
     for my $d (@dirs) {
@@ -2168,7 +2168,7 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 # artifact (a non-script content_type, e.g. application/json / text/csv) passes.
 # The api/raw/content_type matching mirrors the processor's front-matter parse and
 # peek_content_type, so write-refusal and serve-time downgrade agree.
-# SM504: once the briefs plugin is enabled on a site, a .brief WRITE is
+# SM504: once the briefs extension is enabled on a site, a .brief WRITE is
 # refused - the sysop's instruction, relayed with the field agent's
 # argument verbatim: a brief is the record of WHY something was done, often
 # the channel between two agents who never speak, so its failure mode is
@@ -2178,7 +2178,7 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 # 201, file on disk, reads back byte-identical. None is wrong on its own
 # terms, which is what makes the combination misleading.
 #
-# GATED ON THE PLUGIN, NEVER THE VERSION (B3): migration is per site, as
+# GATED ON THE EXTENSION, NEVER THE VERSION (B3): migration is per site, as
 # each site is next revisited - a half-migrated estate is the NORMAL state
 # for a long time, and a site still on sidecars must keep working
 # indefinitely. Reads are untouched (B4): an existing sidecar stays
@@ -2217,7 +2217,7 @@ sub _refusal {
 sub brief_write_refusal {
     my ($rel) = @_;
     return unless defined $rel && $rel =~ /\.brief\z/;
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     # The api and mcp set Common's $DOCROOT in their setup blocks; the DAV
     # process never does - it carries the docroot in the environment. An
     # empty docroot must read as "cannot tell", never as "disabled": no
@@ -2227,9 +2227,9 @@ sub brief_write_refusal {
     # SM557: the package is require'd at runtime, so this file mentions the
     # variable once by design - t/lint/04 refuses the 'used only once' warning.
     no warnings 'once';
-    local $Lazysite::Manager::Plugins::DOCROOT = $droot;
+    local $Lazysite::Manager::Extensions::DOCROOT = $droot;
     return
-        unless eval { Lazysite::Manager::Plugins::plugin_enabled('extensions/briefs.pl') };
+        unless eval { Lazysite::Manager::Extensions::extension_enabled('extensions/briefs.pl') };
     return _refusal(
         'This site holds briefs in the brief store, not in .brief sidecar '
             . 'files - a sidecar written here would be an inert file no listing '
@@ -2543,12 +2543,12 @@ sub conf_batch {
     return $r;
 }
 
-# Record the change. Instant no-op when the content-history plugin is off, and
+# Record the change. Instant no-op when the content-history extension is off, and
 # eval-guarded there, so a git failure never fails the write.
 #
 # ATTRIBUTION. $auth_user is per-request ambient state, set by the dispatcher in
-# the CGI process. A plugin hook runs as a SUBPROCESS (Plugins::_run_hook shells
-# the plugin script), where that variable starts empty and the acting user
+# the CGI process. An extension hook runs as a SUBPROCESS (Extensions::_run_hook shells
+# the extension script), where that variable starts empty and the acting user
 # arrives in the environment instead. Before SM255 this write did not commit, so
 # an empty user was harmless; now it would author the commit as "unknown". Fall
 # back to the environment the hook runner already sets.
@@ -2637,7 +2637,7 @@ sub write_conf_content {
 }
 
 # Back-compat: the old private name, kept so existing callers and the
-# content-history plugin (which imports it by name at runtime) keep working.
+# content-history extension (which imports it by name at runtime) keep working.
 sub _write_conf_key { return write_conf_key(@_) }
 
 1;

@@ -51,7 +51,7 @@ our $DOCROOT = '';
 # each (any-of; an empty list means every interactive account). This is the
 # nav's own gating in starter/lazysite/manager/layout.tt, held here as data;
 # t/lint/116 pins the two together so a page cannot be offered that the nav
-# would not show, or shown that this would refuse. `plugin` names a plugin the
+# would not show, or shown that this would refuse. `extension` names an extension the
 # page needs enabled. Pages that take a path (edit) or are a reference
 # (style-guide) are not start pages.
 our %PAGES = (
@@ -80,8 +80,8 @@ our %PAGES = (
     # SM957: Handlers left the menu (reached from each form and from
     # Extensions), so it is not offered as a start page either - lint 116.
     # SM759: registry keys, as the conf lists them - a bare name matches nothing.
-    'data' => { label => 'Data tables', caps => ['manage_data'], plugin => 'extensions/data.pl' },
-    'stats' => { label => 'Visitor statistics', caps => [], plugin => 'extensions/stats.pl' },
+    'data' => { label => 'Data tables', caps => ['manage_data'], extension => 'extensions/data.pl' },
+    'stats' => { label => 'Visitor statistics', caps => [], extension => 'extensions/stats.pl' },
 );
 # SM957: the menu's order.
 my @PAGE_ORDER = qw(submissions files nav stats appearance extensions connectors data
@@ -146,12 +146,12 @@ sub _scopes_for {
     return @s;
 }
 
-sub _plugin_enabled {
+sub _extension_enabled {
     my ($script) = @_;
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     no warnings 'once';
-    local $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-    return Lazysite::Manager::Plugins::plugin_enabled($script) ? 1 : 0;
+    local $Lazysite::Manager::Extensions::DOCROOT = $DOCROOT;
+    return Lazysite::Manager::Extensions::extension_enabled($script) ? 1 : 0;
 }
 
 sub _domains {
@@ -166,7 +166,7 @@ sub _page_reachable {
     my ( $page, $caps ) = @_;
     my $p = $PAGES{$page} or return 0;
     return 0 unless $caps->{ui};
-    return 0 if $p->{plugin} && !_plugin_enabled( $p->{plugin} );
+    return 0 if $p->{extension} && !_extension_enabled( $p->{extension} );
     return 1 unless @{ $p->{caps} };
     return ( grep { $caps->{$_} } @{ $p->{caps} } ) ? 1 : 0;
 }
@@ -239,7 +239,7 @@ sub validate_start_page {
         return "'$p->{page}' is not a manager page a start page may name" unless $PAGES{ $p->{page} };
         return "'$user' cannot reach the manager page '$p->{page}' - it needs "
             . join( ' or ', @{ $PAGES{ $p->{page} }{caps} } )
-            . ( $PAGES{ $p->{page} }{plugin} ? " (and the $PAGES{ $p->{page} }{plugin} plugin enabled)" : '' )
+            . ( $PAGES{ $p->{page} }{extension} ? " (and the $PAGES{ $p->{page} }{extension} extension enabled)" : '' )
             unless _page_reachable( $p->{page}, _caps_for($user) );
         return undef;
     }

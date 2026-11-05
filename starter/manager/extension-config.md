@@ -14,10 +14,10 @@ search: false
   <a class="mg-btn mg-btn-sm" href="/manager/handlers">Handlers</a>
 </div>
 
-<div id="plugin-list">Loading...</div>
+<div id="extension-list">Loading...</div>
 
 <!-- SM922: the link audit's static report card is GONE. It was filled by fetching
-     /manager/audit-report - a page the plugin wrote into the docroot, which is why
+     /manager/audit-report - a page the extension wrote into the docroot, which is why
      the audit could scan its own last report and why the result could not be
      re-run from where it was being read. The findings come back in the action's
      own result now and open in a modal with a Refresh. -->
@@ -29,12 +29,12 @@ function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
 
 // SM118 pattern (field report): every explicit-save surface on this page - the
-// per-plugin config forms - flags unsaved changes via the shared mgDirtyGuard
+// per-extension config forms - flags unsaved changes via the shared mgDirtyGuard
 // (manager layout). Each surface gets its own key so saving or cancelling one
 // never un-flags another. SM842: the handler and form-target forms moved to
 // the Handlers page, which carries its own.
-function markPluginDirty(id)   { mgDirtyGuard.set('plugin-' + id, 'dirty-' + id); }
-function clearPluginDirty(id)  { mgDirtyGuard.clear('plugin-' + id); }
+function markExtensionDirty(id)   { mgDirtyGuard.set('extension-' + id, 'dirty-' + id); }
+function clearExtensionDirty(id)  { mgDirtyGuard.clear('extension-' + id); }
 
 // SM664: the all-files history overview, moved here from the Files page.
 //
@@ -61,7 +61,7 @@ function histTime(mtime) {
 }
 
 function openHistoryOverview() {
-  var body = mgPluginModal('Content history - all files');
+  var body = mgExtensionModal('Content history - all files');
   body.innerHTML = '<p class="mg-muted">Loading&hellip;</p>';
   // SM461: mgJson, not r.json(). Any non-JSON body - a 500, a die, a proxy
   // timeout page - used to become "JSON.parse: unexpected character at line 1
@@ -71,7 +71,7 @@ function openHistoryOverview() {
   fetch(API + '?action=git-history-summary')
     .then(function(r) { return (window.mgJson ? window.mgJson(r) : r.json()); })
     .then(function(d) {
-      var b = document.getElementById('plugin-modal-body');
+      var b = document.getElementById('extension-modal-body');
       if (!b) return;
       if (!d.ok) { b.innerHTML = '<p class="mg-muted">' + histEsc(d.error || 'No history available') + '</p>'; return; }
       if (!d.enabled) { b.innerHTML = '<p class="mg-muted">Content history is not enabled.</p>'; return; }
@@ -80,7 +80,7 @@ function openHistoryOverview() {
       renderHistoryOverview();
     })
     .catch(function(e) {
-      var b = document.getElementById('plugin-modal-body');
+      var b = document.getElementById('extension-modal-body');
       if (b) b.innerHTML = '<p class="mg-muted">The history overview could not be '
         + 'loaded: ' + histEsc(e.message) + '</p>';
     });
@@ -93,7 +93,7 @@ function sortHistoryOverview(col) {
 }
 
 function renderHistoryOverview() {
-  var body = document.getElementById('plugin-modal-body');
+  var body = document.getElementById('extension-modal-body');
   if (!body) return;
   var rows = HIST_OVERVIEW.rows.slice();
   var col = HIST_OVERVIEW.sort, dir = HIST_OVERVIEW.dir;
@@ -132,75 +132,75 @@ function renderHistoryOverview() {
   body.innerHTML = html;
 }
 
-// SM640: the plugin config modal. ONE shell, opened by any plugin that has been
+// SM640: the extension config modal. ONE shell, opened by any extension that has been
 // converted to the mechanism, and it fetches its own data and owns its own
-// reload - which is the whole point: a change to one plugin no longer re-renders
-// every other plugin's configuration.
+// reload - which is the whole point: a change to one extension no longer re-renders
+// every other extension's configuration.
 //
 // Deliberately a SECOND shell rather than a generalisation of openSubsModal
 // (SM182/SM187) for now. That one carries a form selector in its header and is
 // driven by the submissions viewer's own state; merging them is a refactor with
-// no behaviour to show for it, and this page is being converted one plugin at a
+// no behaviour to show for it, and this page is being converted one extension at a
 // time (SM640's own rule) rather than rewritten.
-function mgPluginModal(title) {
-  mgPluginModalClose(true);
+function mgExtensionModal(title) {
+  mgExtensionModalClose(true);
   var ov = document.createElement('div');
-  ov.id = 'plugin-modal';
+  ov.id = 'extension-modal';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
   ov.innerHTML =
       '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:760px;max-height:86vh;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">'
     + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--mg-border,#ddd);">'
-    + '<strong id="plugin-modal-title" style="flex:1"></strong>'
-    + '<button type="button" class="mg-sheet-close" onclick="mgPluginModalClose()" aria-label="Close">&times;</button></div>'
-    + '<div id="plugin-modal-body" style="flex:1;overflow:auto;padding:12px 14px;"></div></div>';
+    + '<strong id="extension-modal-title" style="flex:1"></strong>'
+    + '<button type="button" class="mg-sheet-close" onclick="mgExtensionModalClose()" aria-label="Close">&times;</button></div>'
+    + '<div id="extension-modal-body" style="flex:1;overflow:auto;padding:12px 14px;"></div></div>';
   // Clicking the backdrop closes, and goes through the same unsaved-changes
   // question as the button - an accidental click outside must not be a quieter
   // way to lose an edit than pressing Close.
-  ov.addEventListener('click', function(e) { if (e.target === ov) mgPluginModalClose(); });
+  ov.addEventListener('click', function(e) { if (e.target === ov) mgExtensionModalClose(); });
   document.body.appendChild(ov);
-  document.getElementById('plugin-modal-title').textContent = title || 'Configuration';
-  return document.getElementById('plugin-modal-body');
+  document.getElementById('extension-modal-title').textContent = title || 'Configuration';
+  return document.getElementById('extension-modal-body');
 }
 
 // force: skip the unsaved-changes question (used when re-opening, and after a
 // successful save has already cleared the flag).
-function mgPluginModalClose(force) {
-  var ov = document.getElementById('plugin-modal');
+function mgExtensionModalClose(force) {
+  var ov = document.getElementById('extension-modal');
   if (!ov) return;
-  var id = ov.getAttribute('data-plugin') || '';
-  if (!force && id && mgDirtyGuard && mgDirtyGuard.isDirty('plugin-' + id)) {
+  var id = ov.getAttribute('data-extension') || '';
+  if (!force && id && mgDirtyGuard && mgDirtyGuard.isDirty('extension-' + id)) {
     if (!confirm('This configuration has unsaved changes. Close and lose them?')) return;
   }
-  if (id) clearPluginDirty(id);
+  if (id) clearExtensionDirty(id);
   if (ov.parentNode) ov.parentNode.removeChild(ov);
 }
 
-function loadPlugins() {
-  document.getElementById('plugin-list').textContent = 'Scanning...';
+function loadExtensions() {
+  document.getElementById('extension-list').textContent = 'Scanning...';
   fetch(API + '?action=extension-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) {
-        document.getElementById('plugin-list').textContent = data.error || 'Failed to load extensions';
+        document.getElementById('extension-list').textContent = data.error || 'Failed to load extensions';
         return;
       }
-      window._plugins = data.plugins || [];
-      renderPlugins(data.plugins || []);
+      window._extensions = data.extensions || [];
+      renderExtensions(data.extensions || []);
     });
 }
 
-function renderPlugins(plugins) {
-  var enabled = (plugins || []).filter(function(p) { return p._enabled; });
+function renderExtensions(extensions) {
+  var enabled = (extensions || []).filter(function(p) { return p._enabled; });
 
   if (!enabled.length) {
-    document.getElementById('plugin-list').innerHTML =
+    document.getElementById('extension-list').innerHTML =
       '<p class="mg-empty">No extensions enabled. Visit <a href="/manager/config">Configuration</a> to enable extensions.</p>';
     return;
   }
 
   var html = '';
-  enabled.forEach(function(p) { html += renderPluginCard(p); });
-  document.getElementById('plugin-list').innerHTML = html;
+  enabled.forEach(function(p) { html += renderExtensionCard(p); });
+  document.getElementById('extension-list').innerHTML = html;
 }
 
 // SM842 linked a file handler's store here as ?submissions=<store directory>,
@@ -215,32 +215,32 @@ function redirectLegacySubmissions(loc) {
   return true;
 }
 
-// SM640: a LINE per enabled plugin - name, state, and a way in - rather than
-// every plugin's whole configuration rendered inline one after another. The
-// page no longer grows with the number of plugins installed.
+// SM640: a LINE per enabled extension - name, state, and a way in - rather than
+// every extension's whole configuration rendered inline one after another. The
+// page no longer grows with the number of extensions installed.
 //
-// What stays on the row: the plugin's own actions, and the containers for the
-// things that are NOT its config form - child configs (the forms plugin renders
+// What stays on the row: the extension's own actions, and the containers for the
+// things that are NOT its config form - child configs (the forms extension renders
 // its handler list into one), an action's choice prompt, and the status line.
 // Those keep their identity and their position, so nothing that moves DOM nodes
 // around - the add-handler wizard does - finds its container inside a modal
 // that has since been destroyed.
-function renderPluginCard(plugin) {
-  var hasConfig = !!(plugin.config_schema && plugin.config_schema.length);
+function renderExtensionCard(extension) {
+  var hasConfig = !!(extension.config_schema && extension.config_schema.length);
   // A CARD IS NOT A ROW. Carrying both meant the card inherited the row grid,
   // so its stacked contents - title, description, the action group and the
   // full-width panels below them - were laid out as columns of a line.
-  var html = '<div class="mg-plugin-card" id="plugin-' + esc(plugin.id) + '">';
-  html += '<div class="mg-plugin-title">' + esc(plugin.name) + '</div>';
-  html += '<div class="mg-plugin-desc">' + esc(plugin.description) + '</div>';
-  // The group opens unconditionally, because Configure and the per-plugin
-  // buttons below belong to it even when the plugin declares no actions of its
+  var html = '<div class="mg-extension-card" id="extension-' + esc(extension.id) + '">';
+  html += '<div class="mg-extension-title">' + esc(extension.name) + '</div>';
+  html += '<div class="mg-extension-desc">' + esc(extension.description) + '</div>';
+  // The group opens unconditionally, because Configure and the per-extension
+  // buttons below belong to it even when the extension declares no actions of its
   // own. Opening it only for declared actions is what left those buttons
   // outside the group, each on its own baseline.
   html += '<div class="mg-wizard-actions">';
-  if (plugin.actions && plugin.actions.length) {
-    plugin.actions.forEach(function(a, ai) {
-      // Lifecycle actions a plugin drives from its enable/disable toggle
+  if (extension.actions && extension.actions.length) {
+    extension.actions.forEach(function(a, ai) {
+      // Lifecycle actions an extension drives from its enable/disable toggle
       // (on_enable / on_disable) are marked hidden - they are not buttons here,
       // so e.g. content history never shows "Enable" while already enabled.
       if (a.hidden) { return; }
@@ -249,58 +249,58 @@ function renderPluginCard(plugin) {
       } else if (a.needs) {
         // Gated action (e.g. git-sync "Test connection" needs a remote_url):
         // refuse until the required config key is set, so the button is never a
-        // dead end on an unconfigured plugin.
-        html += '<button class="mg-btn mg-btn-sm" onclick="runActionGated(\'' + esc(plugin.id) + '\',' + ai + ',\'' + esc(a.needs) + '\')">' + esc(a.label) + '</button>';
+        // dead end on an unconfigured extension.
+        html += '<button class="mg-btn mg-btn-sm" onclick="runActionGated(\'' + esc(extension.id) + '\',' + ai + ',\'' + esc(a.needs) + '\')">' + esc(a.label) + '</button>';
       } else {
-        html += '<button class="mg-btn mg-btn-sm" onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
+        html += '<button class="mg-btn mg-btn-sm" onclick="(function(){var p=window._extensions.find(function(x){return x.id===\'' + extension.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
       }
     });
   }
   if (hasConfig) {
     // mg-btn-sm, like every other button in this row. Configure was full size
-    // beside small action buttons, so one plugin's controls came in two
+    // beside small action buttons, so one extension's controls came in two
     // weights and the odd one out read as more important than the rest.
-    html += '<button class="mg-btn mg-btn-sm" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Configure</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="loadConfig(window._extensions.find(function(x){return x.id===\'' + extension.id + '\'}))">Configure</button>';
   }
   // SM664: content history's way in is a VIEW, not a config form - it declares
   // an empty config_schema, so without this its row would offer nothing at all.
   // SM842: the form handler's configuration is the Handlers page; its row
   // keeps the two things that are about what ARRIVED rather than where it goes.
-  if (plugin.id === 'form-handler') {
+  if (extension.id === 'form-handler') {
     html += '<a class="mg-btn mg-btn-sm" href="/manager/handlers">Handlers</a>';
     html += '<a class="mg-btn mg-btn-sm" href="/manager/submissions">Submissions</a>';
   }
-  if (plugin.id === 'content-history') {
+  if (extension.id === 'content-history') {
     html += '<button class="mg-btn mg-btn-sm" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
   }
-  // SM703: the blocked-address list belongs to the plugin that does the
+  // SM703: the blocked-address list belongs to the extension that does the
   // blocking. It sat on Visitor Statistics, which reads as a reporting filter -
   // and a block is not a reporting filter: lazysite-auth.pl answers a blocked
   // address 403 and exits before anything is served. Putting an access control
   // on a statistics page invites an operator to read it as "hidden from the
   // numbers" rather than "refused the site".
-  if (plugin.id === 'bad-url-blocker') {
+  if (extension.id === 'bad-url-blocker') {
     html += '<button class="mg-btn mg-btn-sm" onclick="toggleBlocked(this)" '
          +  'aria-controls="blocked-body" aria-expanded="false">Blocked addresses</button>';
   }
   // SM1278 (rulings 10b, 10c): the Odoo runs whose apply left a change unknown -
   // the operator's place to say whether a change was made, or to dismiss a run.
-  if (plugin.id === 'odoo') {
+  if (extension.id === 'odoo') {
     html += '<button class="mg-btn mg-btn-sm" onclick="toggleUnknownRuns(this)" '
          +  'aria-controls="odoo-unknown-body" aria-expanded="false">Unknown Odoo writes</button>';
   }
-  // Every button this plugin offers is now in ONE group, so they share a
+  // Every button this extension offers is now in ONE group, so they share a
   // baseline and wrap together. Panels open BELOW it, full width.
   html += '</div>';
-  if (plugin.id === 'bad-url-blocker') {
+  if (extension.id === 'bad-url-blocker') {
     html += '<div class="mg-card-body mg-expand-body" id="blocked-body" style="display:none">Loading&hellip;</div>';
   }
-  if (plugin.id === 'odoo') {
+  if (extension.id === 'odoo') {
     html += '<div class="mg-card-body mg-expand-body" id="odoo-unknown-body" hidden>Loading&hellip;</div>';
   }
   // SM085: an action result may ask for a choice (needs_choice) - the
   // conflict list + choice buttons render here.
-  html += '<div id="choice-' + esc(plugin.id) + '" style="display:none"></div>';
+  html += '<div id="choice-' + esc(extension.id) + '" style="display:none"></div>';
   // SM927: a staged action's report - one line per step, and the message a
   // delivery test actually sent. Separate from the choice box, which is a
   // question, and from the status line, which holds one sentence.
@@ -310,45 +310,45 @@ function renderPluginCard(plugin) {
   // that a new one is debt; the attribute needs no rule in three stylesheets to
   // work. (That lint counts the text, so this comment may not spell the thing it
   // is avoiding.)
-  html += '<div id="report-' + esc(plugin.id) + '" hidden></div>';
-  html += '<div class="mg-status" id="status-' + esc(plugin.id) + '"></div>';
+  html += '<div id="report-' + esc(extension.id) + '" hidden></div>';
+  html += '<div class="mg-status" id="status-' + esc(extension.id) + '"></div>';
   html += '</div>';
   return html;
 }
 
-// --- Generic plugin config ---
+// --- Generic extension config ---
 
 // SM639/SM640: the configuration opens in the modal and fetches its own values
-// on click, so opening one plugin's config neither renders nor re-reads any
-// other plugin's.
-function loadConfig(plugin) {
-  var body = mgPluginModal(plugin.name);
-  document.getElementById('plugin-modal').setAttribute('data-plugin', plugin.id);
+// on click, so opening one extension's config neither renders nor re-reads any
+// other extension's.
+function loadConfig(extension) {
+  var body = mgExtensionModal(extension.name);
+  document.getElementById('extension-modal').setAttribute('data-extension', extension.id);
   body.textContent = 'Loading...';
-  fetch(API + '?action=extension-read&plugin=' + encodeURIComponent(plugin.id), {
+  fetch(API + '?action=extension-read&extension=' + encodeURIComponent(extension.id), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: plugin._script })
+    body: JSON.stringify({ script: extension._script })
   })
   .then(function(r) { return window.mgJson ? window.mgJson(r) : r.json(); })
   .then(function(data) {
     // The modal may have been closed while the request was in flight; writing
     // into a detached node would silently do nothing, so check it is still ours.
-    var b = document.getElementById('plugin-modal-body');
+    var b = document.getElementById('extension-modal-body');
     if (!b) return;
     if (!data.ok) { b.textContent = data.error || 'Could not read this extension\'s configuration'; return; }
-    b.innerHTML = renderForm(plugin, data.values || {});
+    b.innerHTML = renderForm(extension, data.values || {});
     applyShowWhen(b);
   })
   .catch(function(e) {
-    var b = document.getElementById('plugin-modal-body');
+    var b = document.getElementById('extension-modal-body');
     if (b) b.textContent = 'Error: ' + e.message;
   });
 }
 
-function renderForm(plugin, values) {
-  var html = '<form onsubmit="saveConfig(event,\'' + plugin.id + '\',\'' + esc(plugin._script) + '\')"'
-           + ' oninput="markPluginDirty(\'' + plugin.id + '\')" onchange="markPluginDirty(\'' + plugin.id + '\')">';
-  (plugin.config_schema||[]).forEach(function(f) {
+function renderForm(extension, values) {
+  var html = '<form onsubmit="saveConfig(event,\'' + extension.id + '\',\'' + esc(extension._script) + '\')"'
+           + ' oninput="markExtensionDirty(\'' + extension.id + '\')" onchange="markExtensionDirty(\'' + extension.id + '\')">';
+  (extension.config_schema||[]).forEach(function(f) {
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';
@@ -371,7 +371,7 @@ function renderForm(plugin, values) {
     } else if (f.type === 'textarea') {
       html += '<textarea name="'+f.key+'" rows="4">'+esc(v)+'</textarea>';
     } else if (f.type === 'password') {
-      // autocomplete=new-password: stop the browser pair-autofilling these plugin
+      // autocomplete=new-password: stop the browser pair-autofilling these extension
       // credential fields with the operator's own saved site login.
       html += '<input type="password" name="'+f.key+'" placeholder="leave blank to keep" autocomplete="new-password">';
     } else if (f.type === 'readonly') {
@@ -383,7 +383,7 @@ function renderForm(plugin, values) {
     html += '</div>';
   });
   html += '<div class="mg-field"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
-       +  ' <span id="dirty-' + plugin.id + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
+       +  ' <span id="dirty-' + extension.id + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
   return html;
 }
 
@@ -403,10 +403,10 @@ function applyShowWhen(container) {
   }
 }
 
-function saveConfig(e, pluginId, script) {
+function saveConfig(e, extensionId, script) {
   e.preventDefault();
   var form = e.target;
-  var status = document.getElementById('status-' + pluginId);
+  var status = document.getElementById('status-' + extensionId);
   var values = {};
   var inputs = form.elements;
   for (var i = 0; i < inputs.length; i++) {
@@ -417,7 +417,7 @@ function saveConfig(e, pluginId, script) {
     else { values[el.name] = el.value; }
   }
   if (status) status.textContent = 'Saving...';
-  fetch(API + '?action=extension-save&plugin=' + encodeURIComponent(pluginId), {
+  fetch(API + '?action=extension-save&extension=' + encodeURIComponent(extensionId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: script, values: values })
   })
@@ -425,15 +425,15 @@ function saveConfig(e, pluginId, script) {
   .then(function(data) {
     if (data.ok) {
       mgClearWarning();
-      clearPluginDirty(pluginId);
-      // SM639: the page no longer reloads. The saved plugin closes its modal and
-      // the list re-reads itself, so a change to one plugin costs one request
-      // and leaves every other plugin's state - and the operator's scroll
+      clearExtensionDirty(extensionId);
+      // SM639: the page no longer reloads. The saved extension closes its modal and
+      // the list re-reads itself, so a change to one extension costs one request
+      // and leaves every other extension's state - and the operator's scroll
       // position - alone. The dirty flag is cleared BEFORE the close so the
       // unsaved-changes question does not fire on a successful save.
-      mgPluginModalClose(true);
+      mgExtensionModalClose(true);
       if (status) status.textContent = 'Saved';
-      loadPlugins();
+      loadExtensions();
     } else {
       mgShowWarning(data.error || 'Save failed', true);
       if (status) status.textContent = '';
@@ -447,17 +447,17 @@ function saveConfig(e, pluginId, script) {
 
 // Run an action only once its required config key is set; otherwise point the
 // operator at the config first (no test-against-nothing).
-function runActionGated(pluginId, ai, needs) {
-  var p = window._plugins.find(function(x) { return x.id === pluginId; });
+function runActionGated(extensionId, ai, needs) {
+  var p = window._extensions.find(function(x) { return x.id === extensionId; });
   if (!p) return;
-  fetch(API + '?action=extension-read&plugin=' + encodeURIComponent(pluginId), {
+  fetch(API + '?action=extension-read&extension=' + encodeURIComponent(extensionId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: p._script })
   })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var v = (d.ok && d.values && d.values[needs] != null) ? String(d.values[needs]).trim() : '';
-      var st = document.getElementById('status-' + pluginId);
+      var st = document.getElementById('status-' + extensionId);
       if (!v) {
         if (st) { st.textContent = 'Set "' + needs + '" and Save first, then test.'; st.className = 'mg-status mg-status-error'; }
         return;
@@ -466,17 +466,17 @@ function runActionGated(pluginId, ai, needs) {
     });
 }
 
-function runAction(plugin, action, params) {
-  if (action.confirm) { mgConfirm(action.confirm).then(function(__ok){ if (__ok) runAction_go(plugin, action, params); }); return; }
-  runAction_go(plugin, action, params);
+function runAction(extension, action, params) {
+  if (action.confirm) { mgConfirm(action.confirm).then(function(__ok){ if (__ok) runAction_go(extension, action, params); }); return; }
+  runAction_go(extension, action, params);
 }
-function runAction_go(plugin, action, params) {
-  var status = document.getElementById('status-' + plugin.id);
+function runAction_go(extension, action, params) {
+  var status = document.getElementById('status-' + extension.id);
   status.textContent = 'Running...';
-  clearActionChoice(plugin.id);
-  fetch(API + '?action=extension-action&plugin=' + encodeURIComponent(plugin.id), {
+  clearActionChoice(extension.id);
+  fetch(API + '?action=extension-action&extension=' + encodeURIComponent(extension.id), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: plugin._script, action_id: action.id, params: params || {} })
+    body: JSON.stringify({ script: extension._script, action_id: action.id, params: params || {} })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -484,7 +484,7 @@ function runAction_go(plugin, action, params) {
     // MOST when it failed - "authenticated, then the room refused" and "nothing
     // answered at all" send an operator to different settings, and a bare failure
     // sends them back through every field.
-    renderActionReport(plugin.id, data);
+    renderActionReport(extension.id, data);
     if (!data.ok) {
       mgShowWarning(data.error || 'Action failed', true);
       status.textContent = '';
@@ -496,7 +496,7 @@ function runAction_go(plugin, action, params) {
     // chosen id is re-posted as params.choice.
     if (data.needs_choice && action.choices && action.choices.length) {
       status.textContent = '';
-      renderActionChoice(plugin, action, data);
+      renderActionChoice(extension, action, data);
       return;
     }
     // A diagnostic action (e.g. SMTP validate) returns a human message - show it.
@@ -511,8 +511,8 @@ function runAction_go(plugin, action, params) {
     // SM922: Link Audit - the findings arrive IN this result, so they open in a
     // modal that can re-run the audit. They used to be a URL fetched into a static
     // card, which is the same root as the audit scanning its own report.
-    if (plugin.id === 'audit' && action.id === 'run' && data.report) {
-      renderAuditReport(plugin, action, data.report);
+    if (extension.id === 'audit' && action.id === 'run' && data.report) {
+      renderAuditReport(extension, action, data.report);
     }
     else if (action.on_complete === 'open_url' && data[action.result_key]) {
       window.open(data[action.result_key], '_blank');
@@ -539,8 +539,8 @@ function runAction_go(plugin, action, params) {
 // an afternoon, and it became obvious the moment a human read the payload rather
 // than a verdict about it. Monospace via mg-code-box, which is the furniture this
 // manager already has for a value you are meant to read character by character.
-function renderActionReport(pluginId, data) {
-  var box = document.getElementById('report-' + pluginId);
+function renderActionReport(extensionId, data) {
+  var box = document.getElementById('report-' + extensionId);
   if (!box) return;
   var html = '';
   if (data && data.steps && data.steps.length) {
@@ -553,7 +553,7 @@ function renderActionReport(pluginId, data) {
     html += '</div>';
   }
   if (data && data.sent) {
-    html += '<div class="mg-plugin-desc">The message as sent:</div>';
+    html += '<div class="mg-extension-desc">The message as sent:</div>';
     html += '<div class="mg-code-box"><div>' + esc(data.sent) + '</div></div>';
   }
   box.innerHTML = html;
@@ -562,10 +562,10 @@ function renderActionReport(pluginId, data) {
 
 // SM085: the needs_choice panel - the plain-language report, the list of
 // items it concerns, one button per declared choice, and Cancel.
-function renderActionChoice(plugin, action, data) {
-  var box = document.getElementById('choice-' + plugin.id);
+function renderActionChoice(extension, action, data) {
+  var box = document.getElementById('choice-' + extension.id);
   if (!box) { mgShowWarning(data.message || 'A choice is needed.', false); return; }
-  var html = '<div class="mg-plugin-desc">' + esc(data.message || 'A choice is needed.') + '</div>';
+  var html = '<div class="mg-extension-desc">' + esc(data.message || 'A choice is needed.') + '</div>';
   if (data.conflicts && data.conflicts.length) {
     html += '<ul>';
     data.conflicts.forEach(function(c) { html += '<li>' + esc(c) + '</li>'; });
@@ -573,31 +573,31 @@ function renderActionChoice(plugin, action, data) {
   }
   html += '<div class="mg-wizard-actions">';
   (action.choices || []).forEach(function(c) {
-    html += '<button class="mg-btn mg-btn-sm" onclick="chooseAction(\'' + esc(plugin.id)
+    html += '<button class="mg-btn mg-btn-sm" onclick="chooseAction(\'' + esc(extension.id)
           + '\',\'' + esc(action.id) + '\',\'' + esc(c.id) + '\')">' + esc(c.label) + '</button>';
   });
-  html += '<button class="mg-btn mg-btn-sm" onclick="clearActionChoice(\'' + esc(plugin.id) + '\')">Cancel</button>';
+  html += '<button class="mg-btn mg-btn-sm" onclick="clearActionChoice(\'' + esc(extension.id) + '\')">Cancel</button>';
   html += '</div>';
   box.innerHTML = html;
   box.style.display = 'block';
 }
 
-function chooseAction(pluginId, actionId, choiceId) {
-  var p = (window._plugins || []).find(function(x) { return x.id === pluginId; });
+function chooseAction(extensionId, actionId, choiceId) {
+  var p = (window._extensions || []).find(function(x) { return x.id === extensionId; });
   if (!p) return;
   var a = (p.actions || []).find(function(x) { return x.id === actionId; });
   if (!a) return;
   runAction_go(p, a, { choice: choiceId });
 }
 
-function clearActionChoice(pluginId) {
-  var box = document.getElementById('choice-' + pluginId);
+function clearActionChoice(extensionId) {
+  var box = document.getElementById('choice-' + extensionId);
   if (box) { box.innerHTML = ''; box.style.display = 'none'; }
 }
 
 // SM922: THE REPORT IS DATA NOW, AND IT OPENS WHERE IT CAN BE RE-RUN.
 //
-// It used to be a page: the plugin wrote /manager/audit-report.md into the docroot,
+// It used to be a page: the extension wrote /manager/audit-report.md into the docroot,
 // this function fetched that URL, parsed the HTML and lifted its <main> into a
 // static card. Three things followed from that one choice, and the ruling of
 // 2026-09-30 treated them as one piece of work: the audit could scan its own last
@@ -609,13 +609,13 @@ function clearActionChoice(pluginId) {
 // WITHHELD IS ITS OWN SECTION. A target that exists but is not visible to an
 // anonymous visitor is not a broken link and is not confirmed either: the audit
 // declined to judge it, and the panel says so rather than implying a verdict.
-function renderAuditReport(plugin, action, report) {
-  var body = mgPluginModal('Link Audit Report');
+function renderAuditReport(extension, action, report) {
+  var body = mgExtensionModal('Link Audit Report');
   if (!body) return;
-  body.innerHTML = auditReportHtml(plugin, report);
+  body.innerHTML = auditReportHtml(extension, report);
 }
 
-function auditReportHtml(plugin, report) {
+function auditReportHtml(extension, report) {
   var broken   = report.broken   || [];
   var withheld = report.withheld || [];
   var orphaned = report.orphaned || [];
@@ -628,7 +628,7 @@ function auditReportHtml(plugin, report) {
   h += '<p class="mg-muted">' + esc(report.generated_ymd || '') + ' &middot; '
      + esc(String(report.pages || 0)) + ' pages scanned</p>';
   h += '<div class="mg-wizard-actions">'
-     + '<button class="mg-btn mg-btn-sm" onclick="rerunAudit(\'' + esc(plugin.id) + '\')">'
+     + '<button class="mg-btn mg-btn-sm" onclick="rerunAudit(\'' + esc(extension.id) + '\')">'
      + 'Refresh</button></div>';
 
   if (!broken.length && !withheld.length && !orphaned.length) {
@@ -693,12 +693,12 @@ function auditEditButton(page) {
 // the action is deliberately skipped here - the operator pressed Refresh on a panel
 // that says what it is, and asking twice for the same thing trains people to click
 // through dialogs.
-function rerunAudit(pluginId) {
-  var p = window._plugins.find(function(x) { return x.id === pluginId; });
+function rerunAudit(extensionId) {
+  var p = window._extensions.find(function(x) { return x.id === extensionId; });
   if (!p) return;
   var a = (p.actions || []).find(function(x) { return x.id === 'run'; });
   if (!a) return;
-  var body = document.getElementById('plugin-modal-body');
+  var body = document.getElementById('extension-modal-body');
   if (body) body.textContent = 'Running the audit...';
   runAction_go(p, a);
 }
@@ -884,5 +884,5 @@ function dismissRun(i) {
 // redirects (redirectLegacySubmissions, above) so a bookmark or an old link
 // still lands on the rows.
 
-if (!redirectLegacySubmissions(window.location)) loadPlugins();
+if (!redirectLegacySubmissions(window.location)) loadExtensions();
 </script>

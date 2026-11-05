@@ -78,7 +78,7 @@ my %READ = map { $_ => 1 } qw(
     list read cache-list recent-changes channel-services principals version preview
     start-page
     connector-list connector-calls
-    file-download file-zip-download handler-list form-targets-read plugin-list
+    file-download file-zip-download handler-list form-targets-read extension-list
     layouts-releases layouts-release-contents layouts-repo-get
 );
 my %BESPOKE = map { $_ => 1 } qw(
@@ -173,7 +173,7 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     connector-list connector-calls remap-list
     domains-list domain-preview domain-check config-read bad-url-blocks
     backup-list backup-download lang-status git-status git-history git-history-summary git-show
-    analyse_visitors plugin-read form-submissions form-submission form-list site-backup-inspect
+    analyse_visitors extension-read form-submissions form-submission form-list site-backup-inspect
     site-backup-download
     principals protected-sections
     groups-list    # SM1050: the groups, for a manage_users holder; changes nothing

@@ -46,22 +46,22 @@ SKIP: {
     skip 'node not installed', 2 unless length $node && -x $node;
     my $page = PageScript::page_source("$root/starter/manager/extension-config.md");
     my $fns  = join "\n", map { PageScript::extract_function( $page, $_ ) } qw(esc renderForm);
-    my $plugin = encode_json(
+    my $extension = encode_json(
         {   id => 'x', _script => 'x.pl',
             config_schema => [ { key => 'a', label => 'Explained', type => 'text', note => 'Says "why" & <how>' } ],
         }
     );
     my $dir = File::Temp->newdir;
     open my $fh, '>', "$dir/t.js" or die "t.js: $!";
-    print {$fh} $fns, "\nconsole.log(renderForm($plugin, {}));\n";
+    print {$fh} $fns, "\nconsole.log(renderForm($extension, {}));\n";
     close $fh;
     my $html = `\Q$node\E \Q$dir/t.js\E 2>&1`;
     like $html, qr{<span class="mg-info" tabindex="0" role="img" aria-label="Says &quot;why&quot; &amp; &lt;how&gt;" data-note="Says &quot;why&quot; &amp; &lt;how&gt;">},
         'the config mark carries the escaped note in data-note';
     unlike $html, qr/\btitle=/, 'and no title that would show it twice';
 
-    my $plugins = PageScript::page_source("$root/starter/manager/extensions.md");
-    like $plugins, qr/class="mg-info"[^;]*data-note="'/, 'the Extensions row mark carries data-note too';
+    my $extensions = PageScript::page_source("$root/starter/manager/extensions.md");
+    like $extensions, qr/class="mg-info"[^;]*data-note="'/, 'the Extensions row mark carries data-note too';
 }
 
 chomp( my $browser = `sh -c 'command -v chromium || command -v chromium-browser' 2>/dev/null` );
@@ -74,7 +74,7 @@ SKIP: {
         open my $o, '>', $page or die $!;
         print {$o} qq{<!doctype html><html><head><title>pending</title><link rel="stylesheet" href="file://$css"></head><body>
 <label>Field <span id="a" class="mg-info" tabindex="0" role="img" aria-label="NOTE" data-note="The long explanation of the field">&#9432;</span></label>
-<div class="mg-plugin-end" style="position:absolute;right:0;top:100px"><span id="b" class="mg-info" tabindex="0" role="img" aria-label="E" data-note="At the right edge, long enough to wrap rather than run off the page, which it must not do">&#9432;</span></div>
+<div class="mg-extension-end" style="position:absolute;right:0;top:100px"><span id="b" class="mg-info" tabindex="0" role="img" aria-label="E" data-note="At the right edge, long enough to wrap rather than run off the page, which it must not do">&#9432;</span></div>
 <script>
 window.addEventListener('load', function () {
   var a = document.getElementById('a'), b = document.getElementById('b');

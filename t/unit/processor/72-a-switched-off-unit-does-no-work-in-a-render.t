@@ -3,17 +3,17 @@
 #
 # The class this covers is INLINE work - the kind that happens during a render
 # rather than at an endpoint - and the reason L1/L2/L3 never reached it is that
-# there is no request arriving anywhere to refuse. `plugins:` in lazysite.conf
+# there is no request arriving anywhere to refuse. `extensions:` in lazysite.conf
 # was always the registry; nothing on the render path read it.
 #
 # THE FIRST MEMBER IS THE DATA UNIT, by the release manager's ruling of
-# 2026-09-10, and it is a CONTRACT plugin. That matters: SM409 / ADR 0009
-# already rule that a contract plugin executes only when listed and defaults to
+# 2026-09-10, and it is a CONTRACT extension. That matters: SM409 / ADR 0009
+# already rule that a contract extension executes only when listed and defaults to
 # disabled. Manager/Data.pm honours it and resolve_db did not, so this restores
 # a standing ruling on one code path rather than changing behaviour in the
 # field. (The access log was tried first and reverted: extensions/stats.pl is a
 # LEGACY descriptor, which the same ADR says must keep running until its own
-# migration - and `plugins:` cannot express "off" for a unit nobody has listed,
+# migration - and `extensions:` cannot express "off" for a unit nobody has listed,
 # so absence there is not a decision.)
 #
 # ASSERTS NO OUTPUT. "The action refuses" was already true of the manager

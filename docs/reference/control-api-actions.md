@@ -7,7 +7,7 @@ standard-margins: true
 
 **Generated file - do not edit by hand.** Produced by `tools/gen-capability-docs.pl actions` from `lib/Lazysite/ControlApi/Actions.pm`, which `t/lint/58-action-reference-matches-the-dispatch.t` re-extracts from the dispatcher in `lazysite-manager-api.pl` and fails on any difference.
 
-**The `plugin-` prefix is the old spelling.** SM817: the fourteen bundled units are extensions rather than plugins - they ship in the package and the operator switches one off rather than installing it - so every `plugin-*` action below also answers to `extension-*`, and the new spelling is the one to write. The old one still works and logs that it is deprecated. The names below are the internal ones, which have not moved yet; the wire accepts both.
+**One spelling, `extension-*`.** SM817 named the fourteen bundled units extensions - they ship in the package and the operator switches one off rather than installing it - and SM1142 removed the old spelling of their actions: a caller that sends it is told the `extension-*` name instead.
 
 An authenticated caller should ask `action=actions-list` instead: it returns this same table already narrowed to what that account may call. This page is the static model, for humans and for readers with no credential.
 
@@ -118,6 +118,12 @@ tone: medium
 `domain-remove` | manage_domains | host (body), purge (body)
 `domain-set` | manage_domains | host (body), key (body), value (body)
 `domains-list` | manage_domains |  
+`extension-action` | cookie only | extension (query), script (body), action_id (body), params (body)
+`extension-disable` | cookie only | script (body)
+`extension-enable` | cookie only | script (body)
+`extension-list` | cookie only |  
+`extension-read` | cookie only | extension (query), script (body)
+`extension-save` | cookie only | extension (query), script (body), values (body), add (body)
 `file-download` | cookie only | path (query)
 `file-upload` | cookie only | path (query)
 `file-zip-download` | cookie only |  
@@ -191,12 +197,6 @@ tone: medium
 `odoo-unknown-runs` | settle_odoo_writes |  
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
-`plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)
-`plugin-disable` | cookie only | script (body)
-`plugin-enable` | cookie only | script (body)
-`plugin-list` | cookie only |  
-`plugin-read` | cookie only | plugin (query), script (body)
-`plugin-save` | cookie only | plugin (query), script (body), values (body), add (body)
 `preview` | cookie only | path (query), theme (query)
 `preview-clear` | cookie only |  
 `preview-grant` | manage_themes / manage_layouts |  
@@ -236,6 +236,6 @@ tone: medium
 `user-revoke` | cookie only |  
 `users` | cookie only |  
 `version` | cookie only |  
-`whoami` | any authenticated | plugins (query)
+`whoami` | any authenticated | extensions (query)
 ---
 ```

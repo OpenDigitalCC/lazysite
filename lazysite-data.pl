@@ -19,7 +19,7 @@
 # IT VALIDATES ITS OWN IDENTITY, and that is the whole reason SM411 exists.
 #
 # The front door routes lazysite-*.pl, but only the processor and manager-api
-# are WRAPPED - so a direct-CGI plugin sees X-Remote-User exactly as the client
+# are WRAPPED - so a direct-CGI extension sees X-Remote-User exactly as the client
 # sent it. Trusting it here would be SM402's defect reintroduced by
 # specification: a header anybody can set, believed. So this verifies the
 # session cookie itself, through the same module lazysite-auth.pl mints with,
@@ -121,13 +121,13 @@ sub main {
     # SM557: the package is require'd at runtime, so this file mentions the
     # variable once by design - t/lint/04 refuses the 'used only once' warning.
     no warnings 'once';
-    require Lazysite::Manager::Plugins;
-    local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
+    require Lazysite::Manager::Extensions;
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
     return reply( 403,
         { ok => 0,
-            error => 'The data plugin is disabled. A sysop can enable it '
+            error => 'The data extension is disabled. A sysop can enable it '
                 . 'on the Extensions page.' } )
-        unless Lazysite::Manager::Plugins::plugin_enabled('extensions/data.pl');
+        unless Lazysite::Manager::Extensions::extension_enabled('extensions/data.pl');
 
     my %q;
     for my $pair ( split /&/, ( $ENV{QUERY_STRING} // '' ) ) {

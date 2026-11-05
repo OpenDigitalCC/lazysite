@@ -25,7 +25,7 @@ use JSON::PP   ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper qw(site_tempdir);
-use Lazysite::Manager::Plugins ();
+use Lazysite::Manager::Extensions ();
 use Lazysite::Handlers         ();
 
 my $d     = site_tempdir();
@@ -33,7 +33,7 @@ my $store = "$d/lazysite/forms/submissions/contact.jsonl";
 make_path("$d/lazysite/forms/submissions");
 { open my $c, '>', "$d/lazysite/lazysite.conf" or die; print {$c} "site_name: T\n"; close $c }
 { open my $c, '>', "$d/lazysite/forms/contact.conf" or die; print {$c} "targets: []\n"; close $c }
-$Lazysite::Manager::Plugins::DOCROOT = $d;
+$Lazysite::Manager::Extensions::DOCROOT = $d;
 $Lazysite::Handlers::DOCROOT         = $d;
 
 my $J = JSON::PP->new->canonical;
@@ -48,7 +48,7 @@ sub read_store {
     close $f;
     return @r;
 }
-sub list { Lazysite::Manager::Plugins::action_form_submissions('lazysite/forms/submissions/contact.jsonl') }
+sub list { Lazysite::Manager::Extensions::action_form_submissions('lazysite/forms/submissions/contact.jsonl') }
 sub by_name { my ($r) = @_; return { map { $_->{name} => $_ } @{ $r->{rows} } } }
 
 write_store(
@@ -84,7 +84,7 @@ subtest 'every row has an id, and the id is the hash of the line on disk' => sub
 
 subtest 'a row above U+00FF can be deleted by its id' => sub {
     my $id = by_name( list() )->{"Zo\x{eb} \x{263a}"}{_id};
-    my $r  = eval { Lazysite::Manager::Plugins::action_form_submission_delete(
+    my $r  = eval { Lazysite::Manager::Extensions::action_form_submission_delete(
             'lazysite/forms/submissions/contact.jsonl', $id ) };
     ok( $r && $r->{ok}, 'deleted' ) or diag( $@ || explain $r );
     is( scalar( read_store() ), 2, 'and the store lost exactly that row' );
@@ -93,7 +93,7 @@ subtest 'a row above U+00FF can be deleted by its id' => sub {
 subtest 'confirming a quarantined non-ASCII row keeps the text as typed' => sub {
     write_store( { name => "Herv\x{e9}", message => "caf\x{e9} \x{263a}", _quarantined => JSON::PP::true, _spam_reason => 't' } );
     my $id = list()->{rows}[0]{_id};
-    my $r  = eval { Lazysite::Manager::Plugins::action_form_submission_confirm(
+    my $r  = eval { Lazysite::Manager::Extensions::action_form_submission_confirm(
             'lazysite/forms/submissions/contact.jsonl', $id ) };
     ok( $r && $r->{ok}, 'confirmed' ) or diag( $@ || explain $r );
     my ($row) = read_store();

@@ -4078,7 +4078,7 @@ sub _default_group_seed {
             manage_data => 1, manage_briefs => 1 },
         'cap-site' => {
             label       => 'Capability: site settings', assignable => 0,
-            description => 'Domains, site packages, configuration and plugins. '
+            description => 'Domains, site packages, configuration and extensions. '
                 . 'Changes what the whole site is, not what is on it.',
             manage_domains => 1, manage_config => 1 },
         # SM633: SEPARATE FROM cap-site ON PURPOSE. Putting it beside

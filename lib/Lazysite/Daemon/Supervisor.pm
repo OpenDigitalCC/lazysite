@@ -8,8 +8,8 @@ package Lazysite::Daemon::Supervisor;
 #
 # THE THREE PROPERTIES THIS FILE EXISTS TO HOLD:
 #
-# 1. DISABLED MEANS NO PROCESS. should_run() reads the daemon plugin's enabled
-#    state and the entry point refuses to start when it is off. A CGI plugin
+# 1. DISABLED MEANS NO PROCESS. should_run() reads the daemon extension's enabled
+#    state and the entry point refuses to start when it is off. A CGI extension
 #    enforces "off" at dispatch because a request arrives to refuse; a daemon
 #    has no dispatch, so the enforcement is that nothing is ever started.
 #
@@ -43,19 +43,19 @@ use Lazysite::Paths     ();
 
 our $VERSION = '0.1';
 
-# The plugin script whose enabled state gates this runtime. One name, stated
+# The extension script whose enabled state gates this runtime. One name, stated
 # once - a second spelling of it somewhere else is how "disabled" drifts back
 # into being a display state.
-# SM759: the REGISTRY KEY, which is what the Plugin Manager writes into the
-# conf's plugins: list and what every other enabled-check in the engine reads
+# SM759: the REGISTRY KEY, which is what the Extension Manager writes into the
+# conf's extensions: list and what every other enabled-check in the engine reads
 # (`extensions/data.pl`, `extensions/briefs.pl`). This was 'daemon.pl' - a name the
 # conf never holds - so should_run() was 0 on every site in the field: Enable
 # wrote `extensions/daemon.pl`, the listing read it back as enabled, and the
 # runtime read the same file, looked for a different word, and reported the
-# plugin disabled. Every test fixture had written `- daemon.pl` by hand, so
+# extension disabled. Every test fixture had written `- daemon.pl` by hand, so
 # the fixture agreed with the reader and never met the writer. t/unit/daemon/09
 # now enables through the real writer; t/lint/119 refuses a bare name.
-our $PLUGIN = 'extensions/daemon.pl';
+our $EXTENSION = 'extensions/daemon.pl';
 
 # Injectable for tests, and for the entry point which knows its own root.
 our $DOCROOT;
@@ -71,7 +71,7 @@ sub _docroot {
 
 # Does the runtime have permission to exist at all?
 #
-# Returns 1 when the daemon plugin is enabled, 0 otherwise. The caller must
+# Returns 1 when the daemon extension is enabled, 0 otherwise. The caller must
 # treat 0 as "do not start", never as "start and refuse work" - the second is
 # what SM222 documents as today's behaviour for services and is precisely what
 # a long-lived credentialed process must not do.
@@ -80,17 +80,17 @@ sub should_run {
     my $root = _docroot($docroot);
     return 0 unless length $root;
 
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
 
     # `no warnings 'once'` because the module is REQUIRED at runtime, so its
     # `our $DOCROOT` is not visible when this file is compiled and Perl reads
-    # the assignment as a possible typo. The variable is real - Plugins.pm
+    # the assignment as a possible typo. The variable is real - Extensions.pm
     # declares it and _lz() resolves the engine tree from it - and it is
     # localised rather than set so that nothing else in the process inherits
     # this docroot.
     no warnings 'once';
-    local $Lazysite::Manager::Plugins::DOCROOT = $root;
-    return Lazysite::Manager::Plugins::plugin_enabled($PLUGIN) ? 1 : 0;
+    local $Lazysite::Manager::Extensions::DOCROOT = $root;
+    return Lazysite::Manager::Extensions::extension_enabled($EXTENSION) ? 1 : 0;
 }
 
 # --- the service registry ------------------------------------------------
@@ -320,7 +320,7 @@ sub _cmdline {
 # so phase 1 did not wait for the shared contract, and written down as owed. The
 # contract now exists in Lazysite::Lifecycle and the daemon is its first
 # conforming consumer, which is the exemplar-first shape ADR 0009 used for
-# plugins.
+# extensions.
 #
 # WHAT CHANGED, and it is not only vocabulary. The old `runtime` field mixed two
 # questions: `died` and `not-started` are both "not running", but one is a
@@ -382,7 +382,7 @@ sub job_account_checks {
     my ( $user, $why ) = Lazysite::Daemon::Service::Scheduler::resolve_job_user( docroot => $root );
     unless ( defined $user ) {
         push @out, { check => 'job_account', ok => 0, message => "no job will run: $why",
-            remedy => 'set daemon_job_user in the plugin config to an account holding run_jobs (a purpose account, not a person\'s)' };
+            remedy => 'set daemon_job_user in the extension config to an account holding run_jobs (a purpose account, not a person\'s)' };
         return \@out;
     }
     push @out, { check => 'job_account', ok => 1, message => "jobs run as '$user', which holds run_jobs" };
@@ -409,8 +409,8 @@ sub status {
     my $host    = host_provisioning($root);
 
     # SM760: DISABLE SAYS WHETHER THE PROCESS STOPPED. The field could not
-    # confirm it - Status is refused while the plugin is off (a disabled
-    # contract plugin executes nothing), so the only reading was to re-enable
+    # confirm it - Status is refused while the extension is off (a disabled
+    # contract extension executes nothing), so the only reading was to re-enable
     # and look. The on_disable hook runs this with `settle`, and it waits up
     # to that many seconds for the runtime to notice the gate ($GATE_EVERY)
     # and go, then reports "stopped" or "still stopping (pid N)". A wait
@@ -518,7 +518,7 @@ sub status {
     # the reading an operator wants and the one a per-process check misses.
     my $whole = lifecycle_status(
         unit       => 'daemon',
-        kind       => 'plugin',
+        kind       => 'extension',
         desired_on => $enabled,
         running    => $any_running,
         ( $any_died ? ( verdict => 'degraded' ) : () ),
@@ -532,15 +532,15 @@ sub status {
         ( !$any_died && !$any_pending && $any_waiting && !$any_running
             ? ( verdict => 'starting',
                 message => 'the daemon is switched on and waiting for the host timer to start it',
-                remedy => 'the plugin is enabled and the host runtime is provisioned; its timer starts it within five minutes'
+                remedy => 'the extension is enabled and the host runtime is provisioned; its timer starts it within five minutes'
                 )
             : ()
         ),
         ( !$enabled
             ? ( message => $any_running
-                ? 'the daemon plugin is disabled and the runtime is still stopping (pid '
+                ? 'the daemon extension is disabled and the runtime is still stopping (pid '
                     . join( ', ', map { _read_pid( $root, $_->{name} ) // '?' } @listed ) . ')'
-                : 'the daemon plugin is disabled and the runtime is stopped' )
+                : 'the daemon extension is disabled and the runtime is stopped' )
             : ()
         ),
         ( $any_died
@@ -561,7 +561,7 @@ sub status {
     );
 
     # SM757: the checks a sysop's Enable needs answered NOW, and one sentence
-    # the Plugin Manager can show beside the toggle.
+    # the Extension Manager can show beside the toggle.
     my @checks = ( _host_checks( $host, $enabled, $any_running ), @{ $enabled ? job_account_checks($root) : [] } );
     # The host state is already the top-level remedy; "Also:" carries the first
     # failing JOB check, which no lifecycle field would otherwise mention.
@@ -581,7 +581,7 @@ sub status {
 
     return {
         ok     => 1,
-        plugin => $PLUGIN,
+        extension => $EXTENSION,
         %{$whole},
         services => \@svc,
         host     => $host,
@@ -593,13 +593,13 @@ sub status {
 
 sub _host_remedy {
     my ($host) = @_;
-    return ( remedy => 'the plugin is enabled and the host runtime is provisioned; '
+    return ( remedy => 'the extension is enabled and the host runtime is provisioned; '
             . 'its timer starts it within five minutes' )
         if $host->{conf} && $host->{timer} eq 'enabled';
-    return ( remedy => "the plugin is enabled and the host runtime conf exists ($host->{conf}) but its "
+    return ( remedy => "the extension is enabled and the host runtime conf exists ($host->{conf}) but its "
             . "timer is not enabled - a host operator runs: systemctl enable --now lazysited\@$host->{instance}.timer" )
         if $host->{conf};
-    return ( remedy => 'the plugin is enabled but this host has no runtime provisioned for this site: '
+    return ( remedy => 'the extension is enabled but this host has no runtime provisioned for this site: '
             . 'nothing will run until an operator provisions it - on Hestia the deploy '
             . '(lazysite-hestia-deploy.sh) does it on every deploy, or '
             . 'lazysite-hestia-domain add <user> <domain> --daemon' );
@@ -642,7 +642,7 @@ sub _host_checks {
         }
     }
     push @c, { check => 'runtime', ok => ( $running || !$enabled ) ? 1 : 0,
-        message => $running ? 'the runtime is running' : $enabled ? 'the runtime is not running yet' : 'the plugin is disabled, so no runtime runs',
+        message => $running ? 'the runtime is running' : $enabled ? 'the runtime is not running yet' : 'the extension is disabled, so no runtime runs',
         ( $enabled && !$running ? ( _host_remedy($host) ) : () ) };
     return @c;
 }
@@ -673,7 +673,7 @@ sub _host_checks {
 #
 # THE GATE IS RE-READ WHILE RUNNING (F1.2 of the 0.13.1 daemon review). The
 # unit and the README both say both switches must be on for anything to run;
-# a sysop disabling the plugin in the manager must therefore stop the jobs,
+# a sysop disabling the extension in the manager must therefore stop the jobs,
 # not merely prevent the next start. Checked every $GATE_EVERY seconds rather
 # than every second, because it is a file read per instance and the host may
 # have hundreds. Off means stop the children and exit 0 - the exit code the
@@ -689,7 +689,7 @@ sub run {
 
     unless ( should_run($root) ) {
         log_event( 'INFO', 'daemon',
-            'not starting: the daemon plugin is disabled' );
+            'not starting: the daemon extension is disabled' );
         return 0;
     }
 
@@ -803,7 +803,7 @@ sub run {
             $gate_checked = time;
             unless ( should_run($root) ) {
                 log_event( 'INFO', 'daemon',
-                    'stopping: the daemon plugin has been disabled' );
+                    'stopping: the daemon extension has been disabled' );
                 last;
             }
         }
@@ -1060,7 +1060,7 @@ sub _acquire_lock {
 
 # --- config --------------------------------------------------------------
 
-# The daemon's own settings live in the plugin's config file. Read defensively:
+# The daemon's own settings live in the extension's config file. Read defensively:
 # a missing or malformed value takes the default rather than stopping the
 # runtime, because a typo in a tick interval must not be the reason nothing
 # runs.

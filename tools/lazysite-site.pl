@@ -6,7 +6,7 @@
 # (Lazysite::Manager::SitePackage) as the manager's site-backup-* actions and
 # the MCP tools, so an orchestrator can drive it identically to the UI.
 #
-# The package deliberately EXCLUDES plugins, instance/site settings and auth
+# The package deliberately EXCLUDES extensions, instance/site settings and auth
 # secrets, so it carries no secrets (unlike the whole-docroot `full` backup).
 #
 # Usage:

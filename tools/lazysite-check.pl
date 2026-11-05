@@ -1278,7 +1278,7 @@ sub run_checks {
                 report( 'OK', "content history: lazysite/auth is excluded from the repo" );
             }
             # git-sync.conf holds the remote access token; when it exists it
-            # must be excluded too (the sync plugin self-heals this before
+            # must be excluded too (the sync extension self-heals this before
             # every sync, but a missing line is still a pushable-secret risk).
             if ( -f "$LZ/git-sync.conf"
                 && $excl !~ m{^/?lazysite/git-sync\.conf\s*$}m ) {
@@ -2343,7 +2343,7 @@ sub report_unscoped_data_tables {
         my $txt = '';
         if ( open my $fh, '<', "$dir/$f" ) { local $/; $txt = <$fh>; close $fh }
         # Read as TEXT, not through the YAML parser: this tool runs on installs
-        # where the data plugin's modules may not be present, and a check that
+        # where the data extension's modules may not be present, and a check that
         # cannot run where the problem lives is not a check.
         if   ( $txt =~ /^domain:\s*\S/m ) { push @scoped,   $name }
         else                              { push @unscoped, $name }
@@ -3303,14 +3303,14 @@ sub report_engine_tree {
 #
 # The one command an operator runs to ask "is this site healthy?" has never
 # mentioned the daemon. So the only place the host half (conf + timer, root)
-# and the site half (the `daemon` plugin, the sysop) could be seen to disagree
+# and the site half (the `daemon` extension, the sysop) could be seen to disagree
 # was the manager's Status button, which nobody presses until something is
 # already wrong.
 #
 # The release manager ruled 2026-09-15 that every site is armed. That makes an
 # unarmed site a drift worth reporting - and it makes an ARMED, IDLE site the
 # normal resting state, which is the reading an operator most often gets wrong:
-# `inactive (dead)` here is correct, because a runtime whose plugin is off exits
+# `inactive (dead)` here is correct, because a runtime whose extension is off exits
 # 0 on purpose.
 #
 # FOUR STATES, NOT TWO. Armed/unarmed crossed with wanted/not-wanted, and the
@@ -3676,10 +3676,10 @@ sub report_login_rate_limit {
     # default). Said in the same words, so a limiter an operator turned off and
     # a limiter that broke both read as NOT in force, each with its reason.
     {
-        require Lazysite::Manager::Plugins;
+        require Lazysite::Manager::Extensions;
         no warnings 'once';
-        local $Lazysite::Manager::Plugins::DOCROOT = $opt{docroot};
-        unless ( Lazysite::Manager::Plugins::plugin_enabled('extensions/login-rate-limit.pl') ) {
+        local $Lazysite::Manager::Extensions::DOCROOT = $opt{docroot};
+        unless ( Lazysite::Manager::Extensions::extension_enabled('extensions/login-rate-limit.pl') ) {
             report( 'WARN',
                 'the login rate limiter is NOT in force: the login rate limit extension is '
                     . 'switched off, so sign-in attempts are not counted and every one is allowed',
@@ -3785,10 +3785,10 @@ BEGIN { $OOM_SAFE_RESEND = q{0.38} }    # set before the checks above run
 
 sub report_odoo_oom_version {
     my $on = eval {
-        require Lazysite::Manager::Plugins;
+        require Lazysite::Manager::Extensions;
         no warnings 'once';
-        local $Lazysite::Manager::Plugins::DOCROOT = $opt{docroot};
-        Lazysite::Manager::Plugins::plugin_enabled('extensions/odoo.pl');
+        local $Lazysite::Manager::Extensions::DOCROOT = $opt{docroot};
+        Lazysite::Manager::Extensions::extension_enabled('extensions/odoo.pl');
     };
     return unless $on;
     my ( $have, $file );

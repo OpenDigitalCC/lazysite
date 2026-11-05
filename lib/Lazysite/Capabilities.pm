@@ -223,7 +223,7 @@ my %ACTION_INFO = (
         },
     },
     # SM447 / ADR 0009. DECLARED BY extensions/data.pl and mirrored here; the
-    # plugin is the owner and t/lint/76 refuses a mirror with no plugin
+    # extension is the owner and t/lint/76 refuses a mirror with no extension
     # claiming it, or one claimed twice.
     #
     # THE UNLOCK LISTS ARE EMPTY AND THAT IS ACCURATE. The typed core is built
@@ -398,7 +398,7 @@ my %ACTION_INFO = (
             . 'Reading a brief is also admitted by manage_content; creating and '
             . 'appending to one needs this. DELETING a brief needs `purge`, not '
             . 'this capability, because no copy survives it. Declared by the '
-            . 'briefs plugin, so it is grantable only where that plugin is '
+            . 'briefs extension, so it is grantable only where that extension is '
             . 'installed.',
         grants => 'Read and write authoring briefs - the record of WHY a page is as it is. Does not reach the page itself.',
         unlocks => {
@@ -416,8 +416,8 @@ my %ACTION_INFO = (
             . 'the runtime at all, asked so that a job cannot be attached to an '
             . 'account nobody meant to carry one. A job never runs as `system`, '
             . 'because a timer that can call anything is a second write plane '
-            . 'wearing a clock. Declared by the daemon plugin, so it is '
-            . 'grantable only where that plugin is installed.',
+            . 'wearing a clock. Declared by the daemon extension, so it is '
+            . 'grantable only where that extension is installed.',
         grants => 'Lets the persistent runtime act as this account when it runs a scheduled job. It confers no ability of its own - whatever the job does still needs the capability for that action, and every run is recorded against this account by name.',
         unlocks => {},
     },
@@ -778,7 +778,7 @@ my @TASKS = (
     { id => 'restore-from-history', title => 'Undo a content change (restore a recorded version)',
         requires => ['manage_content'],
         steps    => [
-            'call list_versions (MCP) or GET action=git-history (control API) for the file - needs the site\'s Content history plugin enabled',
+            'call list_versions (MCP) or GET action=git-history (control API) for the file - needs the site\'s Content history extension enabled',
             'call view_version / git-show to confirm the version (content + diff against the current file)',
             'call restore_version / git-restore - the historic content is saved back through the normal save path and the restore itself becomes the newest version, so nothing is lost',
         ],
@@ -809,7 +809,7 @@ my @TASKS = (
     { id => 'migrate-site', title => 'Migrate a site (package one domain and apply it elsewhere)',
         requires => ['manage_domains'],
         steps    => [
-            'ON THE SOURCE: call site_backup (MCP) or POST action=site-backup-create (control API) with the domain host - this writes a portable package (lazysite-site-<host>-<stamp>.tar.gz) holding that domain\'s content + nav + its theme/layout + a manifest. It excludes plugins, instance settings and secrets, so it is safe to hand over',
+            'ON THE SOURCE: call site_backup (MCP) or POST action=site-backup-create (control API) with the domain host - this writes a portable package (lazysite-site-<host>-<stamp>.tar.gz) holding that domain\'s content + nav + its theme/layout + a manifest. It excludes extensions, instance settings and secrets, so it is safe to hand over',
             'MOVE THE PACKAGE to the target instance if different: GET action=backup-download to fetch it, then POST action=site-backup-upload (multipart) on the target to import it into that instance\'s backups area. Same-instance moves skip this - the package is already there',
             'BEFORE APPLYING, make sure the target domain exists (register it with domain-add if needed) and, if you want a rollback point, take a backup - apply overwrites the target content root',
             'ON THE TARGET: call site_apply (MCP) or POST action=site-backup-apply (control API) with the package name and the target host (omit host to apply to the default site; pass clean:true to clear the target content first). This copies the content in, installs the bundled theme/layout if the target lacks it, places the nav, and sets the target domain\'s presentation. The control-API action also takes a safety snapshot automatically',

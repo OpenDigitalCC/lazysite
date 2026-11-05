@@ -16,7 +16,7 @@
 #
 # Three consistent answers that together said "writes are broken" when the
 # truth was "one package is missing". The dependency IS declared - in
-# sbom-deps.json, in the deb, in the plugin's `owns` - so this is not about
+# sbom-deps.json, in the deb, in the extension's `owns` - so this is not about
 # whether it should be there. It is about the host where it is not, and 500 is
 # the one answer nobody can act on.
 use strict;

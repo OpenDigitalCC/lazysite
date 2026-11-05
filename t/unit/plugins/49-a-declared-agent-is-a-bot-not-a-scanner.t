@@ -19,8 +19,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $extension" unless -f $extension;
 
 my $BASE = int( time() / 86400 ) * 86400 - 86400 + 3600;
 
@@ -41,7 +41,7 @@ sub export_log {
     close $lf;
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $out = qx($^X \Q$plugin\E --export --window 30 2>/dev/null);
+    my $out = qx($^X \Q$extension\E --export --window 30 2>/dev/null);
     return decode_json($out);
 }
 

@@ -149,7 +149,7 @@ subtest 'nothing derives the engine dir behind the resolver' => sub {
     #
     # SM850: EVERY FILE, NOT NINE. This used to read nine named entry points,
     # and the modules they call were where the paths were built: the data store,
-    # the scheduler, the briefs, notifications, the stats and pandoc plugins -
+    # the scheduler, the briefs, notifications, the stats and pandoc extensions -
     # 110 places across 38 files, each reading and writing a directory that a
     # migrated site no longer has. The form handler was found building SM842 by
     # refusing every submission as "not configured"; the rest were found by

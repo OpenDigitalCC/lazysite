@@ -1,15 +1,15 @@
 #!/usr/bin/perl
 # SM755, from the 0.13.1 daemon review (D1 F1.1): the supervisor's restart path.
 #
-# The plugin's description promises "a service that keeps dying is reported as
+# The extension's description promises "a service that keeps dying is reported as
 # FAILED rather than restarted forever". At 53df9a44 the opposite was measured:
 # a service that exited at once was forked again every ~2 s indefinitely, the
 # failure count never moved (the reap loop forgot the child before the failure
 # branch saw it), the backoff never applied, and status() said `on` while the
-# zombie existed. No test ran Supervisor::run with the plugin enabled, which is
+# zombie existed. No test ran Supervisor::run with the extension enabled, which is
 # how that shipped.
 #
-# This file runs the supervisor for real - forked, plugin enabled, with the
+# This file runs the supervisor for real - forked, extension enabled, with the
 # service registry overridden - and holds:
 #   - every exit is counted, with its exit status, and the backoff grows
 #   - past the ceiling the service is FAILED once, and status() says `failed`
@@ -17,7 +17,7 @@
 #   - while a restart is pending status() says `starting`, not `failed`
 #   - a healthy service is started once and stays started
 #   - SIGTERM stops the children and removes the pid and state files
-#   - disabling the plugin while the daemon runs STOPS it (F1.2): both switches
+#   - disabling the extension while the daemon runs STOPS it (F1.2): both switches
 #     must be on, after start as well as before
 use strict;
 use warnings;
@@ -185,7 +185,7 @@ subtest 'a healthy service is started once and TERM stops everything cleanly' =>
     );
 };
 
-subtest 'disabling the plugin while it runs stops it - both switches, after start too' => sub {
+subtest 'disabling the extension while it runs stops it - both switches, after start too' => sub {
     my ( $t, $d ) = site();
     local $Lazysite::Daemon::Supervisor::GATE_EVERY = 1;
     with_service(
@@ -207,10 +207,10 @@ subtest 'disabling the plugin while it runs stops it - both switches, after star
                 last if waitpid( $pid, POSIX::WNOHANG() ) > 0;
                 sleep 1;
             }
-            ok( !kill( 0, $pid ), 'the supervisor exited on its own within 10 s of the plugin being disabled' )
+            ok( !kill( 0, $pid ), 'the supervisor exited on its own within 10 s of the extension being disabled' )
                 or kill 'TERM', $pid;
             is( $? >> 8, 0, 'with exit 0, which the unit treats as "disabled, do not restart"' );
-            ok( count_lines( $log, qr/plugin has been disabled/ ), 'and said why' );
+            ok( count_lines( $log, qr/extension has been disabled/ ), 'and said why' );
             ok( !-e "$d/lazysite/daemon/lives.pid", 'its child is stopped and the pid file removed' );
             is( Lazysite::Daemon::Supervisor::status($d)->{verdict}, 'off', 'status: off' );
         }

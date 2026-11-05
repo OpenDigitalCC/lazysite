@@ -2,7 +2,7 @@
 # SM927: form-smtp declares a `validate` action and the config page shows a
 # "Validate SMTP connection" button. notify-xmpp declared no actions at all, so an
 # operator who had just typed eight fields including a password had no way to learn
-# whether any of it worked until a real event fired - and this plugin's whole failure
+# whether any of it worked until a real event fired - and this extension's whole failure
 # mode is that when one does fire, nothing tells them: an XMPP notice that never
 # arrives looks exactly like a site where nothing has happened.
 #
@@ -354,14 +354,14 @@ subtest 'a test leaves no notice behind' => sub {
             . '(SM924) - a test that leaves evidence behind is not a test' );
 };
 
-# --- the wiring, end to end through the plugin -----------------------------
+# --- the wiring, end to end through the extension -----------------------------
 #
-# The staging above all runs in-process. This runs the plugin the way the manager
+# The staging above all runs in-process. This runs the extension the way the manager
 # does, as a subprocess, which is the only thing that proves the descriptor's
 # action, the --scan mode and the @INC search actually meet. The case chosen is one
 # that stops at config, so no network is involved in a child this file cannot stub.
 
-subtest 'the plugin answers --scan with the same result' => sub {
+subtest 'the extension answers --scan with the same result' => sub {
     my $d     = site();    # enabled, not configured
     my $pl    = "$FindBin::Bin/../../../extensions/notify-xmpp.pl";
     my $out   = qx{$^X "$pl" --scan --docroot "$d" 2>/dev/null};

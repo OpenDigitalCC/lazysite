@@ -33,14 +33,14 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $extension" unless -f $extension;
 
 # SM754 / lint 118: site_tempdir, not a bare tempdir. The engine writes BESIDE
 # a docroot (the private store, and ../extensions on the Hestia layout) and
 # File::Temp only cleans the directory it made, so a bare tempdir leaks its
 # siblings into /tmp - including a stray extensions/stats.pl that once made a
-# "plugin not found" assertion pass for the wrong reason.
+# "extension not found" assertion pass for the wrong reason.
 my $d = site_tempdir();
 mkdir "$d/lazysite";
 mkdir "$d/lazysite/$_" for qw(logs cache stats);
@@ -83,7 +83,7 @@ rec( '/',             200, 'Googlebot/2.1', 'crawler-d' );
 rec( '/',             200, 'ClaudeBot/1.0', 'ai-e' );
 close $lf;
 
-my $out = qx($^X \Q$plugin\E --export --window 30 --docroot \Q$d\E 2>&1);
+my $out = qx($^X \Q$extension\E --export --window 30 --docroot \Q$d\E 2>&1);
 my $r   = eval { decode_json($out) };
 ok( $r && $r->{ok}, 'the report was produced' )
     or do { diag( substr $out, 0, 400 ); done_testing(); exit };

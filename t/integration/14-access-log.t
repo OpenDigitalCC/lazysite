@@ -2,7 +2,7 @@
 # SM140: the processor records its own traffic (first-party access log) so
 # visitor analytics need no web-server log. Pins the recorder end-to-end
 # (statuses, channels, cache flag, anonymised visitor key, injection
-# sanitisation, the off switch, retention prune) and the stats plugin's
+# sanitisation, the off switch, retention prune) and the stats extension's
 # first-party aggregation.
 use strict;
 use warnings;
@@ -83,7 +83,7 @@ isnt( $lines[0]{v}, $lines[1]{v}, 'different visitor -> different key' );
 ok( !-e "$d/lazysite/logs/access-20200101.jsonl",
     'day-file beyond retention pruned on the first write of a new day' );
 
-# --- stats plugin aggregates the first-party data (SM140 increment 2) ---
+# --- stats extension aggregates the first-party data (SM140 increment 2) ---
 my $root = repo_root();
 open my $sc, '>', "$d/lazysite/stats.conf" or die $!;
 print $sc "window_days: 30\n";
@@ -93,8 +93,8 @@ ok( $s->{ok}, 'first-party scan ok' ) or diag( $s->{error} );
 is( $s->{source}, 'first-party', 'source is the first-party log' );
 # SM941 AV2: TWO page views and ONE not-found. `/nope` is a 404 - nobody read a
 # page - so it leaves `hits` for `error_hits`. Both halves asserted, through the
-# WHOLE path (the processor writes the log, the plugin reads it), so the split is
-# proved end to end rather than only in the plugin's own fixtures.
+# WHOLE path (the processor writes the log, the extension reads it), so the split is
+# proved end to end rather than only in the extension's own fixtures.
 is( $s->{hits}, 2, 'page views: / and the / cache hit (manager excluded)' );
 is( $s->{error_hits}, 1, 'and /nope is counted as a not-found, not a visit' );
 is( $s->{unique_visitors}, 2, 'distinct daily visitor keys' );

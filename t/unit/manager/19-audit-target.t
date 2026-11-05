@@ -50,24 +50,24 @@ my ($ui)  = grep { $_->{action} eq 'save' } @$entries;
 my ($api) = grep { $_->{action} eq 'theme-activate' } @$entries;
 is( $ui->{target}, 'content/about.md', 'SM078: target recorded' );
 
-# --- plugin actions name the plugin, not '/' ---
-is( main::_audit_plugin_target( { plugin => 'stats' }, undef ),
-    'stats', 'plugin param used as audit target' );
-is( main::_audit_plugin_target( {}, '{"script":"/x/extensions/form-handler.pl"}' ),
-    'form-handler', 'plugin target derived from body script basename' );
-is( main::_audit_plugin_target( {}, '{"script":"form-smtp"}' ),
-    'form-smtp', 'plugin target from a bare script name' );
-is( main::_audit_plugin_target( {}, undef ), '', 'no plugin info -> empty target' );
+# --- extension actions name the extension, not '/' ---
+is( main::_audit_extension_target( { extension => 'stats' }, undef ),
+    'stats', 'extension param used as audit target' );
+is( main::_audit_extension_target( {}, '{"script":"/x/extensions/form-handler.pl"}' ),
+    'form-handler', 'extension target derived from body script basename' );
+is( main::_audit_extension_target( {}, '{"script":"form-smtp"}' ),
+    'form-smtp', 'extension target from a bare script name' );
+is( main::_audit_extension_target( {}, undef ), '', 'no extension info -> empty target' );
 
-# plugin-save names the setting(s) changed, not just the plugin.
-is( main::_audit_plugin_target( { plugin => 'lazysite' },
-        '{"values":{"site_name":"X"}}', 'plugin-save' ),
-    'lazysite (site_name)', 'plugin-save names the changed setting' );
-is( main::_audit_plugin_target( { plugin => 'lazysite' },
-        '{"values":{"webdav_enabled":"on","site_name":"X"}}', 'plugin-save' ),
-    'lazysite (site_name, webdav_enabled)', 'plugin-save lists keys, sorted' );
-is( main::_audit_plugin_target( { plugin => 'stats' }, '{}', 'plugin-action' ),
-    'stats', 'a non-save plugin action stays just the plugin name' );
+# extension-save names the setting(s) changed, not just the extension.
+is( main::_audit_extension_target( { extension => 'lazysite' },
+        '{"values":{"site_name":"X"}}', 'extension-save' ),
+    'lazysite (site_name)', 'extension-save names the changed setting' );
+is( main::_audit_extension_target( { extension => 'lazysite' },
+        '{"values":{"webdav_enabled":"on","site_name":"X"}}', 'extension-save' ),
+    'lazysite (site_name, webdav_enabled)', 'extension-save lists keys, sorted' );
+is( main::_audit_extension_target( { extension => 'stats' }, '{}', 'extension-action' ),
+    'stats', 'a non-save extension action stays just the extension name' );
 is( main::_audit_implicit_target('nav-save'), 'nav', 'nav-save audit target is nav, not /' );
 is( main::_audit_implicit_target('save'),     '',    'actions with a real path have no implicit target' );
 

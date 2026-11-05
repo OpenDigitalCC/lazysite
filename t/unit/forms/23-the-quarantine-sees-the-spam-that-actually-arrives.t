@@ -34,8 +34,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $PLUGIN = repo_root() . '/extensions/form-handler.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/form-handler.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/forms", "$d/subs" );
@@ -85,7 +85,7 @@ sub submit {
     local $ENV{CONTENT_LENGTH} = length $body;
     local $ENV{DOCUMENT_ROOT}  = $d;
     local $ENV{REMOTE_ADDR}    = "10.0.0.$ip";
-    qx($^X \Q$PLUGIN\E < \Q$in\E 2>/dev/null);
+    qx($^X \Q$EXTENSION\E < \Q$in\E 2>/dev/null);
 
     open my $fh, '<', "$d/subs/contact.jsonl" or return undef;
     my @lines = <$fh>;

@@ -21,8 +21,8 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir run_child);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = "$root/extensions/stats.pl";
+plan skip_all => "no $extension" unless -f $extension;
 
 my $d = site_tempdir();
 make_path( "$d/lazysite/logs", "$d/lazysite/stats", "$d/lazysite/cache" );
@@ -56,7 +56,7 @@ sub run_export {
     my (@args) = @_;
     # Argument list, never a shell string (t/lint/40); stdout only, as it is JSON.
     local $ENV{DOCUMENT_ROOT} = $d;
-    my $out = run_child( [ $^X, $plugin, '--export', '--docroot', $d, '--window', 7, @args ],
+    my $out = run_child( [ $^X, $extension, '--export', '--docroot', $d, '--window', 7, @args ],
         stderr => 'inherit' )->{out};
     return eval { decode_json($out) } || {};
 }

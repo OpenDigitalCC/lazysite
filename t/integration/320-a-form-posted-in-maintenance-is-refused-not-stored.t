@@ -22,7 +22,7 @@ use TestHelper qw(repo_root env_passthrough site_tempdir grant_caps);
 
 my $root    = repo_root();
 my $handler = "$root/extensions/form-handler.pl";
-my $docroot = site_tempdir( plugins => 1 );
+my $docroot = site_tempdir( extensions => 1 );
 make_path( "$docroot/lazysite/auth", "$docroot/lazysite/forms" );
 sub conf {
     my ($extra) = @_;

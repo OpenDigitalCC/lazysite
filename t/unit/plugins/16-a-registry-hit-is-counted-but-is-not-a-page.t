@@ -22,8 +22,8 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root   = repo_root();
-my $plugin = "$root/extensions/stats.pl";
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = "$root/extensions/stats.pl";
+plan skip_all => "no $extension" unless -f $extension;
 
 # --- the processor must record the hit at all -------------------------
 {
@@ -41,7 +41,7 @@ plan skip_all => "no $plugin" unless -f $plugin;
         'on its own channel, so it is not counted as a page' );
 }
 
-# --- and the plugin must count it, separately -------------------------
+# --- and the extension must count it, separately -------------------------
 my $d = tempdir( 'lazysite-reg-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
 make_path( "$d/lazysite/logs", "$d/lazysite/stats", "$d/lazysite/cache" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
@@ -86,7 +86,7 @@ ev( '/sitemap.xml', 'registry' );
 ev( '/feed.rss',    'registry' );
 close $lf;
 
-my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$plugin\E --export --day \Q$day\E 2>/dev/null`;
+my $out = `DOCUMENT_ROOT=\Q$d\E $^X \Q$extension\E --export --day \Q$day\E 2>/dev/null`;
 my $r   = eval { decode_json($out) } || {};
 my $b   = $r->{day}                  || {};
 

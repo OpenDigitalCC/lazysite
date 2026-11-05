@@ -42,8 +42,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-ok( -f $plugin, 'the stats plugin is present' );
+my $extension = repo_root() . '/extensions/stats.pl';
+ok( -f $extension, 'the stats extension is present' );
 
 # Q14g (SM974): WHEN the requests happened. This was `time() - 3600` with the
 # rollup read as `localtime`'s today, so in the hour after midnight the requests
@@ -70,7 +70,7 @@ sub export_log {
     for my $r ( @{ $o{requests} } ) {
         my ( $ip, $path, $status, $offset ) = @$r;
         # gmtime, because the stamp SAYS +0000: localtime labelled +0000 is a
-        # stamp an hour wrong under BST, and the plugin reads the offset.
+        # stamp an hour wrong under BST, and the extension reads the offset.
         my $when = strftime( '%d/%b/%Y:%H:%M:%S +0000',
             gmtime( $base + ( $offset // 0 ) ) );
         print $lf qq{$ip - - [$when] "GET $path HTTP/1.1" $status 100 "-" }
@@ -80,7 +80,7 @@ sub export_log {
 
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $out = qx($^X \Q$plugin\E --export --window 30 2>/dev/null);
+    my $out = qx($^X \Q$extension\E --export --window 30 2>/dev/null);
     my $r   = decode_json($out);
     $r->{_docroot} = $d;
     return $r;
@@ -192,7 +192,7 @@ subtest 'the thresholds are settings, and they are stated' => sub {
     # The filing is explicit that the numbers are a judgement rather than a
     # constant, because how many 404s a real reader generates is a property of
     # the site. `noise_paths` is the precedent.
-    my $describe = decode_json(qx($^X \Q$plugin\E --describe 2>/dev/null));
+    my $describe = decode_json(qx($^X \Q$extension\E --describe 2>/dev/null));
     my %by_key   = map { ( $_->{key} => $_ ) } @{ $describe->{config_schema} || [] };
 
     ok( $by_key{scanner_404_paths},   'the threshold is exposed as a setting' );

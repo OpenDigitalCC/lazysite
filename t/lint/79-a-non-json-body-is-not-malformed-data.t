@@ -26,8 +26,8 @@ use TestHelper qw(repo_root);
 my $root   = repo_root();
 my $layout = "$root/starter/lazysite/manager/layout.tt";
 my $files  = "$root/starter/manager/files.md";
-# SM664: the all-files overview moved to the content-history plugin's row on
-# the Plugin Config page. The per-file History control stays on Files, so both
+# SM664: the all-files overview moved to the content-history extension's row on
+# the Extension Config page. The per-file History control stays on Files, so both
 # pages are still read here - the guard being tested is a property of the
 # FETCH and has to hold wherever the fetch lives.
 my $plug   = "$root/starter/manager/extension-config.md";
@@ -76,15 +76,15 @@ subtest 'the overview uses it, and no longer blames the data' => sub {
         'the failure message describes the FETCH, not the data' );
 };
 
-subtest 'the overview is offered from the plugin that owns it' => sub {
+subtest 'the overview is offered from the extension that owns it' => sub {
     # SM664 closed SM461's placement half: the button is on the content-history
-    # plugin's row, not at the top of the file browser. This replaces the
+    # extension's row, not at the top of the file browser. This replaces the
     # assertion that the placement half was still open - which was true, and
     # stopped being true, and a test that outlived its filing would have made
     # the fix look like a regression.
     like( $pc, qr/openHistoryOverview\(\)/,
-        'the Plugin Config page offers the overview' );
-    like( $pc, qr/plugin\.id === 'content-history'/,
+        'the Extension Config page offers the overview' );
+    like( $pc, qr/extension\.id === 'content-history'/,
         'on the content-history row specifically' );
     unlike( $fm, qr/hist-overview/,
         'and the Files page no longer carries it' )

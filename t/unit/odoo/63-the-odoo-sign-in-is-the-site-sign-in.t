@@ -44,7 +44,7 @@ use Lazysite::Odoo::Session      ();
 use Lazysite::Odoo::Visitor      ();
 use Lazysite::Odoo::SiteSignin   ();
 use Lazysite::Auth::Session      ();
-use Lazysite::Manager::Plugins   ();
+use Lazysite::Manager::Extensions   ();
 
 my $root = repo_root();
 my ( $d, $conn_fake ) = shop_ready();
@@ -259,7 +259,7 @@ subtest 'the map is checked: a capability-carrying group is refused by name, at 
     ok( !exists $m2->{'base.group_user'}, 'the capability group directly: refused' );
     ok( scalar @$r2, 'and named' );
 
-    # the plugin-save path refuses it with the operator on the form
+    # the extension-save path refuses it with the operator on the form
     my $parent = site_tempdir();
     my $sd     = "$parent/public_html";
     make_path( "$sd/lazysite/auth", "$parent/extensions" );
@@ -267,15 +267,15 @@ subtest 'the map is checked: a capability-carrying group is refused by name, at 
     chmod 0755, "$parent/extensions/odoo.pl";
     copy( $gsf, "$sd/lazysite/auth/groups-settings.json" ) or die $!;
     local $ENV{PERL5LIB} = "$root/lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
-    local $Lazysite::Manager::Plugins::DOCROOT = $sd;
-    my $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl',
+    local $Lazysite::Manager::Extensions::DOCROOT = $sd;
+    my $res = Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/odoo.pl',
         { odoo_group_map => 'sales.group_admin = role-opsuser' } );
     is( $res->{ok}, 0, 'saving a mapping to a capability group fails' );
     is( $res->{field}, 'odoo_group_map', 'naming the field' );
     like( $res->{error}, qr/sales\.group_admin = role-opsuser/, 'and the entry' );
     ok( !-e "$sd/lazysite/odoo.conf" || ( do { open my $c, '<', "$sd/lazysite/odoo.conf"; local $/; <$c> } // '' ) !~ /group_admin/,
         'and it was not written' );
-    $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'extensions/odoo.pl',
+    $res = Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/odoo.pl',
         { odoo_group_map => 'base.group_user = staff' } );
     ok( $res->{ok}, 'a clean map saves' );
 };

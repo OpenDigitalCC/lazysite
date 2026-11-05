@@ -1,13 +1,13 @@
 #!/usr/bin/perl
 
-# The data plugin - tables a site declares, holds and renders.
+# The data extension - tables a site declares, holds and renders.
 #
 # ADR 0009'S FIRST CONFORMING IMPLEMENTATION, and built to that shape from its
 # first commit rather than retrofitted. The `owns` block below is the whole
 # point: the platform is meant to CONSUME it - backup and site packages read
 # `storage`, the SBOM gate reads `deps`, the capability lints discover
 # `capabilities`, and the enabled gate (SM409) refuses everything here when the
-# plugin is off. Where the platform still knows a plugin by name, conformance
+# extension is off. Where the platform still knows an extension by name, conformance
 # removes an entry from a core list rather than adding one.
 #
 # THE BOUNDARY, restated because it is what stops this becoming an application
@@ -20,7 +20,7 @@
 # Schema,Export,Connect}), the manage_data and write_data capabilities, the
 # control-API actions and the MCP tools are all built and routed - shipped
 # across 0.11.5 and 0.11.6, with the write-side allow-list corrected in SM682.
-# This file declares the plugin and answers --describe.
+# This file declares the extension and answers --describe.
 #
 # The declaration going in FIRST was deliberate and worth keeping in mind when
 # adding a surface: the parity lints read it, so it is the thing new surfaces
@@ -39,7 +39,7 @@ BEGIN {
     # Locate the Lazysite module tree relative to this script (run-in-place,
     # tar and Hestia installs), falling back to the system @INC (package
     # installs). Deferred, because --describe must answer even where the tree
-    # is not found - a plugin that cannot describe itself cannot be listed,
+    # is not found - an extension that cannot describe itself cannot be listed,
     # and a sysop would see it missing rather than broken.
     require Cwd;
     require File::Basename;
@@ -67,14 +67,14 @@ sub describe {
         config_file => 'lazysite/data.conf',
 
         # SM469 / SM409: OPT IN TO THE ENABLED GATE. A descriptor declaring
-        # `contract` executes only while its script is in the `plugins:` list,
-        # and is born disabled - which is the right default for a plugin that
+        # `contract` executes only while its script is in the `extensions:` list,
+        # and is born disabled - which is the right default for an extension that
         # holds a site's data and has not met a real site yet.
         #
         # This was missing, and the comment on _gate_execution names the data
-        # plugin as the first contract plugin, so the omission was mine rather
+        # extension as the first contract extension, so the omission was mine rather
         # than a design question. Without it the gate treated this as a legacy
-        # plugin and left it ungated.
+        # extension and left it ungated.
         contract => 1,
 
         config_schema => [
@@ -120,16 +120,16 @@ sub describe {
 
             # DP-3. It needs Lazysite::Auth::Session (SM411) because the
             # front door routes lazysite-*.pl but wraps only the processor and
-            # manager-api - so a direct-CGI plugin sees X-Remote-User exactly
+            # manager-api - so a direct-CGI extension sees X-Remote-User exactly
             # as the client sent it, and trusting that would be SM402's defect
             # reintroduced by specification.
             endpoints => ['lazysite-data.pl'],
 
-            # SM682: write_data is this plugin's too - a narrow row-write for
+            # SM682: write_data is this extension's too - a narrow row-write for
             # an app's own users, where manage_data (every table plus schema
             # control) is far too wide. Declared HERE because t/lint/76
-            # requires every capability to be core or plugin-owned, and
-            # because whoami reads this to decide who may see the plugin's
+            # requires every capability to be core or extension-owned, and
+            # because whoami reads this to decide who may see the extension's
             # state.
             capabilities => [ 'manage_data', 'write_data' ],
 
@@ -143,10 +143,10 @@ sub describe {
 
             # `run => 'action'` IS NOT OPTIONAL HERE, and leaving it out is
             # what SM477 was: the manager invokes a declared action as
-            # `--scan` UNLESS it says otherwise, and this plugin's run()
+            # `--scan` UNLESS it says otherwise, and this extension's run()
             # serves `--action status`. So the Status button ran
             # `--scan --docroot DIR`, hit the fall-through, and showed the
-            # operator a usage string - the plugin's two halves disagreeing
+            # operator a usage string - the extension's two halves disagreeing
             # about their own contract.
             { id => 'status', label => 'Status', run => 'action' },
         ],
@@ -160,7 +160,7 @@ sub run {
         $opt{describe} = 1 if $argv[$i] eq '--describe';
         $opt{status} = 1 if $argv[$i] eq '--action' && ( $argv[ $i + 1 ] // '' ) eq 'status';
 
-        # `--scan` IS THE MANAGER'S DEFAULT, and every other plugin here
+        # `--scan` IS THE MANAGER'S DEFAULT, and every other extension here
         # serves it. Answering it too means an action that forgets the
         # declaration degrades to the status report rather than to a usage
         # string - and status is the recovery surface an operator reaches for
@@ -222,7 +222,7 @@ sub status {
     }
     $out{tables} = \@tables;
 
-    # SM495: the Plugin Manager shows data.message or the literal 'Done.' -
+    # SM495: the Extension Manager shows data.message or the literal 'Done.' -
     # so a status with no message is a button that answers 'Done.' while
     # three fields go unread. Say what was found, in one line, worst news
     # first: a missing module is why nothing else will work.

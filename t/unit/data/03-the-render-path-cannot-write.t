@@ -3,7 +3,7 @@
 #
 # A page render is the least trusted place in this system to hold a writable
 # database handle: it runs per request, anonymous visitors reach it, and its
-# inputs are content. Every other protection in this plugin is a check that can
+# inputs are content. Every other protection in this extension is a check that can
 # be got wrong once. A read-only connection is a PROPERTY that stays true even
 # when a check is wrong.
 #

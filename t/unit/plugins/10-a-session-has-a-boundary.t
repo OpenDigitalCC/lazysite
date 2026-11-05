@@ -36,8 +36,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_child);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-ok( -f $plugin, 'the stats plugin is present' );
+my $extension = repo_root() . '/extensions/stats.pl';
+ok( -f $extension, 'the stats extension is present' );
 
 sub site {
     my $d = tempdir( CLEANUP => 1 );
@@ -83,7 +83,7 @@ sub day_of {
 sub run {
     my ($d) = @_;
     local $ENV{DOCUMENT_ROOT} = $d;
-    my $out = run_child( [ $^X, $plugin, '--export', '--window', 30 ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, $extension, '--export', '--window', 30 ], stderr => 'inherit' )->{out};
     return eval { decode_json($out) };
 }
 

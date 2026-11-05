@@ -27,8 +27,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $PLUGIN" unless -f $PLUGIN;
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $EXTENSION" unless -f $EXTENSION;
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/logs", "$d/lazysite/cache" );
@@ -69,7 +69,7 @@ ev( 5340, '/contact', 'SHARED', $UA_B );
 ev( 5300, '/docs',    'SHARED', $UA_A );
 close $lf;
 
-my $cmd = qq{DOCUMENT_ROOT=\Q$d\E $^X \Q$PLUGIN\E --export --window 30};
+my $cmd = qq{DOCUMENT_ROOT=\Q$d\E $^X \Q$EXTENSION\E --export --window 30};
 my $out = `$cmd 2>/dev/null`;
 my $res = eval { decode_json($out) };
 ok( ref $res eq 'HASH', 'the export ran' ) or BAIL_OUT('no export');
@@ -150,7 +150,7 @@ subtest 'the server-log ingester separates by source too' => sub {
     print {$sl} $line->( '/pricing', $UA_A );
     close $sl;
 
-    my $out2 = `DOCUMENT_ROOT=\Q$sd\E LAZYSITE_ACCESS_LOG=\Q$log\E $^X \Q$PLUGIN\E --export --window 30 2>/dev/null`;
+    my $out2 = `DOCUMENT_ROOT=\Q$sd\E LAZYSITE_ACCESS_LOG=\Q$log\E $^X \Q$EXTENSION\E --export --window 30 2>/dev/null`;
     my $r2 = eval { decode_json($out2) };
     ok( ref $r2 eq 'HASH', 'the server-log export ran' ) or return;
 
@@ -190,7 +190,7 @@ subtest 'a behavioural promotion is recorded as inferred on the first-party log'
         for 0 .. 5;
     close $l3;
 
-    my $o = `DOCUMENT_ROOT=\Q$sd\E $^X \Q$PLUGIN\E --export --window 30 2>/dev/null`;
+    my $o = `DOCUMENT_ROOT=\Q$sd\E $^X \Q$EXTENSION\E --export --window 30 2>/dev/null`;
     ok( length $o, 'the export ran' );
 
     my $df = "$sd/lazysite/stats/daily/$day.json";

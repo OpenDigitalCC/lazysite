@@ -114,7 +114,7 @@ my %T       = (
     'lib/Lazysite/Manager/Common.pm' => { '$DANGEROUS_RE' => $PATTERN, '%REFUSAL_STATUS' => $DERIVED },
     'lib/Lazysite/Manager/Connectors.pm' => { '$MODES' => 'a reference to Lazysite::Egress\'s constant list of modes' },
     'lib/Lazysite/Manager/Domains.pm' => { '%IS_KEY' => $DERIVED, '%IS_PRESENTATION' => $DERIVED },
-    'lib/Lazysite/Manager/Plugins.pm' => { '$ROW_JSON' => 'a JSON::PP encoder, constructed with no data' },
+    'lib/Lazysite/Manager/Extensions.pm' => { '$ROW_JSON' => 'a JSON::PP encoder, constructed with no data' },
     'lib/Lazysite/Manager/Upload.pm' => { '%TEXT_EXTENSIONS' => $DERIVED },
     'lib/Lazysite/Notify.pm' => { '$XMPP_SENDER' => $SEAM, '$MAIL_SENDER' => $SEAM, '$SRV_RESOLVER' => $SEAM },
     'lib/Lazysite/Odoo.pm' => { '%PRIVATE4' => 'a constant table of code references (private address ranges)', '%CALL_FIELD' => $DERIVED },

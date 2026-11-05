@@ -68,8 +68,8 @@ my $page = join "\n",
     'register:',                             # 8
     '---',                                   # 9
     '',                                      # 10
-    'See 2026-08-22-data-plugin-full-run.md for the history.',   # 11
-    'and 2026-08-22-data-plugin-on-edge.md for the 500.',        # 12
+    'See 2026-08-22-data-extension-full-run.md for the history.',   # 11
+    'and 2026-08-22-data-extension-on-edge.md for the 500.',        # 12
     'Updated 2026-08-23.',                                       # 13
     '';
 

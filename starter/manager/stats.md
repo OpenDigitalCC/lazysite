@@ -61,13 +61,13 @@ function fmtBytes(b) {
 }
 function fmtNum(n) { return (+n || 0).toLocaleString(); }
 
-// Find the stats plugin (must be enabled), then run its refresh action.
+// Find the stats extension (must be enabled), then run its refresh action.
 function loadStats() {
   var body = document.getElementById('stats-body');
   body.textContent = 'Scanning the access log…';
   fetch(API + '?action=extension-list').then(function (r) { return r.json(); }).then(function (d) {
     if (!d.ok) { body.textContent = d.error || 'Failed to load extensions.'; return; }
-    var p = (d.plugins || []).filter(function (x) { return x.id === 'stats'; })[0];
+    var p = (d.extensions || []).filter(function (x) { return x.id === 'stats'; })[0];
     if (!p) { body.innerHTML = 'The Visitor Stats extension is not installed.'; return; }
     if (!p._enabled) {
       body.innerHTML = 'Enable the <b>Visitor Statistics</b> extension on the '
@@ -77,7 +77,7 @@ function loadStats() {
     }
     statsScript = p._script;
     initTrails(p);   // SM399: the descriptor already carries the days; no second round trip
-    fetch(API + '?action=extension-action&plugin=stats', {
+    fetch(API + '?action=extension-action&extension=stats', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script: statsScript, action_id: 'refresh' })
     }).then(function (r) { return r.json(); }).then(renderStats)
@@ -533,7 +533,7 @@ function bindCard(key, bodyId, load) {
 // collapses the same way, remembers the same way, and its fetch is DEFERRED to
 // the first open - a card nobody expands costs no request at all, which the
 // unconditional load it replaced did on every page load whether anyone looked
-// or not. (The blocked-address card that shared this rule moved to Plugin
+// or not. (The blocked-address card that shared this rule moved to Extension
 // Config in SM703.)
 var cardLoaded = {};
 function cardSet(key, bodyId, open, load) {
@@ -606,13 +606,13 @@ function fmtGap(sec) {
   return m + 'm' + (sec % 60 ? ' ' + (sec % 60) + 's' : '');
 }
 
-// The day list comes from the plugin descriptor, which builds it from the trail
+// The day list comes from the extension descriptor, which builds it from the trail
 // files that EXIST - so a day is only offered while its file is really there.
-function initTrails(plugin) {
+function initTrails(extension) {
   var sel = document.getElementById('trail-day');
   var body = document.getElementById('trails-body');
   if (!sel || !body) return;
-  var act = (plugin.actions || []).filter(function (a) { return a.id === 'trails'; })[0];
+  var act = (extension.actions || []).filter(function (a) { return a.id === 'trails'; })[0];
   trailDays = (act && act.choices) ? act.choices.map(function (c) { return c.id; }) : [];
   if (!trailDays.length) {
     body.innerHTML = '<p class="mg-muted">No journeys recorded yet. Visits are written when they '
@@ -653,7 +653,7 @@ function loadTrails(day) {
   var body = document.getElementById('trails-body');
   if (!body || !statsScript || !day) return;
   body.textContent = 'Loading journeys…';
-  fetch(API + '?action=extension-action&plugin=stats', {
+  fetch(API + '?action=extension-action&extension=stats', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ script: statsScript, action_id: 'trails', params: { choice: day } })
   }).then(function (r) { return r.json(); }).then(renderTrails)
@@ -747,7 +747,7 @@ function loadAccounts() {
 loadStats();
 loadAccounts();
 // The trails card honours what this viewer last chose and does not fetch until
-// it is actually open. (The blocked-address card moved to Plugin Config in
+// it is actually open. (The blocked-address card moved to Extension Config in
 // SM703 - it is an access control, not a statistic.)
 bindCard( 'card-trails',  'trails-card-body', trailsLoadCurrent );
 </script>

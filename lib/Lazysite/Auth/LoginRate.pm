@@ -31,10 +31,10 @@ our $LOGIN_WINDOW = 300;    # seconds (5 minutes)
 # registry, so the sign-in CGI, the manager's listing and lazysite check agree.
 sub _rate_limit_switched_on {
     my ($docroot) = @_;
-    require Lazysite::Manager::Plugins;
+    require Lazysite::Manager::Extensions;
     no warnings 'once';    # SM557: required at runtime
-    local $Lazysite::Manager::Plugins::DOCROOT = $docroot;
-    return Lazysite::Manager::Plugins::plugin_enabled('extensions/login-rate-limit.pl');
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
+    return Lazysite::Manager::Extensions::extension_enabled('extensions/login-rate-limit.pl');
 }
 
 # H-3: per-key login rate limit. Fails open if DB_File tie fails so a

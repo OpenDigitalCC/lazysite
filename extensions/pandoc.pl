@@ -2,15 +2,15 @@
 # SM694: turn a page into a branded PDF, through a pandoc the operator installed.
 #
 # THE DEPENDENCY IS DECLARED, NOT DISCOVERED. `bins` (SM694 groundwork, 0.11.7)
-# lets a plugin name a PROGRAM the way `deps` names a Perl module, so SM472's
-# rule applies unchanged: a plugin that cannot run is not enabled. An operator
+# lets an extension name a PROGRAM the way `deps` names a Perl module, so SM472's
+# rule applies unchanged: an extension that cannot run is not enabled. An operator
 # without pandoc is refused at the switch, told it is a program rather than a
 # CPAN package, and never gets a button that fails at first use.
 #
 # THE EXECUTION BOUNDARY, which the filing said to settle before writing this:
 #
 #   1. A BOUNDED ROOT, as far as the wrapper allows. md-to-pdf owns the pandoc
-#      invocation, so this plugin cannot pass --sandbox or --resource-path
+#      invocation, so this extension cannot pass --sandbox or --resource-path
 #      through it. What it CAN control is the brands base and the working
 #      directory. MD_TO_PDF_BRANDS is pinned to the site's own brand folder, so
 #      a document naming a brand cannot pull a template from elsewhere.
@@ -24,7 +24,7 @@
 #
 #      THE RESIDUAL RISK, stated rather than hidden: an absolute path - or
 #      enough leading ../ - in a document's image reference is resolved by
-#      pandoc inside the wrapper, where this plugin has no say. Converting is
+#      pandoc inside the wrapper, where this extension has no say. Converting is
 #      gated on manage_content, so the author already reads the content tree,
 #      but not arbitrary host files, and that gap is real until the wrapper
 #      offers a sandbox flag or a passthrough of its own. Recorded on SM694.
@@ -33,7 +33,7 @@
 #      sends reaches the command line, and the list is a Perl list passed to a
 #      list-form exec - no shell, so no quoting question to get wrong. The BRAND
 #      is chosen in the document's own front matter (`brand: <name>`), which is
-#      the wrapper's interface; the plugin's job is to bound where brands are
+#      the wrapper's interface; the extension's job is to bound where brands are
 #      read FROM, not to pass one on a command line.
 #
 #   3. READ AUTHORITY. Converting a page is producing a copy of it, so the
@@ -71,7 +71,7 @@ BEGIN {
 # longer than 20 s there, the conversion was refused as a timeout, and the
 # 0.13.4 coverage stage failed on t/unit/plugins/41 - a test that passes
 # alone and passed on the 0.13.3 run by the luck of the load. The same rule
-# Manager::Plugins applies to its --describe budget: measurement must not
+# Manager::Extensions applies to its --describe budget: measurement must not
 # alter behaviour, so the instrumented process gets a proportionate ceiling
 # and production keeps 20 s.
 # n355: `our`, so a test that asserts a render SUCCEEDS can widen it. Under a
@@ -105,14 +105,14 @@ sub describe {
             # authority an operator would have to reason about separately.
             capabilities => [],
 
-            # SM694: the executable form. What this plugin CALLS is md-to-pdf,
+            # SM694: the executable form. What this extension CALLS is md-to-pdf,
             # the pandoc wrapper - which owns the pandoc and XeLaTeX invocation,
             # the templates and the brand machinery. Declaring `pandoc` here
-            # would let the plugin enable on a host that has pandoc and not the
+            # would let the extension enable on a host that has pandoc and not the
             # wrapper, which is the state `bins` exists to prevent.
             bins => ['md-to-pdf'],
 
-            # The brand folder is this plugin's storage, under lazysite/ where
+            # The brand folder is this extension's storage, under lazysite/ where
             # nothing is served.
             storage => ['lazysite/brands/'],
         },
@@ -130,7 +130,7 @@ sub describe {
                     . 'publishes your letterhead to anyone who guesses the path.',
             },
         ],
-        # Enabling the plugin makes its brand folder, so the place Status
+        # Enabling the extension makes its brand folder, so the place Status
         # tells the operator to put a brand actually exists. Without it the
         # advice named a directory that was not there, and nothing said so.
         on_enable => 'init',
@@ -150,7 +150,7 @@ sub describe {
             # SM706 said the PDF cache "must be sweepable - a stale PDF that
             # nothing can clear is worse than a slow one", and assumed the cache
             # page already swept it. It does not: that sweep clears
-            # lazysite/cache/hosts, the rendered pages. So the plugin that fills
+            # lazysite/cache/hosts, the rendered pages. So the extension that fills
             # this folder empties it, on the page the operator enabled it from.
             #
             # It is also the answer to the one case dates cannot see: a restore
@@ -169,7 +169,7 @@ sub describe {
     };
 }
 
-# The converter the plugin will actually run. Resolved from PATH the same way
+# The converter the extension will actually run. Resolved from PATH the same way
 # the enable-time check does, so "enabled" and "works" cannot disagree.
 sub _converter_path {
     my $path = $ENV{PATH} // '/usr/local/bin:/usr/bin:/bin';
@@ -317,7 +317,7 @@ sub convert {
     my $dir     = $o{brand_dir} // 'lazysite/brands';
 
     # SM706: a caller that can answer "may this reader read that path?" - the
-    # content ACL, passed in rather than reached for, so this plugin does not
+    # content ACL, passed in rather than reached for, so this extension does not
     # grow its own opinion about authorisation.
     my $may_read = $o{may_read};
 
@@ -339,7 +339,7 @@ sub convert {
     #
     # This used to test `-f "$docroot/$rel"` here, which is the one place a
     # gated page is NOT. A page under a draft or read ACL lives in the private
-    # store, and SM738 added the `resolve` callback precisely so this plugin
+    # store, and SM738 added the `resolve` callback precisely so this extension
     # could find it - but the plain test ran first and answered "no such page",
     # so the resolver was never reached for the only class of page it exists to
     # serve. page-pdf worked on exactly the pages that did not need it.
@@ -361,7 +361,7 @@ sub convert {
 
     # THE BRAND IS CHOSEN IN THE DOCUMENT, not on the command line - that is
     # md-to-pdf's interface (`brand: <name>` in the front matter). So the
-    # plugin's job is not to pass a brand but to bound where brands are read
+    # extension's job is not to pass a brand but to bound where brands are read
     # FROM: MD_TO_PDF_BRANDS pins the base to the site's own folder, so a
     # document naming a brand cannot pull a template from elsewhere on the host.
     # THE PARTS, IF ANY. Each is checked exactly as the document itself was:
@@ -386,7 +386,7 @@ sub convert {
         # got said "no such part" when the part exists and they may not read it.
         #
         # The resolver is PASSED IN, like may_read and for the same reason: the
-        # private store's layout is the engine's business, and a plugin that
+        # private store's layout is the engine's business, and an extension that
         # learned it would be a second copy of that knowledge. Without one, the
         # public path is the answer, which is what a standalone run wants.
         my $pabs = ref $o{resolve} eq 'CODE'
@@ -509,7 +509,7 @@ sub convert {
     my $status = $?;
     alarm 0;
 
-    # The wrapper names the PDF from the document title, so the plugin finds it
+    # The wrapper names the PDF from the document title, so the extension finds it
     # rather than predicting it - predicting a filename from a title means
     # reimplementing somebody else's slug rules and being wrong the first time
     # a title has a colon in it.
@@ -558,7 +558,7 @@ sub convert {
     return { ok => 1, pdf => $pdf, bytes => ( -s $pdf ), cached => 0 };
 }
 
-sub plugin_status {
+sub extension_status {
     my ($docroot) = @_;
     my $bin       = _converter_path();
     my $ver       = _converter_version($bin);
@@ -568,7 +568,7 @@ sub plugin_status {
     # status that answered only `ok:1` showed as "Done" - which says the button
     # worked, not what it found.
     my $msg = !$bin
-        ? 'md-to-pdf is not installed on this server, so this plugin cannot convert anything.'
+        ? 'md-to-pdf is not installed on this server, so this extension cannot convert anything.'
         # NOT THE PATH. Where a binary sits on the host is not something an
         # operator can act on, and printing it is a small disclosure for
         # nothing. What they need to know is that the converter answers.
@@ -603,7 +603,7 @@ sub _brands_in {
 # The folder, and a note in it. An empty directory tells an operator nothing;
 # a README beside it says what belongs there, in the place they are standing
 # when they wonder.
-sub plugin_init {
+sub extension_init {
     my ($docroot) = @_;
     my $dir = _lz($docroot) . "/brands";
     # Whether it was already there decides what the operator is told. The
@@ -670,7 +670,7 @@ NOTE
 
 # Empties the PDF cache. Counted, because "done" tells an operator nothing
 # about whether there was anything there to do.
-sub plugin_clear {
+sub extension_clear {
     my ($docroot) = @_;
     my $dir = _lz($docroot) . "/cache/pdf";
     return { ok => 1, message => 'There are no cached PDFs to clear.',
@@ -710,15 +710,15 @@ sub run {
     my $docroot = $opt{docroot} // $ENV{DOCUMENT_ROOT} // '';
     my $act     = $opt{action}  // '';
     if ( $act eq 'init' ) {
-        print encode_json( plugin_init($docroot) );
+        print encode_json( extension_init($docroot) );
         return 0;
     }
     if ( $act eq 'status' ) {
-        print encode_json( plugin_status($docroot) );
+        print encode_json( extension_status($docroot) );
         return 0;
     }
     if ( $act eq 'clear' ) {
-        print encode_json( plugin_clear($docroot) );
+        print encode_json( extension_clear($docroot) );
         return 0;
     }
     print encode_json( { ok => 0, error => "unknown action '$act'" } );

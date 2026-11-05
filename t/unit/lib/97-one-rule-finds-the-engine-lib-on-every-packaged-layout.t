@@ -19,7 +19,7 @@
 #   install.pl          its usage example: /var/www/html + /usr/lib/cgi-bin
 #   dev server, demo,   the CGIs run from the payload (repo, tarball or
 #   deb pool            /usr/share/lazysite) with lib beside them
-#   plugin links        install.pl links form-handler/payment-demo into the
+#   extension links        install.pl links form-handler/payment-demo into the
 #                       cgi-bin from {DOCROOT}/../extensions, or copies them there
 #   doc-only            docs/OPERATOR.md: a cgi-bin inside the docroot
 use strict;
@@ -56,8 +56,8 @@ like( slurp("$root/tools/$_"), qr{dirname\(\$docroot\) \. '/cgi-bin'},
     for qw(lazysite-nginx-vhost.pl lazysite-apache-vhost.pl);
 like( slurp("$root/tools/lazysite-cli.pl"), qr{\$o->\{docroot\} = "\$dir/public_html";\n\s+\$o->\{cgibin\}  = "\$dir/cgi-bin";},
     'lazysite provision --installdir: the same pair' );
-my ($linked) = slurp("$root/install.pl") =~ m{for my \$plugin \(qw\(([^)]+)\)\) \{};
-ok( defined $linked, 'install.pl names the plugins it links into the cgi-bin' );
+my ($linked) = slurp("$root/install.pl") =~ m{for my \$extension \(qw\(([^)]+)\)\) \{};
+ok( defined $linked, 'install.pl names the extensions it links into the cgi-bin' );
 my @linked = split ' ', $linked // '';
 
 # --- the rule, from each script ----------------------------------------------
@@ -109,7 +109,7 @@ sub install_layout {
     for my $p (@linked) {
         open my $fh, '>', "$docroot/../extensions/$p.pl" or die $!;
         close $fh;
-        if ( $o{copy_plugins} ) { open my $c, '>', "$cgibin/$p.pl" or die $!; close $c }
+        if ( $o{copy_extensions} ) { open my $c, '>', "$cgibin/$p.pl" or die $!; close $c }
         else { symlink( abs_path("$docroot/../extensions") . "/$p.pl", "$cgibin/$p.pl" ) or die $! }
     }
     return;
@@ -125,12 +125,12 @@ my %layout;
     install_layout( "$t/var/www/html", "$t/usr/lib/cgi-bin" );
     $layout{'install.pl --cgibin /usr/lib/cgi-bin'} = [ "$t/var/www/html", "$t/usr/lib/cgi-bin", "$t/var/www/lib" ];
 
-    install_layout( "$t/copied/public_html", "$t/copied/cgi-bin", copy_plugins => 1 );
-    $layout{'provision, plugins copied (no symlinks)'} =
+    install_layout( "$t/copied/public_html", "$t/copied/cgi-bin", copy_extensions => 1 );
+    $layout{'provision, extensions copied (no symlinks)'} =
         [ "$t/copied/public_html", "$t/copied/cgi-bin", "$t/copied/lib" ];
 
-    install_layout( "$t/away/var/www/html", "$t/away/usr/lib/cgi-bin", copy_plugins => 1 );
-    $layout{'install.pl example, plugins copied'} =
+    install_layout( "$t/away/var/www/html", "$t/away/usr/lib/cgi-bin", copy_extensions => 1 );
+    $layout{'install.pl example, extensions copied'} =
         [ "$t/away/var/www/html", "$t/away/usr/lib/cgi-bin", "$t/away/var/www/lib" ];
 
     # The payload (repo, tarball, /usr/share/lazysite): the dev server, `lazysite
@@ -151,8 +151,8 @@ for my $name ( sort keys %layout ) {
     my ( $docroot, $run, $want ) = @{ $layout{$name} };
     my %seen;
     for my $script ( sort keys %rule ) {
-        my $path = $script =~ m{\Aplugins/} && $run ne "$t/payload" ? "$run/" . basename($script) : "$run/$script";
-        if ( !-e $path ) {    # the payload carries its plugins under extensions/
+        my $path = $script =~ m{\Aextensions/} && $run ne "$t/payload" ? "$run/" . basename($script) : "$run/$script";
+        if ( !-e $path ) {    # the payload carries its extensions under extensions/
             make_path( dirname($path) );
             open my $fh, '>', $path or die "$path: $!";
             close $fh;
@@ -179,11 +179,11 @@ for my $name ( sort keys %layout ) {
 cmp_ok( $kept, '>', 0, "$kept layout/CGI cases kept their lib" );
 
 # The cases that found nothing before: every CGI on install.pl's example (bar the
-# linked plugins, which resolve through the link to {DOCROOT}/../extensions), and on
+# linked extensions, which resolve through the link to {DOCROOT}/../extensions), and on
 # the doc-only inside-the-docroot layout the two scripts with the short list.
 my @expect = (
     ( map { "install.pl --cgibin /usr/lib/cgi-bin: $_" } @cgis ),
-    ( map { "install.pl example, plugins copied: $_" } @cgis, map { "extensions/$_.pl" } @linked ),
+    ( map { "install.pl example, extensions copied: $_" } @cgis, map { "extensions/$_.pl" } @linked ),
     ( map { "doc-only: cgi-bin inside the docroot: $_" } qw(lazysite-data.pl lazysite-odoo.pl) ),
 );
 is_deeply( [ sort @fixed ], [ sort @expect ], 'exactly these found no lib before and find it now' )

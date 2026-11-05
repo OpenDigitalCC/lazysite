@@ -3,7 +3,7 @@
 #
 # THE DEFECT THIS IS BUILT TO AVOID, named in SM410's audit before a line of it
 # existed: the front door routes lazysite-*.pl, but only the processor and
-# manager-api are WRAPPED. A direct-CGI plugin therefore sees X-Remote-User
+# manager-api are WRAPPED. A direct-CGI extension therefore sees X-Remote-User
 # exactly as the client sent it - so an endpoint that trusted the header would
 # be SM402's defect reintroduced BY SPECIFICATION. That is why SM411 extracted
 # the session verifier, and why this endpoint validates its own cookie.
@@ -159,14 +159,14 @@ subtest 'a missing table and a forbidden one answer the same way' => sub {
             . 'exist, which is the disclosure the gate exists to prevent.' );
 };
 
-subtest 'a disabled plugin refuses here too' => sub {
+subtest 'a disabled extension refuses here too' => sub {
     open my $off, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$off} "site_name: T\n";
     close $off;
     my ( $st, $d ) = hit( QUERY_STRING => 'table=products' );
-    is( $st, 403, 'the endpoint refuses while the plugin is off' )
+    is( $st, 403, 'the endpoint refuses while the extension is off' )
         or diag( 'ADR 0009: every dispatch path consults the enabled state, '
-            . 'and a direct-CGI plugin refuses its own requests.' );
+            . 'and a direct-CGI extension refuses its own requests.' );
     like( $d->{error}, qr/disabled/, 'saying so' );
     open my $on, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print {$on} "site_name: T\nextensions:\n  - extensions/data.pl\n";

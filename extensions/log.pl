@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# lazysite-log.pl - Logging configuration plugin for lazysite manager
+# lazysite-log.pl - Logging configuration extension for lazysite manager
 
 use strict;
 use warnings;
@@ -15,7 +15,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 . 'never blocks the site; the on-disk logs remain the record.',
             version     => '1.1',
             # Operator/host concern, not a site-manager one: hidden from the
-            # Plugin Manager. Still configured from the CLI via the lazysite.conf
+            # Extension Manager. Still configured from the CLI via the lazysite.conf
             # keys below (log_level, forwarding, syslog facility).
             unlisted    => JSON::PP::true(),
             config_file => 'lazysite/lazysite.conf',

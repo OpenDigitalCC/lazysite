@@ -74,7 +74,7 @@ sub status { return ( $_[0] =~ /^Status:\s*(\d+)/m )[0] // 200 }
 sub api {
     my ( $d, $action, %env ) = @_;
     my $out = run_script( 'lazysite-manager-api.pl',
-        env => { DOCUMENT_ROOT => $d, REQUEST_METHOD => 'GET', QUERY_STRING => "action=$action&plugins=0",
+        env => { DOCUMENT_ROOT => $d, REQUEST_METHOD => 'GET', QUERY_STRING => "action=$action&extensions=0",
             REMOTE_ADDR => '127.0.0.1', %CLEAR, %env } );
     my ($st) = $out =~ /^Status:\s*(\d+)/m;
     $out =~ s/\A.*?\r?\n\r?\n//s;

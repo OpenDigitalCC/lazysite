@@ -29,10 +29,10 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $plugin = repo_root() . '/extensions/stats.pl';
-plan skip_all => "no $plugin" unless -f $plugin;
+my $extension = repo_root() . '/extensions/stats.pl';
+plan skip_all => "no $extension" unless -f $extension;
 
-my $src      = do { open my $fh, '<', $plugin or die $!; local $/; <$fh> };
+my $src      = do { open my $fh, '<', $extension or die $!; local $/; <$fh> };
 my ($writer) = $src =~ /(sub _write_file_atomic \{.*?\n\}\n)/s;
 my ($json)   = $src =~ /(sub _write_json_atomic \{.*?\n\}\n)/s;
 ok( $writer, 'the checked writer can be isolated' ) or BAIL_OUT('cannot extract');

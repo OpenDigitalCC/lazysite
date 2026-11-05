@@ -1,7 +1,7 @@
-package Lazysite::Manager::Plugins;
+package Lazysite::Manager::Extensions;
 
-# SM079: manager plugin, handler-config and form-target handlers. Plugins are
-# probed and run via `qx($^X <plugin> --describe/--scan)`. Context ($DOCROOT,
+# SM079: manager extension, handler-config and form-target handlers. Extensions are
+# probed and run via `qx($^X <extension> --describe/--scan)`. Context ($DOCROOT,
 # $action for log attribution) is set by the dispatcher.
 
 use strict;
@@ -19,15 +19,15 @@ use Lazysite::Paths ();
 use Lazysite::Extensions ();
 
 our @EXPORT_OK = qw(
-    action_plugin_list action_plugin_enable action_plugin_disable
-    action_plugin_read action_plugin_save action_plugin_action
+    action_extension_list action_extension_enable action_extension_disable
+    action_extension_read action_extension_save action_extension_action
     action_form_list dispatch_form_list
     action_form_delete
     action_form_submissions action_form_submission
     action_form_submission_delete action_form_submission_confirm
     action_form_submissions_delete_bulk
     action_form_submission_approve account_request_store
-    resolve_plugin_script plugin_enabled
+    resolve_extension_script extension_enabled
 );
 
 our $DOCROOT;
@@ -40,7 +40,7 @@ our $action = '';
 
 # SM255 (completion): every write to lazysite.conf goes through Common's single
 # writer, which locks, writes atomically and records the change. This module
-# used to write the file twice by hand - once for the plugins: block (no commit)
+# used to write the file twice by hand - once for the extensions: block (no commit)
 # and once for a Site-settings save (its own commit) - which is the same
 # one-file-two-mechanisms split SM255 set out to remove, in the one module the
 # original change missed.
@@ -57,18 +57,18 @@ sub _write_conf_content {
 
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
-# SM152: the plugin registry - the canonical, authoritative enumeration of the
-# scripts the manager may probe/run. Keys are the stable plugin identifiers
+# SM152: the extension registry - the canonical, authoritative enumeration of the
+# scripts the manager may probe/run. Keys are the stable extension identifiers
 # ("extensions/<name>.pl", plus the two core descriptor scripts); values are the
-# resolved absolute paths. This is the ONLY place a plugin identity maps to a
+# resolved absolute paths. This is the ONLY place an extension identity maps to a
 # filesystem path, and it is built by SCANNING the known locations - never from
-# request input. A request names a plugin by its registry KEY; the key is looked
+# request input. A request names an extension by its registry KEY; the key is looked
 # up here. This is both the security boundary (SEC-2026-07: the old resolver
 # interpolated the request `script` straight into a path with only a `-f` check,
-# so `plugin-action {script:"../../x.pl"}` or `{script:"content/x.md"}` executed
+# so `extension-action {script:"../../x.pl"}` or `{script:"content/x.md"}` executed
 # an arbitrary on-disk file as Perl via qx($^X ...) - authenticated RCE) and the
-# canonical source of plugin data for the manager UI.
-sub plugin_registry {
+# canonical source of extension data for the manager UI.
+sub extension_registry {
     my $base = Cwd::realpath("$DOCROOT/..");
     my %reg;
     return \%reg unless defined $base;
@@ -81,7 +81,7 @@ sub plugin_registry {
         }
     }
 
-    # Installed plugins: extensions/<name>.pl. Name restricted to a plain filename
+    # Installed extensions: extensions/<name>.pl. Name restricted to a plain filename
     # (no path separators), so a symlink/entry cannot smuggle a traversal key.
     # SM1222: under the dev server, its --extensions directories come first and
     # the first directory holding a name wins; on an installed engine
@@ -98,8 +98,8 @@ sub plugin_registry {
     return \%reg;
 }
 
-# SM409: the plugins: list in lazysite.conf, as a map. This parse used to
-# live inline in action_plugin_list, where its only consumer was the LISTING -
+# SM409: the extensions: list in lazysite.conf, as a map. This parse used to
+# live inline in action_extension_list, where its only consumer was the LISTING -
 # which is precisely how "disabled" came to mean a display state rather than a
 # fact: nothing on any execution path ever read it.
 sub _enabled_map {
@@ -107,117 +107,117 @@ sub _enabled_map {
     my %enabled;
     my $conf_path = _lz() . "/lazysite.conf";
     if ( open my $fh, '<:utf8', $conf_path ) {
-        my $in_plugins = 0;
+        my $in_extensions = 0;
         while (<$fh>) {
             chomp;
             # SM1142: `extensions:` is the one name. The upgrade rewrote the
             # old one (install.pl, extensions-rename), and `lazysite check`
             # names a list that came back under it.
-            if (/^extensions\s*:\s*$/) { $in_plugins = 1; next }
-            if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
+            if (/^extensions\s*:\s*$/) { $in_extensions = 1; next }
+            if ( $in_extensions && /^\s+-\s+(.+)$/ ) {
                 my $entry = $1;
                 $entry =~ s/\s+$//;
                 $enabled{$entry} = 1;
             }
-            elsif ( $in_plugins && !/^\s/ ) { $in_plugins = 0 }
+            elsif ( $in_extensions && !/^\s/ ) { $in_extensions = 0 }
         }
         close $fh;
     }
     return \%enabled;
 }
 
-sub plugin_enabled { return _enabled_map()->{ $_[0] } ? 1 : 0 }
+sub extension_enabled { return _enabled_map()->{ $_[0] } ? 1 : 0 }
 
-# SM409 / ADR 0009: DISABLED MEANS OFF - for plugins that opt into the
+# SM409 / ADR 0009: DISABLED MEANS OFF - for extensions that opt into the
 # contract. A descriptor that declares `contract` is gated: it EXECUTES only
-# when its script appears in the plugins: list, and it defaults to disabled,
-# because a contract plugin is born with the off switch (the data plugin is
+# when its script appears in the extensions: list, and it defaults to disabled,
+# because a contract extension is born with the off switch (the data extension is
 # the first). A legacy descriptor (no `contract` key) is untouched: existing
-# plugins keep running exactly as they always have, until each one's
+# extensions keep running exactly as they always have, until each one's
 # migration SM enables it explicitly to replicate its current effective
 # state - the release manager's ruling, so that nothing in the field changes
 # behaviour on upgrade.
 #
 # The gate refuses EXECUTION (actions, hooks). Config read/save stay open on
-# a disabled plugin, deliberately: an operator must be able to configure a
-# plugin before enabling it, and the enable flow itself is a config surface.
+# a disabled extension, deliberately: an operator must be able to configure a
+# extension before enabling it, and the enable flow itself is a config surface.
 #
-# SM765: A READ ANSWERS WHILE THE PLUGIN IS OFF. An action the descriptor
-# marks `read: 1` runs on a disabled contract plugin, because "what is the
+# SM765: A READ ANSWERS WHILE THE EXTENSION IS OFF. An action the descriptor
+# marks `read: 1` runs on a disabled contract extension, because "what is the
 # runtime doing?" is a question an operator asks AFTER switching it off - when
 # they come back, when a colleague asks, when something else looks wrong an
 # hour later - and the only route to it then is the Status button, which
-# answered "this plugin is disabled" and nothing else. The disable hook had
+# answered "this extension is disabled" and nothing else. The disable hook had
 # already computed and shown the whole state seconds earlier; the same
 # question through the same action a minute later was refused. Config read
 # and save were open while disabled for the same reason since SM409: the
-# gate exists to stop a disabled plugin DOING anything, and a read does not.
+# gate exists to stop a disabled extension DOING anything, and a read does not.
 # A read that changes anything is a lie, and t/unit/manager/62 holds that a
-# read on a disabled plugin leaves no witness.
+# read on a disabled extension leaves no witness.
 #
-# Returns undef when the plugin may run, or the refusal hash when it may not.
+# Returns undef when the extension may run, or the refusal hash when it may not.
 sub _gate_execution {
     my ( $script, $desc, $action ) = @_;
     return undef unless ref $desc eq 'HASH' && $desc->{contract};
-    return undef if plugin_enabled($script);
+    return undef if extension_enabled($script);
     return undef if ref $action eq 'HASH' && $action->{read};
-    log_event( 'WARN', 'plugin-gate', 'disabled plugin refused execution',
-        plugin => $script );
+    log_event( 'WARN', 'extension-gate', 'disabled extension refused execution',
+        extension => $script );
     return { ok => 0,
-        error => 'This plugin is disabled. A sysop can enable it on the '
+        error => 'This extension is disabled. A sysop can enable it on the '
             . 'Extensions page.' };
 }
 
-# Resolve a request-named plugin to its absolute path via the registry ONLY.
+# Resolve a request-named extension to its absolute path via the registry ONLY.
 # An exact key match returns the canonical path; anything else (a traversal
 # path, an arbitrary file, an unregistered name) returns undef and the caller
-# reports "unknown plugin" - it never runs.
-sub resolve_plugin_script {
+# reports "unknown extension" - it never runs.
+sub resolve_extension_script {
     my ($script) = @_;
     return unless defined $script && length $script;
-    return plugin_registry()->{$script};
+    return extension_registry()->{$script};
 }
 
-# SM809: THE THREE PLUGIN ACTIONS TOOK A `plugin` PARAMETER AND IGNORED IT.
+# SM809: THE THREE EXTENSION ACTIONS TOOK An `extension` PARAMETER AND IGNORED IT.
 #
-# Each declares `plugin` (query) and `script` (body), each received the first
-# as $plugin_id, and each resolved on $script alone - so a caller who sent the
-# parameter the declaration names got "Plugin not found", a sentence about the
-# PLUGIN when the fault was the parameter. The field spent nine steps on it,
+# Each declares `extension` (query) and `script` (body), each received the first
+# as $extension_id, and each resolved on $script alone - so a caller who sent the
+# parameter the declaration names got "Extension not found", a sentence about the
+# EXTENSION when the fault was the parameter. The field spent nine steps on it,
 # one of them reading the manager UI's own JavaScript to learn the real
-# contract, and reasonably concluded the plugin did not exist.
+# contract, and reasonably concluded the extension did not exist.
 #
 # Both spellings resolve now, and the refusal names what was missing and where
 # it goes - the same shape SM773 gave the declared parameters, said by hand
 # because this is an either/or that the declaration table cannot express.
-sub _resolve_plugin_or_why {
-    my ( $plugin_id, $script ) = @_;
-    for my $cand ( $script, $plugin_id ) {
+sub _resolve_extension_or_why {
+    my ( $extension_id, $script ) = @_;
+    for my $cand ( $script, $extension_id ) {
         next unless defined $cand && length $cand;
-        my $full = resolve_plugin_script($cand);
+        my $full = resolve_extension_script($cand);
         return ( $full, '' ) if $full;
     }
 
     # SM832: THE LISTING'S `id` IS NOW A KEY THE READER ACCEPTS. SM809 made the
-    # `plugin` parameter reach this resolver, but the registry is keyed by script
-    # path, so the value plugin-list labels `id` still missed - and the refusal
-    # sent the caller back to plugin-list, whose `id` was the value just refused.
+    # `extension` parameter reach this resolver, but the registry is keyed by script
+    # path, so the value extension-list labels `id` still missed - and the refusal
+    # sent the caller back to extension-list, whose `id` was the value just refused.
     # The field followed the error message literally and went round in a circle.
     #
     # NOT BY FILENAME. `extensions/<id>.pl` is right for twelve of the fourteen and
     # wrong for two - audit.pl publishes `link-audit` and log.pl publishes
     # `logging` - so the stem is only ever a GUESS, and it is confirmed against
-    # the id the plugin itself declares before it is used. A guess that is not
-    # confirmed falls through to asking every plugin, which is the slow path and
+    # the id the extension itself declares before it is used. A guess that is not
+    # confirmed falls through to asking every extension, which is the slow path and
     # only runs when a caller has sent an id that is not also a filename.
-    # SM839: FOR EITHER NAME THE CALLER USED. SM832 ran this for the `plugin`
-    # parameter only, so plugin-save's body `script` - the route the missing-
+    # SM839: FOR EITHER NAME THE CALLER USED. SM832 ran this for the `extension`
+    # parameter only, so extension-save's body `script` - the route the missing-
     # argument error below advertises - still refused an id, and its refusal
     # told the caller to pass the id. It showed only for an extension whose id
     # is not its filename: link-audit, whose script is audit.pl.
     my $reg;
-    for my $want ( grep { defined && /\A[A-Za-z0-9_.-]+\z/ } ( $script, $plugin_id ) ) {
-        $reg //= plugin_registry();
+    for my $want ( grep { defined && /\A[A-Za-z0-9_.-]+\z/ } ( $script, $extension_id ) ) {
+        $reg //= extension_registry();
         my $guess = "extensions/$want.pl";
         if ( my $full = $reg->{$guess} ) {
             my $desc = _describe($full);
@@ -231,11 +231,11 @@ sub _resolve_plugin_or_why {
                 if ref $desc eq 'HASH' && ( $desc->{id} // '' ) eq $want;
         }
     }
-    my $named = join ' or ', grep { defined && length } ( $script, $plugin_id );
+    my $named = join ' or ', grep { defined && length } ( $script, $extension_id );
     return ( undef,
         length $named
         ? "no extension '$named' is installed - call extension-list and pass an extension's `id` or its `_script`"
-        : 'an extension is required (in the query string as ?plugin=<id>, or in the '
+        : 'an extension is required (in the query string as ?extension=<id>, or in the '
             . 'JSON body as {"script": "<id>"}); call extension-list for the ids' );
 }
 
@@ -245,7 +245,7 @@ sub _resolve_plugin_or_why {
 # until the cache was deleted by hand. This is the state of the registry's
 # sources - the directory's presence and mtime, and each script's name, size and
 # mtime - and the cache is used only while it is unchanged.
-sub _plugin_list_state {
+sub _extension_list_state {
     my ($reg) = @_;
     my $base  = Cwd::realpath("$DOCROOT/..") // '';
     my @dir   = stat( Lazysite::Extensions::extensions_dir($base) );
@@ -261,10 +261,10 @@ sub _plugin_list_state {
     return join '|', @bits;
 }
 
-sub action_plugin_list {
-    my $cache_file = _lz() . "/cache/plugin-list.cache";
-    my $reg        = plugin_registry();
-    my $state      = _plugin_list_state($reg);
+sub action_extension_list {
+    my $cache_file = _lz() . "/cache/extension-list.cache";
+    my $reg        = extension_registry();
+    my $state      = _extension_list_state($reg);
     if ( -f $cache_file && ( time() - ( stat($cache_file) )[9] ) < 60 ) {
         open my $fh, '<', $cache_file or return { ok => 0, error => "cache read failed" };
         my $data   = do { local $/; <$fh> }; close $fh;
@@ -277,36 +277,36 @@ sub action_plugin_list {
 
     my %enabled = %{ _enabled_map() };
 
-    # D022: plugins moved to extensions/ with the lazysite- prefix
+    # D022: extensions moved to extensions/ with the lazysite- prefix
     # dropped. lazysite-processor.pl and lazysite-auth.pl stay at
-    # repo root (core) but expose --describe and are plugins in
+    # repo root (core) but expose --describe and are extensions in
     # the manager-UI sense — the site config page at config.md
     # drives its form from the processor's descriptor rather than
-    # duplicating the schema. Every shipped plugin answers
+    # duplicating the schema. Every shipped extension answers
     # --describe (payment-demo included, marked demo:true).
-    my @plugins;
+    my @extensions;
 
     # SM152: the registry is the single canonical enumeration - core descriptor
     # scripts + extensions/*.pl, each mapped to its resolved absolute path. Every
-    # candidate is still validated by --describe below (a non-plugin .pl is
+    # candidate is still validated by --describe below (a non-extension .pl is
     # dropped); a new extensions/*.pl appears automatically. This is the same map
-    # resolve_plugin_script uses, so what is LISTED is exactly what can be RUN.
+    # resolve_extension_script uses, so what is LISTED is exactly what can be RUN.
     # ($reg is built above, with the state the cache is checked against.)
 
     for my $rel ( sort keys %$reg ) {
         my $full = $reg->{$rel};
         next unless -f $full && -r $full;
 
-        # A PLUGIN THAT OVERRUNS IS DROPPED, AND IT USED TO BE DROPPED IN
-        # SILENCE. `next if $@` removed it from the Plugin Manager with nothing
-        # written anywhere - so on a loaded host a sysop watches a plugin
+        # AN EXTENSION THAT OVERRUNS IS DROPPED, AND IT USED TO BE DROPPED IN
+        # SILENCE. `next if $@` removed it from the Extension Manager with nothing
+        # written anywhere - so on a loaded host a sysop watches an extension
         # disappear from the list and has no way at all to find out why. Two
         # seconds is a generous budget for a --describe and a mean one for a
         # host under load.
         #
         # THE BUDGET SCALES UNDER MEASUREMENT. Devel::Cover makes every
         # subprocess start far slower than two seconds, so an instrumented run
-        # dropped lazysite-processor.pl from its own plugin list - the
+        # dropped lazysite-processor.pl from its own extension list - the
         # instrument changing the thing it measures, exactly as the tempdir
         # instrumentation did. It is the same principle: measurement must not
         # alter behaviour.
@@ -319,29 +319,29 @@ sub action_plugin_list {
         my $json = eval { _describe_json($full) };
         alarm(0);
         if ( $@ || !$json ) {
-            log_event( 'WARN', 'plugin-list',
-                'a plugin did not describe itself in time and is not listed',
-                plugin => $rel,
+            log_event( 'WARN', 'extension-list',
+                'an extension did not describe itself in time and is not listed',
+                extension => $rel,
                 why    => ( $@ ? "no answer within ${budget}s" : 'empty answer' ) );
             next;
         }
 
         my $desc = eval { decode_json($json) };
         next unless $desc && ref $desc eq 'HASH' && $desc->{id};
-        # A plugin may mark itself unlisted (e.g. the payment demo helper): it
-        # ships and works, but is not a user-facing toggle in the Plugin Manager.
+        # An extension may mark itself unlisted (e.g. the payment demo helper): it
+        # ships and works, but is not a user-facing toggle in the Extension Manager.
         next if $desc->{unlisted};
 
         $desc->{_script}  = $rel;
         $desc->{_enabled} = $enabled{$rel} ? JSON::PP::true : JSON::PP::false;
 
-        push @plugins, $desc;
+        push @extensions, $desc;
     }
 
-    @plugins = sort {
+    @extensions = sort {
         ( $b->{_enabled} ? 1 : 0 ) <=> ( $a->{_enabled} ? 1 : 0 )
             || ( $a->{name} // '' ) cmp( $b->{name} // '' )
-    } @plugins;
+    } @extensions;
 
     # SM1153: NOTHING IS KEPT FOR A DIRECTORY THAT IS NOT THERE. An empty list
     # built because extensions/ does not exist yet is the list the lab was handed
@@ -351,7 +351,7 @@ sub action_plugin_list {
     if ( -d Lazysite::Extensions::extensions_dir($base) || Lazysite::Paths::dev_extension_dirs() ) {
         make_path($cache_dir) unless -d $cache_dir;
         if ( open my $fh, '>', $cache_file ) {
-            print $fh encode_json( { ok => 1, state => $state, plugins => \@plugins } );
+            print $fh encode_json( { ok => 1, state => $state, extensions => \@extensions } );
             close $fh;
         }
     }
@@ -359,14 +359,14 @@ sub action_plugin_list {
         unlink $cache_file;
     }
 
-    return { ok => 1, plugins => \@plugins };
+    return { ok => 1, extensions => \@extensions };
 }
 
-# SM152/ADR 0009: the ONE way this module asks a plugin to describe itself.
-# The path is always a registry value (resolve_plugin_script or the registry
+# SM152/ADR 0009: the ONE way this module asks an extension to describe itself.
+# The path is always a registry value (resolve_extension_script or the registry
 # scan), never request text. Deliberately UNGATED - a descriptor is metadata,
-# and _run_plugin_hook reads it on the disable path - and deliberately carrying
-# no timeout of its own: action_plugin_list is the caller that budgets the
+# and _run_extension_hook reads it on the disable path - and deliberately carrying
+# no timeout of its own: action_extension_list is the caller that budgets the
 # probe, and it wraps this call in its own alarm so an overrun still dies there.
 sub _describe_json {
     my ($full) = @_;
@@ -382,17 +382,17 @@ sub _describe {
     return eval { decode_json( _describe_json($full) ) };
 }
 
-# SM472: the declared modules this plugin cannot run without, that are absent.
+# SM472: the declared modules this extension cannot run without, that are absent.
 #
-# Reads the plugin's OWN declaration (ADR 0009 `owns.deps`) rather than a list
+# Reads the extension's OWN declaration (ADR 0009 `owns.deps`) rather than a list
 # kept here - a list here would be a second opinion about the same fact, and
-# would go stale the first time a plugin gained a dependency.
+# would go stale the first time an extension gained a dependency.
 #
 # Returns a message naming what is missing, or undef.
 # Is a command available and executable?
 #
 # PATH is read from the environment the CGI actually runs under, with a
-# conservative fallback: a plugin check must not conclude "installed" because a
+# conservative fallback: an extension check must not conclude "installed" because a
 # login shell would have found it while the web server would not.
 #
 # No shell is involved. The caller checks the name against a strict pattern and
@@ -413,20 +413,20 @@ sub _missing_deps {
     # TLO-1: the caller may already hold the resolved path and the descriptor.
     # Counted, not tested for truth, so an undef descriptor passed in is not
     # quietly fetched again.
-    $full = resolve_plugin_script($script) if @_ < 2;
+    $full = resolve_extension_script($script) if @_ < 2;
     return undef unless $full;
     $desc = _describe($full) if @_ < 3;
     return undef unless ref $desc eq 'HASH' && ref $desc->{owns} eq 'HASH';
 
     my @deps = @{ $desc->{owns}{deps} || [] };
 
-    # SM694: A PLUGIN MAY DEPEND ON A PROGRAM, NOT ONLY A MODULE.
+    # SM694: AN EXTENSION MAY DEPEND ON A PROGRAM, NOT ONLY A MODULE.
     #
     # `deps` is checked by `require`, which answers for Perl modules and
-    # nothing else. A plugin wrapping an external tool - pandoc, and whatever
+    # nothing else. An extension wrapping an external tool - pandoc, and whatever
     # follows it - had no way to declare what it needs, so SM472's rule ("a
-    # plugin that cannot run is not enabled") could not protect it: the
-    # operator would get a plugin that enables and then fails at first use,
+    # extension that cannot run is not enabled") could not protect it: the
+    # operator would get an extension that enables and then fails at first use,
     # which is the exact state SM472 exists to prevent.
     #
     # `bins` is that declaration for an executable. Same refusal, same shape of
@@ -436,20 +436,20 @@ sub _missing_deps {
     return undef unless @deps || @bins;
 
     my ( @absent, @bare );
-    require Lazysite::Plugins::Owns;
+    require Lazysite::Extensions::Owns;
     for my $dep (@deps) {
         # SM747: an entry may name its package and an oldest version - the
         # grammar is Owns::parse_dep's, so the validator and this check read a
         # declaration the same way. A name the grammar refuses is skipped here
         # exactly as an unpatterned one always was: never interpolated.
-        my ( $m, $pkg, $min ) = Lazysite::Plugins::Owns::parse_dep($dep);
+        my ( $m, $pkg, $min ) = Lazysite::Extensions::Owns::parse_dep($dep);
         next unless defined $m && $m =~ /\A[A-Za-z][\w:]*\z/;   # never interpolate a name
         ( my $file  = "$m.pm" ) =~ s{::}{/}g;
         ( my $guess = lc $m )   =~ s{::}{-}g;
         my $install = defined $pkg ? "$pkg (>= $min)" : "lib$guess-perl";
         if ( eval { require $file; 1 } ) {
             # PRESENT AND TOO OLD is missing too: a module that loads and lacks
-            # what the plugin calls fails at first use, the state SM472 refuses.
+            # what the extension calls fails at first use, the state SM472 refuses.
             next unless defined $min;
             next if eval { $m->VERSION($min); 1 };
             my $have = eval { $m->VERSION } // 'unversioned';
@@ -463,7 +463,7 @@ sub _missing_deps {
 
     for my $b (@bins) {
         # A bare command name only - never a path, never a shell metacharacter.
-        # This value comes from a plugin descriptor, and a lookup that
+        # This value comes from an extension descriptor, and a lookup that
         # interpolated it would let a descriptor decide what gets executed.
         # The module branch guards its names for the same reason.
         next unless $b =~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
@@ -475,7 +475,7 @@ sub _missing_deps {
     return undef unless @absent;
 
     my $msg
-        = 'This plugin needs '
+        = 'This extension needs '
         . join( ', ', @absent )
         . ' and they are not installed. It would enable and then fail on every '
         . 'request that used them, so it has been left off - install them and '
@@ -483,7 +483,7 @@ sub _missing_deps {
 
     # SM711 half 2: the BARE NAMES come back alongside the prose.
     #
-    # The audit row for a refused toggle said `plugin-enable / pandoc / fail`
+    # The audit row for a refused toggle said `extension-enable / pandoc / fail`
     # with no reason - or, once a kind existed, `missing_deps`, which names the
     # CLASS of problem and not the thing that is missing. The release manager's
     # complaint was exactly that: "the logged error doesn't say which dep is
@@ -498,35 +498,35 @@ sub _missing_deps {
     return ( $msg, \@bare );
 }
 
-sub action_plugin_enable {
+sub action_extension_enable {
     my ($script) = @_;
     $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
     return { ok => 0, error => 'No script' } unless $script;
-    # SM152: only a REGISTERED plugin can be enabled - so a stray name can never
-    # be written into the conf `plugins:` list (and the on_enable hook only ever
+    # SM152: only a REGISTERED extension can be enabled - so a stray name can never
+    # be written into the conf `extensions:` list (and the on_enable hook only ever
     # runs a registry script).
     #
     # TLO-1: the registry is still SCANNED on this call - what it yields is
-    # carried down to _missing_deps and _run_plugin_hook instead of being
+    # carried down to _missing_deps and _run_extension_hook instead of being
     # looked up twice more. It is NOT cached across calls, which is the
     # property t/unit/manager/27 pins.
-    my $full = plugin_registry()->{$script};
-    return { ok => 0, error => "Unknown plugin: $script" } unless $full;
+    my $full = extension_registry()->{$script};
+    return { ok => 0, error => "Unknown extension: $script" } unless $full;
 
-    # SM472: A PLUGIN THAT CANNOT RUN IS NOT ENABLED.
+    # SM472: AN EXTENSION THAT CANNOT RUN IS NOT ENABLED.
     #
-    # ADR 0009 has a plugin DECLARE the modules it needs, and the SBOM gate
+    # ADR 0009 has an extension DECLARE the modules it needs, and the SBOM gate
     # reads that list so nothing ships undeclared. Nothing was reading it at
     # the one moment it answers a question an operator has: can this work here?
     #
-    # It was found the expensive way. The data plugin enabled cleanly on a host
+    # It was found the expensive way. The data extension enabled cleanly on a host
     # without YAML::PP, listed its (empty) set of tables happily, and then
     # answered HTTP 500 to every attempt to declare one - because the parser is
     # only reached once there is something to parse. The field bisected five
     # variations of the request before concluding the write path was broken.
     # Every signal was honest and none of them said the word "YAML::PP".
     #
-    # REFUSED RATHER THAN WARNED, because the alternative is a plugin that is
+    # REFUSED RATHER THAN WARNED, because the alternative is an extension that is
     # on and does not work - which is the state that produced those 500s. The
     # message names the module AND a package that provides it, so the refusal
     # is a next step rather than a dead end; install, then enable, which is the
@@ -552,47 +552,47 @@ sub action_plugin_enable {
         };
     }
 
-    my $r = _update_plugins_conf( $script, 'add' );
+    my $r = _update_extensions_conf( $script, 'add' );
     return $r unless $r->{ok};
-    my $hook = _run_plugin_hook( $script, 'on_enable', $full, $desc );
+    my $hook = _run_extension_hook( $script, 'on_enable', $full, $desc );
     $r->{hook} = $hook if $hook;
     return $r;
 }
 
-sub action_plugin_disable {
+sub action_extension_disable {
     my ($script) = @_;
     $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
     return { ok => 0, error => 'No script' } unless $script;
-    my $r = _update_plugins_conf( $script, 'remove' );
+    my $r = _update_extensions_conf( $script, 'remove' );
     return $r unless $r->{ok};
-    my $hook = _run_plugin_hook( $script, 'on_disable' );
+    my $hook = _run_extension_hook( $script, 'on_disable' );
     $r->{hook} = $hook if $hook;
     return $r;
 }
 
-# Field feedback (2026-07-11): enabling a plugin IS enabling its feature - a
-# second Enable on the config page is a trap. A plugin may declare on_enable /
+# Field feedback (2026-07-11): enabling an extension IS enabling its feature - a
+# second Enable on the config page is a trap. An extension may declare on_enable /
 # on_disable in its descriptor (each names one of its own declared actions);
-# the named action runs right after the Plugin-Manager toggle and its result
+# the named action runs right after the Extension-Manager toggle and its result
 # travels back as `hook` for the page's status line. Hook ids resolve against
-# the descriptor's actions, so - exactly as in action_plugin_action - only
+# the descriptor's actions, so - exactly as in action_extension_action - only
 # descriptor literals ever reach the command line. A failed hook never undoes
-# the toggle: the plugin's own status action is the recovery surface.
-sub _run_plugin_hook {
+# the toggle: the extension's own status action is the recovery surface.
+sub _run_extension_hook {
     my ( $script, $hook_key, $full_script, $desc ) = @_;
     # TLO-1: as _missing_deps - the enable path resolves and describes once and
     # hands both down; disable calls with two arguments and does its own.
-    $full_script = resolve_plugin_script($script) if @_ < 3;
+    $full_script = resolve_extension_script($script) if @_ < 3;
     return undef unless $full_script;
     $desc = _describe($full_script) if @_ < 4;
     return undef unless $desc && ref $desc eq 'HASH';
 
     # SM409: hooks are deliberately NOT gated. They run only from the toggle
     # actions themselves - on_enable right after the conf gains the entry (so
-    # the plugin is enabled by then), and on_disable right after the conf
-    # loses it, which is the plugin's SANCTIONED last run: its one chance to
+    # the extension is enabled by then), and on_disable right after the conf
+    # loses it, which is the extension's SANCTIONED last run: its one chance to
     # stop what it started. Gating here would refuse exactly that cleanup.
-    # Arbitrary execution goes through action_plugin_action, which is gated.
+    # Arbitrary execution goes through action_extension_action, which is gated.
     my $id = $desc->{$hook_key};
     return undef unless defined $id && length $id;
     my ($action) = grep { ( $_->{id} // '' ) eq $id } @{ $desc->{actions} // [] };
@@ -605,7 +605,7 @@ sub _run_plugin_hook {
         // { ok => 0, error => 'hook produced no output' };
 }
 
-sub _update_plugins_conf {
+sub _update_extensions_conf {
     my ( $script, $op ) = @_;
 
     my $conf_path = _lz() . "/lazysite.conf";
@@ -615,8 +615,8 @@ sub _update_plugins_conf {
     close $fh;
 
     my @lines = split /\n/, $conf;
-    my @plugins;
-    my $in_plugins  = 0;
+    my @extensions;
+    my $in_extensions  = 0;
     my $found_block = 0;
     my @before;
     my @after;
@@ -628,20 +628,20 @@ sub _update_plugins_conf {
     # choose between when writing it back.
     for my $line (@lines) {
         if ( $line =~ /^extensions\s*:\s*$/ ) {
-            $in_plugins       = 1;
+            $in_extensions       = 1;
             $found_block      = 1;
-            $phase            = 'plugins';
+            $phase            = 'extensions';
             next;
         }
-        if ($in_plugins) {
+        if ($in_extensions) {
             if ( $line =~ /^\s+-\s+(.+)$/ ) {
                 my $entry = $1;
                 $entry =~ s/\s+$//;
-                push @plugins, $entry;
+                push @extensions, $entry;
                 next;
             }
             elsif ( $line !~ /^\s/ ) {
-                $in_plugins = 0;
+                $in_extensions = 0;
                 $phase      = 'after';
             }
             else { next }
@@ -651,29 +651,29 @@ sub _update_plugins_conf {
     }
 
     if ( $op eq 'add' ) {
-        push @plugins, $script unless grep { $_ eq $script } @plugins;
+        push @extensions, $script unless grep { $_ eq $script } @extensions;
     }
     elsif ( $op eq 'remove' ) {
-        @plugins = grep { $_ ne $script } @plugins;
+        @extensions = grep { $_ ne $script } @extensions;
     }
 
     # Rebuild line-wise. (The old string concatenation lost the newline
     # between the last before-line and the first after-line whenever the
-    # plugins block emptied - removing a site's only plugin glued two conf
+    # extensions block emptied - removing a site's only extension glued two conf
     # keys into one corrupt line.)
     my @out = @before;
-    push @out, 'extensions:', map { "  - $_" } @plugins if @plugins;
+    push @out, 'extensions:', map { "  - $_" } @extensions if @extensions;
     push @out, @after;
     my $new_conf = join( "\n", @out );
     $new_conf =~ s/\n{3,}/\n\n/g;
     $new_conf .= "\n" unless $new_conf =~ /\n$/;
 
     my ( $wok, $werr ) = _write_conf_content( $new_conf,
-        ( $op eq 'add' ? "enable plugin $script" : "disable plugin $script" ) );
+        ( $op eq 'add' ? "enable extension $script" : "disable extension $script" ) );
     return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
         unless $wok;
 
-    unlink _lz() . "/cache/plugin-list.cache";
+    unlink _lz() . "/cache/extension-list.cache";
 
     return { ok => 1, action => $op, script => $script };
 }
@@ -711,16 +711,16 @@ sub _slurp_or_empty {
     return $content;
 }
 
-sub action_plugin_read {
+sub action_extension_read {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
-    my ( $plugin_id, $script ) = @_;
+    my ( $extension_id, $script ) = @_;
 
-    my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
-    return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
+    my ( $full_script, $why ) = _resolve_extension_or_why( $extension_id, $script );
+    return { ok => 0, kind => 'invalid', field => 'extension', error => $why }
         unless $full_script;
 
     my $desc = _describe($full_script)
-        or return { ok => 0, error => 'Cannot describe plugin' };
+        or return { ok => 0, error => 'Cannot describe extension' };
 
     my $config_file = $desc->{config_file} // '';
     my %values;
@@ -747,15 +747,15 @@ sub action_plugin_read {
     return { ok => 1, values => \%values };
 }
 
-sub action_plugin_save {
-    my ( $plugin_id, $script, $values, $add ) = @_;
+sub action_extension_save {
+    my ( $extension_id, $script, $values, $add ) = @_;
 
-    my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
-    return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
+    my ( $full_script, $why ) = _resolve_extension_or_why( $extension_id, $script );
+    return { ok => 0, kind => 'invalid', field => 'extension', error => $why }
         unless $full_script;
 
     my $desc = _describe($full_script)
-        or return { ok => 0, error => 'Cannot describe plugin' };
+        or return { ok => 0, error => 'Cannot describe extension' };
 
     my %allowed     = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
     my %is_password = map { $_->{key} => 1 }
@@ -788,7 +788,7 @@ sub action_plugin_save {
         # added whatever lines followed it, past the allowlist: reproduced with a
         # single save to the Logging extension, whose log_level wrote
         # `alias.victim.example.allowed_groups: attackers` into lazysite.conf.
-        # plugin-save needs manage_config; that key is behind manage_domains AND
+        # extension-save needs manage_config; that key is behind manage_domains AND
         # manage_users by the SM647 ruling. The form never sends a newline; the
         # API accepts any string.
         #
@@ -878,11 +878,11 @@ sub action_plugin_save {
     };
 
     if ($config_file) {
-        # $plugin_conf, not $conf_path: this branch writes the PLUGIN'S OWN
+        # $extension_conf, not $conf_path: this branch writes the EXTENSION'S OWN
         # config file, while the branch below writes lazysite.conf. They had the
         # same variable name, which reads as one thing written two ways.
-        my $plugin_conf = "$DOCROOT/$config_file";
-        my $dir         = dirname($plugin_conf);
+        my $extension_conf = "$DOCROOT/$config_file";
+        my $dir         = dirname($extension_conf);
         make_path($dir) unless -d $dir;
 
         # SM1172 (OOM Lab L-15, "saving odoo_packs while another app is
@@ -894,9 +894,9 @@ sub action_plugin_save {
         # among them - until something saved it again. The lock is the one the
         # other read-modify-write stores take (Util::store_lock); readers stay
         # lock-free because the rename gives them a whole file either way.
-        my $lock = Lazysite::Util::store_lock($plugin_conf)
+        my $lock = Lazysite::Util::store_lock($extension_conf)
             or return { ok => 0, error => "Cannot lock config: $!" };
-        my $content = _slurp_or_empty($plugin_conf);
+        my $content = _slurp_or_empty($extension_conf);
 
         # The list keys are merged into what the file holds NOW, inside the lock.
         for my $k ( sort keys %add ) {
@@ -919,8 +919,8 @@ sub action_plugin_save {
             @{ $desc->{config_schema} // [] };
         my ( $wok, $werr ) =
             $has_secret
-            ? Lazysite::Util::write_private_atomic( $plugin_conf, Encode::encode( 'UTF-8', $content ), 0660 )
-            : write_file_checked( $plugin_conf, $content );
+            ? Lazysite::Util::write_private_atomic( $extension_conf, Encode::encode( 'UTF-8', $content ), 0660 )
+            : write_file_checked( $extension_conf, $content );
         return { ok => 0, error => "Cannot write config: $werr" }
             unless $wok;
         close $lock;
@@ -945,27 +945,27 @@ sub action_plugin_save {
             unless $wok;
     }
 
-    # SM1164: a plugin may name an action to run after its config is saved (the Odoo
+    # SM1164: an extension may name an action to run after its config is saved (the Odoo
     # extension rewrites oomd's config and tells the daemon). Like on_enable it
     # resolves against the descriptor's declared actions, and a failure never
     # undoes the save.
-    my $hook = @changed ? _run_plugin_hook( $script, 'on_save', $full_script, $desc ) : undef;
+    my $hook = @changed ? _run_extension_hook( $script, 'on_save', $full_script, $desc ) : undef;
     return { ok => 1, changed => [ sort @changed ], ( $hook ? ( hook => $hook ) : () ) };
 }
 
-sub action_plugin_action {
-    my ( $plugin_id, $script, $action_id, $req_params ) = @_;
+sub action_extension_action {
+    my ( $extension_id, $script, $action_id, $req_params ) = @_;
 
-    my ( $full_script, $why ) = _resolve_plugin_or_why( $plugin_id, $script );
-    return { ok => 0, kind => 'invalid', field => 'plugin', error => $why }
+    my ( $full_script, $why ) = _resolve_extension_or_why( $extension_id, $script );
+    return { ok => 0, kind => 'invalid', field => 'extension', error => $why }
         unless $full_script;
 
     my $desc = _describe($full_script)
-        or return { ok => 0, error => 'Cannot describe plugin' };
+        or return { ok => 0, error => 'Cannot describe extension' };
 
     my ($action) = grep { $_->{id} eq $action_id } @{ $desc->{actions} // [] };
 
-    # SM409: a contract plugin that is not enabled executes nothing - except a
+    # SM409: a contract extension that is not enabled executes nothing - except a
     # declared read (SM765), which reports and does not act.
     if ( my $refused = _gate_execution( $script, $desc, $action ) ) { return $refused }
 
@@ -975,15 +975,15 @@ sub action_plugin_action {
         return { ok => 1, link => $action->{link} };
     }
 
-    # SM085 (git-sync): the minimal generic extension for parameterised plugin
+    # SM085 (git-sync): the minimal generic extension for parameterised extension
     # actions. An action that declares run:'action' in the descriptor is
     # invoked as `--action <id>` (the legacy default stays `--scan`), and may
     # declare `choices`; a request's params.choice is accepted ONLY when it
     # matches a declared choice id, so nothing request-controlled ever reaches
     # the command line - every argument below is a descriptor literal. The
-    # acting user travels in the environment for the plugin's own attribution
+    # acting user travels in the environment for the extension's own attribution
     # (commits, snapshots, log lines). Action-mode stderr is NOT discarded:
-    # the plugin's log_event lines belong in the server error log.
+    # the extension's log_event lines belong in the server error log.
     my @argv     = ('--scan');
     my $redirect = '2>/dev/null';
     if ( ( $action->{run} // '' ) eq 'action' ) {
@@ -1192,7 +1192,7 @@ sub _submissions_path {
 
     # N141E (SM852's MISS row, and the filing's guess about it was wrong).
     #
-    # The row read: "Plugins::_rewrite_store (finds no store once its folder is
+    # The row read: "Extensions::_rewrite_store (finds no store once its folder is
     # gated - fixed by S1, since it reads through store_path; to verify)". It
     # does read through store_path, and store_path resolves the gated store
     # correctly - into the private store beside the docroot. THEN THIS CHECK

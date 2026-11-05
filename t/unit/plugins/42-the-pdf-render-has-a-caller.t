@@ -8,7 +8,7 @@
 # deferral hid the gap.
 #
 # This test is about REACH. 41 still owns the conversion behaviour; what is
-# asserted here is that a surface exists, that it is gated, and that the plugin
+# asserted here is that a surface exists, that it is gated, and that the extension
 # can be loaded in-process without executing itself - the property the wiring
 # depends on and the one most likely to break silently.
 use strict;
@@ -62,13 +62,13 @@ subtest 'the path never reaches a shell' => sub {
     my ($body) = $mod =~ /(sub action_page_pdf \{.*?\n\})/s;
     ok( $body, 'the action body is extractable' ) or return;
 
-    # plugin-action refuses arbitrary arguments on purpose - "nothing
+    # extension-action refuses arbitrary arguments on purpose - "nothing
     # request-controlled ever reaches the command line". This calls convert()
     # in process, so the path is a Perl argument and sees no shell at all. A
     # future edit that shells out would undo that quietly.
     # Comments stripped first: the assertion is about CODE. The first version
     # of this test failed on the backticks inside a comment explaining why the
-    # plugin can be loaded safely - a false positive from prose.
+    # extension can be loaded safely - a false positive from prose.
     my $code = join "\n", grep { !/^\s*#/ } split /\n/, $body;
     unlike( $code, qr/qx\(|system\(|`|open\s+my\s+\$\w+,\s*['"]-\|/,
         'the action runs no external command' );
@@ -77,13 +77,13 @@ subtest 'the path never reaches a shell' => sub {
         'and supplies the content ACL, which convert() asks for rather than reaching for' );
 };
 
-subtest 'the plugin can be loaded without executing itself' => sub {
+subtest 'the extension can be loaded without executing itself' => sub {
     # `run(@ARGV) unless caller` guards the entry point, and `do` sets a caller
     # frame - so loading defines the subs and prints nothing. If that ever
-    # stopped being true, the plugin would emit JSON into the middle of an HTTP
+    # stopped being true, the extension would emit JSON into the middle of an HTTP
     # response, which is the kind of fault that looks like a corrupt download.
-    my $plugin = "$root/extensions/pandoc.pl";
-    ok( -f $plugin, 'the plugin is present' ) or return;
+    my $extension = "$root/extensions/pandoc.pl";
+    ok( -f $extension, 'the extension is present' ) or return;
 
     # LIST FORM, so there is no shell command string at all - t/lint/40
     # refuses an array interpolated into one, and it was right to: the first
@@ -91,10 +91,10 @@ subtest 'the plugin can be loaded without executing itself' => sub {
     # argv here rather than a local @ARGV override, which tests more: the guard
     # has to hold when the process genuinely was given arguments.
     my $code = 'do $ARGV[0]; print "LOADED_QUIET"';
-    my $out = run_child( [ $^X, '-e', $code, $plugin, '--describe' ], stderr => 'inherit' )->{out};
+    my $out = run_child( [ $^X, '-e', $code, $extension, '--describe' ], stderr => 'inherit' )->{out};
     like( $out, qr/LOADED_QUIET/, 'the loader ran to completion' );
     unlike( $out, qr/\{.*"id"\s*:\s*"pandoc"/,
-        'and the plugin did NOT print its descriptor - it was loaded, not run' );
+        'and the extension did NOT print its descriptor - it was loaded, not run' );
 };
 
 done_testing();

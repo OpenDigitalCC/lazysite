@@ -1,29 +1,29 @@
 #!/usr/bin/perl
-# SM666 phase 1: the persistent runtime, declared as a plugin.
+# SM666 phase 1: the persistent runtime, declared as an extension.
 #
 # THIS FILE IS THE DECLARATION, NOT THE DAEMON. The runtime itself is
 # tools/lazysited.pl, supervised by systemd. What lives here is the ADR 0009
 # contract: what the runtime owns, what it may be configured with, and - the
 # load-bearing part - the `contract` key that makes it BORN DISABLED.
 #
-# WHY A PLUGIN AT ALL. The release manager's ruling: the runtime ships disabled
+# WHY AN EXTENSION AT ALL. The release manager's ruling: the runtime ships disabled
 # and an operator turns it on deliberately, so an instance that upgrades gets
 # nothing new running. ADR 0009 already provides exactly that shape, and SM409
-# already made it real for contract plugins, so declaring the runtime here buys
+# already made it real for contract extensions, so declaring the runtime here buys
 # born-disabled, a real enabled state, backup participation and SBOM
 # declaration without inventing any of them.
 #
 # WHAT "DISABLED" HAS TO MEAN HERE, and it is stronger than the ADR's own case.
-# For a CGI plugin, off is enforced at dispatch: a request arrives and is
+# For a CGI extension, off is enforced at dispatch: a request arrives and is
 # refused. A DAEMON HAS NO DISPATCH TO REFUSE AT - nothing arrives; the process
 # either exists or it does not. So conforming means the supervisor reads this
-# plugin's enabled state and DECLINES TO START, rather than starting and
+# extension's enabled state and DECLINES TO START, rather than starting and
 # refusing work. Lazysite::Daemon::Supervisor::should_run is that check, and
 # t/unit/daemon/01 is what stops it rotting.
 #
 # TERMINOLOGY, settled 2026-09-03 and worth stating where both words appear in
-# one file: LAZYSITE HAS PLUGINS; THE DAEMON HAS SERVICES. This file is a
-# plugin. The scheduler it supervises is a service. Disabling this plugin stops
+# one file: LAZYSITE HAS EXTENSIONS; THE DAEMON HAS SERVICES. This file is a
+# extension. The scheduler it supervises is a service. Disabling this extension stops
 # the runtime and every service in it; disabling a service stops that one.
 use strict;
 use warnings;
@@ -32,18 +32,18 @@ use JSON::PP ();
 BEGIN {
     # Locate the Lazysite module tree relative to this script, the same way
     # every tool does. Without it `require Lazysite::Daemon::Supervisor` below
-    # dies, and a plugin action that dies prints NOTHING TO STDOUT - so the
+    # dies, and an extension action that dies prints NOTHING TO STDOUT - so the
     # manager reports "Action produced no output" and an operator asking why
     # nothing is happening is told nothing at all.
     #
     # That is exactly what shipped in 0.13.0 and the field found it in the
-    # state the release is proudest of: plugin enabled, runtime not started -
+    # state the release is proudest of: extension enabled, runtime not started -
     # the moment the Status button exists for.
     #
     # t/lint/59 asserts this property for everything under tools/ and its own
     # comment says it "asserts the property rather than the six files". The
     # property is not about tools: it is about any script the manager runs as
-    # a SUBPROCESS, which is every plugin. The lint now covers extensions/ too.
+    # a SUBPROCESS, which is every extension. The lint now covers extensions/ too.
     require Cwd;
     require File::Basename;
     my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
@@ -60,7 +60,7 @@ sub describe {
         # daemon.conf, its jobs daemon-heartbeat and connectors-sweep, and
         # every plan and filing calls it the daemon - while the manager called
         # it only "Persistent runtime", so searching the page for the word
-        # returned nothing and the field read all ten plugin names and guessed.
+        # returned nothing and the field read all ten extension names and guessed.
         name        => 'Persistent runtime (daemon)',
         description => 'A supervised process that holds long-lived work the '
             . 'request path cannot: a scheduler that calls timed functions '
@@ -78,7 +78,7 @@ sub describe {
         config_file => 'lazysite/daemon.conf',
 
         # SM409 / ADR 0009. Born disabled, and really gated rather than
-        # displayed. For this plugin the gate is not "refuse an action" but
+        # displayed. For this extension the gate is not "refuse an action" but
         # "do not start a process", which the supervisor enforces.
         contract => 1,
 
@@ -135,7 +135,7 @@ sub describe {
 
             # The right to be the account a scheduled job runs as. Declared
             # here because t/lint/76 requires every capability to be core or
-            # plugin-owned, and because holding it is what separates an
+            # extension-owned, and because holding it is what separates an
             # account that may carry a job from one that may not.
             capabilities => ['run_jobs'],
 
@@ -146,7 +146,7 @@ sub describe {
         },
 
         actions => [
-            # SM765: `read` - Status answers while the plugin is disabled, so an
+            # SM765: `read` - Status answers while the extension is disabled, so an
             # operator who switched it off can come back and see that the
             # runtime stopped (or is still stopping), not a refusal.
             { id => 'status', label => 'Status', run => 'action', read => 1 },
@@ -177,13 +177,13 @@ sub run {
     }
 
     if ( $opt{describe} ) {
-        # PRETTY, and deliberately - every other plugin prints one compact
-        # line. That difference found a real bug: t/lint/76 read a plugin's
+        # PRETTY, and deliberately - every other extension prints one compact
+        # line. That difference found a real bug: t/lint/76 read an extension's
         # description with `decode_json(`...`)`, and backticks in LIST context
         # return a list of LINES, so only the first reached the decoder. With
         # single-line output the first line is the whole document, so the bug
-        # was invisible for as long as every plugin happened to be compact -
-        # and a plugin that was not simply vanished from the capability
+        # was invisible for as long as every extension happened to be compact -
+        # and an extension that was not simply vanished from the capability
         # OWNERSHIP check without any test failing.
         #
         # The lint is fixed. This stays multi-line so that something real
@@ -198,7 +198,7 @@ sub run {
         # reporting the CONFIGURATION and calling it the state, which is the
         # failure SM222 is about.
         require Lazysite::Daemon::Supervisor;
-        # SM760: while the plugin reads disabled this is the on_disable hook (or
+        # SM760: while the extension reads disabled this is the on_disable hook (or
         # an operator at the CLI); wait for the runtime to notice the gate.
         no warnings 'once'; # $GATE_EVERY is the supervisor's; required, not used-imported
         my $st = Lazysite::Daemon::Supervisor::status( $opt{docroot},

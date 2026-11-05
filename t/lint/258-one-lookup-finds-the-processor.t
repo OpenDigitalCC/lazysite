@@ -11,7 +11,7 @@
 # Out of scope, on purpose: lazysite-auth.pl (the wrapper EXECS the CGI the
 # web server named, which is not finding a processor to render a preview with),
 # lazysite-front.pl (routes by LAZYSITE_CGIBIN), tools/lazysite-server.pl (the
-# dev server's own --processor), and plugins.
+# dev server's own --processor), and extensions.
 use strict;
 use warnings;
 use Test::More;

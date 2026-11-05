@@ -19,10 +19,10 @@
 # itself into dozens of one-hit entries. Same shape as SM329: something counted
 # as a page that is not a distinct page.
 #
-# DRIVEN THROUGH THE PLUGIN, not by calling its subs. stats.pl runs its main
+# DRIVEN THROUGH THE EXTENSION, not by calling its subs. stats.pl runs its main
 # body and exits at file scope, so it cannot be loaded for unit calls - and
 # driving it the way it actually runs is the better test anyway. Every assertion
-# below is against a day rollup the plugin wrote.
+# below is against a day rollup the extension wrote.
 use strict;
 use warnings;
 use Test::More;
@@ -34,11 +34,11 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
-my $PLUGIN = repo_root() . '/extensions/stats.pl';
-ok( -f $PLUGIN, 'stats plugin present' );
+my $EXTENSION = repo_root() . '/extensions/stats.pl';
+ok( -f $EXTENSION, 'stats extension present' );
 
 # Q14g (SM974): one instant, stamped as what it says it is - this was localtime
-# labelled +0000, and the plugin reads the offset. A stats day is a UTC day.
+# labelled +0000, and the extension reads the offset. A stats day is a UTC day.
 my $T   = time;
 my $NOW = strftime( '%d/%b/%Y:%H:%M:%S +0000', gmtime $T );
 my $DAY = strftime( '%Y-%m-%d',                gmtime $T );
@@ -89,7 +89,7 @@ sub day_rollup {
     my ( $d, $log ) = @_;
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
-    my $out = qx($^X \Q$PLUGIN\E --export --day \Q$DAY\E 2>/dev/null);
+    my $out = qx($^X \Q$EXTENSION\E --export --day \Q$DAY\E 2>/dev/null);
     my $r   = decode_json( $out || '{}' );
     # --day answers { ok, day => {...} }; the rollup is the inner hash.
     return $r->{day} || {};
@@ -244,8 +244,8 @@ sub window_view {
     local $ENV{LAZYSITE_ACCESS_LOG} = $log;
     my $cmd
         = $how eq 'page'
-        ? qq($^X \Q$PLUGIN\E --scan --docroot \Q$d\E 2>/dev/null)
-        : qq($^X \Q$PLUGIN\E --export --window 30 2>/dev/null);
+        ? qq($^X \Q$EXTENSION\E --scan --docroot \Q$d\E 2>/dev/null)
+        : qq($^X \Q$EXTENSION\E --export --window 30 2>/dev/null);
     return decode_json( qx($cmd) || '{}' );
 }
 

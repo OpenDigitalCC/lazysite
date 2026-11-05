@@ -19,8 +19,8 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root site_tempdir);
 
-my $PLUGIN = repo_root() . '/extensions/audit.pl';
-ok( -f $PLUGIN, 'the audit plugin is present' ) or BAIL_OUT('no plugin');
+my $EXTENSION = repo_root() . '/extensions/audit.pl';
+ok( -f $EXTENSION, 'the audit extension is present' ) or BAIL_OUT('no extension');
 
 sub w {
     my ( $p, @lines ) = @_;
@@ -41,7 +41,7 @@ sub site {
 
 sub audit {
     my ($d) = @_;
-    return scalar qx{$^X \Q$PLUGIN\E --docroot \Q$d\E 2>/dev/null};
+    return scalar qx{$^X \Q$EXTENSION\E --docroot \Q$d\E 2>/dev/null};
 }
 
 sub broken_in {
@@ -170,19 +170,19 @@ subtest 'the audit cannot scan its own report, because it is not content' => sub
     my $d = site();
     w( "$d/page.md", '---', 'title: Page', '---', '[gone](/still-missing)' );
 
-    # The report page a site that ran this plugin before 0.15.2 already has, with
+    # The report page a site that ran this extension before 0.15.2 already has, with
     # last run's findings in it - which is exactly what used to come back as a new
     # set of broken links attributed to the report itself.
     w( "$d/manager/audit-report.md", '---', 'title: Link Audit Report', '---',
         '<td><code>/stale-finding-one</code></td>',
         '<a href="/stale-finding-two">x</a>' );
 
-    my $json = qx{$^X \Q$PLUGIN\E --scan --docroot \Q$d\E 2>/dev/null};
+    my $json = qx{$^X \Q$EXTENSION\E --scan --docroot \Q$d\E 2>/dev/null};
     my $res  = eval { decode_json($json) };
     ok( $res && $res->{ok}, 'the scan answers JSON' ) or diag "output: $json";
 
     ok( !-e "$d/manager/audit-report.md",
-        'the page the plugin used to write is REMOVED - leaving it would leave a '
+        'the page the extension used to write is REMOVED - leaving it would leave a '
             . 'stale report at a URL nothing updates' );
     ok( -f "$d/lazysite/audit/link-report.json",
         'and the findings are in a store under lazysite/, which the page walks '
@@ -195,7 +195,7 @@ subtest 'the audit cannot scan its own report, because it is not content' => sub
 
     # And the second run agrees with the first, which is the property the operator
     # lost: the count moved 10 -> 8 -> 10 -> 7 with no change to the site.
-    my $again = decode_json( scalar qx{$^X \Q$PLUGIN\E --scan --docroot \Q$d\E 2>/dev/null} );
+    my $again = decode_json( scalar qx{$^X \Q$EXTENSION\E --scan --docroot \Q$d\E 2>/dev/null} );
     is( scalar @{ $again->{report}{broken} }, scalar @{ $res->{report}{broken} },
         'two runs in a row report the same number' );
 };
@@ -203,7 +203,7 @@ subtest 'the audit cannot scan its own report, because it is not content' => sub
 subtest 'the action returns the findings, so nothing has to fetch a page' => sub {
     my $d = site();
     w( "$d/orphan.md", '---', 'title: Orphan', '---', 'nothing links here' );
-    my $res = decode_json( scalar qx{$^X \Q$PLUGIN\E --scan --docroot \Q$d\E 2>/dev/null} );
+    my $res = decode_json( scalar qx{$^X \Q$EXTENSION\E --scan --docroot \Q$d\E 2>/dev/null} );
 
     ok( exists $res->{report},   'the result carries the report' );
     ok( !exists $res->{report_url},
@@ -217,7 +217,7 @@ subtest 'the action returns the findings, so nothing has to fetch a page' => sub
 # --- the descriptor matches what the manager now does ---------------------------
 
 subtest 'the run action no longer declares a URL to open' => sub {
-    my $desc = decode_json( scalar qx{$^X \Q$PLUGIN\E --describe} );
+    my $desc = decode_json( scalar qx{$^X \Q$EXTENSION\E --describe} );
     my ($run) = grep { $_->{id} eq 'run' } @{ $desc->{actions} // [] };
     ok( $run, 'the run action is declared' );
     ok( !$run->{on_complete},

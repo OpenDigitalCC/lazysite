@@ -12,7 +12,7 @@ package main;
 #         token generator, lint 61); the injectors that edit the finished
 #         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_app, _inject_form_base, _inject_meta,
 #         _inject_canonical, and the admin bar (_inject_admin_bar,
-#         _admin_bar_choice, _inject_admin_bar_live); _enabled_plugins,
+#         _admin_bar_choice, _inject_admin_bar_live); _enabled_extensions,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
 #         _lazysite_version with their per-process memos.
 # OWNS    which layout and theme a page renders in; the theme's custom
@@ -830,11 +830,11 @@ my $LAZYSITE_VERSION;
 # SM886: and when that state was last written, which is when this engine was
 # installed. Memoised beside the version and for the same reason.
 my $ENGINE_MTIME;
-# Enabled plugins from lazysite.conf's `plugins:` list, for conditional manager
-# nav (e.g. hide "Visitor statistics" when the stats plugin is disabled). Keyed
+# Enabled extensions from lazysite.conf's `extensions:` list, for conditional manager
+# nav (e.g. hide "Visitor statistics" when the stats extension is disabled). Keyed
 # by both the raw entry (stats.pl) and its extensionless id (stats) so the layout
-# can write `enabled_plugins.stats`.
-sub _enabled_plugins {
+# can write `enabled_extensions.stats`.
+sub _enabled_extensions {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my %en;
     my $conf = "$LAZYSITE_DIR/lazysite.conf";
