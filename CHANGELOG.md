@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1337 (PENDING) **docs: the compliance records cover 0.16.3.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.3 batch and stamped 0.16.3. The register
+  records the release manager's acceptance of the SM1303, SM1308 and SM1309 entries
+  (ruling 65), and one entry for the rest of 0.16.3 that moves a control, accepted too
+  (ruling 93); SM1308 and SM1309 owe no Article 14 notice or advisory (ruling 94). The
+  architecture notes and OPERATOR.md cover the confined walks, the widening refusal and
+  SM1313's warning, the engine's /docs manual, the theme upload over MCP and the Odoo
+  settle capability. Docs only; nothing is signed.
+
 - SM1280 (PENDING) **An Odoo operation is told whether the call came from an address list.**
   Ruling 3 (the OOM Lab's office-network clock-in): a binding names an `address_profile` and an
   `address_param` (a yes/no parameter), and its operation receives only 1 or 0 - never the

@@ -28,8 +28,8 @@ rises monotonically.
 :::
 
 ```yaml
-status:              index - complete in coverage, walked row by row on 2026-10-23 against 0.16.2, a security release (main d167c6d28 (0.16.1) plus SM1303-SM1305 and SM1307); the 0.16.1 register entries of 2026-10-23 were accepted by the release manager on 2026-10-23; the SM1303 register entry is a draft a person confirms, as are the threat model rows and, at certified, the declaration
-covers_version:      0.16.2
+status:              index - complete in coverage, walked row by row on 2026-11-05 against the 0.16.3 edge (main c093a5e89); the SM1303 (0.16.2) and SM1308/SM1309 (0.16.3) register entries, and the 2026-11-05 entry for the rest of 0.16.3, were accepted by the release manager on 2026-11-05 (rulings 65, 93); the threat model rows are for a person to confirm, as, at certified, is the declaration
+covers_version:      0.16.3
 content_sha:         148b3776ec692b5c
 ce_marking_due:      2027-12-11
 owner:               release manager
@@ -47,14 +47,14 @@ text: 2
 General description: intended purpose, versions, product form | docs/FEATURES.md; README.md; CHANGELOG.md; the product forms in docs/IMPLEMENTOR.md (tarball, debs, Hestia, and from 0.16.1 the Docker Compose package, installers/docker/README.md) | current - checked at each release by tools/lazysite-compliance.pl
 Design and development: architecture, components | docs/architecture/*.md; docs/adr/*.md (ADRs record decision AND cause) | current
 Production and monitoring processes | docs/development.md; tools/release.sh; docs/RELIABILITY.md | current
-Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, fourteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.16.2 - SM1303's exposure (a theme archive's link in the served asset mirror) and SM1304's warning added 23 Oct 2026, that entry a draft awaiting the release manager; the 0.16.1 changes (the warm-fork parent, the stem-rule fix SM1257, the Odoo options and OOM 0.42, the Docker package) added 23 Oct 2026, those register entries confirmed by the release manager on 23 Oct 2026; the 0.11-0.15 changes and their entries confirmed on 21 Oct 2026
+Cybersecurity risk assessment | docs/SECURITY.md (STRIDE, ASVS L1, fourteen-boundary model and the significant-change register); docs/architecture/security.md | current to 0.16.3 - a confined grant's walks (SM1308, SM1311, SM1312) and a rule inside another (SM1309, SM1313) added 4 Nov 2026, that entry accepted by the release manager on 5 Nov 2026; the rest of 0.16.3 (access, the engine's /docs manual, the theme upload over MCP, the Odoo settle capability, the deploy path) added 5 Nov 2026, that entry accepted by the release manager on 5 Nov 2026; SM1303's exposure (a theme archive's link in the served asset mirror) and SM1304's warning added 23 Oct 2026, that entry accepted on 5 Nov 2026; the 0.16.1 changes (the warm-fork parent, the stem-rule fix SM1257, the Odoo options and OOM 0.42, the Docker package) added 23 Oct 2026, those register entries confirmed by the release manager on 23 Oct 2026; the 0.11-0.15 changes and their entries confirmed on 21 Oct 2026
 Applicable harmonised standards | docs/POLICY.md | current
-Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pentest-deferral.md (SLAs, triggers) | PARTIAL - no dated remediation record; 0.16.2 is the first release cut security-critical (SM1305: its manifest declares it, so `upgrade --all --force-security` and, on a Hestia host, the updater's `--force-security` (SM1307) push it past every site's channel)
+Vulnerability handling processes | SECURITY.md (CVD intake); docs/adr/0007-pentest-deferral.md (SLAs, triggers) | PARTIAL - no dated remediation record; 0.16.2 is the first release cut security-critical (SM1305: its manifest declares it, so `upgrade --all --force-security` and, on a Hestia host, the updater's `--force-security` (SM1307) push it past every site's channel); from 0.16.3 a security release is cut on stable (SM1314) and the deploy hook passes `--force-security` itself (SM1315); 0.16.3 is edge, not security-critical
 Support-period statement | docs/POLICY.md; docs/compliance/OBLIGATIONS.md (absolute date) | current
-SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate - 455 components at 0.16.2 (as at 0.16.1); OOM is declared as `libodoo-oom-perl`, and the 0.42 snapshot in t/vendor/oom (SM1247) is for the tests: it is in the tarball with t/ and is never installed
+SBOM | dist/config/sbom-deps.json; generated per release, CycloneDX, shipped in the tarball | current, strict gate - 458 components at 0.16.3 (three more shipped files; sbom-deps.json unchanged since 0.16.2); OOM is declared as `libodoo-oom-perl`, and the 0.42 snapshot in t/vendor/oom (SM1247) is for the tests: it is in the tarball with t/ and is never installed
 Conformity assessment records | docs/review/*-eight-dimension/ (four full reviews, the last of 0.10.9); docs/review/0.13.1-daemon/; docs/review/2026-10-07-sm869-adversarial-review.md; the SM1181 security review and SM1226's threat table in docs/feature-requests | the last full review is of 0.10.9
 Declaration of Conformity | docs/DECLARATION-OF-CONFORMITY.md | OPEN - draft restamped 0.16.0, unsigned; signed at the certified cut
-Test evidence | t/ (1,553 test files at 0.16.2); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | coverage runs at a stable cut; the bench re-capture is due at the next stable cut
+Test evidence | t/ (1,593 test files at 0.16.3); coverage floors in dist/config/coverage-floor and coverage-floor-groups; bench baseline | coverage runs at a stable cut; the bench re-capture is due at the next stable cut
 ```
 
 # Known gaps

@@ -423,6 +423,10 @@ headers.
 `\A/[\w/.\-]*\z` and explicitly rejects inputs starting with `//`
 or `\`. This closes the `?next=//evil.com` vector that would
 otherwise turn a successful login into an off-site redirect.
+Since 0.16.3 the check is `Lazysite::Util::sanitise_next`, the one
+function behind `/login` and the Odoo sign-in page `/odoo-signin`
+(SM1299), and it also refuses a `//` anywhere in the path; anything
+it refuses goes to `/`.
 
 ### Template injection
 
@@ -711,6 +715,17 @@ under a theme. A link planted before 0.16.2 is not removed by the upgrade:
 it and its target, and the operator removes it and rotates the secret (the
 Sessions page's "Log out all users"). The check never deletes one, and
 `lazysite repair` counts such a site as needing a human.
+
+**The zip upload over MCP (SM1291, SM1290, 0.16.3).** MCP `install_theme`
+(`manage_themes`) takes a theme zip as base64 and calls the same
+`action_theme_upload`, so the upload is reachable with a token for the first time,
+with every check above: no symbolic link, no file type the web server runs, the
+site's upload limit, no absolute or `..` entry. Nothing is activated; the audit
+row is `theme-upload`'s, and `delete_theme` takes away only a theme the caller
+installed (SM262). The control API's `theme-upload` stays cookie-only. MCP
+`preview_page` takes `theme` (`manage_themes` or `manage_layouts`, with
+`manage_content`) and renders with an installed theme that is not active,
+activating, caching and writing nothing.
 
 ## Known constraints
 
@@ -1081,6 +1096,24 @@ fresh child for each request. Never on a plain-CGI site.
 - **OOM's version** (SM1244): `lazysite check` names the OOM a site loads and warns
   below 0.38, which can send a write again when its answer timed out.
 
+### A write whose answer never came (SM1275-SM1280, 0.16.3)
+
+- **Read back first** (SM1275): a run that ended with a change unknown names its run,
+  and a resume has OOM read each unknown change back before anything is sent; a change
+  found made is never sent again. Only a change no read can tell is refused
+  `unknown-outcome` until a person says.
+- **Who says** (SM1276): the run's own maker, or a holder of `settle_odoo_writes`, a
+  capability the Odoo extension declares, so it is grantable only where the extension is
+  installed; every operator group holds it. A visitor never resumes a public binding's
+  run. Each decision is one call record and one audit line naming the run.
+- **Kept until closed** (SM1279, SM1278): an open unknown run, its journal and the bytes
+  of a change it may send again, is outside the plan store's expiry until it is settled
+  or dismissed. A dismissal (`settle_odoo_writes`) sends nothing to Odoo and records who,
+  when and why.
+- **The caller's address as one bit** (SM1280): a binding's `address_profile` gives its
+  operation 1 or 0, whether the request's address (behind `trusted_proxies`) is in the
+  named address list; a page cannot set it, and the address itself never reaches Odoo.
+
 ## Raw pages and the ADR 0006 downgrade (SM1213, 0.15.15)
 
 A page that declares `api:` or `raw:` is served verbatim, and ADR 0006's mechanical
@@ -1136,6 +1169,54 @@ the template's. The docroot, `lazysite/` and the private store are three volumes
 private store is the docroot's sibling, outside the served tree, as on any install.
 The container serves plain HTTP on 8080: TLS is the front end's, and HSTS is sent
 only over TLS. No Odoo is in it.
+
+## A confined grant's walks, and a rule inside another (SM1308, SM1309, SM1311-SM1313, 0.16.3)
+
+- **A confined grant walks only its scope** (SM1308, ruling 47). A grant confined to
+  a scope had its path arguments checked, and a tool given no path skipped the check
+  and walked the docroot. A missing or empty path is now the grant's scope roots
+  (`_walk_roots`; `Files::action_list_scope_roots` on the manager API), for MCP
+  `list_files`, `list_pages`, `search_files`, `delete_page`'s reference list and
+  `rename_page`'s link rewrite, and the manager API's `list` and `pages`. A search
+  asks each file read_file's question (`Acl::_acl_denied`) before it quotes a line.
+  `audit_site` audits the scope and lists a link outside it as outside, never broken
+  (SM1311, ruling 59); `list_pages` asks a page's rule before it lists its title
+  (SM1312, ruling 60).
+- **A rule inside another may narrow it; only its owner may widen it** (SM1309,
+  rulings 46 and 64). Longest match decides a mode's list, so a subfolder's rule
+  replaces the enclosing rule there. Writing a rule that admits, to read or write,
+  anyone the enclosing rule does not is refused (`widens-enclosing-rule`) unless the
+  operator or the enclosing rule's owner writes it: `Acl::widening_refusal`, asked by
+  `Files::action_acl_set`, which every rule writer calls. A move that would carry such
+  a rule inside an area is refused the same way (`Acl::move_widening_refusal`, in
+  `Files::action_move` and WebDAV MOVE). A site package restore (`site_apply`) is an
+  operator's act and is not checked (ruling 62).
+- **Rules written before 0.16.3** stay in force. `lazysite check` names each stored
+  rule wider than its enclosing rule whose owner is neither the operator nor that
+  rule's owner, as a WARN with the command that removes it, and changes nothing;
+  `lazysite repair` leaves it to a person (SM1313, ruling 61).
+
+## The engine's /docs manual and pages beside a moved tree (SM1283-SM1286, 0.16.3)
+
+- **The manual is the engine's** (SM1284, rulings 27, 32, 34, 35). It ships in
+  `{LAZYSITE}/templates/docs/`, outside the docroot on an SM293 layout and
+  DAV-blocklisted with the rest of the engine tree, and serves at `/docs/` only where
+  the site has no page of its own. It is named by the path it serves at, so an access
+  rule, address list, draft section or section theme over `docs/` governs it as it
+  would a site page. Its renders cache under the engine's cache, not in the docroot.
+  It is out of the site's search, sitemap, feeds and `llms.txt` unless
+  `engine_docs_public: true`.
+- **The upgrade removes only what it installed.** A docroot `docs/` copy whose
+  checksum still matches the install state is removed with its cached renders; an
+  edited one is kept and named, and `lazysite check` warns that it shadows the
+  engine's page.
+- **A page beside a moved engine tree** (SM1283). The render path's content-root
+  confinement accepts a source outside the docroot only when the system-page fallback
+  chose it and its real path (`realpath`) is under one of the engine's page trees.
+- **Starter pages** (SM1285, SM1286). A new site has none unless `--starter` asks.
+  `lazysite starter --remove-unmodified` removes, by provenance and checksum, only the
+  unmodified ones, never an edited page or one the site needs; it runs as the site
+  user, refuses root and is audited.
 
 ## Credential lifecycle and MFA (SM072)
 

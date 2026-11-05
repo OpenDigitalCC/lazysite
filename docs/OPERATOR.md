@@ -188,6 +188,17 @@ link, then rotate the secret: the manager's **Sessions** page, "Log out all
 users" (`rotate-auth-secret`), writes a new one and signs every session out,
 yours included.
 
+**A rule wider than the rule around it is left for you (SM1313).** Before 0.16.3
+any account that could write a path inside a protected area could put a rule on a
+subfolder admitting people the area's rule does not; by longest match, that rule
+then decided the subfolder. 0.16.3 refuses such a rule unless the operator or the
+enclosing rule's owner writes it (SM1309), and keeps the ones already stored.
+`lazysite check` warns for each stored one whose owner is neither, naming the path,
+the enclosing rule and whom it admits beyond it. Neither the check nor the repair
+changes it. Review each: keep it if it is meant (it stays in force), or remove it
+with the command the warning gives,
+`lazysite acl remove 'PATH' --actor local --docroot DOCROOT`.
+
 **When to run it.** After any upgrade, and after anything that rebuilds a vhost
 through the control panel. Hestia's `v-rebuild-web-domain` re-applies its own
 docroot permissions (`2751`: setgid, no group write) and a rebuild driven from

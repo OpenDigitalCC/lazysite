@@ -1710,7 +1710,7 @@ verdict
 
 ### 2026-10-23 - SM1303 (0.16.2): a theme archive's symbolic link reached the served asset mirror
 
-Assessment drafted by the developer agent for the release manager's confirmation. Ruling 41 as revised (2026-10-23): with the exposure able to disclose the session-signing secret, so that a `manage_themes` holder could forge an operator's session, this is a security release. Ruling 41b: the archive checks and the planted-link warning (SM1304) land alone on main and are cut as 0.16.2, marked `security_critical` (`tools/release.sh --security-critical`, SM1305) and pushed fleet-wide with `lazysite upgrade --all --force-security`, which reaches stable sites too (on a Hestia host, the updater's `--force-security`, SM1307). Ruling 44 (2026-10-23): no exploitation of SM1303 is known, so there is no CRA Article 14 notification and no advisory; the release notes carry it.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-05 (ruling 65). Ruling 41 as revised (2026-10-23): with the exposure able to disclose the session-signing secret, so that a `manage_themes` holder could forge an operator's session, this is a security release. Ruling 41b: the archive checks and the planted-link warning (SM1304) land alone on main and are cut as 0.16.2, marked `security_critical` (`tools/release.sh --security-critical`, SM1305) and pushed fleet-wide with `lazysite upgrade --all --force-security`, which reaches stable sites too (on a Hestia host, the updater's `--force-security`, SM1307). Ruling 44 (2026-10-23): no exploitation of SM1303 is known, so there is no CRA Article 14 notification and no advisory; the release notes carry it.
 
 what changed
 : The manager's Upload Theme (`theme-upload`, `Manager::Themes::action_theme_upload`)
@@ -1769,14 +1769,14 @@ residual risk
   (`rotate-auth-secret`), writes a new one and ends every session and preview cookie.
 
 verdict
-: accepted, pending the release manager's confirmation. Recorded because it closed a
+: accepted, confirmed by the release manager on 2026-11-05. Recorded because it closed a
   bypass of a boundary this register names, as the SM1213 and SM1257 entries were. The
   remediation record ADR 0007 asks for stays for the certified release
   (`docs/compliance/OBLIGATIONS.md`).
 
 ### 2026-11-04 - SM1308, SM1309, SM1311-SM1313 (0.16.3): a confined agent reached outside its scope, and a member could widen an area's rule
 
-Assessment drafted by the developer agent for the release manager's confirmation. Both were reported on 2026-10-27 by a site building a protected, agent-first intranet (gaps G3 and G4), verified against the source in the inbox triage of 2026-11-04 (T-01, T-02), and ruled on the same day (rulings 47 and 46): both are fixed in 0.16.3, the edge batch, with this entry. Whether either needs a security release, a notice or an advisory is the release manager's to decide; no exploitation outside the reporter's own test site is known.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-05 (ruling 65). Ruling 94 (2026-11-05): no exploitation of SM1308 or SM1309 is known, so there is no CRA Article 14 notification and no advisory; the 0.16.3 release notes carry what was exposed and what to do. Both were reported on 2026-10-27 by a site building a protected, agent-first intranet (gaps G3 and G4), verified against the source in the inbox triage of 2026-11-04 (T-01, T-02), and ruled on the same day (rulings 47 and 46): both are fixed in 0.16.3, the edge batch, with this entry. No exploitation outside the reporter's own test site is known. 0.16.3 is cut as an edge release, not marked security-critical, so the fixes reach each site by its own update channel.
 
 what changed
 : SM1308 (T-01). MCP's scope pass checks each path argument a tool declares and skips
@@ -1871,7 +1871,105 @@ residual risk
   packaged; it is an operator's act and is not checked (ruling 62).
 
 verdict
-: proposed: accepted, pending the release manager's confirmation. Recorded because each
+: accepted, confirmed by the release manager on 2026-11-05. Recorded because each
   closed a bypass of a boundary this register names (confinement; the access rule), as the
   SM1257 and SM1303 entries were. The 0.16.3 notes tell an operator to read the check's
   new warning and review each rule it names (ruling 61).
+
+### 2026-11-05 - SM1270, SM1272, SM1273, SM1275-SM1280, SM1283-SM1286, SM1290, SM1291, SM1294, SM1295, SM1299, SM1310, SM1314, SM1315 (0.16.3): access, serving, Odoo and release-path changes with no trigger
+
+Assessment drafted by the developer agent at the 0.16.3 compliance walk; confirmed by the release manager on 2026-11-05 (ruling 93). The rest of 0.16.3 is styling, wording and tests and moves no control: SM1274 (Dismiss all), SM1288 and SM1289 (stylesheets), SM1296 (get_permissions names the rule that governs a page; it reads and changes nothing), SM1297 (an empty `maintenance` means off, as absent did), SM1298 (one warning wording), SM1301, SM1302 (test harness) and SM1316 (the updater's command written with one stage).
+
+what changed
+: Access. SM1270: the control API `acl-remove` with no path or an empty one, which
+  removed the site-wide rule, is refused on every channel and in
+  `Files::action_acl_remove`; `path=/` removes it (ruling 17). SM1272, SM1273: `lazysite
+  repair` runs the users tool's top-up (`group-reach`) for each manager group, so a
+  capability a release added is granted there and then, where it was granted on the next
+  use of the users tool (SM645); a declined one stays declined (ruling 25). SM1310: MCP
+  `replace_text` saves with the modification time it read, so a page changed under it is
+  refused as a conflict. SM1294: `permissions_policy_allow`, an optional ceiling on the
+  browser features a page may ask for (ruling 29).
+: Serving. SM1284: the `/docs` manual ships in the engine tree
+  (`{LAZYSITE}/templates/docs/`) and serves at `/docs/` whenever the site has no page of
+  its own there; access rules over `docs/` govern it by the path it serves at, and it
+  stays out of the site's search, sitemap, feeds and `llms.txt` unless
+  `engine_docs_public: true`. The upgrade removes each docroot copy whose checksum still
+  matches the install state, with its cached renders, and keeps an edited one (rulings 27,
+  32, 34, 35). SM1283: the render path's content-root confinement accepts a source the
+  system-page fallback itself chose when its real path is under one of the engine's page
+  trees; every other source is confined as before. SM1285: a new site has no starter pages
+  unless `--starter` asks (ruling 33); SM1286: `lazysite starter --remove-unmodified`
+  removes the unmodified ones, as the site user, never as root, audited, never an edited
+  page or one the site needs (ruling 34). SM1295, SM1299: `/odoo-signin`, a system page
+  for a site whose sign-in is the Odoo login (SM1160), present only while
+  `odoo_site_signin` is on, reachable in maintenance as `/login` is, returning to `?next=`
+  only when it is a path on the site (rulings 36-39).
+: Themes over MCP. SM1291: MCP `install_theme` (`manage_themes`) installs a theme zip
+  through `Manager::Themes::action_theme_upload`, the function the manager's Upload Theme
+  calls, so the theme upload, cookie-only until now, is reachable with a token. SM1290: MCP
+  `preview_page` takes `theme` (`manage_themes` or `manage_layouts`, with
+  `manage_content`) and renders with an installed theme that is not active, writing
+  nothing.
+: Odoo. SM1275-SM1279: a run that ended unknown is read back and resumed, and a change no
+  read can tell is settled by its maker or a holder of `settle_odoo_writes`, a capability
+  the Odoo extension declares (every operator group holds it, an older site's by the SM645
+  top-up); the manager, the control API and MCP list, settle and dismiss such runs, and an
+  open one is kept until it is settled or dismissed (rulings 10a-10c). SM1280: a binding's
+  `address_profile` gives its operation 1 or 0, whether the call came from inside a named
+  address list, never the address (rulings 3, 58).
+: Release path. SM1314: `release.sh build --security-critical` refuses without `--final`
+  (or `--certified`). SM1315: the deploy hook (`tools/lazysite-deploy.sh`) reads the
+  `release-manifest.json` inside the tarball it deploys and passes the Hestia updater
+  `--force-security` when the manifest declares `security_critical` (ruling 45).
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (`install_theme`, the
+  `odoo-*` run actions and `/odoo-signin` are actions and a page on existing surfaces, as
+  SM301 and SM1263 were), no new sign-in method (`/odoo-signin` is a page in front of
+  SM1160's), no new dependency and no new restricted data (SM1280 passes one bit and
+  never the address). The questions are these. SM1291: the code path SM1303 exposed
+  becomes reachable by a token (Elevation of privilege, through what an upload can place
+  in the served tree). SM1283, SM1284: content served from outside the document root, on a
+  path an access rule governs, and the upgrade deleting files in the docroot (Information
+  disclosure; Tampering). SM1299: a sign-in page that redirects (Spoofing, through an open
+  redirect). SM1276: a new capability that decides whether an ERP write happened
+  (Tampering, of the record of what Odoo was sent). SM1273: capabilities granted inside a
+  repair (Elevation of privilege). SM1315: a field of the deployed release widening which
+  sites the deploy reaches.
+
+controls
+: SM1291: the upload's checks are the function's, so the token path has every refusal the
+  manager's has, 0.16.2's among them (no symbolic link, no file type the web server runs,
+  the site's upload limit, no absolute or `..` entry), and nothing is activated; the audit
+  row is `theme-upload`'s and `delete_theme` reaches only what the caller installed (SM262).
+  t/unit/mcp/61. SM1283: the exception is for a source the fallback chose, resolved with
+  `realpath` (t/integration/340). SM1284: the engine's page is named by the path it serves
+  at, so a rule, address list, draft section or section theme over `docs/` holds it; the
+  site's own page wins; the upgrade removes only a copy whose checksum matches what it
+  installed, and `lazysite check` names an edited copy that shadows the engine's
+  (t/tools/280, t/unit/processor/160). SM1286 runs as the site user and refuses root.
+  SM1299: `Lazysite::Util::sanitise_next`, the one check behind `/login` and
+  `/odoo-signin`, now also refuses a `//` anywhere in the path. SM1276: the capability is
+  grantable only where the extension is installed; a dismissal sends nothing to Odoo; each
+  decision is one call record and one audit line naming the run; a visitor never resumes a
+  public binding's run. SM1273: the top-up is SM645's, on an operator's explicit
+  `repair`, and grants nothing a group declined (SM685 stands). SM1315: the deploy hook
+  already runs, as root, whatever release it finds in its dist directory; the key is read
+  from that same tarball, a missing, false or unreadable manifest adds nothing, and the
+  hook still deploys only a strictly higher version. SM1314 makes a security release a
+  stable cut, so the standard deploy reaches every site and no push is left to a hand.
+
+residual risk
+: SM1291: a token holding `manage_themes` can now install a theme's CSS and fonts site-wide
+  as the manager's upload could, which is what the capability grants. SM1284: a site that
+  relied on deleting `docs/` to hide the manual now serves the engine's copy; access rules
+  over `docs/` still govern it. SM1276: a holder of `settle_odoo_writes` can record a write
+  as made that was not, or the reverse; OOM reads each change back first, and only a change
+  no read can tell reaches a person. SM1315: whoever can place a tarball in the watcher's
+  dist directory decides what is deployed, as before.
+
+verdict
+: accepted, confirmed by the release manager on 2026-11-05. No trigger fired;
+  recorded because access, the served tree, the theme upload's reach, an Odoo control and
+  the deploy path moved, as the 0.16.1 entry of 2026-10-23 recorded its own.
