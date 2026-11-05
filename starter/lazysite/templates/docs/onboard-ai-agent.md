@@ -5,6 +5,13 @@ register:
   - sitemap.xml
 ---
 
+## Who this is for
+
+The operator: the person who runs this site and is giving an AI assistant an
+account of its own. The assistant's side - what it reads once it is connected -
+is in the briefings, starting with
+[AI briefing - building sites](/docs/ai-briefing-building-sites).
+
 lazysite lets an AI assistant - Claude, ChatGPT, Claude Code, or any MCP client - manage your site through exactly the same rules a person follows. You create a dedicated account for it, grant only the permissions you want, connect the assistant, and revoke or expire access whenever you like. Here is the whole flow.
 
 ## 1. Add a user for the agent
@@ -30,18 +37,11 @@ Grant the least it needs for the job - you can change this at any time (see step
 
 ## 3. Connect the assistant
 
-Open **Connect an AI assistant** for this user and pick the option that matches your AI. The endpoint is the same for all clients: `https://YOUR-SITE/cgi-bin/lazysite-mcp.pl`.
-
-**Claude.ai (web / mobile)**
-: Keep the Connect panel open. In Claude.ai: **Settings → Connectors → Add custom connector**; enter your site name and the endpoint URL; **Add**. Open a chat, enable the connector, and ask Claude to run `whoami`. When it prompts, paste the **connect code** from the panel. No token is ever pasted into the chat.
-
-**ChatGPT (Plus / Pro / Business / Enterprise)**
-: In ChatGPT: **Settings → Apps / Connectors → Advanced → Developer mode → Add custom connector**; enter a name and the endpoint URL (OAuth is discovered automatically); create it; then paste the **connect code**. *Plus/Pro can call read-only tools; Business/Enterprise also get the write tools, with a per-call approval.*
-
-**Claude Code / Claude Desktop / scripts (token)**
-: Use **Generate agent brief** (a pairing key) or **Generate credential** (an `lzs_` token). Add the endpoint as a remote MCP server with the header `Authorization: Bearer <user>:<lzs_ token>`. A script can also use the control API and WebDAV directly.
-
-The complete tool list, capability model and error reference is in the [AI connector tools reference](/docs/ai-connector-tools). If a connection fails, check that WebDAV is enabled and that the connect code has not expired (it lasts 30 minutes - reopen the panel for a fresh one).
+Open **Connect an AI assistant** for this user, then follow
+[Connect an AI assistant](/docs/ai-connector-setup) for the client you use -
+Claude.ai, ChatGPT, Claude Desktop, Claude Code, a script or any other MCP
+client. That page has the address to enter, the steps for each client, and what
+to check when a connection fails.
 
 ## 4. Put it to work
 

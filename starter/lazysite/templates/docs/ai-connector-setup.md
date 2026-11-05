@@ -4,6 +4,12 @@ auth: required
 search: false
 ---
 
+## Who this is for
+
+The operator, adding this site to an AI client once the assistant has an account
+(see [Onboard an AI agent](/docs/onboard-ai-agent) for the account and its
+permissions). This is the one page with the steps for each client.
+
 This site exposes an **MCP connector** so an AI assistant can maintain it through
 tools (list, read, write, move, delete pages; set permissions; activate
 themes/layouts). It speaks standard MCP + OAuth, so it works with any MCP-capable
@@ -17,20 +23,11 @@ The endpoint is the same for everyone:
 
     https://YOUR-SITE/cgi-bin/lazysite-mcp.pl
 
-There are two ways to authenticate, depending on the client:
-
-Connector + OAuth (web apps)
-: For Claude.ai and ChatGPT, you add the connector by URL; the app runs an OAuth
-  sign-in, and you paste a one-time **connect code** (from the Users page →
-  the partner → **Connect an AI assistant**). No token is ever pasted into chat.
-
-Static bearer header (developer tools)
-: For Claude Desktop, Claude Code, or a script, you set an
-  `Authorization: Bearer <partner-id>:<lzs_ token>` header (the token comes from
-  **Generate agent brief**). These clients let you set a header directly.
-
-The capability gating and per-file ACLs are identical whichever you use - call
-`whoami` first to confirm the grant.
+The web apps (Claude.ai, ChatGPT) are added by URL and sign in with a one-time
+**connect code**; the developer tools (Claude Desktop, Claude Code, a script) set
+a bearer header. How each credential works, and that both are held to the same
+grant, is in [Authentication](/docs/ai-connector-tools#authentication). Whichever
+you use, have the assistant call `whoami` first to confirm the grant.
 
 ## Claude.ai (web / mobile)
 
@@ -107,7 +104,7 @@ fresh code), `token-expired` (reconnect, or let the client refresh), or
 2. Add the endpoint as a remote MCP server with a header:
    `Authorization: Bearer <partner-id>:<lzs_ token>` (Desktop/Code support custom
    headers). A script can also use the control API + WebDAV directly (API mode -
-   see the publishing briefing).
+   see [Connection modes](/docs/ai-connector-tools#connectionmodes)).
 
 ## Any other MCP client
 
@@ -120,8 +117,9 @@ and run the connect-code flow. If it supports a static header, use the
 
 - **Tools call back "unauthorized" / `invalid_client`**: remove and re-add the
   connector so the app does a fresh registration + sign-in.
-- **Connect code expired** (30 min): click **Connect an AI assistant** again for
-  a fresh one - it supersedes the old.
+- **The connection fails**: check that WebDAV is enabled (in **Site settings**)
+  and that the connect code has not expired (it lasts 30 minutes). Click
+  **Connect an AI assistant** again for a fresh one - it supersedes the old.
 - **Tools aren't in the assistant's toolset**: connectors load at the start of a
   turn; enable it for the chat and send one more message. Don't fall back to raw
   HTTP - that path is unauthenticated.

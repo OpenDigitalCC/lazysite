@@ -5,6 +5,15 @@ register:
   - sitemap.xml
 ---
 
+## Who this is for
+
+A person running or building the site: what a layout and a theme are, where they
+live, how the engine picks them, and how to install and switch them by hand or in
+the manager. An AI agent changing a layout or theme reads
+[AI briefing - layouts and themes](/docs/ai-briefing-layouts) as well, which has
+the template contract, the `theme.json` schema and how an agent stages and
+activates a change.
+
 [% IF design_guide %]**This site's design guide:** <a href="[% design_guide %]">[% design_guide %]</a> -
 how this site's own design is put together. Read it before you change its look.[% END %]
 
@@ -25,8 +34,34 @@ layout
 
 theme
 : Design tokens and assets compatible with one or more layouts.
-  Installed nested at `lazysite/layouts/LAYOUT/themes/THEME/`.
-  Web-accessible assets mirror to `/lazysite-assets/LAYOUT/THEME/`.
+  Installed nested at `lazysite/layouts/LAYOUT/themes/THEME/`,
+  and declares the layouts it fits in `theme.json`'s `layouts[]`
+  array. Web-accessible assets mirror to
+  `/lazysite-assets/LAYOUT/THEME/`.
+
+On disk:
+
+    lazysite/
+      layouts/
+        default/
+          layout.tt
+          layout.json
+          themes/
+            mytheme/
+              theme.json
+              main.css
+              assets/
+      manager/
+        layout.tt
+        assets/manager.css
+    lazysite-assets/
+      default/
+        mytheme/
+          main.css
+          assets/
+
+The manager has its own internal template at
+`lazysite/manager/layout.tt`, outside the layout and theme system.
 
 ## The built-in fallback
 
@@ -53,7 +88,8 @@ If the fallback appears unexpectedly, check:
 3. Embedded fallback
 
 For a named layout, the processor checks
-`lazysite/layouts/NAME/layout.tt`.
+`lazysite/layouts/NAME/layout.tt`. Both `layout:` and `theme:`
+are sanitised to `[A-Za-z0-9_-]` at resolve time.
 
 A remote URL in `layout:` is fetched and cached; see
 [remote layouts](/docs/features/configuration/remote-layouts).
@@ -67,11 +103,19 @@ A remote URL in `layout:` is fetched and cached; see
    it doesn't, the theme is ignored (no styling) and the page
    renders layout-only
 
+When `theme.json.layouts` does not contain the active layout:
+
+- The processor logs a WARN: `theme not declared for layout`
+- `theme_css` is empty
+- `theme_assets` is unset
+- `theme` is an empty hash
+- The page still renders through layout.tt
+
 ## Example `lazysite.conf`
 
     site_name: My Site
     layout: default
-    theme: odcc
+    theme: mytheme
 
 ## Single-page override
 
@@ -93,13 +137,13 @@ declares compatibility with.
 
 Create the nested directory and drop files:
 
-    mkdir -p public_html/lazysite/layouts/default/themes/odcc
-    cp -r mytheme/. public_html/lazysite/layouts/default/themes/odcc/
+    mkdir -p public_html/lazysite/layouts/default/themes/mytheme
+    cp -r mytheme/. public_html/lazysite/layouts/default/themes/mytheme/
 
-    mkdir -p public_html/lazysite-assets/default/odcc
-    cp -r mytheme/assets/. public_html/lazysite-assets/default/odcc/
+    mkdir -p public_html/lazysite-assets/default/mytheme
+    cp -r mytheme/assets/. public_html/lazysite-assets/default/mytheme/
 
-Then set `theme: odcc` in `lazysite.conf`.
+Then set `theme: mytheme` in `lazysite.conf`.
 
 ### Theme zip format
 
@@ -120,7 +164,7 @@ tokens - see [theme.json](/docs/features/configuration/theme-json).
 
 If a theme with the same name already exists under the target
 layout, the install directory is prefixed with today's date
-(e.g. `20260422-odcc`). Rename via Manager > Themes.
+(e.g. `20260422-mytheme`). Rename via Manager > Themes.
 
 ## Switching themes
 
@@ -131,32 +175,19 @@ Set `theme:` in `lazysite.conf` and clear the page cache:
 Or use Manager > Cache > Clear all if the manager is enabled.
 The admin-bar theme switcher (visible to managers when more
 than one compatible theme is installed) does both atomically.
+An agent switches through the control API instead - see
+[Activating layout + theme](/docs/ai-briefing-layouts#activatinglayouttheme).
 
 ## Creating a layout
 
 Writing a layout is writing a Template Toolkit file that
 references the variables listed in
-[layouts.md](/docs/features/configuration/layouts). The minimum:
-
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>[% page_meta_title %][% IF site_name %] - [% site_name %][% END %]</title>
-      [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc %]">[% END %]
-      [% theme_css %]
-      [% IF theme_assets %]
-      <link rel="stylesheet" href="[% theme_assets %]/main.css?v=[% theme_version %]">
-      [% END %]
-    </head>
-    <body>
-      <main>
-        <h1>[% page_title %]</h1>
-        [% content %]
-      </main>
-    </body>
-    </html>
+[layouts.md](/docs/features/configuration/layouts). A working
+starting point is the
+[minimum layout.tt](/docs/ai-briefing-layouts#minimumlayout.tt)
+in the layouts briefing, and its
+[`<head>` contract](/docs/ai-briefing-layouts#theheadcontract)
+says which variables belong in `<title>` and the description.
 
 Navigation uses the `[% nav %]` array populated from `nav.conf`.
 See [nav.conf](/docs/features/configuration/nav-conf).
@@ -167,18 +198,17 @@ When a theme's assets (CSS, images, fonts) need to be
 web-accessible, they live under
 `lazysite-assets/LAYOUT/THEME/`. The processor sets
 `[% theme_assets %]` to `/lazysite-assets/LAYOUT/THEME` when a
-compatible theme is active. Remote layouts use a flat
+compatible theme is active, and a layout links its stylesheet
+from there. Remote layouts use a flat
 `/lazysite-assets/CACHE_KEY/` path - see
 [remote layouts](/docs/features/configuration/remote-layouts).
-
-Reference in `layout.tt`:
-
-    [% IF theme_assets %]
-    <link rel="stylesheet" href="[% theme_assets %]/main.css">
-    [% END %]
+How the mirror is built on activation, and what to do when it
+answers `404`, is in
+[Theme assets and the activation mirror](/docs/ai-briefing-layouts#themeassetsandtheactivationmirror).
 
 ## Further reading
 
+- [AI briefing - layouts and themes](/docs/ai-briefing-layouts)
 - [Layouts reference](/docs/features/configuration/layouts)
 - [Themes reference](/docs/features/configuration/themes)
 - [theme.json reference](/docs/features/configuration/theme-json)

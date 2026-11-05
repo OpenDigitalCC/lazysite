@@ -92,13 +92,14 @@ for my $f (qw(starter/lazysite/templates/docs/auth.md starter/lazysite/templates
 }
 
 # --- D-4: the connect code's life is the users tool's ---------------------------
+# SM1341: the connect steps' one home is ai-connector-setup, so the life is said there.
 {
     my ($ttl) = slurp('tools/lazysite-users.pl') =~ /^my \$CONNECT_CODE_TTL\s*=\s*([\d_]+);/m;
     ok( defined $ttl, 'the connect code TTL was read from the users tool' );
     ( my $n = $ttl // 0 ) =~ s/_//g;
     my $min = $n / 60;
-    my @said = slurp('starter/lazysite/templates/docs/onboard-ai-agent.md') =~ /connect code has not expired \(it lasts (\d+) minutes/g;
-    is_deeply( \@said, [$min], "onboard-ai-agent.md gives the connect code $min minutes, as the code does" );
+    my @said = slurp('starter/lazysite/templates/docs/ai-connector-setup.md') =~ /connect code has not expired \(it lasts (\d+) minutes/g;
+    is_deeply( \@said, [$min], "ai-connector-setup.md gives the connect code $min minutes, as the code does" );
 }
 
 # --- D-5: the CSP ships report-only -----------------------------------------------

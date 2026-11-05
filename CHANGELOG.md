@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1341 (PENDING) **Each AI doc says it once, and says who it is for.** An owner following
+  the docs met the connect steps on two shipped pages, authentication, endpoints and the
+  grant model on two more, and the layouts machinery on two that did not link each other.
+  Each now has one home: the client steps in Connect an AI assistant (Onboard links it);
+  authentication, endpoints, connection modes, capabilities and denied paths in the tools
+  reference (the publishing briefing points at each); the layouts model, installing and
+  switching in /docs/layouts and what an agent needs to change them in the layouts
+  briefing, linked both ways. Every page of the set opens with "Who this is for", and the
+  docs index is by reader (operator, agent, developer), then theme, and lists the Figma
+  integration. Facts moved, none dropped. Ruling 80.
+
 - SM1340 (PENDING) **The layouts docs point at the site's design guide.** The engine's
   `/docs/layouts` and `/docs/ai-briefing-layouts` are the same on every site, so they could
   not name the guide a site publishes for whoever designs for it, and an agent starting from

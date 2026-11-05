@@ -8,9 +8,12 @@ register:
 ## Who this is for
 
 This briefs an automated publishing partner - an AI agent that holds write
-access to the docroot over WebDAV. It covers connecting, authenticating, the
-path mapping, scope, the WebDAV operations, the control API, and cache
-behaviour.
+access to the docroot over WebDAV. It covers the onboarding brief, the path
+mapping, the WebDAV operations, the control API actions, briefs, ownership and
+cache behaviour. How you connect and authenticate, the endpoints and what your
+grant reaches are in the
+[AI connector - tools reference](/docs/ai-connector-tools) (see
+[below](#connectingauthenticatingandwhatyourgrantreaches)).
 
 For content rules (front matter, Markdown, URLs) see
 [AI briefing - content authoring](/docs/ai-briefing-authoring). For layouts and
@@ -53,112 +56,23 @@ bootstrap). This proves your environment can egress to the host.
 Report which of these you got before going further, so a human can act on the
 right thing.
 
-## Authentication
+## Connecting, authenticating and what your grant reaches
 
-You hold a single-use, short-lived pairing key (prefix `lzp_`). You exchange it
-once for a working access token (prefix `lzs_`).
+These have one home, the
+[AI connector - tools reference](/docs/ai-connector-tools), and it holds for
+WebDAV and the control API as much as for MCP. Read it before your first
+authenticated request:
 
-Exchange
-: `POST` the pairing key to the exchange endpoint. The JSON response carries
-  the token and its expiry as an epoch timestamp.
-
-Present
-: Send the access token as HTTP Basic auth on every request - **username is
-  your partner id, password is the token**. The partner id gives per-partner
-  attribution and scoping; it is the exact id from your brief (often not a bare
-  name - e.g. `claude-dhcf`), and the wrong username returns `401`.
-
-Rotate
-: Before the token expires, present your current token as Basic auth to the
-  rotate endpoint with no body; you get a fresh token and a new expiry. There
-  is one live credential per account - the old token dies on rotation.
-
-Recover
-: On an unexpected `401`, rotate if you still hold a recently valid token;
-  otherwise the operator must re-issue the pairing.
-
-```bash
-# Exchange the pairing key for an access token
-curl -s -X POST "https://SITE/cgi-bin/lazysite-auth.pl?action=exchange" \
-  --data "username=PARTNER&pairing_key=lzp_..."
-# -> { "ok": true, "token": "lzs_...", "expires_at": 1750000000 }
-
-# Rotate before expiry (current token as Basic auth, no body)
-curl -s -X POST -u "PARTNER:lzs_..." \
-  "https://SITE/cgi-bin/lazysite-auth.pl?action=rotate"
-```
-
-Read `expires_at` from the exchange and rotate responses so you rotate on
-schedule rather than waiting for a `401`. Both endpoints are HTTPS-only and
-rate-limited.
-
-### Check your access, and your grant
-
-A cheap, side-effect-free probe that the token is live:
-
-```
-PROPFIND /dav/  Depth: 0  Authorization: Basic base64(PARTNER:lzs_...)
--> 207 = authenticated; 401 = wrong username or token.
-```
-
-For your **full grant** - capabilities, groups, scope, and the extensions,
-layouts, and themes the site offers (with active flags) - introspect over the
-control API rather than assuming from the bootstrap:
-
-```
-GET /cgi-bin/lazysite-manager-api.pl?action=whoami
-Authorization: Basic base64(PARTNER:lzs_...)
--> { partner, capabilities, groups, scope, layouts, themes, extensions, site_capabilities }
-```
-
-## Endpoints
-
-WebDAV
-: `https://SITE/dav/` - content, assets, layout/theme files, and `nav.conf`.
-
-Exchange / Rotate
-: `https://SITE/cgi-bin/lazysite-auth.pl?action=exchange` and `?action=rotate`.
-
-Control API
-: `https://SITE/cgi-bin/lazysite-manager-api.pl` - token-authenticated (the
-  same Basic auth). Carries the operations that are not file-shaped. Each is
-  gated by the matching capability from your grant.
-
-MCP (optional)
-: `https://SITE/cgi-bin/lazysite-mcp.pl` - a remote MCP server exposing the
-  maintenance operations as tools, for an MCP-capable agent. See
-  *Connection modes*.
-
-## Connection modes
-
-Two ways to drive a site - pick by what you are. The credential, capabilities
-and per-file ACLs are identical in both; only the transport differs.
-
-API mode (WebDAV + control API)
-: Direct HTTP. The full surface, and the right choice for a scripted build or
-  bulk file work - WebDAV moves many files (a whole site deploy) efficiently,
-  and the control API carries theme/layout/ACL/config. Authenticate with Basic
-  auth (partner id + `lzs_` token).
-
-MCP mode
-: The MCP server wraps the *maintenance* verbs - `whoami`, list / read / write /
-  move / delete files, `set_permissions`, `activate_theme`, `activate_layout` -
-  as MCP tools. Best for an MCP-capable conversational agent (e.g. a Claude.ai
-  custom connector, or Claude Desktop/Code): add `…/cgi-bin/lazysite-mcp.pl` as
-  a remote connector with bearer auth `<partner-id>:<lzs_ token>` (the same
-  credential, colon-joined). It writes one file per call, so for a large initial
-  build prefer API mode + WebDAV; for ongoing maintenance either works.
-
-Which to use, by client
-: **Claude.ai (web / mobile)** reaches a site only through a connector, so it
-  uses **MCP mode** - add `…/cgi-bin/lazysite-mcp.pl` as a remote custom
-  connector with the bearer credential. **Claude Code / Claude Desktop** can use
-  **either**: API mode directly (curl the control API, `PUT`/mount over WebDAV -
-  best for a full build or bulk upload), or add the same endpoint as a remote
-  (HTTP) MCP server with an `Authorization: Bearer <partner-id>:<lzs_ token>`
-  header for guided, tool-shaped maintenance. A scripted or non-AI client uses
-  **API mode**. The credential, capabilities and per-file ACLs are identical
-  whichever you pick - call `whoami` first to confirm your grant.
+- [Endpoints](/docs/ai-connector-tools#endpoints) - WebDAV, exchange and
+  rotate, the control API, MCP.
+- [Connection modes](/docs/ai-connector-tools#connectionmodes) - API mode or
+  MCP mode, and which to use by client.
+- [Authentication](/docs/ai-connector-tools#authentication) - exchanging the
+  pairing key, presenting the token as Basic auth, rotating it, recovering
+  from a `401`, and checking your access and your grant.
+- [Capabilities](/docs/ai-connector-tools#capabilities) and
+  [Scope and denied paths](/docs/ai-connector-tools#scopeanddeniedpaths) -
+  what your grant reaches and the paths no grant writes.
 
 ## Control API actions
 
@@ -304,43 +218,6 @@ Published URL        Source file (WebDAV path under /dav/)
 
 Published URLs are extensionless on the read side; on the write side you always
 address the `.md` (or `.url`) file.
-
-## Scope and denied paths
-
-Your capabilities and path scope come from the brief (and `whoami`). The content
-tree, assets, the layout/theme files under `lazysite/layouts/`, `lazysite/nav.conf`,
-and a form's dispatch config `lazysite/forms/<name>.conf` (the last two with
-`manage_config`) are writable within scope. These paths are **denied** and the
-server rejects writes to them:
-
-`/cgi-bin/`
-: Executable scripts (processor, auth CGI, manager API, extensions). Never writable.
-
-`/lazysite/lazysite.conf`
-: Site configuration. Config keys are set through the control API with an
-  allowlist, not by overwriting this file.
-
-`/lazysite/auth/`
-: User and group credential store.
-
-`/lazysite/forms/smtp.conf`, `/lazysite/forms/handlers.conf`, `/lazysite/forms/schedule.conf`, `/lazysite/forms/submissions/`
-: SMTP credentials, handler definitions, the schedule, and the submitted
-  entries. Handlers and the schedule are created through the handler actions
-  (`save_handler`, `save_schedule` over MCP; `handler-save`, `schedule-save`
-  over the control API), where the handler's destination decides the
-  capability - never by writing the file. A form's own dispatch config,
-  `lazysite/forms/<name>.conf`, **is** writable with `manage_forms` (it only
-  names handlers, and a target that names anything else is refused with
-  422) - see *Wiring a form* under Tasks.
-
-`/lazysite/manager/`
-: Manager UI internals.
-
-`/lazysite/cache/` and `/lazysite/logs/`
-: Generated cache and log files.
-
-`/lazysite/templates/`
-: Registry templates that generate `llms.txt`, `sitemap.xml`, and feeds.
 
 ## WebDAV operations
 
@@ -489,24 +366,13 @@ Structural changes need a cache clear
 
 ## Themes and layouts have their own gates
 
-Theme files (`lazysite/layouts/<layout>/themes/<theme>/…`) need `manage_themes`;
-layout structure and the shared wrapper (`layout.tt`) need `manage_layouts` (a
-*separate* capability). And the **active** layout and theme are **read-only over
-WebDAV** by design - a `PUT` to the live `layout.tt` returns `403` regardless of
-capability. To re-skin globally:
-
-1. **Stage a NEW layout dir** beside the active one - `MKCOL`
-   `lazysite/layouts/<new>` and `…/themes/<theme>` (a fresh path returns `409`
-   until its collections exist), then `PUT` the files.
-2. **Preview** by setting `layout: <new>` in one page's front matter; the theme
-   SOURCE css is web-served at `/lazysite/layouts/<new>/themes/<theme>/main.css`
-   (the `/lazysite-assets/` mirror is `404` until activation).
-3. **Activate** via the control API (`layout-activate` / `theme-activate`, which
-   set `lazysite.conf` and clear the cache atomically) - or hand off to the
-   operator. Then drop the per-page overrides.
-
-Capabilities are read from your account on every request (the token does not
-encode them), so a grant is effective immediately - you do not need a new token.
+Theme files need `manage_themes` and layout structure `manage_layouts`, and the
+**active** layout and theme are read-only on every surface, so a re-skin is
+staged beside them, previewed, then activated - or handed off to the operator.
+The steps are in [AI briefing - layouts and themes](/docs/ai-briefing-layouts):
+[Staging a layout over WebDAV](/docs/ai-briefing-layouts#stagingalayoutoverwebdav)
+and
+[The active theme is read-only](/docs/ai-briefing-layouts#theactivethemeisread-only.whereathemelives.).
 
 ## Verify your publish
 
@@ -586,7 +452,8 @@ To read what was submitted, use `read_form_submissions` (MCP) or
 ### Connecting
 
 1. Parse the machine-readable block from the onboarding brief.
-2. `POST` the pairing key to the exchange endpoint; store the token + expiry.
+2. `POST` the pairing key to the exchange endpoint; store the token + expiry
+   (see [Authentication](/docs/ai-connector-tools#authentication)).
 3. `PROPFIND /dav/` to confirm, and `whoami` to read your real grant.
 4. Fetch the briefings and [Reference](/docs/reference) for the content,
    layout, and configuration rules.
@@ -657,14 +524,14 @@ operator applies. Same content, no network.
   "post": ["clear-cache"],
   "files": [
     { "path": "about.md", "content": "---\ntitle: About\n---\nAbout us.\n" },
-    { "path": "lazysite/layouts/dhcf/layout.tt", "content": "…[% content %]…" }
+    { "path": "lazysite/layouts/mysite/layout.tt", "content": "…[% content %]…" }
   ]
 }
 ```
 
 - `path` is **docroot-relative** - the same path you would use under `/dav/`.
 - `content` is the full file body (JSON-escaped - no delimiters to collide with).
-- Include **only in-scope files** - never the denied paths above.
+- Include **only in-scope files** - never the [denied paths](/docs/ai-connector-tools#scopeanddeniedpaths).
 - `post` lists post-extract actions; use `"clear-cache"` when the bundle changes
   a theme, layout, `nav.conf`, or config file (content pages self-invalidate).
 

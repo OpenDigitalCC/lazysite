@@ -4,9 +4,16 @@ auth: required
 search: false
 ---
 
-The full reference for the lazysite MCP connector: how it authenticates, the
-capability model, and every tool it exposes. For *setting up* a connector (adding
-it in Claude.ai / ChatGPT / Claude Code) see [Connect an AI assistant](/docs/ai-connector-setup).
+## Who this is for
+
+An AI agent working on this site, and whoever builds or debugs a client for it.
+This is the one page that says how a client reaches the site and authenticates,
+which endpoints there are, the two connection modes, and what a grant reaches -
+its capabilities and the paths denied to it - and then lists every tool the MCP
+connector exposes. Adding the connector to Claude.ai, ChatGPT or Claude Code is
+the operator's, in [Connect an AI assistant](/docs/ai-connector-setup); what to
+do once connected is in the briefings, starting with
+[AI briefing - publishing](/docs/ai-briefing-publishing).
 
 ::: widebox
 The connector is **supervised, not autonomous**: an AI drafts and edits through
@@ -16,31 +23,133 @@ the AI client's own per-call approval. A read is not audited unless it is refuse
 or fails; writes are recorded as material events.
 :::
 
-## Endpoint and protocol
+## Endpoints
 
-The connector is a single MCP endpoint, Streamable HTTP / JSON-RPC:
+MCP
+: `https://YOUR-SITE/cgi-bin/lazysite-mcp.pl` - a single MCP endpoint,
+  Streamable HTTP / JSON-RPC, exposing the maintenance operations as tools (see
+  [Tools](#tools)). `initialize` and `tools/list` are open (discovery); a
+  `tools/call` requires authentication. An unauthenticated tool call returns
+  HTTP 401 with a `WWW-Authenticate` challenge so an OAuth client starts the
+  sign-in flow.
 
-    https://YOUR-SITE/cgi-bin/lazysite-mcp.pl
+WebDAV
+: `https://YOUR-SITE/dav/` - content, assets, layout/theme files, and
+  `nav.conf`.
 
-`initialize` and `tools/list` are open (discovery); a `tools/call` requires
-authentication. An unauthenticated tool call returns HTTP 401 with a
-`WWW-Authenticate` challenge so an OAuth client starts the sign-in flow.
+Exchange / Rotate
+: `https://YOUR-SITE/cgi-bin/lazysite-auth.pl?action=exchange` and
+  `?action=rotate`.
+
+Control API
+: `https://YOUR-SITE/cgi-bin/lazysite-manager-api.pl` - token-authenticated (the
+  same Basic auth as WebDAV). Carries the operations that are not file-shaped.
+  Each is gated by the matching capability from your grant; the actions are in
+  [AI briefing - publishing](/docs/ai-briefing-publishing#controlapiactions).
+
+## Connection modes
+
+Two ways to drive a site - pick by what you are. The credential, capabilities
+and per-file ACLs are identical in both; only the transport differs.
+
+API mode (WebDAV + control API)
+: Direct HTTP. The full surface, and the right choice for a scripted build or
+  bulk file work - WebDAV moves many files (a whole site deploy) efficiently,
+  and the control API carries theme/layout/ACL/config. Authenticate with Basic
+  auth (partner id + `lzs_` token).
+
+MCP mode
+: The MCP server wraps the *maintenance* verbs - `whoami`, list / read / write /
+  move / delete files, `set_permissions`, `activate_theme`, `activate_layout` -
+  as MCP tools. Best for an MCP-capable conversational agent (e.g. a Claude.ai
+  custom connector, or Claude Desktop/Code): add `…/cgi-bin/lazysite-mcp.pl` as
+  a remote connector with bearer auth `<partner-id>:<lzs_ token>` (the same
+  credential, colon-joined). It writes one file per call, so for a large initial
+  build prefer API mode + WebDAV; for ongoing maintenance either works.
+
+Which to use, by client
+: **Claude.ai (web / mobile)** reaches a site only through a connector, so it
+  uses **MCP mode**. **Claude Code / Claude Desktop** can use **either**: API
+  mode directly (curl the control API, `PUT`/mount over WebDAV - best for a full
+  build or bulk upload), or the MCP endpoint as a remote (HTTP) MCP server for
+  guided, tool-shaped maintenance. A scripted or non-AI client uses **API
+  mode**. Whichever you pick, call `whoami` first to confirm your grant.
 
 ## Authentication
 
-Two credential shapes, same capability + ACL enforcement:
+Two credential shapes, held to the same capabilities and per-file ACLs:
 
 OAuth (Claude.ai, ChatGPT web)
 : The client registers itself, the operator's one-time **connect code** is entered
   at the consent screen, and an opaque access token is issued (expires hourly,
-  refreshed transparently).
+  refreshed transparently). No token is ever pasted into the chat.
 
-Static bearer (Claude Code, Desktop, scripts)
-: `Authorization: Bearer <partner-id>:<lzs_ token>` - the token comes from
-  *Generate credential* on the Users page.
+Token (Claude Code, Desktop, scripts, and API mode)
+: An `lzs_` access token. The operator's *Generate credential* on the Users page
+  gives one directly; *Generate agent brief* gives a pairing key you exchange for
+  one (below). Over MCP send it as `Authorization: Bearer <partner-id>:<lzs_ token>`;
+  over WebDAV and the control API as HTTP Basic auth (below).
 
 `whoami` returns an `auth` block - `{ method: "oauth"|"bearer", expires_at }` - so
 the agent can see how the session is authenticated and when it lapses.
+
+### The pairing key and the access token
+
+You hold a single-use, short-lived pairing key (prefix `lzp_`). You exchange it
+once for a working access token (prefix `lzs_`).
+
+Exchange
+: `POST` the pairing key to the exchange endpoint. The JSON response carries
+  the token and its expiry as an epoch timestamp.
+
+Present
+: Send the access token as HTTP Basic auth on every request - **username is
+  your partner id, password is the token**. The partner id gives per-partner
+  attribution and scoping; it is the exact id from your brief (often not a bare
+  name - e.g. `claude-example`), and the wrong username returns `401`.
+
+Rotate
+: Before the token expires, present your current token as Basic auth to the
+  rotate endpoint with no body; you get a fresh token and a new expiry. There
+  is one live credential per account - the old token dies on rotation.
+
+Recover
+: On an unexpected `401`, rotate if you still hold a recently valid token;
+  otherwise the operator must re-issue the pairing.
+
+```bash
+# Exchange the pairing key for an access token
+curl -s -X POST "https://YOUR-SITE/cgi-bin/lazysite-auth.pl?action=exchange" \
+  --data "username=PARTNER&pairing_key=lzp_..."
+# -> { "ok": true, "token": "lzs_...", "expires_at": 1750000000 }
+
+# Rotate before expiry (current token as Basic auth, no body)
+curl -s -X POST -u "PARTNER:lzs_..." \
+  "https://YOUR-SITE/cgi-bin/lazysite-auth.pl?action=rotate"
+```
+
+Read `expires_at` from the exchange and rotate responses so you rotate on
+schedule rather than waiting for a `401`. Both endpoints are HTTPS-only and
+rate-limited.
+
+### Check your access, and your grant
+
+A cheap, side-effect-free probe that the token is live:
+
+```
+PROPFIND /dav/  Depth: 0  Authorization: Basic base64(PARTNER:lzs_...)
+-> 207 = authenticated; 401 = wrong username or token.
+```
+
+For your **full grant** - capabilities, groups, scope, and the extensions,
+layouts, and themes the site offers (with active flags) - introspect over the
+control API rather than assuming from the bootstrap:
+
+```
+GET /cgi-bin/lazysite-manager-api.pl?action=whoami
+Authorization: Basic base64(PARTNER:lzs_...)
+-> { partner, capabilities, groups, scope, layouts, themes, extensions, site_capabilities }
+```
 
 ## Capabilities
 
@@ -103,7 +212,47 @@ Per-file ACLs (owner + read/write lists, with `@groups`) bind a token client
 exactly as over WebDAV - a tool call is refused if the partner lacks access to the
 target, regardless of capability.
 
-## What is walled off
+Capabilities are read from your account on every request (the token does not
+encode them), so a grant is effective immediately - you do not need a new token.
+
+## Scope and denied paths
+
+Your capabilities and path scope come from the brief (and `whoami`). The content
+tree, assets, the layout/theme files under `lazysite/layouts/`, `lazysite/nav.conf`,
+and a form's dispatch config `lazysite/forms/<name>.conf` (the last two with
+`manage_config`) are writable within scope. These paths are **denied** and the
+server rejects writes to them:
+
+`/cgi-bin/`
+: Executable scripts (processor, auth CGI, manager API, extensions). Never writable.
+
+`/lazysite/lazysite.conf`
+: Site configuration. Config keys are set through the control API with an
+  allowlist, not by overwriting this file.
+
+`/lazysite/auth/`
+: User and group credential store.
+
+`/lazysite/forms/smtp.conf`, `/lazysite/forms/handlers.conf`, `/lazysite/forms/schedule.conf`, `/lazysite/forms/submissions/`
+: SMTP credentials, handler definitions, the schedule, and the submitted
+  entries. Handlers and the schedule are created through the handler actions
+  (`save_handler`, `save_schedule` over MCP; `handler-save`, `schedule-save`
+  over the control API), where the handler's destination decides the
+  capability - never by writing the file. A form's own dispatch config,
+  `lazysite/forms/<name>.conf`, **is** writable with `manage_forms` (it only
+  names handlers, and a target that names anything else is refused with
+  422) - see [Wiring a form](/docs/ai-briefing-publishing#wiringaform).
+
+`/lazysite/manager/`
+: Manager UI internals.
+
+`/lazysite/cache/` and `/lazysite/logs/`
+: Generated cache and log files.
+
+`/lazysite/templates/`
+: Registry templates that generate `llms.txt`, `sitemap.xml`, and feeds.
+
+### What is walled off from the connector
 
 The connector deliberately cannot reach operator-only surfaces. Attempts return a
 machine-readable `kind`:

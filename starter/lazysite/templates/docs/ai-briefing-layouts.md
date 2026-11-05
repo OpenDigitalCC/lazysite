@@ -14,47 +14,24 @@ themes. For content, see
 configuration, see
 [AI briefing - configuration](/docs/ai-briefing-configuration). For the
 content/layout/theme separation this all rests on, see
-[AI briefing - building sites](/docs/ai-briefing-building-sites).
+[AI briefing - building sites](/docs/ai-briefing-building-sites). What a layout
+and a theme are, where they live on disk, how the engine resolves them and how a
+person installs and switches them is in [Layouts and themes](/docs/layouts); this
+page is what an agent needs to change them.
 
 [% IF design_guide %]**This site's design guide:** <a href="[% design_guide %]">[% design_guide %]</a> -
 how this site's own design is put together. Read it before you change its look.[% END %]
 
 ## Terminology (D013)
 
-**Layout**: the Template Toolkit file (`layout.tt`) that wraps
-every page. Provides `<head>`, header, navigation, footer.
-Installed at `lazysite/layouts/NAME/layout.tt` with optional
-`lazysite/layouts/NAME/layout.json` metadata.
-
-**Theme**: colours, fonts, spacing, and assets that sit on top
-of one or more layouts. Installed nested at
-`lazysite/layouts/LAYOUT/themes/THEME/`. Declares compatibility
-in `theme.json`'s `layouts[]` array.
+A **layout** is the `layout.tt` that wraps every page, under
+`lazysite/layouts/NAME/`; a **theme** is the colours, fonts, spacing and assets
+on top of it, nested at `lazysite/layouts/LAYOUT/themes/THEME/`. The definitions
+and an on-disk tree are in [Layouts and themes](/docs/layouts#layoutsandthemes).
 
 **Manager UI**: has its own internal template at
 `lazysite/manager/layout.tt`. Outside the layout+theme system.
 Do not modify unless explicitly asked.
-
-On-disk example:
-
-    lazysite/
-      layouts/
-        default/
-          layout.tt
-          layout.json
-          themes/
-            odcc/
-              theme.json
-              main.css
-              assets/
-      manager/
-        layout.tt
-        assets/manager.css
-    lazysite-assets/
-      default/
-        odcc/
-          main.css
-          assets/
 
 ## Front-matter variables arrive ALREADY ESCAPED - never add `| html`
 
@@ -207,7 +184,8 @@ Required fields:
 - `layouts` - array of layout names this theme is compatible
   with. **The manager rejects an upload without this.** The
   processor ignores a theme if the active layout isn't in this
-  array.
+  array (what then renders:
+  [How the processor resolves a theme](/docs/layouts#howtheprocessorresolvesatheme)).
 - `config` - object grouping design tokens. Common groups:
   `colours`, `fonts`, `spacing`, `icons`. Group names and keys
   are author-chosen; values must be strings.
@@ -220,10 +198,10 @@ Optional:
 Example:
 
     {
-      "name": "odcc",
+      "name": "mytheme",
       "version": "1.0.0",
-      "description": "OpenDigitalCC brand theme",
-      "author": "OpenDigitalCC",
+      "description": "Example brand theme",
+      "author": "Example Ltd",
       "layouts": ["default"],
       "config": {
         "colours": {
@@ -392,14 +370,10 @@ Under `sections:` a component gets its values as `data` (`data.heading`,
 
 ## Activating layout + theme
 
-A site has ONE active layout + theme, set in `lazysite.conf`:
-
-    layout: default
-    theme: odcc
-
-Both values are sanitised to `[A-Za-z0-9_-]` at resolve time. **Activate the
-theme globally and keep pages layout-agnostic** - do not put `layout:` in page
-front matter as the way to apply a design. Every page then inherits the active
+A site has ONE active layout + theme, set by the `layout:` and `theme:` keys in
+`lazysite.conf` ([how they resolve](/docs/layouts#howtheprocessorresolvesalayout)).
+**Activate the theme globally and keep pages layout-agnostic** - do not put
+`layout:` in page front matter as the way to apply a design. Every page then inherits the active
 layout, so the whole site re-themes in one step. A per-page `layout:` is only
 for previewing a staged candidate (below) or a deliberate one-off page - and
 you remove preview overrides once you activate.
@@ -477,14 +451,13 @@ If you publish over WebDAV you do NOT edit the live look in place - you
 stage a new layout beside the active one, preview it, and **activate it
 yourself** over the control API.
 
-1. **Capabilities come from your account, not your token.** Editing layout
-   structure (including `layout.tt`) needs `manage_layouts`; theme files
-   need `manage_themes` (separate capabilities). The token does not encode
-   capabilities - they are read from your account on every request - so an
-   operator's grant takes effect immediately and you do NOT need a new
-   token. If a layout write still `403`s right after a grant, you are
-   almost certainly writing the **active** layout (next point), which is
-   denied regardless of capability. (Ruled that out and a fresh grant still
+1. **A grant takes effect at once.** Editing layout structure (including
+   `layout.tt`) needs `manage_layouts`; theme files need `manage_themes`
+   (separate capabilities), and an operator's grant applies from your next
+   request, with no new token (see
+   [Capabilities](/docs/ai-connector-tools#capabilities)). If a layout write
+   still `403`s right after a grant, you are almost certainly writing the
+   **active** layout (next point), which is denied regardless of capability. (Ruled that out and a fresh grant still
    seems not to apply? Rotating your token is a reliable belt-and-braces.)
 2. **Stage a NEW layout dir - never the active one.** A `PUT` into the
    active layout returns `403`: the live layout is immutable in place, by
@@ -522,7 +495,7 @@ activation the server builds a flattened mirror served at
   copied-then-activated layout is drop-in, with no CSS-path edits needed. If it
   ever `404`s **on a single-site instance**, re-activate to rebuild it. On an
   instance serving more than one domain, do NOT re-activate - see
-  [Multi-domain instances](#multi-domain-instances) below, where re-activating
+  [Multi-domain instances](#multi-domaininstances) below, where re-activating
   changes a different site.
 - As a fallback you can write the mirror files directly over WebDAV, to
   `/lazysite-assets/<layout>/<theme>/`. That path is writable and this works -
@@ -624,16 +597,6 @@ and what to do in each case:
   seconds to reach returning visitors, and `?v=` bumping makes them immediate
   again.
 
-## Theme incompatibility
-
-If `theme.json.layouts` does NOT contain the active layout:
-
-- The processor logs a WARN: `theme not declared for layout`
-- `theme_css` is empty
-- `theme_assets` is unset
-- `theme` is an empty hash
-- The page still renders through layout.tt
-
 ## A layout cannot open the camera, the microphone or the visitor's location
 
 Every response sends a `Permissions-Policy` header that denies these browser
@@ -672,6 +635,7 @@ cannot be asked for by any page: `payment` (its key is the paid-page key) and
 
 ## Related
 
+- [Layouts and themes](/docs/layouts) - the model, and installing and switching by hand
 - [Integrations](/docs/integrations) - bring an external design into a site
 - [Layouts reference](/docs/features/configuration/layouts)
 - [Themes reference](/docs/features/configuration/themes)
