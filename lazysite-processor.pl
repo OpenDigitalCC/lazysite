@@ -311,6 +311,22 @@ sub _account_page_enabled {
     return $on;
 }
 
+# SM1340 (ruling 79): `design_guide: /path` names this site's design guide, which
+# the engine's layouts doc and layouts briefing link as "This site's design guide".
+# A same-site path only, held to the rule Lazysite::Util::sanitise_next applies -
+# this is the processor's copy (ADR 0001), and t/unit/processor/180 holds the two
+# to one answer. Anything else is no guide at all: '' and the line is left out.
+sub _design_guide_path {
+    my ($v) = @_;
+    return '' unless defined $v && !ref $v;
+    $v =~ s/\A\s+|\s+\z//g;
+    return '' unless length $v;
+    return '' if $v =~ m{\A(?://|\\)};
+    return '' if $v =~ m{//};
+    return '' unless $v =~ m{\A/[\w/.-]*\z};
+    return $v;
+}
+
 # D013: layouts/ is the new structural root. A local layout lives at
 # $LAYOUT_DIR/NAME/layout.tt with optional $LAYOUT_DIR/NAME/layout.json
 # metadata. Themes nest under layouts/NAME/themes/THEME/. No flat-template
@@ -1998,6 +2014,7 @@ sub _lazy_lib {
         # line cannot take its host out of it (Lazysite::Maintenance::status, which
         # decides; this keeps the cheap test in front of it honest).
         my $base_maint = $defs{maintenance};
+        my $base_croot = $defs{content_root} // '';    # SM1340, below
         if ( defined $defs{alias_hosts} ) {
             my $req_host = _request_host();
             my %declared;
@@ -2054,6 +2071,12 @@ sub _lazy_lib {
         # can branch per host or mark canonical links. Set AFTER
         # resolve_tt_vars: authoritative, never conf-overridable.
         $vars{alias_host} = $alias_host;
+
+        # SM1340: the design guide is a path in the primary's content, so a host
+        # with a content root of its own links none (the path would name a page
+        # of a different site). An alias serving the primary's content keeps it.
+        $vars{design_guide}
+            = ( $defs{content_root} // '' ) ne $base_croot ? '' : _design_guide_path( $defs{design_guide} );
 
         # SM155: the sanitised host actually being served - primary OR alias -
         # as a TT var, so a single content_root can render differently per

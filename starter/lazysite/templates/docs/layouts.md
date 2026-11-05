@@ -5,6 +5,9 @@ register:
   - sitemap.xml
 ---
 
+[% IF design_guide %]**This site's design guide:** <a href="[% design_guide %]">[% design_guide %]</a> -
+how this site's own design is put together. Read it before you change its look.[% END %]
+
 ## Layouts and themes
 
 Every page on a lazysite site is rendered through a *layout*.

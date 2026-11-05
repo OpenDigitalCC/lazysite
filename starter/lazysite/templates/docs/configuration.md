@@ -72,6 +72,15 @@ works on staging and production.
   which are about the site's own content. For a site that is the product's
   documentation. See [The /docs manual](#the-docs-manual).
 
+`design_guide`
+: A path on this site, such as `/guides/design`, to the site's own guide for
+  whoever designs for it. The manual's [Layouts and themes](/docs/layouts) page
+  and the [layouts briefing](/docs/ai-briefing-layouts) then open with a "This
+  site's design guide" line linking it. Default unset: no line. Only a same-site
+  path counts (letters, digits, `_`, `-`, `.` and `/`, starting with `/`); a full
+  URL or anything else is ignored. A domain with a content root of its own shows
+  no line.
+
 `manager`
 : `enabled` or `disabled`. Controls the built-in manager at `/manager`.
 

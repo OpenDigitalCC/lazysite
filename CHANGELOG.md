@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1340 (PENDING) **The layouts docs point at the site's design guide.** The engine's
+  `/docs/layouts` and `/docs/ai-briefing-layouts` are the same on every site, so they could
+  not name the guide a site publishes for whoever designs for it, and an agent starting from
+  the docs never found it. `design_guide: /path` in `lazysite.conf` makes both pages open
+  with a "This site's design guide" line linking it; unset, they carry nothing. Only a
+  same-site path counts, under the rule `?next=` is held to; a full URL or anything
+  malformed is ignored, and a domain with its own content root shows no line. Ruling 79.
+
 - SM1322 (PENDING) **/login asks the server whether the session is honoured.** It judged
   "signed in" from the `lzs_session` display marker alone, which outlives a revoked or
   expired session and an Odoo session gone stale, so it told a visitor the site had just

@@ -16,6 +16,9 @@ configuration, see
 content/layout/theme separation this all rests on, see
 [AI briefing - building sites](/docs/ai-briefing-building-sites).
 
+[% IF design_guide %]**This site's design guide:** <a href="[% design_guide %]">[% design_guide %]</a> -
+how this site's own design is put together. Read it before you change its look.[% END %]
+
 ## Terminology (D013)
 
 **Layout**: the Template Toolkit file (`layout.tt`) that wraps

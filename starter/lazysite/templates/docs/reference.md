@@ -118,6 +118,11 @@ Directory scan
   feeds and `llms.txt`. Default unset: the manual is served at `/docs/` but
   is not listed as the site's content.
 
+`design_guide`
+: A same-site path (`/guides/design`) the engine's layouts doc and layouts
+  briefing link as "This site's design guide". Default unset: no line. A full URL
+  or a malformed path is ignored.
+
 `manager`
 : `enabled` or `disabled`. Controls the built-in manager UI at
   `/manager`.
