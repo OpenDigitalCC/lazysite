@@ -415,7 +415,7 @@ sub action_list {
                     $entry->{owner} = $a->{owner} if defined $a->{owner};
                     $entry->{read}  = $a->{read}  if ref $a->{read} eq 'ARRAY';
                     $entry->{write} = $a->{write} if ref $a->{write} eq 'ARRAY';
-                   # SM1139: the address profiles the rule names, for the permissions editor.
+                # SM1139: the address profiles the rule names, for the permissions editor.
                     for my $af (qw(addresses addresses_deny)) {
                         $entry->{$af} = $a->{$af} if ref $a->{$af} eq 'ARRAY' && @{ $a->{$af} };
                     }

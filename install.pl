@@ -984,14 +984,14 @@ sub cmd_install {
     }
 
     # address-profiles-converted (SM1345): each address list becomes an address
-    # profile of the same name (convert_address_profiles_store, above). On every mode: a new
-    # site has nothing to convert and records the step; a site whose old store will
-    # not convert is told, and tried again at the next upgrade.
+    # profile of the same name (convert_address_profiles_store, above). On every
+    # mode: a new site has nothing to convert and records the step; a site whose
+    # old store will not convert is told, and tried again at the next upgrade.
     unless ( grep { $_ eq 'address-profiles-converted' } @once ) {
         my ( $changed, $warn, $done ) = convert_address_profiles_store( $o->{docroot} );
         info("  auth:      $_") for @$changed;
         push @$warnings, @$warn;
-        push @once, 'address-profiles-converted' if $done;
+        push @once,      'address-profiles-converted' if $done;
     }
 
     # ---- write new state ----
@@ -1082,14 +1082,14 @@ sub run_handler_conversion {
 # converted or there was nothing to convert, so the once-step is recorded.
 sub convert_address_profiles_store {
     my ($docroot) = @_;
-    my $auth = lazysite_dir_for($docroot) . '/auth';
-    my $old  = "$auth/address-lists.json";
-    my $new  = "$auth/address-profiles.json";
+    my $auth      = lazysite_dir_for($docroot) . '/auth';
+    my $old       = "$auth/address-lists.json";
+    my $new       = "$auth/address-profiles.json";
     return ( [], [], 1 ) unless -e $old;
     if ( -e $new ) {
         return ( [], [ "ADDRESS PROFILES: both $old and $new exist. The profiles are what the "
-                . 'engine reads; the lists were left as they are. Compare the two, then delete '
-                . 'address-lists.json (SM1345)' ], 1 );
+                    . 'engine reads; the lists were left as they are. Compare the two, then delete '
+                    . 'address-lists.json (SM1345)' ], 1 );
     }
     my $raw = do { local $/; open my $fh, '<:raw', $old or return ( [], [ "ADDRESS PROFILES: cannot read $old ($!) - "
                     . 'every rule that names an address profile refuses until it is converted; run the upgrade '
@@ -1097,21 +1097,21 @@ sub convert_address_profiles_store {
     my $lists = eval { JSON::PP::decode_json( $raw // '' ) };
     unless ( ref $lists eq 'HASH' ) {
         return ( [], [ "ADDRESS PROFILES: $old does not decode as a JSON object, so it was not converted - "
-                . 'every rule that names an address profile refuses until it is repaired and the upgrade '
-                . 'is run again (SM1345)' ], 0 );
+                    . 'every rule that names an address profile refuses until it is repaired and the upgrade '
+                    . 'is run again (SM1345)' ], 0 );
     }
     my ( %profiles, %kind );
     for my $name ( sort keys %$lists ) {
         my $rec = $lists->{$name};
-        unless ( ref $rec eq 'HASH' ) { $profiles{$name} = $rec; next }    # the engine skips it, as before
+        unless ( ref $rec eq 'HASH' ) { $profiles{$name} = $rec; next } # the engine skips it, as before
         my %p = %$rec;
-        $kind{$name} = delete $p{kind} // '';
+        $kind{$name}     = delete $p{kind} // '';
         $profiles{$name} = \%p;
     }
     my @st  = stat $old;
     my $tmp = "$new.tmp.$$";
     open my $out, '>:raw', $tmp
-        or return ( [], [ "ADDRESS PROFILES: cannot write $tmp ($!) - the lists were not converted (SM1345)" ], 0 );
+        or return ( [], ["ADDRESS PROFILES: cannot write $tmp ($!) - the lists were not converted (SM1345)"], 0 );
     print {$out} JSON::PP->new->canonical->pretty->encode( \%profiles );
     close $out;
     if (@st) {
@@ -1121,7 +1121,7 @@ sub convert_address_profiles_store {
     unless ( rename $tmp, $new ) {
         my $why = $!;
         unlink $tmp;
-        return ( [], [ "ADDRESS PROFILES: cannot write $new ($why) - the lists were not converted (SM1345)" ], 0 );
+        return ( [], ["ADDRESS PROFILES: cannot write $new ($why) - the lists were not converted (SM1345)"], 0 );
     }
     rename $old, "$old.converted";
     my @names = sort keys %profiles;

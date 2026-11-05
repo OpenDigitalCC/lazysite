@@ -147,7 +147,7 @@ sub _binding_rules {
                 }
                 for map { s/\A["']|["']\z//gr } _names( [ split /,/, $v ] );
         }
-       # SM1280: the profile a binding's operation is told about; a deleted one tells it "no"
+    # SM1280: the profile a binding's operation is told about; a deleted one tells it "no"
         push @{$rules}, { where => 'binding', ref => $r->{id}, slot => 'match', name => $_ }
             for map { s/\A["']|["']\z//gr } _names( $r->{address_profile} );
     }

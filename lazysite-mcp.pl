@@ -1391,10 +1391,10 @@ my %TOOLS = (
                 _groups_who( $_[1], $_[2] ) );
         },
     },
-# SM1138 (slice A of SM1134), SM1343: the twin of address-profiles, on the same module.
-# Read-only: the profiles are changed by the operator, in the manager. An MCP grant is
-# always domain-confined (SM648), and the profiles are the instance's, so it is shown
-# the names and counts and not the addresses.
+   # SM1138 (slice A of SM1134), SM1343: the twin of address-profiles, on the same module.
+   # Read-only: the profiles are changed by the operator, in the manager. An MCP grant is
+   # always domain-confined (SM648), and the profiles are the instance's, so it is shown
+   # the names and counts and not the addresses.
     list_address_profiles => {
         description => 'List the named address profiles an operator keeps for rules that limit access by the visitor\'s address: each with its name and how many entries it holds. A profile has no kind: a rule allows it by naming it under addresses, or denies it under addresses_deny, and deny wins. A grant not confined to some domains also sees the entries (a single address or a CIDR range, IPv4 or IPv6, each with a note) and who last changed it; a confined grant, which every MCP grant is, is not shown the site\'s addresses. Call this before naming a profile in a rule, so a typo is not mistaken for a profile that does not exist yet. Read-only; profiles are changed by the operator in the manager.',
         cap => 'manage_users',

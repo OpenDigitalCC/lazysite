@@ -2229,7 +2229,7 @@ elsif ( $action eq 'address-profile-set' ) {
     my $req = _json_body();
     $result = Lazysite::Manager::AddressProfiles::address_profile_set(
         { name => $req->{name},
-            ( exists $req->{kind}    ? ( kind    => $req->{kind} )    : () ),    # SM1343: refused by name
+            ( exists $req->{kind} ? ( kind => $req->{kind} ) : () ), # SM1343: refused by name
             ( exists $req->{entries} ? ( entries => $req->{entries} ) : () ) },
         _groups_who() );
 }

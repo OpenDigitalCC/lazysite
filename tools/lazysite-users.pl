@@ -125,8 +125,8 @@ BEGIN {
 }
 use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
-use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
-use Lazysite::Auth::AddressProfiles ();   # SM1138: the address-profile store and its one reader
+use Lazysite::Auth::Verify          (); # SM685: the credential path, shared with the CGIs
+use Lazysite::Auth::AddressProfiles (); # SM1138: the address-profile store and its one reader
 use Lazysite::Auth::AddressRefs (); # SM1141: where a rule names a list (the delete guard)
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Mail         ();              # SM1017: what one mail address is
@@ -344,14 +344,14 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_permissions_cli    => 'read-only',
     cmd_credential_status  => 'read-only',
     cmd_keys_list          => 'read-only',
-    cmd_address_profiles      => 'read-only',
+    cmd_address_profiles   => 'read-only',
     cmd_audit_registry     => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
     cmd_set_cli                       => 'delegates to cmd_set',
     cmd_group_set_cli                 => 'delegates to cmd_group_settings_set',
-    cmd_address_profile_set_cli          => 'delegates to cmd_address_profile_set',
-    cmd_address_profile_delete_cli       => 'delegates to cmd_address_profile_delete',
-    cmd_address_profiles_cli             => 'delegates to cmd_address_profiles',
+    cmd_address_profile_set_cli       => 'delegates to cmd_address_profile_set',
+    cmd_address_profile_delete_cli    => 'delegates to cmd_address_profile_delete',
+    cmd_address_profiles_cli          => 'delegates to cmd_address_profiles',
     cmd_brief_cli                     => 'delegates to cmd_onboarding',
     cmd_account_create_cli            => 'delegates to cmd_account_create',
     cmd_account_disable_cli           => 'delegates to cmd_account_set_disabled',
@@ -6012,7 +6012,7 @@ sub cmd_address_profile_set {
     if (@bits) {
         my $who = defined $o{actor} && length $o{actor} ? $o{actor} : 'system:' . ( getpwuid($<) // "uid:$<" );
         my %rec = ( $had ? %{$had} : () );
-        delete $rec{kind};    # SM1343: a kind left by a hand edit goes with the next write
+        delete $rec{kind};   # SM1343: a kind left by a hand edit goes with the next write
         $raw->{$name} = {
             %rec,
             entries    => $new,
@@ -6089,7 +6089,7 @@ sub cmd_address_profile_set_cli {
     die "Usage: address-profile-set NAME [--entry CIDR[=note] ...]\n"
         unless defined $name;
     my $r = cmd_address_profile_set( $name, $have_entries ? \@entries : undef );
-    die "$r->{error}\n"                                unless $r->{ok};
+    die "$r->{error}\n"                              unless $r->{ok};
     print "Address profile '$name': $r->{change}.\n" unless $API_MODE;
     return $r;
 }
