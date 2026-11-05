@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1336 (PENDING) **Every served copy of a theme carries its tokens and its version.** Ruling
+  81: an installed theme (Upload Theme, `install_theme`) and a copied theme (`theme-copy`,
+  `copy_theme`) had their copy built by hand, with no `theme-tokens.css`, no fingerprint (SM830)
+  and no copy on a secondary domain. Both now write it the one way every copy is written.
+
 - SM1342 (PENDING) **A /docs anchor lands on its heading.** The manual wrote its section
   links as GitHub writes them (`#the-docs-manual`), and the engine's converter ids a
   heading with no hyphens for spaces (`#thedocsmanual`), so eight links in the shipped

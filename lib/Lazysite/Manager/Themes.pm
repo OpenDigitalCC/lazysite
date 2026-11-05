@@ -1716,12 +1716,12 @@ sub action_theme_copy {
         }
     }
 
-    my $from_assets = "$DOCROOT/lazysite-assets/$layout/$from";
-    my $to_assets   = "$DOCROOT/lazysite-assets/$layout/$to";
-    if ( -d $from_assets && !-d $to_assets ) {
-        system( 'cp', '-r', $from_assets, $to_assets ) == 0
-            or log_event( 'WARN', 'theme-copy', 'cp assets failed', to => $to );
-    }
+    # SM1336: the copy's mirror is written as every mirror is, from its own
+    # source - tokens, fingerprint and every host's copy. This copied the
+    # docroot's mirror of the theme it came from, so the copy had no copy on a
+    # secondary domain at all, and none anywhere if its source had never been
+    # mirrored.
+    _mirror_theme_assets( $layout, $to );
 
     my $user = ( defined $auth_user && length $auth_user ) ? $auth_user : 'unknown';
     _record_theme_creator( $layout, $to, $user );
@@ -1948,25 +1948,14 @@ sub _install_theme_from_dir {
 
         # Nested asset path: /lazysite-assets/LAYOUT/THEME/ - built beside and
         # switched in the same way, because it is what the browser fetches.
+        # SM1336: by _mirror_theme_assets, from the theme just installed, as
+        # every other mirror is written. This copied assets/ alone into the
+        # docroot, so an uploaded theme's mirror had no theme-tokens.css and no
+        # fingerprint (its pages inlined their tokens and keyed on the engine
+        # version) and no copy on any secondary domain.
         if ( -d "$extract_dir/assets" ) {
-            my $assets_dest = "$DOCROOT/lazysite-assets/$l/$install_name";
-            my $astage      = _staging_for($assets_dest);
-            system( 'rm', '-rf', $astage ) if -e $astage;
-            make_path( dirname($assets_dest) );
-            $rc = system( "cp", "-r", "$extract_dir/assets", $astage );
-            if ( $rc != 0 ) {
-                system( 'rm', '-rf', $astage );
-                log_event( 'WARN', $action_label, 'cp assets failed',
-                    path => $assets_dest, rc => ( $rc >> 8 ) );
-            }
-            else {
-                my ( $aok, $aerr ) = _swap_in( $astage, $assets_dest, undef );
-                unless ($aok) {
-                    system( 'rm', '-rf', $astage );
-                    log_event( 'WARN', $action_label, 'asset mirror switch failed',
-                        path => $assets_dest, error => $aerr );
-                }
-            }
+            local $LAZYSITE_DIR = $lz;
+            _mirror_theme_assets( $l, $install_name );
         }
 
         # SM176: record the pristine baseline so switching away from this theme
