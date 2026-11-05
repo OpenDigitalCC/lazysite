@@ -58,6 +58,14 @@ Archive
   `copy_theme`) had their copy built by hand, with no `theme-tokens.css`, no fingerprint (SM830)
   and no copy on a secondary domain. Both now write it the one way every copy is written.
 
+- SM1335 (PENDING) **A theme's copies follow its source.** Ruling 81: a write to a theme's
+  source, on any surface, re-mirrors that theme to every host's copy (the docroot's and each
+  content root's) and drops the cached pages that use it, a page pinning it by `theme:`
+  included; a write to a layout's own files drops the pages that use the layout. An edit to an
+  inactive theme reaches the pages that pin it with no activation, and a secondary domain's
+  copy is no longer the one written at the theme's creation. One theme per write, never the
+  site's; a link or a server-run file in a theme's `assets/` is not copied into any copy.
+
 - SM1342 (PENDING) **A /docs anchor lands on its heading.** The manual wrote its section
   links as GitHub writes them (`#the-docs-manual`), and the engine's converter ids a
   heading with no hyphens for spaces (`#thedocsmanual`), so eight links in the shipped

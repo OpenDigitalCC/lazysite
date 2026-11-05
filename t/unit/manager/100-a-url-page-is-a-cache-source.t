@@ -107,7 +107,8 @@ subtest 'the four walks share one definition of a source' => sub {
         <$fh>;
     };
     my @calls = $src =~ /\b_cache_source_exists\(/g;
-    is( scalar @calls, 5, 'five call sites, one definition' )
+    # SM1335: the sixth is the sweep of the renders a theme's source write drops.
+    is( scalar @calls, 6, 'six call sites, one definition' )
         or diag( 'Four hand-written source tests drifted once (SM531). '
             . 'One helper is how they stop drifting.' );
 };

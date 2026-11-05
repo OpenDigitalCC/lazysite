@@ -792,6 +792,9 @@ sub action_create_theme {
 
     my %out = ( ok => 1, layout => $layout, theme => $name, created => \@created );
     $out{warnings} = \@warnings if @warnings;
+    # SM1335: a theme made is a source written, so every host has its copy now -
+    # a page may pin it (SM120) before anything activates it.
+    follow_source_write( $DOCROOT, "lazysite/layouts/$layout/themes/$name" );
 
     # Preview guidance: pre-activation, the theme is served from its SOURCE
     # assets path; post-activation (activate:true) from the mirror.
@@ -1081,6 +1084,20 @@ sub _mirror_theme_assets {
         return { mirrored => 0, dest => $dest, expected => $src,
             reason => 'the copy into the web asset mirror failed' };
     }
+    # SM1335: what SM1303 refuses in an archive is refused in a source too. A
+    # source write now re-mirrors on its own, so this copy runs far more often
+    # than an activation did, and a link placed in a theme's assets/ by any
+    # means (a shell, a restore) would be copied into the public mirror as a
+    # link - to anything the web server can read. Nothing is switched in.
+    if ( my $bad = _mirror_unsafe_entry($staging) ) {
+        system( 'rm', '-rf', $staging );
+        log_event( 'WARN', $action, 'theme asset mirror refused',
+            layout => $layout, theme => $theme, entry => $bad );
+        return { mirrored => 0, dest => $dest, expected => $src,
+            reason => "the theme's assets/ holds $bad, which a served mirror may not carry "
+                . '(a symbolic link, or a file type the web server would run); '
+                . 'remove it from the source and the mirror follows' };
+    }
     _write_theme_tokens( $tdir, $staging );
     _write_mirror_fingerprint($staging);
     my ( $sw_ok, $sw_err ) = _swap_in( $staging, $dest, undef );
@@ -1150,6 +1167,156 @@ sub _mirror_theme_assets {
         ( @also   ? ( also_mirrored => \@also )   : () ),
         ( @failed ? ( mirror_failed => \@failed ) : () ),
     };
+}
+
+# SM1335: the first entry under $dir a served mirror may not carry - a symbolic
+# link, or a file type the web server would run (SM1303's two archive checks) -
+# relative to $dir, or undef. Links are listed and never followed.
+sub _mirror_unsafe_entry {
+    my ($dir) = @_;
+    my @bad;
+    File::Find::find( { no_chdir => 1, wanted => sub {
+                my $p = $File::Find::name;
+                return if $p eq $dir;
+                push @bad, $p if -l $p || ( -f _ && $p =~ $Lazysite::Manager::Common::DANGEROUS_RE );
+    } }, $dir );
+    return undef unless @bad;
+    ( my $rel = ( sort @bad )[0] ) =~ s{\A\Q$dir\E/}{};
+    return $rel;
+}
+
+# SM1335 (ruling 81): A THEME'S MIRRORS FOLLOW ITS SOURCE.
+#
+# A theme has one source, lazysite/layouts/<L>/themes/<T>/, and one served copy
+# per host that serves /lazysite-assets/ from its own root: the docroot's, and
+# one under each content root (SM734). The copies were written at activation,
+# apply, domain-add and creation, and at no other time - so an edit to a theme a
+# page pins (SM120) and nobody activates never reached a visitor (the 04/11
+# filing: a fix PUT to clarity's main.css, the pinned pages still on the old
+# bytes), and a secondary domain kept the copy made the day its theme was
+# created (the 05/11 filing: six photographs uploaded twice, neither upload
+# reaching the copy harmony2050.org serves).
+#
+# So a write to a theme's source - whichever surface made it - re-mirrors THAT
+# theme to every host's copy, through _mirror_theme_assets, the one function
+# every other mirror is written by: the same build-beside-and-switch (SM756),
+# tokens (SM352) and fingerprint (SM830), and the same refusal of a link
+# (above). A theme whose source is gone takes its copies with it. And the pages
+# rendered with it are dropped from the cache, so the next request renders them
+# against the new copy - whether the theme is a host's own or a page's pin.
+#
+# A write to a layout's own files (layout.tt, layout.json, strings/) has no
+# mirror to refresh; its pages are dropped the same way (T-38 §1: a pinned
+# layout's pages kept their old render until each page was re-PUT).
+#
+# BOUNDED: one theme per theme written, however many files the write carried,
+# never the whole site's themes. Which pages "use" a theme is read from the
+# renders themselves: a render links its theme's copy by path
+# (/lazysite-assets/<L>/<T>/), so the cache holds the answer the processor gave
+# - the host's theme, a page's pin or a section's (SM812) alike - without
+# re-deciding precedence here. A render on a layout that resolved no theme and
+# has no default theme links no copy and is not found; it is also a render the
+# theme write cannot have changed.
+#
+# Callable from any surface: the docroot is passed, and every package variable
+# the mirror reads is set for the call. Returns { themes => [L/T...], layouts =>
+# [L...], copies => n, pages_invalidated => n }, or undef when no rel names a
+# layout's source.
+sub follow_source_write {
+    my ( $docroot, @rels ) = @_;
+    my ( %themes, %layouts );
+    for my $rel (@rels) {
+        next unless defined $rel;
+        ( my $r = $rel ) =~ s{^/+}{};
+        my ( $l, $rest ) = $r =~ m{\Alazysite/layouts/([A-Za-z0-9_-]+)(?:/(.*))?\z} or next;
+        $rest //= '';
+        if ( $rest =~ m{\Athemes/([A-Za-z0-9_-]+)(?:/|\z)} ) { $themes{"$l/$1"} = 1 }
+        elsif ( $rest ne 'themes' ) { $layouts{$l} = 1 }
+    }
+    return undef unless %themes || %layouts;
+
+    local $DOCROOT      = length( $docroot // '' ) ? $docroot : $DOCROOT;
+    local $LAZYSITE_DIR = _lz();
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+
+    my ( $copies, $pages ) = ( 0, 0 );
+    for my $lt ( sort keys %themes ) {
+        my ( $l, $t ) = split m{/}, $lt;
+        if ( -d "$LAZYSITE_DIR/layouts/$l/themes/$t" ) {
+            my $m = _mirror_theme_assets( $l, $t );
+            $copies += ( $m->{mirrored} ? 1 : 0 ) + scalar @{ $m->{also_mirrored} || [] };
+            log_event( 'WARN', $action, 'theme source written, mirror not refreshed',
+                layout => $l, theme => $t, reason => $m->{reason} // '' )
+                if !$m->{mirrored} && -d "$LAZYSITE_DIR/layouts/$l/themes/$t/assets";
+        }
+        else {
+            _remove_theme_mirrors( $l, $t );
+        }
+        # A layout written in the same call sweeps all its pages below.
+        $pages += _invalidate_pages_using( $l, $t ) unless $layouts{$l};
+    }
+    for my $l ( sort keys %layouts ) {
+        _remove_theme_mirrors( $l, undef ) unless -d "$LAZYSITE_DIR/layouts/$l";
+        $pages += _invalidate_pages_using( $l, undef );
+    }
+    log_event( 'INFO', $action, 'theme source followed',
+        themes => join( ',', sort keys %themes ), layouts => join( ',', sort keys %layouts ),
+        copies => $copies,                        pages_invalidated => $pages );
+    return { themes => [ sort keys %themes ], layouts => [ sort keys %layouts ],
+        copies => $copies, pages_invalidated => $pages };
+}
+
+# Every host's copy of a theme (or, with no theme, of a layout's themes): the
+# docroot's and one under each content root, as _mirror_theme_assets writes them.
+sub _mirror_copy_dirs {
+    my ( $layout, $theme ) = @_;
+    my $tail = "lazysite-assets/$layout" . ( defined $theme ? "/$theme" : '' );
+    return ( "$DOCROOT/$tail", map { "$DOCROOT/$_/$tail" } _all_content_roots() );
+}
+
+sub _remove_theme_mirrors {
+    my ( $layout, $theme ) = @_;
+    for my $d ( grep { -d } _mirror_copy_dirs( $layout, $theme ) ) {
+        system( 'rm', '-rf', $d ) == 0
+            or log_event( 'WARN', $action, 'stale theme mirror not removed', path => $d );
+    }
+    return;
+}
+
+# The cached renders that link a theme's copy (or, with no theme, any copy under
+# the layout): the content tree's renders beside their sources, and every alias
+# host's slot (SM110). Returns how many were removed.
+sub _invalidate_pages_using {
+    my ( $layout, $theme ) = @_;
+    my $mark = defined $theme
+        ? qr{/lazysite-assets/\Q$layout\E/\Q$theme\E[/"'?]}
+        : qr{/lazysite-assets/\Q$layout\E/};
+    my $n    = 0;
+    my $drop = sub {
+        my ($f) = @_;
+        open my $fh, '<:raw', $f or return;
+        my $body = do { local $/; <$fh> };
+        close $fh;
+        $n++ if defined $body && $body =~ $mark && unlink $f;
+    };
+    File::Find::find( {
+            no_chdir => 1,
+            preprocess => sub { grep { !( $_ eq 'lazysite' || $_ eq 'lazysite-assets' ) || !-d "$File::Find::dir/$_" } @_ },
+            wanted => sub {
+                my $f = $File::Find::name;
+                return unless $f  =~ /\.html\z/ && -f $f;
+                ( my $base = $f ) =~ s/\.html\z//;
+                $drop->($f) if _cache_source_exists($base);
+            },
+        },
+        $DOCROOT
+    ) if -d $DOCROOT;
+    my $hosts = _lz() . '/cache/hosts';
+    File::Find::find( { no_chdir => 1, wanted => sub {
+                $drop->($File::Find::name) if $File::Find::name =~ /\.html\z/ && -f $File::Find::name;
+    } }, $hosts ) if -d $hosts;
+    return $n;
 }
 
 sub _validate_theme_dir {
@@ -1639,14 +1806,9 @@ sub action_theme_delete {
     # The theme is gone; drop its provenance so a later theme reusing the name
     # does not inherit a creator it never had.
     _forget_theme_creator( $active_layout, $theme_name );
-    my $assets_dir = "$DOCROOT/lazysite-assets/$active_layout/$theme_name";
-    if ( -d $assets_dir ) {
-        $rc = system( "rm", "-rf", $assets_dir );
-        if ( $rc != 0 ) {
-            log_event( 'WARN', 'theme-delete', 'rm assets failed',
-                path => $assets_dir, rc => ( $rc >> 8 ) );
-        }
-    }
+    # SM1335: its copies go with it - every host's, not only the docroot's, which
+    # was the one this removed - and so do the renders that linked them.
+    follow_source_write( $DOCROOT, "lazysite/layouts/$active_layout/themes/$theme_name" );
 
     return { ok => 1, deleted => $theme_name };
 }

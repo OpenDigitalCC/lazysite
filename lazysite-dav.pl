@@ -880,6 +880,20 @@ sub _sweep_stale_put_temps {
     return;
 }
 
+# SM1335 (ruling 81): a write to a theme's source re-mirrors that theme to every
+# host's copy and drops the renders that use it; a write to a layout's files
+# drops its renders (T-38 §1). The one function the choke point calls
+# (Themes::follow_source_write). Nothing here can refuse the write - it has
+# happened - so a failure is logged and the request answers as it would have.
+sub _follow_source {
+    my ( $user, @rels ) = @_;
+    return unless grep { defined && m{\A/*lazysite/layouts/} } @rels;
+    require Lazysite::Manager::Themes;
+    eval { Lazysite::Manager::Themes::follow_source_write( $DOCROOT, @rels ); 1 }
+        or log_event( 'WARN', $user, 'theme source not followed', error => "$@" );
+    return;
+}
+
 # FD-12: the housekeeping a completed PUT owes the rest of the site, in the
 # order do_put ran it: the render cache, the SM438 stray private mirror
 # copy, the SM483 registries and the SM134 alias map. Nothing here can
@@ -892,6 +906,8 @@ sub _after_put {
     my ( $rel, $abs, $user ) = @_;
 
     invalidate_cache($abs);
+    # SM1335: a theme's or layout's source written - its copies and pages follow.
+    _follow_source( $user, $rel );
     # SM438: a stale PRIVATE copy of a mirror asset is what redirected updates
     # into the void (resolve() prefers private, so it would ALSO shadow this
     # write for every engine read). The mirror is derived output; the stray is
@@ -1034,6 +1050,7 @@ sub do_delete {
 
     remove_lock( $a{rel} );
     invalidate_cache( $r->{abs} );
+    _follow_source( $a{user}, $key );    # SM1335
 
     # SM134: drop this page's alias-redirect entries.
     #
@@ -1416,6 +1433,7 @@ sub do_copy_move {
 
     invalidate_cache( $src->{abs} ) if $move;
     invalidate_cache( $dst->{abs} );
+    _follow_source( $a{user}, $drel, ( $move ? $a{rel} : () ) );    # SM1335
     # SM134 follow-ups: keep the alias-redirect map current across MOVE/COPY -
     # the moved/copied page(s) would otherwise re-index only on the next save.
     {

@@ -622,6 +622,24 @@ sub _active_artifact_guard {
 # multipart upload, which writes files into a folder it was given).
 sub artifact_write_guard { return _active_artifact_guard(@_) }
 
+# SM1335 (ruling 81): a write to a theme's source re-mirrors that theme to every
+# host's served copy and drops the renders that use it; a write to a layout's
+# files drops its renders (T-38 §1). Asked by every verb here that changes a
+# file (save, save_binary, delete, move, copy) and by the multipart upload, once
+# per call with every path it wrote, through the one function WebDAV asks too
+# (Themes::follow_source_write). The write has happened, so a failure here is
+# logged and never fails it. Returns what was followed, for the reply, or ().
+sub follow_source {
+    my (@rels) = @_;
+    return () unless grep { defined && m{\A/*lazysite/layouts/} } @rels;
+    require Lazysite::Manager::Themes;
+    my $r = eval { Lazysite::Manager::Themes::follow_source_write( $DOCROOT, @rels ) };
+    log_event( 'WARN', $action, 'theme source not followed', error => "$@" ) if $@;
+    return () unless ref $r eq 'HASH' && @{ $r->{themes} };
+    return ( mirrors_refreshed => { themes => $r->{themes}, copies => $r->{copies},
+            pages_invalidated => $r->{pages_invalidated} } );
+}
+
 # SM976 Q15e ("Refuse new binding"): a page written here may not newly bind a
 # form the caller does not reach (Manager::Common::form_bind_refusal). Asked by
 # every verb that writes a page's text - action_save (and through it MCP's
@@ -823,6 +841,7 @@ sub action_save_binary {
 
     _git_commit( $username,
         ( $existed ? 'edit ' : 'create ' ) . $result->{rel}, $result->{rel} );
+    my @followed = follow_source( $result->{rel} );    # SM1335
 
     my @st = stat $full;
     return {
@@ -831,6 +850,7 @@ sub action_save_binary {
         bytes   => length($bytes),
         created => ( $existed ? JSON::PP::false : JSON::PP::true ),
         mtime   => ( $st[9] // 0 ),
+        @followed,
     };
 }
 
@@ -1011,6 +1031,7 @@ sub action_save {
         $result->{rel} );
 
     _invalidate_registries();
+    my @followed = follow_source( $result->{rel} );    # SM1335
 
     # A nav change shows on every page - clear all caches, and tell the caller.
     #
@@ -1072,6 +1093,7 @@ sub action_save {
         created => $existed ? 0 : 1,
         _camera_fields( $result->{rel}, $content ),    # SM1174
         @acl_note,
+        @followed,
         ( $nav_change
             ? ( cache_rebuilt => 'all-pages', cache_cleared => $cleared )
             : () ) };
@@ -1112,7 +1134,7 @@ sub action_delete {
         Lazysite::Auth::Acl::forget_path( $result->{rel} );
         log_event( 'INFO', $action, 'directory deleted',
             path => $rel_path, user => $auth_user );
-        return { ok => 1, path => $rel_path };
+        return { ok => 1, path => $rel_path, follow_source( $result->{rel} ) };   # SM1335
     }
 
     return _refused( 'not-found', "'$result->{rel}' does not exist as a file",
@@ -1151,7 +1173,7 @@ sub action_delete {
     _git_commit( $username, "delete $result->{rel}", $result->{rel} );
     _invalidate_registries();
 
-    return { ok => 1, path => $rel_path };
+    return { ok => 1, path => $rel_path, follow_source( $result->{rel} ) };    # SM1335
 }
 
 # SM530: make_path that RETURNS rather than dies - the Private::_mkpath shape.
@@ -1391,6 +1413,7 @@ sub action_move {
     );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel},
+        follow_source( $s->{rel}, $d->{rel} ),    # SM1335
         ( @store_warnings ? ( warnings => \@store_warnings ) : () ) };
 }
 
@@ -1461,7 +1484,7 @@ sub action_copy {
     _git_commit( $username, "copy $s->{rel} -> $d->{rel}",
         $d->{rel} );
     _invalidate_registries();
-    return { ok => 1, from => $s->{rel}, to => $d->{rel} };
+    return { ok => 1, from => $s->{rel}, to => $d->{rel}, follow_source( $d->{rel} ) }; # SM1335
 }
 
 # SM096: migrate a remote .url page to local ownership. Fetch the remote body

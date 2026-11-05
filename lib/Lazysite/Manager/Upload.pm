@@ -413,6 +413,9 @@ sub action_file_upload {
         my $msg   = @paths == 1 ? "upload $paths[0]"
             :   'upload ' . scalar(@paths) . ' files';
         Lazysite::Git::commit_paths( $DOCROOT, $auth_user, $msg, @paths );
+        # SM1335: a theme's source written - its copies and pages follow, once
+        # for the whole upload.
+        Lazysite::Manager::Files::follow_source(@paths);
     }
 
     # ok=1 means the request was processed. The client inspects
