@@ -62,7 +62,9 @@ subtest 'the answer distinguishes the two empty cases' => sub {
 
     like( $fn, qr/excluded_from_history/,
         'it asks whether the repository covers the path' );
-    like( $fn, qr/versioned => _git_bool\( \$enabled && !\$in_store && !\$excluded \)/,
+    # SM1324: a file in the store is versioned when its folder keeps history
+    # ($kept); an excluded path still never is.
+    like( $fn, qr/versioned => _git_bool\( \$enabled && !\$excluded && \( !\$in_store \|\| \$kept \) \)/,
         'and an excluded path reports versioned:0' )
         or diag( 'versioned:true for a path that can never have a commit is a '
             . 'confident wrong answer, which is worse than an empty list.' );
