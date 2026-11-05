@@ -442,9 +442,10 @@ our %ACTION = (
 # SM1138 (slice A of SM1134), SM1343: named address profiles. The read is manage_users on every
 # door; the writes are the OPERATOR's (Manager::AddressProfiles), and the operator is never a
 # token (SM991), so they are cookie-only. A profile decides who may reach a page, a group or
-# the manager, so it changes access the way a file's rule does. A profile has no kind.
+# the manager, so it changes access the way a file's rule does. A profile has no kind:
+# `kind` is declared because the dispatch reads it, to refuse it by name (ruling 108).
     'address-profile-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'force', in => 'body' } ] },
-    'address-profile-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'entries', in => 'body' } ] },
+    'address-profile-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'kind', in => 'body' }, { name => 'entries', in => 'body' } ] },
     'address-profiles' => { mcp => 'list_address_profiles', cookie_cap => 'manage_users', params => [] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' }, { name => 'host', in => 'query' }, { name => 'by_host', in => 'query' }, { name => 'by_account', in => 'query' } ] },

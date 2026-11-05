@@ -102,13 +102,13 @@ under Access -> Address profiles, ask the profile instead of printing the addres
     title: Staff notices
     ---
 
-    [% IF visitor.in_list('office') %]
+    [% IF visitor.in_profile('office') %]
     You are on the office network: the rota is [here](/rota).
     [% ELSE %]
     Staff notices are shown on the office network.
     [% END %]
 
-`visitor.in_list('office')` is `1` or `0`, and `visitor.in_any(['office', 'branch'])`
+`visitor.in_profile('office')` is `1` or `0`, and `visitor.in_any_profile(['office', 'branch'])`
 is `1` when the address is in any of them. It tells the page **membership and
 nothing else**: no variable holds the address, so there is nothing to print. A
 profile that does not exist answers `0`. A profile is neither allowed nor denied

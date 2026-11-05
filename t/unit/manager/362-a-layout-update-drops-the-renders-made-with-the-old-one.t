@@ -10,7 +10,7 @@
 # The one path that changed the served layout and kept the renders was an UPDATE
 # (layout-install / layouts-install / install_layout with update): it switches the
 # new version in under the same name (SM756) and swept nothing, so every cached
-# page kept the old layout - a layout that added `visitor.in_list` to hold a block
+# page kept the old layout - a layout that added `visitor.in_profile` to hold a block
 # back from outside addresses went on serving the block in every cached page until
 # something else invalidated it. A cached render is checked against its source,
 # the conf, the nav, its section indexes, the engine and its recorded includes
@@ -63,7 +63,7 @@ subtest 'the same layout again changes nothing and drops nothing' => sub {
 subtest 'an update to the served layout drops the renders made with the old one' => sub {
     cache_pages();
     my $r = Lazysite::Manager::Layouts::_install_layout_from_dir(
-        release("V2 [% IF visitor.in_list('office') %]internal[% END %] [% content %]\n"),
+        release("V2 [% IF visitor.in_profile('office') %]internal[% END %] [% content %]\n"),
         'base', 'layout-install', 'op', 1 );
     is( $r->{action}, 'updated', 'the layout is updated' ) or diag explain $r;
     ok( !-f "$docroot/page.html", 'the page rendered with the old layout is dropped, so the next request renders with the new one' );

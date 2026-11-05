@@ -286,14 +286,14 @@ See [Configuration](/docs/configuration) for full details.
 : `1` if the authenticated user has manager access (a group grants the `ui`
   capability), `0` otherwise. Use in layouts to gate admin UI.
 
-`visitor.in_list('NAME')`, `visitor.in_any(['A', 'B'])`
+`visitor.in_profile('NAME')`, `visitor.in_any_profile(['A', 'B'])`
 : `1` when the visitor's address is in the named address profile (or in any of
   the profiles), `0` otherwise, including when no such profile exists. It answers
   membership only: no variable holds the address. A page, include or layout
   that calls it is rendered for each request, never kept in the page cache, and
   sent `Cache-Control: no-store, private`. The address is the one `trusted_proxies`
   works out, so behind a front end name it there. See
-  [Showing the visitor's IP](/docs/features/authoring/visitor-ip#asking-whether-the-address-is-on-a-list).
+  [Showing the visitor's IP](/docs/features/authoring/visitor-ip#asking-whether-the-address-is-in-a-profile).
 
 ### Variable precedence
 

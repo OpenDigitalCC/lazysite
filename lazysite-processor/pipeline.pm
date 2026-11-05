@@ -802,7 +802,7 @@ sub _serve_content_static {
 our %RENDER_QUERY;
 
 # SM1141: DID THIS RENDER ASK WHAT THE VISITOR'S ADDRESS ALLOWS? Set by
-# visitor.in_list / visitor.in_any (render.pm) at the moment a template calls
+# visitor.in_profile / visitor.in_any_profile (render.pm) at the moment a template calls
 # them, and cleared at the top of every request (main). A page whose answer
 # depends on the address is a viewer-dependent render in SM1068's sense: it must
 # never be written to the shared cache and is sent no-store, private. A flag set

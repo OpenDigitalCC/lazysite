@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM1141 (slice D of SM1134): a template can ask whether the visitor's address is on
-# a named list - and only that. `[% visitor.in_list('office') %]` is true or false;
-# `[% visitor.in_any(['a','b']) %]` is true when any is. What it holds:
+# a named list - and only that. `[% visitor.in_profile('office') %]` is true or false;
+# `[% visitor.in_any_profile(['a','b']) %]` is true when any is. What it holds:
 #   - behind a trusted proxy the answer is about the visitor, not the proxy; a caller
 #     who sends their own X-Forwarded-For cannot choose it (the rightmost hop wins)
 #   - a page that asks is rendered per request: never written to the shared cache,
@@ -40,9 +40,9 @@ sub page {
     close $p;
 }
 
-page( 'where', "IN:[% IF visitor.in_list('office') %]yes[% ELSE %]no[% END %]:END" );
-page( 'any',   "ANY:[% IF visitor.in_any(['nope','branch']) %]yes[% ELSE %]no[% END %]:END" );
-page( 'gone',  "GONE:[% IF visitor.in_list('missing') %]yes[% ELSE %]no[% END %]:END" );
+page( 'where', "IN:[% IF visitor.in_profile('office') %]yes[% ELSE %]no[% END %]:END" );
+page( 'any',   "ANY:[% IF visitor.in_any_profile(['nope','branch']) %]yes[% ELSE %]no[% END %]:END" );
+page( 'gone',  "GONE:[% IF visitor.in_profile('missing') %]yes[% ELSE %]no[% END %]:END" );
 page( 'plain', "PLAIN:no address asked here" );
 
 sub via {
@@ -68,16 +68,25 @@ like( $forged, qr/IN:\s*no:END/, 'a forged first hop does not put a caller on th
 my $direct = run_processor( $d, '/where', REMOTE_ADDR => '192.0.2.8', HTTP_X_FORWARDED_FOR => '203.0.113.9' );
 like( $direct, qr/IN:\s*no:END/, 'a peer that is not a trusted proxy cannot name itself' );
 
-like( via( '/any', '198.51.100.3' ), qr/ANY:\s*yes:END/, 'in_any: true when one of the lists holds the address' );
-like( via( '/any', '192.0.2.4' ),    qr/ANY:\s*no:END/,  'in_any: false when none does' );
-ok( !-f "$d/any.html", 'in_any is per request too' );
+like( via( '/any', '198.51.100.3' ), qr/ANY:\s*yes:END/, 'in_any_profile: true when one of the profiles holds the address' );
+like( via( '/any', '192.0.2.4' ),    qr/ANY:\s*no:END/,  'in_any_profile: false when none does' );
+ok( !-f "$d/any.html", 'in_any_profile is per request too' );
 
 like( via( '/gone', '203.0.113.9' ), qr/GONE:\s*no:END/, 'a list that is not in the store is false' );
 
 # The address is in no variable: the method object is all there is of `visitor`.
 page( 'dump', "KEYS:[% FOREACH k IN visitor.keys.sort %][% k %],[% END %]:END VAL:[% visitor.address %][% visitor.ip %][% visitor.client_ip %]:END" );
 my $dump = via( '/dump', '203.0.113.9' );
-like( $dump, qr/KEYS:\s*in_any,in_list,:END/, 'visitor carries the two methods and nothing else' );
+like( $dump, qr/KEYS:\s*in_any_profile,in_profile,:END/, 'visitor carries the two methods and nothing else' );
+
+# SM1343 (ruling 105): renamed outright. The upgrade rewrites a site's calls (SM1345)
+# and `lazysite check` names one left behind; the engine knows only the new names,
+# so an old call is an unknown method - false - even for an address in the profile.
+# old-address-name: begin (SM1343, the test calls the names that are gone)
+page( 'old', "OLD:[% IF visitor.in_list('office') %]yes[% ELSE %]no[% END %]"
+        . "/[% IF visitor.in_any(['office']) %]yes[% ELSE %]no[% END %]:END" );
+like( via( '/old', '203.0.113.9' ), qr/OLD:\s*no\/no:END/, 'the old method names are unknown: no alias' );
+# old-address-name: end
 like( $dump, qr/VAL:\s*:END/, 'and there is no address on it under any name' );
 unlike( $dump, qr/203\.0\.113\.9/, 'the address never reaches the page' );
 

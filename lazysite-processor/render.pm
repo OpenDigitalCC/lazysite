@@ -40,12 +40,14 @@ use warnings;
 our ( $DOCROOT, $LAZYSITE_DIR, $RESPONSE_LANG, $TT_COMPILE_DIR, %AUTH_CONTEXT, %PAYMENT_CONTEXT, %PREVIEW_CONTEXT, $RENDER_BY_ADDRESS );
 
 # SM1141 (slice D of SM1134): THE TEMPLATE TEST FOR THE VISITOR'S ADDRESS.
-# [% visitor.in_list('office') %] is true when the visitor's address is in that
-# address profile, [% visitor.in_any(['a','b']) %] when it is in any. MEMBERSHIP ONLY
-# (ruled 2026-10-17): the template chooses what being in it means, so there is no
-# allow or deny here, and SM1343 kept the two method names. `visitor` holds these two
-# methods and no value, so there is no spelling that prints the address, and the
-# answer is a number, not a list.
+# [% visitor.in_profile('office') %] is true when the visitor's address is in that
+# address profile, [% visitor.in_any_profile(['a','b']) %] when it is in any.
+# MEMBERSHIP ONLY (ruled 2026-10-17): the template chooses what being in it means,
+# so there is no allow or deny here. SM1343 (ruling 105) renamed the two methods
+# outright; the upgrade rewrites a site's calls (SM1345) and the old names are
+# unknown, so a call left behind is false. `visitor` holds these two methods and no
+# value, so there is no spelling that prints the address, and the answer is a
+# number, not a list.
 #
 # The address is Lazysite::Auth::AddressProfiles::client_address(), the one reader
 # that honours trusted_proxies, never X-Forwarded-For read here. The module is
@@ -70,7 +72,7 @@ sub _visitor_tests {
         };
         return $ok ? 1 : 0;
     };
-    return { in_list => $ask, in_any => $ask };
+    return { in_profile => $ask, in_any_profile => $ask };
 }
 
 # Mixed-identity compile cache (field 2026-07-11): TT creates its compile

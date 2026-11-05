@@ -53,7 +53,7 @@ tone: medium
 `acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), addresses (body), addresses_deny (body), history (body), paths (body)
 `actions-list` | any authenticated |  
 `address-profile-delete` | cookie only | name (body), force (body)
-`address-profile-set` | cookie only | name (body), entries (body)
+`address-profile-set` | cookie only | name (body), kind (body), entries (body)
 `address-profiles` | manage_users |  
 `aliases-list` | manage_content | host (query), path (query)
 `analyse_visitors` | analytics | window (query), day (query), month (query), index (query), trails (query), host (query), by_host (query), by_account (query)

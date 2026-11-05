@@ -2227,9 +2227,14 @@ elsif ( $action eq 'address-profiles' ) {
 elsif ( $action eq 'address-profile-set' ) {
     # SM1138: the operator's, cookie-only; the users tool owns the store.
     my $req = _json_body();
-    $result = Lazysite::Manager::AddressProfiles::address_profile_set(
-        { name => $req->{name},
-            ( exists $req->{entries} ? ( entries => $req->{entries} ) : () ) },
+    # SM1343 (ruling 108): a profile has no kind; one sent is refused by name, so a
+    # caller does not believe it made an allow or a deny list.
+    $result = exists $req->{kind}
+        ? { ok => 0, kind => 'invalid', field => 'kind',
+        error => 'An address profile has no kind (SM1343): each rule that names it allows it '
+            . '(addresses) or denies it (addresses_deny). Send the name and the entries only.' }
+        : Lazysite::Manager::AddressProfiles::address_profile_set(
+        { name => $req->{name}, ( exists $req->{entries} ? ( entries => $req->{entries} ) : () ) },
         _groups_who() );
 }
 elsif ( $action eq 'address-profile-delete' ) {

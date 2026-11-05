@@ -46,8 +46,10 @@ SM1229 for lists) and 58 (the Odoo binding's key is already `address_profile`).
 - **The Odoo binding (ruling 58).** `address_profile` reads a profile through
   `in_profile` (membership only, the operation decides what inside means), and
   counts as in use.
-- **The template test.** `visitor.in_list` / `visitor.in_any` answer membership of
-  a profile; the method names are kept (see the question below).
+- **The template test (ruling 105).** `visitor.in_list` / `visitor.in_any` are
+  renamed outright to `visitor.in_profile` / `visitor.in_any_profile`, membership of
+  a profile. The old names are unknown methods (false); the upgrade rewrites a
+  site's calls and `lazysite check` names any left (SM1345).
 - **A-5, the names, renamed outright (ruling 56).** The manager page is Access,
   Address profiles (`/manager/address-profiles`); the actions are
   `address-profiles`, `address-profile-set`, `address-profile-delete`; the MCP tool
@@ -55,9 +57,10 @@ SM1229 for lists) and 58 (the Odoo binding's key is already `address_profile`).
   `address-profile-set NAME [--entry CIDR[=note] ...]` and
   `address-profile-delete NAME [--force]`; the reply's key is `profiles`. A caller
   still sending an old action, tool or command is answered "unknown ... use
-  'address-profile-set' (SM1343)". The users tool refuses `--kind` (and a `kind`
-  in its API request) by name, `field: kind`, so nobody believes they made an allow
-  or a deny list; the manager API reads no `kind` and answers none. The docs,
+  'address-profile-set' (SM1343)". A `kind` sent is refused by name, `field: kind`,
+  by the manager API (ruling 108; the action declares it, as lint 58 asks, in order to
+  refuse it) and by the users tool (`--kind`, or `kind` in its API request), so nobody
+  believes they made an allow or a deny list. The docs,
   the briefing pages, the manager guide and the generated references say profile.
 - **Ruling 57.** A profile a rule names is refused deletion naming where, as
   before; `force` deletes it after a second confirmation.
@@ -73,15 +76,13 @@ SM1229 for lists) and 58 (the Odoo binding's key is already `address_profile`).
   left by hand ignored, deny wins in one rule, unconverted fails closed.
 - t/unit/users/52: the store has no kind, `--kind` and an API `kind` are refused,
   the old commands are told the new names.
-- t/integration/266: the old actions (cookie and token) and the MCP tool are refused naming the new ones.
+- t/integration/266: the old actions (cookie and token) and the MCP tool are refused
+  naming the new ones; a `kind` sent to the manager API is refused by name.
+- t/unit/processor/133: the template test answers by its new names, and the old
+  names are false (no alias).
 - t/unit/lib/205, t/unit/tools/85, t/unit/auth/67: a page, the check and the Config
   keys accept a profile in either slot; the check names an unconverted store.
 - t/lint/320: the rename invariant (old spellings only in history, the old store's
   name, a line dating the rename, and the listed old-address-name regions).
 - The SM1134 suites (pages, files, groups, sign-in, the delete guard, the template
   test, the Odoo binding) run unchanged in meaning on profiles.
-
-# Open
-
-- The template methods `visitor.in_list` / `in_any` kept their names: renaming
-  them would break site templates with no conversion. Ruling wanted.

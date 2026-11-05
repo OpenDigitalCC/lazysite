@@ -972,7 +972,7 @@ grant and never widens it.
   marked copy, and `request_identity`; machine doors cut the caller's settings back
   with `narrow_caps_to_request`, which only removes. Outside a web request (the users
   tool, scheduler) the rules do not apply.
-- **The template test** (SM1141): `visitor.in_list` and `visitor.in_any` expose profile
+- **The template test** (SM1141): `visitor.in_profile` and `visitor.in_any_profile` expose profile
   membership only, never the address; a render that asked is the visitor's own and
   never cached. `lazysite check` warns when rules exist and `trusted_proxies` trusts
   no front end, or leaves the default behind a front end it does not cover.

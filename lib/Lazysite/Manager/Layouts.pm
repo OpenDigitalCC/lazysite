@@ -1137,7 +1137,7 @@ sub _install_layout_from_dir {
             # source, the conf, the nav, its section indexes, the engine and its
             # includes, never the layout file, so an update switched in under the
             # same name kept every cached page in the old layout - one that added
-            # `visitor.in_list` to hold a block back from outside addresses went on
+            # `visitor.in_profile` to hold a block back from outside addresses went on
             # serving the block to everyone. Activation drops them for the same
             # reason; an update is the same change of chrome without the pointer move.
             Lazysite::Manager::Themes::invalidate_html_cache();

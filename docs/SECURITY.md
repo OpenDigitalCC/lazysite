@@ -2177,3 +2177,57 @@ residual risk
 
 verdict
 : proposed: accepted, pending the release manager's confirmation.
+
+### 2026-11-05 - SM1343-SM1345 (0.16.5): an address rule's allow or deny moves from the list to the use
+
+Assessment drafted by the developer agent; proposed, not yet confirmed.
+
+what changed
+: The release manager's request of 24 October 2026 (rulings 56-58, 105-108). SM1134's
+  named address lists each carried a kind (allow or deny) fixed at creation; they are now
+  address profiles with no kind, in `lazysite/auth/address-profiles.json`. Whether a
+  profile allows or denies is the slot the rule names it in (`addresses` /
+  `addresses_deny`, the manager's and sign-in's `_deny` keys, a session binding's), so one
+  profile may be allowed by one rule and denied by another. SM1189's "wrong kind" refusal
+  (a rule naming a list in the other slot refused everyone) goes with the kind. The names
+  are renamed outright (actions, MCP tool, CLI, store, page, the template test
+  `visitor.in_profile` / `visitor.in_any_profile`); an old action, tool or command is
+  refused naming the new one, and a `kind` sent is refused by name. The upgrade converts
+  the store once (same names and entries; the old file kept as
+  `address-lists.json.converted`) and rewrites the site's template calls, reporting each
+  file. The Files card and the Groups page choose Allow or Deny per profile.
+
+threat delta
+: A control's semantics change: what a stored name means is now decided by where it is
+  used, not by the record it names. Elevation of privilege is the question: a rule whose
+  effect widens with no edit to the rule. Every rule a save could write already named its
+  list in the slot its kind meant, so for those nothing changes. A rule in the other slot
+  (a hand edit only) refused every visitor before and now applies in its slot - it can
+  widen. And a store left unconverted, read as empty, would let every deny rule block
+  nobody.
+
+controls
+: `Lazysite::Auth::AddressProfiles::decide` is still the one answer: deny wins, every layer
+  must admit, a faulted store denies wherever a profile is named, a name the store does not
+  hold admits nobody where it is allowed. A site with `address-lists.json` and no profile
+  store is a fault (`unconverted`), not an empty store: every rule naming a profile
+  refuses, and the writer will not start a profile store beside it. The conversion never
+  overwrites a profile store, leaves an undecodable old store in place (still refusing),
+  and is re-tried until it finishes. `lazysite check` names every rule whose slot differs
+  from its old list's kind (read from the kept `.converted` file, ruling 106) and every
+  template call left under the old names (which are now false). Writes stay the operator's
+  and cookie-only; a profile a rule names is not deleted without a second confirmation.
+  t/unit/auth/63, t/integration/144, 145, 266, t/unit/tools/85, t/tools/315, t/lint/320.
+
+residual risk
+: A hand-edited wrong-slot rule widens at the upgrade until the operator acts on the
+  check's warning; the 0.16.5 notes tell operators to run `lazysite check` after
+  upgrading. A template call written back under an old name is false (fails closed for a
+  block shown only inside a profile, open for one hidden from it) until the check's
+  warning is acted on. The template rewrite edits files outside content history.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation. Recorded because the
+  meaning of an access control's stored value changes (the kind moves from the profile to
+  the use), and the upgrade can widen a hand-edited rule; the check names each, and every
+  fault on the way fails closed.

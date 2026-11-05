@@ -30,7 +30,8 @@
 #     read as SM1142's `old-name` regions.)
 #
 # The spellings are case-sensitive: "address list(s)", "Address list(s)",
-# address-list(s), address_list(s), AddressLists, list_address_lists.
+# address-list(s), address_list(s), AddressLists, list_address_lists, and (ruling
+# 105) the template test's old methods visitor.in_list and visitor.in_any.
 #
 # Sabotage: put `use Lazysite::Auth::AddressLists;` back anywhere under lib/, or an
 # old-address-name region in a file not listed, and this fails naming the line.
@@ -44,7 +45,7 @@ use TestHelper qw(repo_root);
 my $root = repo_root();
 my $SELF = 't/lint/320-address-lists-are-address-profiles-by-name.t';
 
-my $OLD = qr{address[ _-]lists?\b|Address[ _-]lists?\b|AddressLists|list_address_lists};
+my $OLD = qr{address[ _-]lists?\b|Address[ _-]lists?\b|AddressLists|list_address_lists|visitor\.in_list\b|visitor\.in_any\b(?!_)};
 
 my @HISTORY = (
     qr{\ACHANGELOG\.md\z},
@@ -70,6 +71,7 @@ my %REGIONS = (
     't/unit/odoo/112-an-operation-is-told-whether-the-call-came-from-an-address-profile.t'           => 1,
     'install.pl'                                                                                    => 1,
     't/tools/315-an-upgrade-makes-address-profiles-and-no-site-changes-behaviour.t'                  => 1,
+    't/unit/processor/133-a-template-can-test-an-address.t'                                         => 1,
 );
 
 # Tokens that may contain an old spelling wherever they appear.
