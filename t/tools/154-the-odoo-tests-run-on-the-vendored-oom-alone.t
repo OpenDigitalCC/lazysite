@@ -14,7 +14,9 @@
 #   * the Odoo tests pass in that state;
 #   * tools/ext-compat.sh runs the same tests against other OOMs, reports each target
 #     on its own line, and ALWAYS exits 0 - against a deliberately broken OOM it says
-#     FAIL (advisory), files one note in the inbox (once a day) and still exits 0.
+#     FAIL (advisory), files one note in the inbox (once a day) and still exits 0;
+#   * SM1330: that line and note name the failing files (bounded), and the target runs
+#     alone - its own oomd, no host packs, no other OOM's share root.
 use strict;
 use warnings;
 use Test::More;
@@ -22,7 +24,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root   = repo_root();
 my $vendor = "$root/t/vendor/oom";
@@ -69,7 +71,11 @@ subtest 'tools/ext-compat.sh is advisory: a broken OOM is a FAIL line and a note
     my $tree  = "$t/broken-oom";
     my $inbox = "$t/inbox";
     make_path($inbox);
-    spit( "$tree/lib/Odoo/Ops.pm", "package Odoo::Ops;\nour \$VERSION = '9.9';\ndie 'broken on purpose';\n1;\n" );
+    # SM1330: before it dies, the broken OOM writes down the environment it was loaded in -
+    # what a target's own code sees under the tier.
+    spit( "$tree/lib/Odoo/Ops.pm", "package Odoo::Ops;\nour \$VERSION = '9.9';\n"
+        . "if ( open my \$f, '>>', '$t/seen' ) { print {\$f} join( ' ', map { \"\$_=\" . ( \$ENV{\$_} // '(unset)' ) } qw(LAZYSITE_OOMD ODOO_OOM_PACK_DIRS ODOO_OOM_SHARE) ), \"\\n\" }\n"
+        . "die 'broken on purpose';\n1;\n" );
 # The deb target is pointed at nothing (OOM_DEB_LIB): what this host has installed is not this test's
 # business, and the day OOM 0.11 was installed it filed a second note here and failed the gate.
     my $run = sub { qx(cd $root && OOM_TREE=$tree OOM_DEB_LIB=$t/no-deb LAZYSITE_INBOX=$inbox bash tools/ext-compat.sh --night 2>&1) };
@@ -80,12 +86,45 @@ subtest 'tools/ext-compat.sh is advisory: a broken OOM is a FAIL line and a note
     my @notes = glob("$inbox/*oom-changes-break-lazysites-odoo-tests*.md");
     is( scalar @notes, 1, 'and files one note in the inbox' );
     like( $notes[0] // '', qr/-oom-tree\.md\z/, 'named for its target' );
-    like( do { open my $fh, '<', $notes[0] or die $!; local $/; <$fh> }, qr/Advisory only \(SM1081\)/, 'which says it is advisory' );
+    my $note = do { open my $fh, '<', $notes[0] or die $!; local $/; <$fh> };
+    like( $note, qr/Advisory only \(SM1081\)/, 'which says it is advisory' );
+
+    # SM1330: prove names each file by the absolute path it was given, which the summary
+    # match missed, so neither the line nor the note ever said which files failed.
+    my ($line) = $out =~ /^(ext-compat: OOM tree \(9\.9\): FAIL[^\n]*)/m;
+    like( $line // '', qr{ - t/unit/odoo/\S+\.t }, 'the FAIL line names the failing files, from t/' );
+    unlike( $line // '', qr{\Q$root\E/}, 'not by their absolute paths' );
+    like( $line // '', qr/ and \d+ more\z/, 'bounded: the rest are counted' );
+    my @listed = $note =~ m{^- (t/\S+\.t)$}mg;
+    cmp_ok( scalar @listed, '>', 0, 'the note lists the failing files, one per line' );
+    cmp_ok( scalar @listed, '<=', 20, 'no more than twenty of them' );
+    like( $note, qr/^- and \d+ more$/m, 'and counts the rest' );
+    like( $note, qr/: (\d+) failing files/, 'saying how many failed in all' );
+
+    # SM1330: what the target was run with. Its own oomd (the snapshot's puts the snapshot's
+    # library first and ran 0.42 under 0.44), none of the host's packs (whose `shop`
+    # claimed the suite's `shop.basket`), and for a tree no share root (its data is
+    # beside its lib, and the deb's is another OOM's).
+    my @seen = do { open my $fh, '<', "$t/seen" or die "$t/seen: $!"; my %u = map { chomp; $_ => 1 } <$fh>; sort keys %u };
+    is_deeply( \@seen, ["LAZYSITE_OOMD=$tree/bin/oomd ODOO_OOM_PACK_DIRS=$vendor/no-packs-here ODOO_OOM_SHARE="],
+        'the target ran with its own oomd, no host packs and no share root' ) or diag explain \@seen;
     $run->();
     is( scalar( () = glob("$inbox/*.md") ), 1, 'a second run the same day files no second note' );
     my $quiet = qx(cd $root && OOM_TREE=$t/no-such-tree OOM_DEB_LIB=$t/no-deb LAZYSITE_INBOX=$inbox bash tools/ext-compat.sh 2>&1);
     is( $? >> 8, 0, 'a missing target is a skipped line, still exit 0' );
     like( $quiet, qr/OOM tree: skipped/, 'by name' );
+};
+
+# SM1330: the daemon tests start OdooTest::oomd_bin. A library named without its oomd is
+# refused, by name, rather than tested on the snapshot's daemon.
+subtest 'a daemon test runs the target\'s oomd, and a target without one is refused' => sub {
+    my $prog = 'use OdooTest; print eval { OdooTest::oomd_bin() } // "REFUSED: $@"';
+    my $ask  = sub {
+        run_child( [ 'env', '-u', 'LAZYSITE_OOM_LIB', '-u', 'LAZYSITE_OOMD', @_, $^X, "-I$root/t/lib", "-I$root/lib", '-e', $prog ] )->{out};
+    };
+    is( $ask->(), "$vendor/bin/oomd", 'in the gate: the snapshot\'s' );
+    is( $ask->( "LAZYSITE_OOM_LIB=$t/target/lib", "LAZYSITE_OOMD=$t/target/bin/oomd" ), "$t/target/bin/oomd", 'under the tier: the one it names' );
+    like( $ask->("LAZYSITE_OOM_LIB=$t/target/lib"), qr/\AREFUSED: .*LAZYSITE_OOMD is not/, 'a library with no oomd named is refused, naming it' );
 };
 
 subtest 'tools/overnight.sh calls it once, after the nightly suite, and never on its result' => sub {

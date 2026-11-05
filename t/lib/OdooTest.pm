@@ -12,10 +12,10 @@ package OdooTest;
 # for changes in OOM's working tree and in the host's perl5 directory, and
 # neither is read by a test any more (t/lint/262).
 #
-# LAZYSITE_OOM_LIB overrides the library, and LAZYSITE_OOM_TEST_LIB the test
-# doubles, for ONE purpose: tools/ext-compat.sh, the advisory compatibility tier,
-# which runs these same tests against the installed deb and against OOM's tree.
-# Nothing in the gate sets them.
+# LAZYSITE_OOM_LIB overrides the library, LAZYSITE_OOM_TEST_LIB the test doubles
+# and LAZYSITE_OOMD the daemon (SM1330), for ONE purpose: tools/ext-compat.sh, the
+# advisory compatibility tier, which runs these same tests against the installed
+# deb and against OOM's tree. Nothing in the gate sets them.
 #
 # THE SNAPSHOT IS A RELEASED 0.09, which satisfies the engine's declared minimum,
 # so nothing needs to pretend a version any more (`pretend_released` is kept for
@@ -31,7 +31,7 @@ use Exporter   qw(import);
 use File::Path qw(make_path);
 use FindBin;
 
-our @EXPORT_OK = qw(oom_lib oom_test_lib vendor_dir oom_or_skip pretend_released odoo_site enable_odoo write_conf
+our @EXPORT_OK = qw(oom_lib oom_test_lib oomd_bin vendor_dir oom_or_skip pretend_released odoo_site enable_odoo write_conf
     fake_shop shop_namespace bind set_key shop_ready quiet);
 
 # A binding is a handler of type odoo; saved through the handler contract, as
@@ -103,21 +103,38 @@ sub vendor_dir {
 # that depends on what is installed, which t/lint/262 exists to prevent. Naming a
 # directory that does not exist gives the registry no packs; a test that wants
 # one passes pack_dirs itself (71), and the oomd processes inherit this.
-# tools/ext-compat.sh (LAZYSITE_OOM_LIB set) is the one tier that means the host's.
+# SM1330: THE COMPATIBILITY TIER TOO (LAZYSITE_OOM_LIB set). It tests whether a
+# target OOM's LIBRARY runs this suite's own operations; the packs installed beside
+# it are not under test, and the host's `shop` claimed `shop.basket` there exactly
+# as it had in the gate (52 files failed every night on both targets). One rule,
+# here, so a hand-run `LAZYSITE_OOM_LIB=... prove` is the tier as overnight runs it.
 $ENV{ODOO_OOM_PACK_DIRS} = vendor_dir() . '/no-packs-here'
-    unless defined $ENV{ODOO_OOM_PACK_DIRS} || defined $ENV{LAZYSITE_OOM_LIB};
+    unless defined $ENV{ODOO_OOM_PACK_DIRS};
 
 # SM1216: NOR THE HOST'S BEHAVIOURS, PROFILES OR matrix.yaml. Up to OOM 0.36 the
 # deb's data directory was a root OOM always searched after the snapshot's own tree
 # (SM1202, t/unit/odoo/78). OOM 0.37, at lazysite's ask, reads ODOO_OOM_SHARE for that
 # root, and an empty value names none (inbox 2026-10-20-oom-0.37-code-share-rows-
 # shop-helpdesk.md: "set ODOO_OOM_SHARE= in your harness and nothing installed on
-# the host is read"). Same rule as the packs: unless the caller set it, or
-# LAZYSITE_OOM_LIB names the host's library (tools/ext-compat.sh).
+# the host is read"). Same rule as the packs: unless the caller set it. SM1330: the
+# tier sets it for the deb target, whose data IS that directory; the tree's data is
+# beside its lib, so the tree target reads none of the deb's.
 $ENV{ODOO_OOM_SHARE} = ''
-    unless defined $ENV{ODOO_OOM_SHARE} || defined $ENV{LAZYSITE_OOM_LIB};
+    unless defined $ENV{ODOO_OOM_SHARE};
 
 sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // vendor_dir() . '/lib' }
+
+# SM1330: the oomd a daemon test starts. bin/oomd begins `use lib RealBin/../lib`,
+# ahead of PERL5LIB, so the snapshot's oomd runs the snapshot's OOM whatever
+# LAZYSITE_OOM_LIB says (the tree target's daemon said 0.42, not 0.44). The tier
+# names the target's own in LAZYSITE_OOMD; a library named without it is refused
+# rather than tested on the wrong daemon.
+sub oomd_bin {
+    return $ENV{LAZYSITE_OOMD} if defined $ENV{LAZYSITE_OOMD};
+    die "LAZYSITE_OOM_LIB is set and LAZYSITE_OOMD is not: name the target's oomd, or the snapshot's runs instead\n"
+        if defined $ENV{LAZYSITE_OOM_LIB};
+    return vendor_dir() . '/bin/oomd';
+}
 
 
 # A lib holding an Odoo::Ops that says 0.01 and nothing else: the version the

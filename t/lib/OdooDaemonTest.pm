@@ -11,6 +11,8 @@ package OdooDaemonTest;
 # daemon's workers also need OOM's test doubles (t/vendor/oom/t/lib), which are not
 # beside bin/, so PERL5LIB is set here to the vendored lib, the vendored test lib
 # and this repository's lib, and nothing else. Nothing is read from the host.
+# SM1330: under tools/ext-compat.sh the oomd, the lib and the test lib are the
+# target's (OdooTest::oomd_bin), so its daemon runs the OOM under test.
 #
 # ISOLATION. XDG_RUNTIME_DIR is a directory of the test's own, so the daemon's
 # pid record is not in /tmp/oomd-<uid> where a daemon of the host would be.
@@ -20,7 +22,7 @@ use File::Path qw(make_path);
 use File::Temp ();
 use POSIX      ();
 use Time::HiRes ();
-use OdooTest   qw(vendor_dir oom_lib oom_test_lib set_key write_conf);
+use OdooTest   qw(oom_lib oom_test_lib oomd_bin set_key write_conf);
 use TestHelper ();
 
 use Exporter 'import';
@@ -75,7 +77,7 @@ sub oomd_env {
     $ENV{OOM_OPS_TEST_STATE}     = "$t/state.json";
     require Lazysite::Daemon::Service::Oomd;
     no warnings "once";
-    $Lazysite::Daemon::Service::Oomd::COMMAND = [ $^X, vendor_dir() . '/bin/oomd' ];
+    $Lazysite::Daemon::Service::Oomd::COMMAND = [ $^X, oomd_bin() ];
     return $t;
 }
 

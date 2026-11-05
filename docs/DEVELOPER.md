@@ -253,7 +253,9 @@ testing against odoo to run a lazysite, it's just an extension, not core"). So:
 - **The compatibility tier is advisory**: `tools/ext-compat.sh` runs the same tests against the
   installed deb and against OOM's tree, one line per target. It always exits 0 and is never the
   gate. `tools/overnight.sh` runs it after the nightly suite and a failing target files one
-  short note in the inbox. `LAZYSITE_OOM_LIB` and `LAZYSITE_OOM_TEST_LIB` exist for it alone.
+  short note in the inbox naming the failing files. `LAZYSITE_OOM_LIB`, `LAZYSITE_OOM_TEST_LIB` and
+  `LAZYSITE_OOMD` (the target's daemon) exist for it alone; each target runs with no host packs
+  (SM1330).
 - **Live Odoo is never in an automatic run.** `tmp/live/odoo-live.pl` is manual: read-only unless
   `--writes` is given, and `--writes` refuses to run unless its config says
   `test_database: yes`. It never prints a password, key or session id.

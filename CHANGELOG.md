@@ -65,6 +65,16 @@ Archive
   the extension actions as `extension-*` from 0.16.4. Docs only; nothing is signed.
 
 - SM1142 (95f3ab81) **A site from before the rename upgrades in place and behaves the same, and
+- SM1330 (PENDING) **tests: the compatibility tier tests the OOM it names.**
+  `tools/ext-compat.sh` failed every night on the installed deb and on OOM's tree for
+  reasons in lazysite's harness: under `LAZYSITE_OOM_LIB` the host's `shop` pack claimed the
+  suite's `shop.basket` (52 files), t/unit/odoo/78 expected the snapshot's data root, and the
+  daemon tests started the snapshot's oomd, which loads the snapshot's OOM first. Each
+  target now runs alone - its library, its oomd (`LAZYSITE_OOMD`), its own data and the
+  suite's own operations, never the host's packs - and the FAIL line and the inbox note name
+  the failing files, which prove's absolute paths had hidden. The gate is unchanged.
+
+- SM1142 (PENDING) **A site from before the rename upgrades in place and behaves the same, and
   the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
   and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has
   the entry, with the hand-made references the upgrade cannot see (a crontab running

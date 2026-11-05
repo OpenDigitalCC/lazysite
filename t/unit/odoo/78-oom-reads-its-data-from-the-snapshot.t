@@ -23,12 +23,14 @@
 # the host's directory is not searched AT ALL: no host root in core_dirs, and no
 # matrix.yaml from the host. Rules 1 and 2 (SM1204's) still hold an OOM that does not
 # honour it (older than 0.37), and the tier that means the host (tools/ext-compat.sh,
-# LAZYSITE_OOM_LIB set, where OdooTest leaves ODOO_OOM_SHARE alone).
+# LAZYSITE_OOM_LIB set, which names the deb's share root for the deb target).
+# SM1330: under the tier, rule 1 is the TARGET's tree first, not the snapshot's.
 use strict;
 use warnings;
 use Test::More;
 use JSON::PP ();
 use Cwd      ();
+use File::Basename ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
@@ -59,10 +61,22 @@ my $share_off = defined $ENV{ODOO_OOM_SHARE} && $ENV{ODOO_OOM_SHARE} eq '';
 # the host root is gone only when it is off AND this OOM reads the variable
 my $no_host = $share_off && honours_share( $r->{v} );
 
+# SM1330: whose root comes first. In the gate, the snapshot's. Under the tier
+# (LAZYSITE_OOM_LIB) the TARGET's: its tree beside its lib (OOM's tree), else the
+# share root the tier named for it (the deb, whose data is only there).
+my $whose = defined $ENV{LAZYSITE_OOM_LIB} ? "target OOM's ($r->{v})" : "snapshot's";
+
+sub first_root {
+    my ($dir) = @_;
+    return "$snap/$dir" unless defined $ENV{LAZYSITE_OOM_LIB};
+    my $beside = File::Basename::dirname( oom_lib() ) . "/$dir";
+    return -d $beside ? $beside : ( $ENV{ODOO_OOM_SHARE} // '' ) . "/$dir";
+}
+
 for my $kind ( [ b => 'behaviours' ], [ p => 'profiles' ] ) {
     my ( $k, $dir ) = @$kind;
     my @roots = @{ $r->{$k} };
-    is( Cwd::abs_path( $roots[0] ), Cwd::abs_path("$snap/$dir"), "$dir: the snapshot's tree is searched first" )
+    is( Cwd::abs_path( $roots[0] // q{(none)} ), Cwd::abs_path( first_root($dir) ), "$dir: the $whose tree is searched first" )
         or diag explain \@roots;
     my @host_roots = grep { $_ eq "$host/$dir" } @roots;
     if ($no_host) {
@@ -72,6 +86,13 @@ for my $kind ( [ b => 'behaviours' ], [ p => 'profiles' ] ) {
     }
     if ( !@host_roots ) {
         pass("$dir: the host holds none to search");
+        next;
+    }
+    # SM1330: under the tier that directory is the share root the tier named as the
+    # deb target's OWN data, not a host root answering for the snapshot: rule 2 is the
+    # gate's (a 0.44 deb holds models the 0.42 snapshot does not, and should).
+    if ( defined $ENV{LAZYSITE_OOM_LIB} ) {
+        pass("$dir: under the tier the share root is the target's own data");
         next;
     }
     my %have  = map  { $_ => 1 } names("$snap/$dir");
@@ -129,8 +150,8 @@ unless ( $ENV{LAZYSITE_OOM_LIB} ) {
 
 {
     local $ENV{ODOO_OOM_PACK_DIRS} = $ENV{ODOO_OOM_PACK_DIRS};
-    like( $ENV{ODOO_OOM_PACK_DIRS} // '', qr{\Q$snap\E/}, 'the pack directories are the ones OdooTest set, not the host\'s' )
-        unless $ENV{LAZYSITE_OOM_LIB};
+    # SM1330: under the tier too - it tests the target's library, not the packs beside it
+    like( $ENV{ODOO_OOM_PACK_DIRS} // '', qr{\Q$snap\E/}, 'the pack directories are the ones OdooTest set, not the host\'s' );
 }
 
 done_testing;
