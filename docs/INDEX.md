@@ -202,8 +202,8 @@ SHIPPED. The engine's /docs manual, installed into every site's engine tree and 
 | [`ai-briefing-practice.md`](ai-briefing-practice.md) - AI briefing - field practice | One agent's field notes from building and breaking real sites and apps on this engine - a companion to the reference briefings, not a specification. |
 | [`ai-briefing-publishing.md`](ai-briefing-publishing.md) - AI briefing - publishing | Guide for an automated partner publishing to a lazysite site over WebDAV and the control API. |
 | [`ai-briefing-stats.md`](ai-briefing-stats.md) - AI briefing - visitor analytics | Guide for AI assistants analysing a lazysite's visitor traffic for trend reporting. |
-| [`ai-connector-setup.md`](ai-connector-setup.md) - Connect an AI assistant | This site exposes an MCP connector so an AI assistant can maintain it through tools (list, read, write, move, delete pages; set permissions; activate ... |
-| [`ai-connector-tools.md`](ai-connector-tools.md) - AI connector - tools reference | The full reference for the lazysite MCP connector: how it authenticates, the capability model, and every tool it exposes. |
+| [`ai-connector-setup.md`](ai-connector-setup.md) - Connect an AI assistant | Adding this site to Claude.ai, ChatGPT, Claude Desktop, Claude Code or another MCP client, step by step. |
+| [`ai-connector-tools.md`](ai-connector-tools.md) - AI connector - tools reference | How a client connects and authenticates, the endpoints and connection modes, what a grant reaches, and every tool the MCP connector exposes. |
 | [`api.md`](api.md) - API and raw mode | JSON endpoints, content fragments, and query string variables. |
 | [`app.md`](app.md) - Installing a site as an app | A site, or one section of it, installs on a phone or tablet as a progressive web app, from a few settings. |
 | [`auth-upgrade.md`](auth-upgrade.md) - Upgrading to external auth | Replace built-in auth with Authentik, Authelia, or another proxy. |

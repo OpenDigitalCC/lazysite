@@ -1,5 +1,6 @@
 ---
 title: AI connector - tools reference
+subtitle: How a client connects and authenticates, the endpoints and connection modes, what a grant reaches, and every tool the MCP connector exposes.
 auth: required
 search: false
 ---

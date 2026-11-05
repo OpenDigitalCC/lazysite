@@ -1,5 +1,6 @@
 ---
 title: Connect an AI assistant
+subtitle: Adding this site to Claude.ai, ChatGPT, Claude Desktop, Claude Code or another MCP client, step by step.
 auth: required
 search: false
 ---
