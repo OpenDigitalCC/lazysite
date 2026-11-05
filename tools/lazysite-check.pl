@@ -1411,6 +1411,8 @@ sub run_checks {
     report_permissions_ceiling();    # SM1294
     report_group_acl_reach();
     report_address_rules();          # SM1141
+    report_address_slots_against_old_kinds();
+    report_old_address_template_calls();
     report_widened_rules();          # SM1313
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
@@ -2150,6 +2152,95 @@ sub report_address_rules {
     }
     return;
 }
+
+# old-address-name: begin (SM1343, the check reads the old store and the old method names)
+# SM1345 (ruling 106): A RULE WHOSE SLOT IS NOT ITS OLD LIST'S KIND. Until 0.16.5 a
+# list was an allow list or a deny list, and a rule naming one in the other slot -
+# possible only by a hand edit, since every save refused it (SM1189) - refused every
+# visitor. The upgrade keeps the old store as address-lists.json.converted and
+# rewrites no rule, so such a rule now applies in the slot it is in. This names
+# each one, by rule and slot and the kind the list had, for the operator to keep
+# or move. Nothing when the converted file is absent (a site that never had lists).
+sub report_address_slots_against_old_kinds {
+    my $d   = $opt{docroot};
+    my $old = Lazysite::Paths::lazysite_dir($d) . '/auth/address-lists.json.converted';
+    my ( $lists, $state, $err ) = _read_json_state($old);
+    return if $state eq 'absent';
+    if ( $state ne 'ok' ) {
+        report( 'WARN', "cannot read $old ($state" . ( $err ? ": $err" : '' ) . ') - the rules cannot be '
+                . 'compared with the kinds the address lists had before 0.16.5',
+            "run the check as root (sudo lazysite check ...) or as the site user, who can read '$old'" );
+        return;
+    }
+    require Lazysite::Auth::AddressRefs;
+    my $refs = Lazysite::Auth::AddressRefs::rules($d);
+    my ( %u, @say );
+    for my $r ( @{ $refs->{rules} } ) {
+        next unless $r->{slot} eq 'allow' || $r->{slot} eq 'deny';
+        my $rec  = $lists->{ $r->{name} };
+        my $kind = ref $rec eq 'HASH' ? ( $rec->{kind} // '' ) : '';
+        next if !length $kind || $kind eq $r->{slot};
+        my $one = "$r->{name} (" . ( $kind eq "allow" ? "an allow" : "a deny" ) . " list before 0.16.5) is " . ( $r->{slot} eq 'allow' ? 'allowed' : 'denied' )
+            . ' by ' . Lazysite::Auth::AddressRefs::describe($r);
+        push @say, $one unless $u{$one}++;
+    }
+    unless (@say) {
+        report( 'OK', 'every rule names its address profile in the slot its old list\'s kind meant' );
+        return;
+    }
+    report( 'WARN',
+        'address rules use a profile the other way from its old list\'s kind: ' . join( '; ', @say )
+            . ' - before 0.16.5 such a rule refused every visitor; it now allows or denies as its slot says',
+        'keep each if that is what the rule means, or move the name to the other key (addresses / '
+            . 'addresses_deny, or the _deny key); address-lists.json.converted is the record of the old kinds' );
+    return;
+}
+
+# SM1345 (ruling 105): A TEMPLATE CALL TO THE OLD TEST NAMES. The upgrade rewrote
+# visitor.in_list / visitor.in_any to visitor.in_profile / visitor.in_any_profile in
+# the site's pages, layouts, themes and templates; the engine knows only the new
+# names, so one written back by hand (or copied from an old snippet) is false
+# whatever the address. Each is named by file and line.
+sub report_old_address_template_calls {
+    my $d = $opt{docroot};
+    ( my $docroot = $d ) =~ s{/+\z}{};
+    my $lz = Lazysite::Paths::lazysite_dir($docroot);
+    require Lazysite::Private;
+    my $priv = Lazysite::Private::private_root($docroot);
+    my %skip = map { ( "$lz/$_" => 1 ) } qw(backups cache logs auth forms sessions tmp);
+    my ( %seen, @hits );
+    for my $root ( grep { defined && -d $_ } $docroot, $lz, $priv ) {
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    my $p = $File::Find::name;
+                    if ( -d $p ) {
+                        $File::Find::prune = 1 if $skip{$p} || $p =~ m{/\.git\z};
+                        return;
+                    }
+                    return if -l $p || !-f _ || $seen{$p}++;
+                    return unless $p =~ /\.(?:md|tt|html?|tmpl)\z/;
+                    open my $fh, '<', $p or return;
+                    while ( my $l = <$fh> ) {
+                        next unless $l   =~ /\bvisitor\.(?:in_list\b|in_any\b(?!_))/;
+                        ( my $rel = $p ) =~ s{\A\Q$docroot\E/}{};
+                        push @hits, "$rel line $.";
+                    }
+                    close $fh;
+                },
+            },
+            $root
+        );
+    }
+    return unless @hits;
+    splice @hits, 10, @hits - 10, '(and ' . ( @hits - 10 ) . ' more)' if @hits > 10;
+    report( 'WARN',
+        'templates call the address tests by their names from before 0.16.5: ' . join( ', ', @hits )
+            . ' - visitor.in_list and visitor.in_any are unknown now, so each call is false',
+        'write visitor.in_profile and visitor.in_any_profile instead (the upgrade rewrites them; SM1345)' );
+    return;
+}
+# old-address-name: end
 
 # Evidence that a front end sits between visitors and this engine, or undef. Two
 # kinds the check can see without a request: a pool conf for this docroot (the

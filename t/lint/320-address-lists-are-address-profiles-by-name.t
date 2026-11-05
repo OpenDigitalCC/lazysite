@@ -71,6 +71,8 @@ my %REGIONS = (
     't/unit/odoo/112-an-operation-is-told-whether-the-call-came-from-an-address-profile.t'           => 1,
     'install.pl'                                                                                    => 1,
     't/tools/315-an-upgrade-makes-address-profiles-and-no-site-changes-behaviour.t'                  => 1,
+    'tools/lazysite-check.pl'                                                                       => 1,
+    't/unit/tools/85-the-check-names-an-address-store-left-unconverted.t'                           => 1,
     't/unit/processor/133-a-template-can-test-an-address.t'                                         => 1,
 );
 

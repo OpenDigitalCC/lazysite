@@ -9,6 +9,13 @@
 # never converted - address-lists.json with no address-profiles.json beside it -
 # while rules name profiles. The engine refuses every such rule until the upgrade
 # converts the store, and the check names the file and the remedy.
+#
+# Ruling 106: with the old store kept as address-lists.json.converted, the check
+# names every rule whose slot is not its old list's kind (only a hand edit made one;
+# it refused every visitor before 0.16.5 and now applies in its slot). Ruling 105:
+# it names every template call left under the test names from before 0.16.5
+# (visitor.in_list and visitor.in_any, SM1345), by file and line, since the engine
+# no longer knows them.
 use strict;
 use warnings;
 use Test::More;
@@ -34,7 +41,9 @@ sub site {
     spit( "$d/lazysite/lazysite.conf", "site_name: T\ntrusted_proxies: 127.0.0.1\n" . ( $o{conf} // '' ) );
     my $store = $o{unconverted} ? 'address-lists.json' : 'address-profiles.json';
     spit( "$d/lazysite/auth/$store", encode_json($profiles) );
-    spit( "$d/p.md", "---\ntitle: P\n$o{page}\n---\nbody\n" ) if $o{page};
+    spit( "$d/p.md", "---\ntitle: P\n$o{page}\n---\n" . ( $o{body} // 'body' ) . "\n" ) if $o{page};
+    spit( "$d/lazysite/auth/address-lists.json.converted", encode_json( $o{converted} ) ) if $o{converted};
+    spit( "$d/lazysite/layouts/mine/layout.tt", $o{layout} ) if $o{layout};
     spit( "$d/lazysite/auth/acls.json", encode_json( { '/intranet/' => $o{acl} } ) ) if $o{acl};
     spit( "$d/lazysite/auth/groups-settings.json", encode_json( { operators => $o{group} } ) ) if $o{group};
     return $d;
@@ -65,5 +74,26 @@ unlike( $old, qr/the store does not hold/, '  and is not mistaken for missing pr
 
 my $none = run( site( unconverted => 1 ) );
 unlike( $none, qr/not converted/, 'with no rule naming a profile, there is nothing to say' );
+
+# old-address-name: begin (SM1343, the fixtures hold the old kinds and the old names)
+my $kinds = { office => { kind => 'allow', entries => [] }, blocked => { kind => 'deny', entries => [] } };
+my $slots = run( site( page => "addresses_deny: [office]\naddresses: [blocked]", converted => $kinds,
+        group => { addresses => ['office'] } ) );
+like( $slots, qr/use a profile the other way from its old list's kind: .*office \(an allow list before 0\.16\.5\) is denied by page p\.md/,
+    'a rule denying what was an allow list is named, by place' );
+like( $slots, qr/blocked \(a deny list before 0\.16\.5\) is allowed by page p\.md/, '...and one allowing a deny list' );
+unlike( $slots, qr/office[^;]*is allowed by group operators/, 'a rule in the slot its kind meant is not' );
+my $same = run( site( page => "addresses: [office]\naddresses_deny: [blocked]", converted => $kinds ) );
+like( $same, qr/every rule names its address profile in the slot its old list's kind meant/, 'all in their old slots: OK' );
+unlike( run( site( page => 'addresses_deny: [office]' ) ), qr/old list's kind/, 'no converted file: nothing said' );
+
+my $tpl = run( site( page => 'title2: x', body => "[% IF visitor.in_list('office') %]in[% END %]",
+        layout => "x\n[% IF visitor.in_any(['office']) %]y[% END %]\n[% visitor.in_any_profile(['a']) %]\n" ) );
+like( $tpl, qr/templates call the address tests by their names from before 0\.16\.5: .*lazysite\/layouts\/mine\/layout\.tt line 2.*p\.md line \d+|templates call the address tests by their names from before 0\.16\.5: .*p\.md line \d+.*lazysite\/layouts\/mine\/layout\.tt line 2/s,
+    'an old call in a page and in a layout is named by file and line' );
+unlike( $tpl, qr/layout\.tt line 3/, 'a call by the new name is not' );
+unlike( run( site( page => 'title2: x', body => "[% visitor.in_profile('office') %]" ) ), qr/names from before 0\.16\.5/,
+    'new names only: nothing said' );
+# old-address-name: end
 
 done_testing();

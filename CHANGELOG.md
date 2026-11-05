@@ -62,12 +62,19 @@ Archive
   store already there is never overwritten, and an old store that will not decode is left for
   the operator, with every rule that names a profile refused until it is converted.
 
+  the operator, with every rule that names a profile refused until it is converted. The same
+  step renames the site's `visitor.in_list` / `visitor.in_any` calls (pages, layouts, themes,
+  templates, the private store) to `visitor.in_profile` / `visitor.in_any_profile`, naming each
+  file. `lazysite check` names any old call left, and every rule whose slot is not its old
+  list's kind (a hand edit only; it refused everyone before and now applies in its slot): run
+  it after upgrading.
 - SM1344 (PENDING) **The Files page limits a rule by address profile, each chosen Allow or
   Deny.** The request's A-3: the permissions card's "Limited by address" becomes "Limited by
   address profile", one row per profile with Not used, Allow or Deny, in place of the two
   pickers that offered only allow lists or only deny lists. A name the rule carries that the
   store does not hold keeps its choice and is marked, so saving the card does not drop it.
 
+  The Groups page limits a group by address profile with the same picker.
 - SM1343 (PENDING) **Address lists are address profiles, allowed or denied where they are
   used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
   set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule
@@ -78,7 +85,8 @@ Archive
   `auth/address-profiles.json`, the page Access, Address profiles, the actions
   `address-profiles`, `address-profile-set` and `address-profile-delete`, the MCP tool
   `list_address_profiles` and the users tool's commands the same; an old name is refused naming
-  the new one, and the users tool refuses `--kind` by name. A profile a rule names is still not deleted
+  the new one, and a `kind` sent is refused by name. The template test is
+  `visitor.in_profile` / `visitor.in_any_profile`; the old names are gone. A profile a rule names is still not deleted
   without a second confirmation. A site whose lists were never converted refuses every rule that
   names a profile, rather than letting its deny rules block nobody.
 

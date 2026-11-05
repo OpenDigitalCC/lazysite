@@ -1,14 +1,14 @@
 ---
 id: SM1345
 title: "SM1345: the upgrade turns each address list into an address profile, and no site changes behaviour"
-subtitle: "The release manager's request of 24 October 2026 (A-4): an install.pl once-step converts lazysite/auth/address-lists.json to address-profiles.json, the same names and entries with no kind; every use keeps its effect."
+subtitle: "The release manager's request of 24 October 2026 (A-4) and rulings 105-106: an install.pl once-step converts the store and the site's template calls; lazysite check names a rule whose slot differs from its old list's kind, and any old call left."
 brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-10-24
 raised-by: release manager (inbox 2026-10-24-address-profiles-replace-address-lists.md, A-4)
 area: install
-status-note: "SHIPPED (0.16.5) on n750: install.pl convert_address_profiles_store, once-step address-profiles-converted; t/tools/315."
+status-note: "SHIPPED (0.16.5) on n750: install.pl convert_address_profiles_store and rewrite_template_calls (once-step address-profiles-converted); lazysite check report_address_slots_against_old_kinds, report_old_address_template_calls; t/tools/315, t/unit/tools/85."
 ---
 
 # What was asked
@@ -41,6 +41,23 @@ Allow use; a deny list a Deny use). Front matter keeps `addresses:` and
   engine reads that site as unconverted and refuses every rule naming a profile
   (SM1343), the summary warns, and the next upgrade tries again. An empty store
   would instead have let every deny rule block nobody.
+- **The template calls (ruling 105).** In the same step `rewrite_template_calls`
+  renames `visitor.in_list` to `visitor.in_profile` and `visitor.in_any` to
+  `visitor.in_any_profile` in every file Template Toolkit reads for the site: the
+  pages (TT runs in a page body), the layouts, themes and templates under the
+  lazysite directory, and the private store (`.md`, `.tt`, `.html`, `.htm`,
+  `.tmpl`; the runtime stores are not walked). The original's mode and owner are
+  kept; each file is reported ("template: renamed 2 address test call(s) in
+  lazysite/layouts/house/layout.tt ..."). A file it cannot rewrite is a warning and
+  the step is tried again. `lazysite check` names any old call left, by file and
+  line: the engine knows only the new names, so one is false.
+- **A rule whose slot is not its old kind (ruling 106).** Only a hand edit made one
+  (every save refused it, SM1189), and it refused every visitor; converted, it
+  applies in its slot. `lazysite check` reads the kept
+  `address-lists.json.converted` and names each rule whose slot differs from the
+  kind its list had, by place ("office (an allow list before 0.16.5) is denied by
+  page odd.md"), and is OK when every rule is in its old slot. The 0.16.5 notes tell
+  an operator to run the check after the upgrade.
 
 # Tests
 
@@ -51,13 +68,9 @@ asked by a binding's membership. The profile store has the same names and entrie
 and no kind; the answers of the one module every gate asks match a table of what
 0.16.4 answered, for an office address, the scanner inside the office range and an
 outside address; no rule file changed; the summary; the once-step; a second run;
-both stores present; an undecodable old store. Sabotage (the conversion taken out
-of the once-step): 5 of 8 fail.
-
-# Open
-
-- A rule that named a list of the wrong kind (only by a hand edit; SM1189 refused
-  it at every save and `lazysite check` has named it since 0.15.10) refused every
-  visitor until now. Converted, it applies in the slot it is in. It is not
-  rewritten or reported by the upgrade (that needs the rule walk the installer
-  cannot load). Ruling wanted on whether the upgrade must find and report them.
+both stores present; an undecodable old store; the template calls in a page, a
+layout and the private store (rewritten, reported, no old call left for the check);
+and the check naming a hand-edited wrong-slot rule. Sabotage (the conversion taken
+out of the once-step) fails it. t/unit/tools/85 holds the two check reports: a rule
+denying what was an allow list and one allowing a deny list named, rules in their
+old slots not, an old call in a page and a layout named by line, a new call not.

@@ -15,6 +15,12 @@
 #     sign-in keys, and the binding's membership test; no rule was rewritten
 #   - the summary says what was converted; the once-step is recorded; a second
 #     run converts nothing and says nothing
+#   - ruling 105 (SM1345): the old template calls visitor.in_list / visitor.in_any in the site's
+#     pages, a layout and the private store become visitor.in_profile /
+#     visitor.in_any_profile, each file reported, other text untouched; lazysite
+#     check finds none left
+#   - ruling 106: after the upgrade lazysite check names a hand-edited rule whose
+#     slot was not its list's kind, from the kept address-lists.json.converted
 #   - a profile store already there is never overwritten (told, both kept); an old
 #     store that does not decode is left where it is, so the engine keeps refusing
 #     (unconverted), the summary warns, and the step is not recorded
@@ -137,6 +143,18 @@ spit( $old, encode_json($LISTS) );
 chmod 0660, $old;
 uses( $docroot, $lz );
 spit( $sp, slurp($sp) =~ s/"address-profiles-converted",?//r =~ s/,(\s*\])/$1/r );
+# Ruling 105: the template test under its old names, where TT runs for a site.
+my $priv = "$docroot-lazysite-private";
+make_path( "$lz/layouts/house", "$priv/staff" );
+my %TPL = (
+    "$docroot/notices.md" => "---\ntitle: N\n---\n[% IF visitor.in_list('office') %]rota[% END %] in_list stays\n",
+    "$lz/layouts/house/layout.tt" => "<p>[% IF visitor.in_any(['office','vpn']) %]staff[% END %] [% visitor.in_any_profile(['x']) %]</p>\n",
+    "$priv/staff/desk.md" => "---\ntitle: D\n---\n[%- IF visitor.in_list( 'office' ) -%]desk[% END %]\n",
+);
+spit( $_, $TPL{$_} ) for keys %TPL;
+# Ruling 106: a rule made by hand in the slot its list's kind did not mean.
+spit( "$docroot/odd.md", "---\ntitle: O\naddresses_deny: [office]\n---\nOdd.\n" );
+
 my %rules_before = map { $_ => slurp($_) } ( "$docroot/staff.md", "$lz/auth/acls.json", "$lz/auth/groups-settings.json" );
 
 ( $rc, $out ) = install( $docroot, $cgibin, 'reinstall' );
@@ -163,6 +181,25 @@ subtest 'every use keeps its effect, and no rule was rewritten' => sub {
         'and so are the lazysite.conf keys' );
 };
 
+subtest 'ruling 105: the template calls take the new names, each file reported' => sub {
+    like( slurp("$docroot/notices.md"), qr/\[% IF visitor\.in_profile\('office'\) %\]rota\[% END %\] in_list stays/,
+        'a page body: the call is renamed and other text is not' );
+    like( slurp("$lz/layouts/house/layout.tt"), qr/visitor\.in_any_profile\(\['office','vpn'\]\).*visitor\.in_any_profile\(\['x'\]\)/,
+        'a layout: in_any is renamed and a call already new is left as it was' );
+    like( slurp("$priv/staff/desk.md"), qr/visitor\.in_profile\( 'office' \)/, 'the private store too' );
+    for my $f ( "notices.md", "lazysite/layouts/house/layout.tt", "staff/desk.md" ) {
+        like( $out, qr/template: +renamed \d+ address test call\(s\) in \S*\Q$f\E to visitor\.in_profile/, "reported: $f" );
+    }
+    my $check = `\Q$^X\E -I\Q$ROOT/lib\E \Q$ROOT/tools/lazysite-check.pl\E --docroot \Q$docroot\E 2>&1`;
+    unlike( $check, qr/names from before 0\.16\.5/, 'lazysite check finds no old call left' );
+};
+
+subtest 'ruling 106: the check names a rule whose slot was not its list\'s kind' => sub {
+    my $check = `\Q$^X\E -I\Q$ROOT/lib\E \Q$ROOT/tools/lazysite-check.pl\E --docroot \Q$docroot\E 2>&1`;
+    like( $check, qr/office \(an allow list before 0\.16\.5\) is denied by page odd\.md/, 'the hand-edited rule is named' );
+    unlike( $check, qr/is (?:allowed|denied) by page staff\.md/, 'and the rules in their old slots are not' );
+};
+
 subtest 'the summary says so; the step is recorded; a second run does nothing' => sub {
     like( $out, qr/converted 2 address list\(s\) to address profiles of the same names: blocked \(was deny\), office \(was allow\); every rule keeps its effect \(SM1345\)/,
         'the summary names each list and the kind its uses keep' );
@@ -172,7 +209,7 @@ subtest 'the summary says so; the step is recorded; a second run does nothing' =
     my ( $rc2, $out2 ) = install( $docroot, $cgibin, 'reinstall' );
     is( $rc2, 0, 'a second run succeeds' ) or diag $out2;
     is( slurp($new), $store, 'and leaves the profiles as they were' );
-    unlike( $out2, qr/address list\(s\) to address profiles|ADDRESS PROFILES/, 'with nothing to report' );
+    unlike( $out2, qr/address list\(s\) to address profiles|ADDRESS PROFILES|template: /, 'with nothing to report' );
     ok( $done->(), 'and records the step' );
 };
 

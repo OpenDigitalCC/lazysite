@@ -984,14 +984,18 @@ sub cmd_install {
     }
 
     # address-profiles-converted (SM1345): each address list becomes an address
-    # profile of the same name (convert_address_profiles_store, above). On every
-    # mode: a new site has nothing to convert and records the step; a site whose
-    # old store will not convert is told, and tried again at the next upgrade.
+    # profile of the same name (convert_address_profiles_store, above), and the
+    # site's template calls take the new method names (rewrite_template_calls).
+    # On every mode: a new site has nothing to convert and records the step; a
+    # site whose old store will not convert is told, and tried again at the next
+    # upgrade.
     unless ( grep { $_ eq 'address-profiles-converted' } @once ) {
         my ( $changed, $warn, $done ) = convert_address_profiles_store( $o->{docroot} );
+        my ( $tchanged, $twarn ) = rewrite_template_calls( $o->{docroot} );
         info("  auth:      $_") for @$changed;
-        push @$warnings, @$warn;
-        push @once,      'address-profiles-converted' if $done;
+        info("  template:  $_") for @$tchanged;
+        push @$warnings, @$warn, @$twarn;
+        push @once, 'address-profiles-converted' if $done && !@$twarn;
     }
 
     # ---- write new state ----
@@ -1129,6 +1133,73 @@ sub convert_address_profiles_store {
             . ( @names ? ': ' . join( ', ', map { length( $kind{$_} // '' ) ? "$_ (was $kind{$_})" : $_ } @names ) : '' )
             . '; every rule keeps its effect (SM1345)' );
     return ( \@changed, [], 1 );
+}
+# SM1345 (ruling 105): THE TEMPLATE TEST IS RENAMED WITH THE PROFILES. A site's
+# `visitor.in_list(...)` and `visitor.in_any(...)` become `visitor.in_profile(...)`
+# and `visitor.in_any_profile(...)`, in every file Template Toolkit reads for it:
+# the pages (TT runs in a page body), the layouts, themes and templates under the
+# lazysite directory, and the private store. The engine knows only the new names
+# (no alias), so a call left behind is an unknown method and false; `lazysite
+# check` names any that is. Each file changed is reported. Written as the conf is:
+# the original's mode and owner kept, temp and rename. The runtime stores
+# (backups, cache, logs, auth, forms) are not walked: they hold no template.
+#
+# Returns ( \@changed, \@warnings ): @changed is one line per file rewritten. The
+# pattern is written in the sub: a file-scoped `my` is still empty when the install
+# runs (the main body calls this before the line that would set it).
+
+sub rewrite_template_calls {
+    my ($docroot) = @_;
+    ( my $d = $docroot ) =~ s{/+\z}{};
+    my $lz   = lazysite_dir_for($d);
+    my $priv = dirname($d) . '/' . basename($d) . '-lazysite-private';
+    my %skip = map { ( "$lz/$_" => 1 ) } qw(backups cache logs auth forms sessions tmp);
+    my ( %seen, @files );
+    for my $root ( grep { -d $_ } $d, $lz, $priv ) {
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    my $p = $File::Find::name;
+                    if ( -d $p ) {
+                        $File::Find::prune = 1 if $skip{$p} || basename($p) eq '.git';
+                        return;
+                    }
+                    return if -l $p || !-f _ || -s _ > 4_000_000;
+                    return unless $p =~ /\.(?:md|tt|html?|tmpl)\z/;
+                    push @files, $p unless $seen{$p}++;
+                },
+            },
+            $root
+        );
+    }
+    my ( @changed, @warn );
+    for my $f ( sort @files ) {
+        open my $in, '<:raw', $f or next;
+        my $t = do { local $/; <$in> };
+        close $in;
+        my $n = ( $t =~ s/\bvisitor\.in_list\b/visitor.in_profile/g )
+            + ( $t =~ s/\bvisitor\.in_any\b(?!_)/visitor.in_any_profile/g );
+        next unless $n;
+        my @st  = stat $f;
+        my $tmp = "$f.tmp.$$";
+        if ( open my $out, '>:raw', $tmp ) {
+            print {$out} $t;
+            close $out;
+            chmod $st[2] & 07777, $tmp;
+            chown( ( $> == 0 ? $st[4] : -1 ), $st[5], $tmp );
+            if ( rename $tmp, $f ) {
+                ( my $rel = $f ) =~ s{\A\Q$d\E/}{};
+                push @changed, "renamed $n address test call(s) in $rel to visitor.in_profile / "
+                    . 'visitor.in_any_profile (SM1345)';
+                next;
+            }
+            unlink $tmp;
+        }
+        push @warn, "ADDRESS PROFILES: could not rewrite the address test calls in $f ($!) - "
+            . 'rename visitor.in_list to visitor.in_profile and visitor.in_any to visitor.in_any_profile '
+            . 'by hand; until then they are false (SM1345)';
+    }
+    return ( \@changed, \@warn );
 }
 # old-address-name: end
 
