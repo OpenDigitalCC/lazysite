@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1342 (PENDING) **A /docs anchor lands on its heading.** The manual wrote its section
+  links as GitHub writes them (`#the-docs-manual`), and the engine's converter ids a
+  heading with no hyphens for spaces (`#thedocsmanual`), so eight links in the shipped
+  manual landed at the top of their page. They are written in the engine's form, and
+  t/lint/310 holds every anchor in a /docs link to a heading of the page it names.
+
 - SM1341 (PENDING) **Each AI doc says it once, and says who it is for.** An owner following
   the docs met the connect steps on two shipped pages, authentication, endpoints and the
   grant model on two more, and the layouts machinery on two that did not link each other.

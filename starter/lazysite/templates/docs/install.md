@@ -81,7 +81,7 @@ lazysite reinstall --docroot /path/to/public_html
 | `reinstall` | this version's files were edited or lost and should go back to what the release ships | the versions differ — that is an upgrade |
 
 `reinstall` leaves content, accounts and configuration alone. It is not
-[`repair`](#if-something-is-wrong-and-the-version-is-not-changing), which
+[`repair`](#ifsomethingiswrongandtheversionisnotchanging), which
 touches no files at all.
 
 Run them as the **site's own user**, never with `sudo`: they refuse root, so

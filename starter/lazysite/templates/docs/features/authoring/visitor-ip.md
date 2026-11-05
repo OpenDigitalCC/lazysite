@@ -11,7 +11,7 @@ A page can show a visitor their own IP address. Two things make this work:
 : a Template Toolkit variable holding the visitor's IP - the address the connection
   came from, unless that address is a reverse proxy you have named as trusted, in
   which case it is the visitor the proxy reports. A visitor cannot choose this
-  value: see [Behind a reverse proxy](#behind-a-reverse-proxy) below.
+  value: see [Behind a reverse proxy](#behindareverseproxy) below.
 
 `nocache: true`
 : the IP is different for every visitor, so the page must render fresh each time.

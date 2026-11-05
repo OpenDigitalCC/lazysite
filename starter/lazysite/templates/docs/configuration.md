@@ -70,7 +70,7 @@ works on staging and production.
   feeds and `llms.txt`, as if its pages were the site's. Default unset: the
   manual serves at `/docs/` on every site and stays out of the site's listings,
   which are about the site's own content. For a site that is the product's
-  documentation. See [The /docs manual](#the-docs-manual).
+  documentation. See [The /docs manual](#thedocsmanual).
 
 `design_guide`
 : A path on this site, such as `/guides/design`, to the site's own guide for
@@ -228,11 +228,11 @@ works on staging and production.
 `alias_hosts`
 : Comma-separated list of extra hostnames that serve this site as
   domain aliases, e.g. `alias_hosts: blog.example.com, brand2.example`.
-  See [Domain aliases](#domain-aliases) below.
+  See [Domain aliases](#domainaliases) below.
 
 `alias.<host>.<key>`
 : Per-alias-host override for a whitelisted presentation key. See
-  [Domain aliases](#domain-aliases) below.
+  [Domain aliases](#domainaliases) below.
 
 All other keys become TT variables available in page content and the
 view template.

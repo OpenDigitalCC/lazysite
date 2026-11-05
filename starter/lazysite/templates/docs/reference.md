@@ -298,7 +298,7 @@ See [Configuration](/docs/configuration) for full details.
   that calls it is rendered for each request, never kept in the page cache, and
   sent `Cache-Control: no-store, private`. The address is the one `trusted_proxies`
   works out, so behind a front end name it there. See
-  [Showing the visitor's IP](/docs/features/authoring/visitor-ip#asking-whether-the-address-is-in-a-profile).
+  [Showing the visitor's IP](/docs/features/authoring/visitor-ip#askingwhethertheaddressisinaprofile).
 
 ### Variable precedence
 
