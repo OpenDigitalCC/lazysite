@@ -12,6 +12,7 @@ use Odoo::Ops;
 use Odoo::Ops::Plan;
 use Odoo::Ops::Invariant;
 use Odoo::Ops::Modules;
+use Odoo::Ops::Template;
 use Odoo::Ops::Guard;
 use Odoo::Ops::Registry;
 use Odoo::Ops::File;
@@ -354,6 +355,7 @@ sub _run_scoped ($self) {
         $self->annotate_effects($plan);
         # the invariants of the models the plan writes are read around the apply
         my $scope = $self->scope_for('apply');
+        $self->add_side_scope( $plan, $scope );
         my @inv = Odoo::Ops::Invariant->for_plan( $self->{ctx}, $plan );
         Odoo::Ops::Invariant->add_scope( $scope, @inv );
         $self->check_plan_scope( $plan, $scope );
@@ -365,6 +367,28 @@ sub _run_scoped ($self) {
         $plan->set_scope($scope);
         return $plan->finalize;
     } );
+}
+
+=head2 add_side_scope($plan, \%scope)
+
+The reads an apply makes to name the records Odoo makes beside a created row: for each model a create of the plan
+makes whose behaviour file lists such records (an effect C<on: create> with C<creates:>), C<search_read> on each
+listed model and on C<ir.model>. Added to the apply scope the operation declared.
+
+=cut
+
+sub add_side_scope ($self, $plan, $scope) {
+    require Odoo::Ops::Core::ActionCommon;
+    my %seen;
+    for my $c ( grep { $_->{action} eq 'create' && $_->{model} && !$seen{ $_->{model} }++ } @{ $plan->changes } ) {
+        my @sc = $self->{ctx}->behaviour( $c->{model} )->side_creates or next;
+        my %want = Odoo::Ops::Core::ActionCommon->creates_scope( { creates => \@sc } );
+        for my $m ( keys %want ) {
+            my %have = map { $_ => 1 } @{ $scope->{$m} // [] }, @{ $want{$m} };
+            $scope->{$m} = [ sort keys %have ];
+        }
+    }
+    return;
 }
 
 =head2 plan_calls($plan)
@@ -489,6 +513,8 @@ sub annotate_effects ($self, $plan) {
         my $b = $self->{ctx}->behaviour( $c->{model} );
         next if !$b->known;
         $standing += $b->annotate($c);
+        # a write of groups to the default user template is stated with the count of users who receive them
+        $standing += Odoo::Ops::Template->annotate( $self->{ctx}, $c ) if $c->{model} eq 'res.users';
         for my $e ( @{ delete $c->{effects} // [] } ) {
             $suppressed++ if $e->{suppressed};
             my $line = $by_model{ $c->{model} }{ $e->{effect} } //= do {

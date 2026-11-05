@@ -55,11 +55,15 @@
          }
       },
       "Odoo::Ops::Discuss" : {
-         "files" : "Channels.pm,Common.pm,Delete.pm,Messages.pm,Post.pm,Seen.pm",
+         "files" : "ChannelCreate.pm,Channels.pm,Common.pm,Delete.pm,Leave.pm,Members.pm,Messages.pm,Pin.pm,Post.pm,Seen.pm",
          "ops" : {
+            "discuss.channel_create" : "Odoo::Ops::Discuss::ChannelCreate",
             "discuss.channels" : "Odoo::Ops::Discuss::Channels",
             "discuss.delete" : "Odoo::Ops::Discuss::Delete",
+            "discuss.leave" : "Odoo::Ops::Discuss::Leave",
+            "discuss.members" : "Odoo::Ops::Discuss::Members",
             "discuss.messages" : "Odoo::Ops::Discuss::Messages",
+            "discuss.pin" : "Odoo::Ops::Discuss::Pin",
             "discuss.post" : "Odoo::Ops::Discuss::Post",
             "discuss.seen" : "Odoo::Ops::Discuss::Seen"
          }

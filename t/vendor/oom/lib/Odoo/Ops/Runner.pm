@@ -11,6 +11,7 @@ use JSON::PP ();
 use Scalar::Util qw(blessed);
 
 use Odoo::Error;
+use Odoo::JSON ();
 use Odoo::Ops;
 use Odoo::Ops::Acting;
 use Odoo::Ops::Invariant;
@@ -23,7 +24,10 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Result;
 use Odoo::Ops::Route;
 use Odoo::Ops::Runs;
+use Odoo::Ops::Template;
 use Odoo::Portable;
+
+our %SIDE;    # see _side_before
 
 use constant UNKNOWN_REASON => 'the request was sent and no answer came; Odoo may have made this change';
 
@@ -177,6 +181,8 @@ sub apply ($class, $ctx, $plan, %opts) {
 
     my $client  = $ctx->client;
     my $started = $ctx->now;
+    # what each model's creates made beside the rows (behaviour effects on: create), kept for this apply only
+    local %SIDE = ();
 
     # an administrator's revert of another login's run: each audit line of the writes names both logins
     my $guard = $ctx->guard;
@@ -226,6 +232,9 @@ sub apply ($class, $ctx, $plan, %opts) {
                 my %made = ( create => \%created, write => \%written, unlink => \%unlinked );
                 push @{ $made{ $c->{action} }{ $c->{model} } }, $entry->{id} // $c->{id} if $made{ $c->{action} };
                 push @custom, { key => $c->{key}, kind => $c->{kind}, returned => $entry->{returned}, ( $entry->{created} ? ( created => $entry->{created} ) : () ) } if $c->{action} eq 'custom';
+                # a created row that brought other records into being says which, in the summary as in the journal
+                push @custom, { key => $c->{key}, kind => 'made alongside', returned => { model => $c->{model}, id => $entry->{id} }, created => $entry->{created} }
+                    if $c->{action} eq 'create' && ref $entry->{created} eq 'ARRAY' && @{ $entry->{created} };
                 # a custom change that made or changed a record says which, so its id is where ids are (created, written), not only in custom
                 if ( $c->{action} eq 'custom' && ( $entry->{reported} // '' ) =~ /^(create|write)\z/ && defined( my $rid = $entry->{id} // $c->{id} ) ) {
                     push @{ ( $1 eq 'create' ? \%created : \%written )->{ $c->{model} } }, $rid;
@@ -235,6 +244,10 @@ sub apply ($class, $ctx, $plan, %opts) {
             if ( $outcome eq 'done' && ref $entry->{rewritten} eq 'HASH' ) {
                 push @custom, { key => $c->{key}, kind => 'read-back differs',
                     returned => { rewritten => $entry->{rewritten}, note => 'Odoo stored ' . join( ', ', map { "$_ as " . ( Odoo::Ops::json()->encode( $entry->{rewritten}{$_}{now} ) ) } sort keys %{ $entry->{rewritten} } ) . ', not as planned' } };
+            }
+            # a value Odoo did not keep is told with the result, field by field
+            if ( $outcome eq 'done' && ref $entry->{not_held} eq 'HASH' ) {
+                push @custom, { key => $c->{key}, kind => 'not held', returned => { not_held => $entry->{not_held}, note => $entry->{unverified} } };
             }
             $entry->{outcome} = $outcome;
             # the audit trail names every button pressed, and what Odoo answered
@@ -262,7 +275,8 @@ sub apply ($class, $ctx, $plan, %opts) {
                 ( defined $entry->{error}{code} ? ( code => $entry->{error}{code} ) : () ),
                 ( $unknown ? ( reason => UNKNOWN_REASON ) : () ) };
             my $transport = $is_err && $err->kind eq 'transport';
-            $stopped = $c->{seq} if $transport || !$keep_going;
+            # a change marked independent (core.user delete) fails alone: the rows after it go on
+            $stopped = $c->{seq} if $transport || !( $keep_going || $c->{independent} );
             $stopped = $c->{seq} if $opts{stop_after} && ( $counts{failed} // 0 ) + 1 >= $opts{stop_after};
             return $unknown ? 'unknown' : 'failed';
         };
@@ -279,7 +293,7 @@ sub apply ($class, $ctx, $plan, %opts) {
                 next;
             }
             my @run = ( $resolve->($c) );
-            if ( $batch > 1 && _batchable($c) && !( $ctx->trail && $ctx->trail->broken ) ) {
+            if ( $batch > 1 && _batchable($c) && !$class->_side_of( $ctx, $c->{model} ) && !( $ctx->trail && $ctx->trail->broken ) ) {
                 while ( @run < $batch && $i + @run < @changes && $wanted->( $changes[ $i + @run ] ) && _batchable( $changes[ $i + @run ] ) && _same_batch( $c, $changes[ $i + @run ] ) ) {
                     push @run, $resolve->( $changes[ $i + @run ] );
                 }
@@ -313,9 +327,11 @@ sub apply ($class, $ctx, $plan, %opts) {
                 else {
                     my $ok = eval {
                         $ctx->audit->ready;
-                        # id_ref: a custom change on a record an earlier change makes; its id is known now
+                        # id_ref: a write, call or custom change on a record an earlier change makes; its id is known now
                         my $resolved = { %$c, vals => _resolve_refs( $c->{vals}, \%refs ),
                             ( defined $c->{id_ref} ? ( id => _resolve_refs( { '$ref' => $c->{id_ref} }, \%refs ) ) : () ) };
+                        # the journal names the record an id_ref change acted on (a call has no later place to learn it)
+                        $entry{id} //= $resolved->{id} if defined $c->{id_ref};
                         $entry{vals} = $orig{ $c->{seq} } ? _resolve_refs( $orig{ $c->{seq} }{vals}, \%refs ) : $resolved->{vals} if exists $c->{vals};
                         my $after = $class->_do_change( $client, $resolved, \%entry, $ctx );
                         if ($after) { $verified++ } else { $not_verified++ }
@@ -390,11 +406,22 @@ sub _audit_action ($class, $ctx, $c, $entry) {
             ( ( $v->{on} // "" ) eq "model" ? ( args_count => scalar @{ $v->{args} // [] } ) : () ),
             ( exists $r->{state_before} ? ( state_before => $r->{state_before} ) : () ),
             ( exists $r->{state_after}  ? ( state_after  => $r->{state_after} )  : () ),
-            ( defined $r->{says} ? ( answer => $r->{says} ) : () ),
+            ( defined $r->{says} ? ( answer => _audit_says($r) ) : () ),
             ( ref $r->{created} eq 'ARRAY' ? ( created => $r->{created} ) : () ),
         );
     };
     return;
+}
+
+# the answer as the audit holds it: a URL Odoo gave keeps its scheme, host and path, never its query or fragment
+# (a link may carry a token)
+sub _audit_says ($r) {
+    my $says = $r->{says};
+    my $u    = ref $r->{url} eq 'HASH' ? $r->{url}{url} : undef;
+    return $says if !defined $u || $u !~ /[?#]/;
+    my $bare = $u =~ s/[?#].*\z//sr;
+    $says =~ s/\Q$u\E/$bare/;
+    return $says;
 }
 
 # The audit line of an apply, a revert or a resume that finished: the run's state,
@@ -431,7 +458,7 @@ sub _scope_reads ($plan, $model) {
 sub _entry ($c) {
 
     return map { $_ => $c->{$_} } grep { exists $c->{$_} }
-        qw(seq bucket action kind model id method handler before vals key ref support context reason path params precondition fault_note compare);
+        qw(seq bucket action kind model id id_ref method handler before vals key ref support context reason path params precondition fault_note compare);
 }
 
 # a plain create: no reference to an earlier change's id, nothing narrowing the read-back
@@ -643,19 +670,26 @@ sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
     my $action = $c->{action};
     my @ctx    = $c->{context} ? ( context => $c->{context} ) : ();
     if ( $action eq 'create' ) {
+        my $side = $ctx ? $class->_side_before( $ctx, $client, $c->{model} ) : undef;
         my $id = $model->create( $c->{vals}, @ctx );
         $entry->{id} = $id;
+        $class->_side_after( $client, $side, $c->{model}, $id, $entry ) if $side;
         # readback narrows what is read back (e.g. not a file's content)
         my $rb = $c->{readback} ? { map { $_ => 1 } @{ $c->{readback} } } : $c->{vals};
         my $after = $class->_read_back( $model, $id, $rb );
         $entry->{after} = $after;
-        return $class->_compared( $c, $entry, $after );
+        $after = $class->_compared( $c, $entry, $after );
+        # a create names the fields to read back (readback); each is held to what was asked
+        $after = $class->_held( $model, $c, $entry, $after, only => $c->{readback} ) if $after && $c->{readback} && @{ $c->{readback} };
+        return $after;
     }
     if ( $action eq 'write' ) {
+        $entry->{id} //= $c->{id};    # a write on a record made earlier in the run (id_ref) learns its id only now
         $model->write( $c->{id}, $c->{vals}, @ctx );
         my $after = $class->_read_back( $model, $c->{id}, $c->{vals} );
         $entry->{after} = $after;
         $after = $class->_compared( $c, $entry, $after );
+        $after = $class->_held( $model, $c, $entry, $after, only => $c->{readback} ) if $after;
         # an undo says what it meant what it meant to put back (restores): the read-back
         # is compared with it, and a field that did not take is named
         if ( my $want = $c->{restores} ) {
@@ -733,6 +767,41 @@ sub _do_change ($class, $client, $c, $entry, $ctx = undef) {
     Odoo::Error->throw( kind => 'usage', message => "cannot apply action '$action'" );
 }
 
+# --- the records Odoo makes beside a created row ---------------------------------------------------------------
+# A behaviour file's effect on: create may carry creates: (hr.employee makes a contact, hr.attendance an overtime
+# row). The highest id of each such model is read before the first create of the model in this apply; after each
+# create the records above it that this login made are the row's, and the mark moves up so the next row is not
+# given them. Core.action does the same around one call (Odoo::Ops::Core::ActionCommon).
+sub _side_of ($class, $ctx, $model) {
+    return scalar( () = $ctx->behaviour($model)->side_creates ) ? 1 : 0;
+}
+
+sub _side_before ($class, $ctx, $client, $model) {
+    return $SIDE{$model} if exists $SIDE{$model};
+    require Odoo::Ops::Core::ActionCommon;
+    my @sc = $ctx->behaviour($model)->side_creates;
+    return $SIDE{$model} = undef if !@sc;
+    my $specs = Odoo::Ops::Core::ActionCommon->creates_specs( $ctx, { creates => [ map { { %$_ } } @sc ] } );
+    return $SIDE{$model} = {
+        specs  => $specs,
+        before => Odoo::Ops::Core::ActionCommon->creates_before( $client, $specs ),
+        gone   => { map { $_->{model} => 1 } grep { ( $_->{removed_with} // '' ) eq 'record' } @sc },
+    };
+}
+
+sub _side_after ($class, $client, $side, $model, $id, $entry) {
+    require Odoo::Ops::Core::ActionCommon;
+    my $found = Odoo::Ops::Core::ActionCommon->creates_after( $client, $side->{specs}, $side->{before}, $model, [$id] );
+    my $mark  = $side->{before}{max};
+    for my $r ( @{ $found->{created} } ) {
+        $mark->{ $r->{model} } = $r->{id} if $r->{id} > ( $mark->{ $r->{model} } // 0 );
+        $r->{goes_with_record} = JSON::PP::true if $side->{gone}{ $r->{model} };
+    }
+    $entry->{created} = $found->{created} if @{ $found->{created} };
+    $entry->{unread_alongside} = $found->{unread} if %{ $found->{unread} // {} };
+    return;
+}
+
 # The state field a call is read back by: the one the model's behaviour file
 # names, read before the call. Returns (field, { id => state }) or, for a call
 # that stays not verified, (undef, undef, the reason, in words).
@@ -773,6 +842,101 @@ sub _read_back ($class, $model, $id, $vals) {
 # never compared when deciding whether a record changed since a journal or
 # a plan, or a revert would be refused over a timestamp.
 my %MOVES_ALONE = map { $_ => 1 } qw(id write_date write_uid __last_update message_ids activity_ids);
+
+# --- is what was asked what Odoo holds? -------------------------------------------------------------------------
+# After a write (or a create that names readback fields) each field asked is compared with the after-image, by its
+# type: a scalar equal; a many2one by id; a many2many command list as the commands say (4 present, 3 and 2 absent,
+# 6 and 5 the whole set); a float to the places Odoo kept; a char without the blanks round it; a selection by key.
+# A field that does not hold what was asked makes the change not verified: entry->{not_held} names it with the
+# asked and found values and entry->{unverified} says so in words. A field that cannot be compared (a binary or
+# html Odoo rewrites, a field that is not stored, a one2many create or update command) is listed in
+# entry->{unchecked} with the reason, never passed silently as held.
+sub _held ($class, $model, $c, $entry, $after, %o) {
+    return $after if ref $c->{vals} ne 'HASH' || ref $after ne 'HASH';
+    my $meta = eval { $model->fields } // {};
+    my %only = $o{only} && @{ $o{only} } ? map { $_ => 1 } @{ $o{only} } : ();
+    my $names = ref $c->{names} eq 'HASH' ? $c->{names} : {};
+    my ( %bad, %skip, @words );
+    for my $f ( sort keys %{ $c->{vals} } ) {
+        next if %only && !$only{$f};
+        next if $MOVES_ALONE{$f};
+        my $m = $meta->{$f};
+        if ( !$m )                           { $skip{$f} = 'the field is not described by the server'; next }
+        if ( !exists $after->{$f} )          { $skip{$f} = 'not read back'; next }
+        if ( defined $m->{store} && !$m->{store} && !_truthy( $m->{store} ) ) { $skip{$f} = 'not stored (computed), so a written value is not kept as written'; next }
+        my ( $ok, $why, $found ) = _holds( $m->{type} // q(), $c->{vals}{$f}, $after->{$f}, ref $names->{$f} eq q(HASH) ? $names->{$f} : {} );
+        if ( !defined $ok ) { $skip{$f} = $why; next }
+        next if $ok;
+        $bad{$f} = { asked => $c->{vals}{$f}, found => _plain( $after->{$f} ), ( $found ? %$found : () ) };
+        push @words, "$f: $why";
+    }
+    $entry->{unchecked} = \%skip if %skip;
+    return $after if !%bad;
+    $entry->{not_held}  = \%bad;
+    $entry->{unverified} = "Odoo did not keep what was asked on $c->{model}" . ( defined $entry->{id} // $c->{id} ? ' ' . ( $entry->{id} // $c->{id} ) : '' ) . ' (' . join( '; ', @words ) . ')';
+    return undef;
+}
+
+sub _truthy ($v) { return ref $v ? ( $v ? 1 : 0 ) : ( defined $v && $v ne '' && $v ne '0' ? 1 : 0 ) }
+
+# a read value as plain data, a many2one as its id
+sub _plain ($v) {
+    return undef if Odoo::Portable::is_false_value($v);
+    return Odoo::JSON::is_bool($v) ? 1 : $v if !ref $v || Odoo::JSON::is_bool($v);
+    return $v->[0] if ref $v eq 'ARRAY' && @$v == 2 && !ref $v->[0] && defined $v->[1] && $v->[1] !~ /^-?\d+\z/;
+    return $v;
+}
+
+sub _named ( $names, @ids ) { return join ', ', map { defined $names->{$_} ? "$_ ($names->{$_})" : $_ } @ids }
+
+# (1) held, (0, how, extra) not held, (undef, why) cannot be compared
+sub _holds ( $type, $asked, $got, $names ) {
+    return ( undef, "a $type is not compared" ) if $type =~ /\A(?:binary|html|reference|properties|json|image)\z/;
+    if ( $type eq 'many2many' || $type eq 'one2many' ) {
+        my @have = sort { $a <=> $b } grep { !ref } @{ ref $got eq 'ARRAY' ? $got : [] };
+        my %have = map { $_ => 1 } @have;
+        my ( %want, %lack, $whole );
+        if ( !_is_command_list($asked) ) { $whole = 1; %want = map { $_ => 1 } grep { !ref } @{ ref $asked eq 'ARRAY' ? $asked : [] } }
+        else {
+            for my $cmd (@$asked) {
+                my ( $op, $id, $arg ) = ref $cmd eq 'ARRAY' ? @$cmd : ( -1 );
+                if    ( $op == 4 ) { $want{$id} = 1; delete $lack{$id} }
+                elsif ( $op == 3 || $op == 2 ) { $lack{$id} = 1; delete $want{$id} }
+                elsif ( $op == 6 ) { $whole = 1; %want = map { $_ => 1 } @{ $arg // [] }; %lack = () }
+                elsif ( $op == 5 ) { $whole = 1; %want = (); %lack = () }
+                else { return ( undef, "a $type create or update command is not compared" ) }
+            }
+        }
+        my @missing = sort { $a <=> $b } grep { !$have{$_} } keys %want;
+        my @present = sort { $a <=> $b } grep { $have{$_} } keys %lack;
+        my @extra   = $whole ? sort { $a <=> $b } grep { !$want{$_} } @have : ();
+        return 1 if !@missing && !@present && !@extra;
+        my @say = ( ( @missing ? 'missing ' . _named( $names, @missing ) : () ), ( @present ? 'still present ' . _named( $names, @present ) : () ), ( @extra ? 'not asked but present ' . _named( $names, @extra ) : () ) );
+        return ( 0, join( ', ', @say ), { missing => \@missing, still_present => \@present, ( @extra ? ( extra => \@extra ) : () ) } );
+    }
+    my ( $a, $g ) = ( _plain($asked), _plain($got) );
+    my $ok;
+    if    ( $type eq 'many2one' ) { $ok = _norm($a) eq _norm($g) }
+    elsif ( $type eq 'boolean' )  { $ok = _truthy($a) == _truthy($g) }
+    elsif ( $type eq 'integer' )  { $ok = ( $a // 0 ) == ( $g // 0 ) }
+    elsif ( $type =~ /\A(?:float|monetary)\z/ ) {
+        # Odoo keeps the places the field's digits give; the places found are the ones compared
+        my $dec = defined $g && "$g" =~ /\.(\d+)\z/ ? length $1 : 0;
+        $ok = sprintf( "%.${dec}f", $a // 0 ) eq sprintf( "%.${dec}f", $g // 0 );
+    }
+    elsif ( $type =~ /\A(?:char|text)\z/ ) {
+        my ( $x, $y ) = map { my $t = defined $_ ? "$_" : ''; $t =~ s/\A\s+|\s+\z//g; $t } ( $a, $g );
+        $ok = $x eq $y;
+    }
+    elsif ( $type =~ /\A(?:date|datetime)\z/ ) {
+        my ( $x, $y ) = map { my $t = defined $_ ? "$_" : ''; $t =~ s/T/ /; $t } ( $a, $g );
+        $ok = $x eq $y;
+    }
+    else { $ok = _norm($a) eq _norm($g) }
+    return 1 if $ok;
+    return ( 0, 'asked ' . _show($asked) . ', found ' . _show($got) );
+}
+
 
 # The fields where a wanted image and a live row differ, as
 # [ field, was, now ], sorted by field. Only fields the image holds are
@@ -953,6 +1117,9 @@ sub revert_plan ($class, $ctx, $journal_path, %o) {
     # in a scope that names exactly these reads.
     my %moved = $class->_moved_since( $ctx, \@done );
 
+    # putting groups back on the default user template would hand them to every internal user: refused, naming them
+    Odoo::Ops::Template->revert_refusal( $ctx, [ grep { !$moved{ $_->{seq} } } @done ] );
+
     # Who points at the records about to be unlinked (item 12): found
     # through ir.model.fields, counted per referencing field.
     my %undo_ids;
@@ -993,6 +1160,11 @@ sub revert_plan ($class, $ctx, $journal_path, %o) {
                 );
                 next;
             }
+            # records Odoo made when it made this row stay: the revert names them and plans no change to them
+            for my $m ( ref $c->{created} eq 'ARRAY' ? grep { !$_->{goes_with_record} } @{ $c->{created} } : () ) {
+                push @effects, { effect => 'Odoo made ' . Odoo::Ops::PlanPrint::made_text($m) . " when it made this row; the revert does not remove it", suppressed => 0, evidence => "journal change #$c->{seq}" };
+                push @{ $made_by{ $m->{model} } }, $m->{id};
+            }
             $plan->add(
                 bucket => 'undo-create', action => 'unlink', model => $c->{model},
                 id => $c->{id}, before => $c->{after}, of_seq => $c->{seq}, undoes => $c->{seq},
@@ -1000,12 +1172,27 @@ sub revert_plan ($class, $ctx, $journal_path, %o) {
             );
             $scope{ $c->{model} }{$_} = 1 for qw(read unlink);
         }
+        elsif ( $c->{action} eq 'write' && defined $c->{id_ref} ) {
+            # a write on a record this run made (a field the create's default filled, cleared after it): the undo of
+            # the create removes the record, so there is nothing to put back
+            $plan->add(
+                bucket => 'undo-write', action => 'skip', model => $c->{model}, id => $c->{id}, of_seq => $c->{seq}, undoes => $c->{seq},
+                reason => "$c->{model} $c->{id} was made by this run; undoing its create removes it, with this write",
+            );
+        }
         elsif ( $c->{action} eq 'write' ) {
             my $types = $ctx->client->model( $c->{model} )->fields;
             my ( %back, %restores );
             for my $f ( keys %{ $c->{vals} } ) {
                 $back{$f}     = _writable( $c->{before}{$f}, $types->{$f}{type} // '' );
                 $restores{$f} = $c->{before}{$f};
+            }
+            if ( my $why = $class->_guard_hold( $ctx, $plan, $c, \%back ) ) {
+                $plan->add(
+                    bucket => 'refused-by-odoo', action => 'hold', model => $c->{model}, id => $c->{id},
+                    of_seq => $c->{seq}, undoes => $c->{seq}, reason => $why,
+                );
+                next;
             }
             $plan->add(
                 bucket => 'undo-write', action => 'write', model => $c->{model},
@@ -1024,6 +1211,9 @@ sub revert_plan ($class, $ctx, $journal_path, %o) {
                 push @{ $made_by{ $_->{model} } }, $_->{id} for @made;
                 if ($undo) { $undo->{line} = ( $undo->{line} // '' ) . "; $words"; $undo->{reason} = ( $undo->{reason} // '' ) . "; $words" }
                 else        { $why = ( $why // "$c->{handler} has no inverse (e.g. a sent email)" ) . "; $words" }
+            }
+            if ( $undo && ( $c->{handler} // '' ) eq 'core.action' && defined $c->{id} && ref $c->{vals} eq 'HASH' ) {
+                if ( my $note = $class->_undo_when( $ctx, $c ) ) { $undo->{line} = ( $undo->{line} // '' ) . "; $note"; $undo->{reason} = ( $undo->{reason} // '' ) . "; $note" }
             }
             if ($undo) {
                 $undo->{bucket} //= 'undo-custom';
@@ -1070,6 +1260,47 @@ sub revert_plan ($class, $ctx, $journal_path, %o) {
         if %{ $inbound->{unknown} };
     $plan->set_scope($ps);
     return $plan->finalize;
+}
+
+# The reason a restored value would be refused by Odoo, from the behaviour file's guards: the file says which write
+# Odoo refuses once something exists (a journal's hash seal) and what to look for; undef when nothing stands in the way.
+sub _guard_hold ($class, $ctx, $plan, $c, $back) {
+    for my $g ( $ctx->behaviour( $c->{model} )->guards ) {
+        next if !exists $back->{ $g->{field} };
+        my ( $got, $want ) = ( $back->{ $g->{field} }, $g->{value} );
+        next if ( Odoo::JSON::is_bool($want) ? ( $got ? 1 : 0 ) != ( $want ? 1 : 0 ) : ( $got // '' ) ne $want );
+        my $rw  = $g->{refused_when};
+        my $dom = _subst_record( $rw->{domain}, $c->{id} );
+        my $ids = eval { $ctx->guard->with_scope( { $rw->{model} => ['search'] }, 'revert', sub { $ctx->client->model( $rw->{model} )->search( $dom, limit => 1 ) } ) };
+        if ( !$ids ) {
+            $plan->note("could not look for what stops $c->{model} $c->{id} taking $g->{field} back (reading $rw->{model} failed); Odoo decides at apply");
+            next;
+        }
+        next if !@$ids;
+        my @others = grep { $_ ne $g->{field} } keys %{ $c->{vals} };
+        return "Odoo refuses this: \"$g->{message}\" ($c->{model} $c->{id}, $g->{field} back to "
+            . ( $got ? 'on' : 'off' ) . ')'
+            . ( @others ? '; the other fields of the same write (' . join( ', ', sort @others ) . ') are held with it' : '' )
+            . '. Leave the setting as it is';
+    }
+    return;
+}
+
+sub _subst_record ($v, $id) {
+    return $id if !ref $v && defined $v && $v eq '$record';
+    return [ map { _subst_record( $_, $id ) } @$v ] if ref $v eq 'ARRAY';
+    return $v;
+}
+
+# A note for an undo whose behaviour entry says what to know when the record has a value in a field (a payslip with an
+# entry): read here, from the record as it is now.
+sub _undo_when ($class, $ctx, $c) {
+    my $entry = $ctx->behaviour( $c->{model} )->action( $c->{vals}{method} // '' ) or return;
+    my $uw = $entry->{undo_when} or return;
+    my $row = eval { $ctx->guard->with_scope( { $c->{model} => ['read'] }, 'revert', sub { $ctx->client->model( $c->{model} )->read( [ $c->{id} ], [ $uw->{field} ] )->[0] } ) } or return;
+    my $v = $row->{ $uw->{field} };
+    return if !defined $v || ( !ref $v && ( $v eq '' || $v eq '0' ) ) || ( ref $v eq 'ARRAY' && !@$v ) || ( Odoo::JSON::is_bool($v) && !$v );
+    return $uw->{note};
 }
 
 # { model => { id => state } } for the records about to be unlinked whose model

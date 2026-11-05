@@ -77,6 +77,7 @@ sub envelope ( $rec, $n, $who ) {
 
 sub read_file ( $path, $who ) {
     Odoo::Error->throw( kind => 'usage', message => "$who: cannot read $path", fix => 'check the path exists and this user can read it' ) if !-r $path;
+    Odoo::Ops::check_input_file( $path, $who );    # before any parser sees a byte
     if ( $path =~ /\.jsonl\z/i ) {
         open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
         my @out;
@@ -90,9 +91,7 @@ sub read_file ( $path, $who ) {
         return \@out;
     }
     if ( $path =~ /\.json\z/i ) {
-        open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "cannot read $path: $!", fix => 'check the path exists and this user can read it' );
-        my $raw = do { local $/; <$fh> };
-        close $fh;
+        my $raw = Odoo::Ops::read_input( $path, $who );
         my $docs = eval { Odoo::Ops::json()->decode($raw) }
             // Odoo::Error->throw( kind => 'usage', message => "$path is not valid JSON", fix => 'correct the file; oom-ops describe <op> shows what it holds' );
         Odoo::Error->throw( kind => 'usage', message => "$path must hold a list of records", fix => 'correct the file; oom-ops describe <op> shows what it holds' ) if ref $docs ne 'ARRAY';
@@ -174,7 +173,10 @@ sub check ($class, $decl, $value, $label = 'rows') {
     }
 
     my $rows = $value;
-    $rows = eval { Odoo::Ops::json()->decode( $value // '' ) } if !ref $rows;
+    if ( !ref $rows ) {
+        Odoo::Ops::check_input_text( $value, "parameter '$label'", undef );
+        $rows = eval { Odoo::Ops::json()->decode( $value // '' ) };
+    }
     ref $rows eq 'ARRAY' or $bad->( " must be a list of at most $max rows (a JSON array of objects)" );
     $bad->( ' has ' . scalar(@$rows) . " rows; at most $max are allowed" ) if @$rows > $max;
 

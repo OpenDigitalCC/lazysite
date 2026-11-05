@@ -1,0 +1,15 @@
+# project.task, Odoo 17: the assignment mail. Read in the OCB 17.0 source (addons/project/models/project_task.py); not run on a live instance (17 is not reachable).
+model: project.task
+series: 17
+module: project
+effects:
+  - on: create
+    fields: [user_ids]
+    effect: emails each assignee other than the acting user "You have been assigned to <task>"
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 17.0 project_task._task_message_auto_subscribe_notify returns at once on mail_auto_subscribe_no_notify (line 1312); called from create
+  - on: write
+    fields: [user_ids]
+    effect: emails each newly added assignee other than the acting user "You have been assigned to <task>"
+    suppress: { context: { mail_auto_subscribe_no_notify: true } }
+    evidence: source 17.0 project_task._task_message_auto_subscribe_notify, called from write

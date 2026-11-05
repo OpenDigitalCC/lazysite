@@ -1,0 +1,29 @@
+# res.users, Odoo 18 (base). Read from the 18.0 source (odoo/addons/base/models/res_users.py: res.users.write,
+# _apply_groups_to_existing_employees, _default_groups; odoo/addons/base/data/res_users_data.xml: base.default_user).
+# Odoo 19 has no template user (the default groups are the implied groups of base.default_user_group), and 17 was not probed.
+# Also read in the OCB 18.0 source (addons/mail/models/res_users.py).
+model: res.users
+series: 18
+effects:
+- on: write
+  fields: [groups_id]
+  only_for: default-user-template
+  effect: "groups added to the default user template (base.default_user) are given by Odoo to every internal user; a group taken off the template reaches no one, so putting it back hands it to everyone"
+  evidence: 'source 18.0 res_users.write (old_groups = _default_groups(); after the write the groups added to the template are linked to base.group_user.users - self); live 2026-10-29 t/162-revert43-live.t on the 18 instance'
+- on: write
+  fields: [password]
+  effect: 'emails the user "Security Update: Password Changed" (a mail.mail made with sudo, auto_delete; sent to the user''s email address)'
+  evidence: 'source 18.0 mail res_users.write calls _notify_security_setting_update when ''password'' is in the values (lines 128-131); the method tests no context key and creates the mail.mail unconditionally, so nothing silences it'
+- on: write
+  fields: [login]
+  effect: 'emails the user "Security Update: Login Changed"'
+  evidence: 'source 18.0 mail res_users.write (line 123)'
+- on: write
+  fields: [email]
+  effect: 'emails the user''s previous address "Security Update: Email Changed"'
+  evidence: 'source 18.0 mail res_users.write (line 135)'
+- on: write
+  fields: [groups_id]
+  effect: "with OCA base_user_role installed a user's groups are set from their enabled role lines inside every write (set_groups_from_roles), so a group added or removed directly on a user with a role line is reset in the same write and the user does not hold it; change the role, or add the group to it. The write is accepted and Odoo answers success"
+  requires: { "module:base_user_role": installed }
+  evidence: 'filing 2026-10-30: base_user_role 18.0.1.2.0 on the hr18 instance, a groups add on a role holder was reported verified while the journal after-image lacked the group; offline t/167-verify44.t. Not probed on the cluster instances (the module is not installed there) and not probed on 16, 17 or 19'

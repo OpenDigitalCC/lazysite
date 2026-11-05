@@ -22,8 +22,25 @@ effects:
     evidence: source 17.0 mail_activity._check_access_assignation docstring ("deprecated 17.0 ... we don't check access to the underlying records anymore") and create / write (no call); not live on 17
   - on: call
     method: action_feedback
-    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity; the next activity of the type's chain is created
+    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity, or archives it when its type keeps done activities; the next activity of the chain is created when its chaining type is trigger
     evidence: source 17.0 mail_activity.action_feedback / _action_done; inherited from 16 for the chain, not traced
+actions:
+  - method: action_feedback
+    done_as: keep_done
+    creates:
+      - model: mail.message
+      - model: mail.activity
+    creates_evidence: 'source 17.0 mail_activity._action_done (the done note is a mail.message on the record; the next activity is created when chaining_type is trigger); not probed live (17 is not reachable on this host)'
+    note: 'kwargs feedback (text, shown in the note) and attachment_ids (list of ir.attachment ids); pass them in --set args as a JSON object, {"feedback":"..."}. Done: archived when the activity type has keep_done, deleted otherwise. Access: the records are browsed with sudo, so an assignee without rights on the record may close their own activity; the activity itself is unlinked or archived under the activity''s own record rule (write/unlink for the assignee or creator). The signed-in user (or the person acted for) runs the call. There is no revert.'
+    evidence: 'source 17.0 mail_activity.action_feedback / _action_done; not probed live (17 is not reachable on this host)'
+  - method: action_done
+    done_as: keep_done
+    creates:
+      - model: mail.message
+      - model: mail.activity
+    creates_evidence: 'source 17.0 mail_activity.action_done (action_feedback with no feedback); not probed live (17 is not reachable on this host)'
+    note: 'action_feedback without a feedback text. Done: archived when the activity type has keep_done, deleted otherwise. Access as for action_feedback. There is no revert.'
+    evidence: 'source 17.0 mail_activity.action_done; not probed live (17 is not reachable on this host)'
 routes:
   schedule: { via: activity_schedule, args: { automated: false }, why: marks the activity as not automated so the mixin's automated helpers leave it alone; the assignee-access check it once skipped is gone in 17.0 }
 probes: [acting_user_email]

@@ -7,12 +7,15 @@ no warnings 'experimental::signatures';
 
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use JSON::PP ();
+use Scalar::Util ();
 
 use Odoo::Client;
 use Odoo::Commands qw(x2m_set);
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Credential;
+use Odoo::Ops::Modules;
+use Odoo::Ops::Quiet qw(quiet_context);
 use Odoo::Ops::ResetForm;
 use Odoo::Ops::Rows;
 use Odoo::Transport::Session ();
@@ -115,6 +118,21 @@ C<login>, case-insensitively.
                  the workflow around this row.
     deactivate / activate
     groups       add and remove: lists of group xml ids.
+    delete       login. Odoo's own C<unlink> on C<res.users>, for a user that
+                 never did anything (a test login). The plan reads the user
+                 and says whether it has ever signed in (C<login_date> and the
+                 rows of C<res.users.log>), its partner, which stays (Odoo's
+                 unlink does not remove it, and the result names it), and any
+                 employee linked to it. There is no revert: a deleted user
+                 cannot be made again as it was, and the plan says so. Odoo
+                 decides what it refuses (records that depend on the user, the
+                 superuser, the template and public users); a row it refuses
+                 fails alone with Odoo's words and the other rows go on, with
+                 or without C<--continue-on-error> (each delete is
+                 independent). Two logins are refused before anything is
+                 planned, C<refused/protected-user>: the login the config
+                 signs in as, and the admin user (id 2, or the one
+                 C<base.user_admin> names); archive those (C<deactivate>).
 
 A row is a flat map (as for L<Odoo::Ops::Core::Import>): C<records>
 in-process, or C<rows> as a C<.jsonl>, C<.json> or C<.csv> file (lists
@@ -122,7 +140,7 @@ in a cell are separated by C<;> or C<,>). No password is ever a row
 value.
 
 Every row lands in one bucket: C<create>, C<password>, C<reset>,
-C<api-key>, C<api-key-revoke>, C<totp>, C<reset-take>, C<deactivate>, C<activate>, C<groups>, C<unchanged>, or a
+C<api-key>, C<api-key-revoke>, C<totp>, C<reset-take>, C<deactivate>, C<activate>, C<groups>, C<delete>, C<unchanged>, or a
 hold named for the reason: C<unknown-user>, C<exists>,
 C<unknown-group>, C<unknown-partner>, C<ambiguous-partner>,
 C<unknown-company>, C<no-email>, C<login-not-email>,
@@ -161,6 +179,7 @@ sub buckets ($class) {
         { name => 'deactivate', meaning => 'the user is archived (row: {"action":"deactivate","login":"ana@acme.example"})' },
         { name => 'activate', meaning => 'the user is restored' },
         { name => 'groups', meaning => 'the user\'s groups are written' },
+        { name => 'delete', meaning => 'the user is deleted through Odoo\'s unlink (row: {"action":"delete","login":"oomu123-test"}); the partner stays; there is no revert' },
         { name => 'unchanged', meaning => 'the user already matches' },
     ];
 }
@@ -204,11 +223,14 @@ sub read_scope ($class) {
         'res.company'     => ['search_read'],
         'ir.model.data'   => ['search_read'],
         'res.users.apikeys' => ['search_read'],
+        'res.users.log'   => ['search_count'],
+        'hr.employee'     => ['search_read'],
+        'res.users.role.line' => ['search_read'],
     };
 }
 
 sub write_scope ($class) {
-    {   'res.users'      => [qw(create write search action_reset_password action_totp_enable_wizard action_totp_disable)],
+    {   'res.users'      => [qw(create write unlink read search action_reset_password action_totp_enable_wizard action_totp_disable)],
         'res.partner'    => [qw(create search_read)],
         'portal.wizard'      => [qw(create)],
         'portal.wizard.user' => [qw(search_read write action_grant_access)],
@@ -219,7 +241,7 @@ sub write_scope ($class) {
     };
 }
 
-my %ACTION = map { $_ => 1 } qw(create password reset api-key api-key-revoke totp reset-take deactivate activate groups);
+my %ACTION = map { $_ => 1 } qw(create password reset api-key api-key-revoke totp reset-take deactivate activate groups delete);
 
 sub plan ($self) {
     my @in = grep { defined $self->param($_) } qw(records rows);
@@ -246,7 +268,8 @@ sub plan ($self) {
         my @terms  = map { [ 'login', '=ilike', $_ ] } sort keys %logins;
         my @domain = ( ('|') x ( @terms - 1 ), @terms );
         my $found  = $users->search_read( [ @domain, [ 'active', 'in', [ JSON::PP::true, JSON::PP::false ] ] ],
-            [ 'login', 'name', 'active', 'share', 'email', 'partner_id', $gfield, ( $users->fields->{totp_enabled} ? 'totp_enabled' : () ) ] );
+            [ 'login', 'name', 'active', 'share', 'email', 'partner_id', $gfield, ( $users->fields->{totp_enabled} ? 'totp_enabled' : () ),
+              ( $users->fields->{login_date} && grep( { lc( _s( ref $_->{values} eq 'HASH' ? $_->{values}{action} : undef ) // '' ) eq 'delete' } @about ) ? 'login_date' : () ) ] );
         $have{ lc $_->{login} } = $_ for @$found;
     }
 
@@ -257,6 +280,11 @@ sub plan ($self) {
     for my $row (@$rows) {
         $self->_plan_row( $plan, $row, \%have );
     }
+    # Odoo 18 and later mail the user whose password is written ("Security Update: Password Changed", mail.res_users
+    # _notify_security_setting_update); no context key silences it (read in the 18.0 source), so the plan says so.
+    my $sets = grep { $_->{bucket} eq 'password' || $_->{bucket} eq 'reset-take' } @{ $plan->changes };
+    $plan->note("Odoo mails each of the $sets user(s) whose password is set a \"Security Update: Password Changed\" message; no context silences it, so a login with an email address on an instance with an outgoing mail server gets it")
+        if $sets && $self->client->server_series >= 18;
     return $plan;
 }
 
@@ -320,6 +348,7 @@ sub _plan_row ($self, $plan, $row, $have) {
             vals => { active => $want ? JSON::PP::true : JSON::PP::false }, before => { active => $cur->{active} },
             readback => ['active'] );
     }
+    return $self->_plan_delete( $plan, $row, $login, $cur ) if $action eq 'delete';
     if ( $action eq 'groups' ) {
         my ( @add, @rm, @unknown );
         for my $x ( @{ _list( $v->{add} ) } ) {
@@ -336,8 +365,13 @@ sub _plan_row ($self, $plan, $row, $have) {
         my %held = map { $_ => 1 } @{ $cur->{$gf} // [] };
         my @cmd  = ( ( map { [ 4, $_, 0 ] } grep { !$held{$_} } @add ), ( map { [ 3, $_, 0 ] } grep { $held{$_} } @rm ) );
         return $plan->add( bucket => 'unchanged', action => 'skip', id => $cur->{id}, key => $key, reason => 'groups already as asked' ) if !@cmd;
+        # the groups are read back and held to what was asked; the names are for the words that say which did not take
+        my %names = (map { $_ => $self->{group_name}{$_} } grep { defined $self->{group_name}{$_} } @add, @rm );
+        if ( my $roles = $self->_enabled_roles( $cur->{id} ) ) {
+            $plan->note( "$key: $login holds $roles enabled role line" . ( $roles == 1 ? '' : 's' ) . "; with base_user_role installed the user's groups come from the roles, a group added directly is reset by the module's write (the apply then reports it not verified); change the role, or add the group to it" );
+        }
         return $plan->add( bucket => 'groups', action => 'write', model => 'res.users', id => $cur->{id}, key => $key,
-            vals => { $gf => \@cmd }, before => { $gf => $cur->{$gf} }, readback => [] );
+            vals => { $gf => \@cmd }, before => { $gf => $cur->{$gf} }, readback => [$gf], ( %names ? ( names => { $gf => { %names } } ) : () ) );
     }
     if ( $action eq 'reset' ) {
         my $email = _s( $cur->{email} );
@@ -376,6 +410,64 @@ sub _plan_row ($self, $plan, $row, $have) {
         calls => [ [ 'res.users.apikeys.description', 'create' ], [ 'res.users.apikeys.description', 'make_key' ], _identity_calls( $self->client->server_series ) ],
         description => _s( $v->{name} ) // 'oom', ( defined $dur && $dur ne '' ? ( duration => $dur ) : () ),
         reason => 'mints a key as the user over a web session; the key goes to key_file only' );
+}
+
+# --- delete ------------------------------------------------------------------
+
+# Odoo's unlink of a user that never did anything. The plan reads the facts a
+# person decides on (signed in or not, the partner that stays, the employee
+# linked); Odoo decides what it refuses. Two logins are not planned at all.
+sub _plan_delete ($self, $plan, $row, $login, $cur) {
+    my $me  = $self->client->uid;
+    my $adm = $self->model('ir.model.data')->search_read( [ [ 'module', '=', 'base' ], [ 'name', '=', 'user_admin' ], [ 'model', '=', 'res.users' ] ], ['res_id'] );
+    my %protected = ( 2 => 'the admin user', ( @$adm ? ( $adm->[0]{res_id} => 'the admin user (base.user_admin)' ) : () ) );
+    Odoo::Error->throw( kind => 'refused', code => 'protected-user',
+        message => "core.user: delete of '$cur->{login}' (res.users $cur->{id}) refused: it is the login this config signs in as",
+        fix => 'delete it from another login, or archive it with deactivate' ) if defined $me && $cur->{id} == $me;
+    Odoo::Error->throw( kind => 'refused', code => 'protected-user',
+        message => "core.user: delete of '$cur->{login}' (res.users $cur->{id}) refused: it is $protected{ $cur->{id} }, which Odoo and its records depend on",
+        fix => 'archive it with deactivate instead' ) if $protected{ $cur->{id} };
+
+    my $key = "user:$login";
+    my $users = $self->model('res.users');
+    my $seen = $cur->{login_date};
+    $seen = undef if !defined $seen || ref $seen || $seen eq '' || $seen eq '0';
+    my $logs = eval { $self->model('res.users.log')->search_count( [ [ 'create_uid', '=', $cur->{id} ] ] ) };
+    my $signed = defined $seen ? "has signed in (latest $seen" . ( $logs ? ", $logs log row(s)" : '' ) . ')'
+        : $logs ? "has $logs sign-in log row(s)"
+        : 'has never signed in' . ( $users->fields->{login_date} ? '' : ' (login_date is not readable here; the sign-in log is empty)' );
+    my $emps = eval { $self->model('hr.employee')->search_read( [ [ 'user_id', '=', $cur->{id} ] ], ['name'], context => { active_test => JSON::PP::false } ) };
+    my @emp  = ref $emps eq 'ARRAY' ? @$emps : ();
+    my $emp_text = @emp ? '; linked employee ' . join( ', ', map { "$_->{id} ($_->{name})" } @emp ) . ' (its user link is Odoo\'s to clear or refuse)' : '';
+    my $partner = ref $cur->{partner_id} eq 'ARRAY' ? $cur->{partner_id} : undef;
+    my $ptext = $partner ? "its partner $partner->[0] ($partner->[1]) stays: Odoo's unlink does not remove it" : 'no partner is read';
+    return $plan->add( bucket => 'delete', action => 'custom', model => 'res.users', id => $cur->{id}, handler => $self->op_name,
+        kind => 'delete', key => $key, login => $cur->{login}, independent => 1,
+        before => { login => $cur->{login}, name => $cur->{name}, active => $cur->{active}, ( $partner ? ( partner_id => $partner ) : () ) },
+        vals => { partner_id => $partner, employees => [ map { { id => $_->{id}, name => $_->{name} } } @emp ], signed_in => defined $seen ? 1 : 0, login_date => $seen, log_rows => $logs // 0 },
+        calls => [ [ 'res.users', 'unlink' ], [ 'res.users', 'read' ], [ 'res.partner', 'search_read' ] ],
+        line => "res.users $cur->{id} ($cur->{login}): delete; $signed; $ptext$emp_text; there is no revert",
+        reason => "Odoo's unlink of user '$cur->{login}', which $signed; $ptext$emp_text; a deleted user cannot be made again as it was" );
+}
+
+sub _apply_delete ($class, $client, $c) {
+    my $users = $client->model('res.users');
+    $users->unlink( $c->{id} );
+    my $rows = eval { $users->read( [ $c->{id} ], ['display_name'] ) };
+    my $err  = $@;
+    my $gone = !$err ? !@{ $rows // [] } : ( Scalar::Util::blessed($err) && $err->isa('Odoo::Error') && ( $err->fault_category // '' ) eq 'missing' );
+    die $err if $err && !$gone;
+    Odoo::Error->throw( kind => 'fault', message => "res.users $c->{id} ($c->{login}) is still there after unlink" ) if !$gone;
+    my $pid = ref $c->{vals}{partner_id} eq 'ARRAY' ? $c->{vals}{partner_id}[0] : undef;
+    my $left;
+    if ( defined $pid ) {
+        my $p = $client->model('res.partner')->search_read( [ [ 'id', '=', $pid ] ], [ 'name', 'active' ], context => { active_test => JSON::PP::false } );
+        $left = @$p ? { id => $pid, name => $p->[0]{name}, active => ( $p->[0]{active} ? JSON::PP::true : JSON::PP::false ) } : { id => $pid, gone => JSON::PP::true };
+    }
+    my $says = "res.users $c->{id} ($c->{login}) deleted"
+        . ( $left ? ( $left->{gone} ? "; its partner $pid is gone too" : "; partner $left->{id} ($left->{name}) is left behind" . ( $left->{active} ? '' : ', archived' ) ) : '' );
+    return { id => $c->{id}, returned => { deleted => JSON::PP::true, login => $c->{login}, says => $says, ( $left ? ( partner_left => $left ) : () ) },
+        after => { id => $c->{id}, absent => JSON::PP::true } };
 }
 
 # --- api-key-revoke ----------------------------------------------------------
@@ -518,7 +610,7 @@ sub _plan_portal ($self, $plan, $row, $v, $login, $name, $company, $extra) {
         $plan->add( bucket => 'new-partner', action => 'create', model => 'res.partner', key => $key, ref => $pref, support => 1,
             vals => { name => $pname_use, email => $email, ( defined $company ? ( company_id => $company ) : () ),
                 ( $extra->{lang} ? ( lang => $extra->{lang} ) : () ) },
-            context => { tracking_disable => JSON::PP::true, mail_create_nosubscribe => JSON::PP::true } );
+            context => quiet_context() );
     }
     my $partner = defined $pid ? $pid : { '$ref' => $pref };
     if ( !$self->{portal_wizard} ) {
@@ -706,7 +798,18 @@ sub _group_id ($self, $xmlid) {
             [ [ 'module', '=', $module ], [ 'name', '=', $name ], [ 'model', '=', 'res.groups' ] ], ['res_id'] );
         $id = 0 + $rows->[0]{res_id} if @$rows == 1;
     }
+    $self->{group_name}{$id} = $xmlid if defined $id;
     return $self->{group_cache}{$xmlid} = $id;
+}
+
+# How many enabled role lines a user holds when OCA base_user_role is installed, else 0 (also 0 when the module
+# list cannot be read: nothing is claimed about a module that cannot be told). The module resets a user's groups
+# from the roles inside every write, so a direct group change on such a user does not stay.
+sub _enabled_roles ($self, $uid) {
+    my $mods = Odoo::Ops::Modules->installed( $self->ctx );
+    return 0 if !$mods || !$mods->{base_user_role};
+    my $rows = eval { $self->model('res.users.role.line')->search_read( [ [ 'user_id', '=', $uid ], [ 'is_enabled', '=', JSON::PP::true ] ], ['id'] ) };
+    return scalar @{ $rows // [] };
 }
 
 # --- apply of the custom changes --------------------------------------------
@@ -719,6 +822,7 @@ sub apply_custom ($class, $client, $c) {
     return $class->_apply_totp( $client, $c )     if $kind eq 'totp';
     return $class->_apply_revoke( $client, $c )   if $kind eq 'api-key-revoke';
     return $class->_apply_reset_take( $client, $c ) if $kind eq 'reset-take';
+    return $class->_apply_delete( $client, $c )   if $kind eq 'delete';
     Odoo::Error->throw( kind => 'usage', message => "core.user cannot apply kind '$kind'" );
 }
 

@@ -17,7 +17,8 @@ package OdooTest;
 # advisory compatibility tier, which runs these same tests against the installed
 # deb and against OOM's tree. Nothing in the gate sets them.
 #
-# THE SNAPSHOT IS A RELEASED 0.09, which satisfies the engine's declared minimum,
+# THE SNAPSHOT IS A RELEASED OOM (0.44 since SM1346; its MANIFEST names the commit and
+# the deb), which satisfies the engine's declared minimum,
 # so nothing needs to pretend a version any more (`pretend_released` is kept for
 # the tests that call it and does nothing). The refusal of an OOM that is too old
 # is tested with old_oom_lib(), a stand-in that says 0.01.
@@ -126,7 +127,8 @@ sub oom_lib { return $ENV{LAZYSITE_OOM_LIB} // vendor_dir() . '/lib' }
 
 # SM1330: the oomd a daemon test starts. bin/oomd begins `use lib RealBin/../lib`,
 # ahead of PERL5LIB, so the snapshot's oomd runs the snapshot's OOM whatever
-# LAZYSITE_OOM_LIB says (the tree target's daemon said 0.42, not 0.44). The tier
+# LAZYSITE_OOM_LIB says (the tree target's daemon said the 0.42 snapshot's version,
+# not the tree's 0.44). The tier
 # names the target's own in LAZYSITE_OOMD; a library named without it is refused
 # rather than tested on the wrong daemon.
 sub oomd_bin {

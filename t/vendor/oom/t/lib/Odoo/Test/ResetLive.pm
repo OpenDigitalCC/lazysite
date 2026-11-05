@@ -18,6 +18,18 @@ use File::Temp qw(tempdir);
 
 our @EXPORT_OK = qw(reset_user catcher_link rebase mail_cleanup remove_user);
 
+# A mail server made for a run is registered the moment it exists and unlinked at exit, so a die, a skip or a failed
+# assertion still removes it (one left behind sent a project load's 325 mails to the catcher on hr18).
+my @SERVERS;
+END { local ( $@, $? ); _drop($_) for reverse @SERVERS }
+
+sub _drop ($made) {
+    my ( $odoo, $id ) = @$made;
+    @SERVERS = grep { $_ != $made } @SERVERS;
+    eval { $odoo->model('ir.mail_server')->unlink( [$id] ); 1 };
+    return;
+}
+
 =head1 NAME
 
 Odoo::Test::ResetLive - what the live reset-take tests share
@@ -44,6 +56,7 @@ sub reset_user ( $cfg, $odoo, $stamp, $label = 'rt' ) {
         my ($low) = sort { $a <=> $b } map { $_->{sequence} // 10 } @$have;
         $server = $odoo->model('ir.mail_server')->create( { name => "oom-test-$stamp-catcher", smtp_host => 'mailcatcher', smtp_port => 1025,
             smtp_encryption => 'none', sequence => ( defined $low ? $low - 1 : 10 ) } );
+        push @SERVERS, [ $odoo, $server ];
     }
     my $runs  = $cfg->get('runs_dir');
     my $run   = sub (@rows) {
@@ -53,7 +66,7 @@ sub reset_user ( $cfg, $odoo, $stamp, $label = 'rt' ) {
         Odoo::Ops::Runs->approve_plan( $dir, $plan, by => 'live-test' );
         return ( $plan, Odoo::Ops::Runner->apply( Odoo::Ops::Context->new( config => $cfg ), $plan, dir => $dir ) );
     };
-    my ( $p1, $r1 ) = $run->( { action => 'create', login => $login, name => "OOM Reset $stamp $label", email => $login } );
+    my ( $p1, $r1 ) = $run->( { action => 'create', login => $login, name => "OOM Reset $stamp $label", email => $login, groups => ['base.group_user'] } );
     my ( $p2, $r2 ) = $run->( { action => 'reset', login => $login } );
     my $u = $odoo->model('res.users')->search_read( [ [ 'login', '=', $login ], [ 'active', 'in', [ JSON::PP::true, JSON::PP::false ] ] ], [ 'partner_id' ] )->[0];
     my $pid = ref $u->{partner_id} eq 'ARRAY' ? $u->{partner_id}[0] : $u->{partner_id};
@@ -110,7 +123,8 @@ sub remove_user ( $odoo, $r ) {
     }
     else { push @stays, "partner $r->{pid} stays" }
     if ( $r->{server} ) {
-        eval { $odoo->model('ir.mail_server')->unlink( $r->{server} ); 1 } or push @stays, "mail server $r->{server} stays";
+        if ( eval { $odoo->model('ir.mail_server')->unlink( $r->{server} ); 1 } ) { @SERVERS = grep { $_->[1] != $r->{server} } @SERVERS }
+        else { push @stays, "mail server $r->{server} stays" }
     }
     return @stays;
 }

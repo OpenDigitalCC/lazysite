@@ -170,6 +170,12 @@ sub from_file ($class, $path) {
         Odoo::Error->throw( kind => 'config', message => "behaviour $path: effect on '$e->{on}' is not create, write, call or validate" )
             if $e->{on} !~ /^(create|write|call|validate)\z/;
         Odoo::Error->throw( kind => 'config', message => "behaviour $path: an effect needs evidence" ) if !$e->{evidence};
+        # records Odoo makes beside a create: the same list an action carries, only on an effect on: create
+        if ( exists $e->{creates} ) {
+            Odoo::Error->throw( kind => 'config', message => "behaviour $path: creates belongs to an effect on: create" ) if $e->{on} ne 'create';
+            _check_creates( $path, "effect on create ($e->{effect})", $e );
+        }
+        Odoo::Error->throw( kind => 'config', message => "behaviour $path: only_for must be a name" ) if exists $e->{only_for} && ( ref $e->{only_for} || !length( $e->{only_for} // '' ) );
         push @effects, { %$e, fields => $e->{fields} // [] };
     }
     Odoo::Ops::Invariant->check_definition( $path, $_ ) for @{ $d->{invariants} // [] };
@@ -180,6 +186,15 @@ sub from_file ($class, $path) {
             if exists $st->{also} && ( ref $st->{also} ne 'ARRAY' || grep { ref || !length } @{ $st->{also} } );
     }
     my ( $actions, $wizards ) = _check_actions( $path, $d );
+    for my $g ( @{ $d->{guards} // [] } ) {
+        my $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "behaviour $path: guard $m" ) };
+        $bad->('must be a map') if ref $g ne 'HASH';
+        $bad->('needs a field') if ref $g->{field} || !length( $g->{field} // '' );
+        $bad->('needs a value (the value written that Odoo refuses)') if !exists $g->{value};
+        $bad->('needs refused_when with a model and a domain') if ref $g->{refused_when} ne 'HASH' || ref $g->{refused_when}{model} || !length( $g->{refused_when}{model} // '' ) || ref $g->{refused_when}{domain} ne 'ARRAY';
+        $bad->('needs the message Odoo gives') if ref $g->{message} || !length( $g->{message} // '' );
+        $bad->('needs evidence') if !length( $g->{evidence} // '' );
+    }
     if ( my $u = $d->{unlink_requires} ) {
         Odoo::Error->throw( kind => 'config', message => "behaviour $path: unlink_requires needs a state list" )
             if ref $u ne 'HASH' || ref $u->{state} ne 'ARRAY' || !@{ $u->{state} };
@@ -190,7 +205,7 @@ sub from_file ($class, $path) {
         model => $d->{model}, series => 0 + $d->{series}, effects => \@effects,
         routes => $d->{routes} // {}, probes => $d->{probes} // [], invariants => $d->{invariants} // [],
         state => $d->{state}, unlink_requires => $d->{unlink_requires}, volatile => $d->{volatile} // [],
-        module => $d->{module}, actions => $actions, wizards => $wizards,
+        module => $d->{module}, actions => $actions, wizards => $wizards, guards => $d->{guards} // [],
         warnings => [], path => $path,
     }, $class;
 }
@@ -303,26 +318,58 @@ sub creates ($self, $entry) { return @{ $entry->{creates} // [] } }
 sub on_model ($self, $entry) { return ( $entry->{on} // 'records' ) eq 'model' ? 1 : 0 }
 sub params   ($self, $entry) { return @{ $entry->{params} // [] } }
 sub state_info ($self) { $self->{state} }
+
+=head2 side_creates / record_effect / guards
+
+C<side_creates> lists, from the file's effects C<on: create> that carry a C<creates:> list, the models
+Odoo makes records in beside a created record, each C<{ model, link?, removed_with? }> (C<link>: the field of the
+created record that names what was made; C<removed_with: record>: Odoo deletes it with the record, so a revert
+leaves nothing of it). The effect's C<creates_evidence> says how each was shown. L<Odoo::Ops::Runner> names what
+a created row brought into being from this list, in the apply summary and the journal, and a revert lists it as left behind.
+
+C<record_effect($only_for)> returns the effect that holds for one named record only (C<only_for: default-user-template>
+on a C<res.users> file), which L<Odoo::Ops::Template> states when the change is to that record.
+
+C<guards> are writes Odoo refuses once something exists: C<< { field, value, refused_when => { model, domain },
+message, evidence } >>. A domain term C<"$record"> stands for the id of the record written. A revert plan holds a
+write whose restored value is C<value> while C<refused_when> finds a record, with C<message> as the reason.
+An action entry may carry C<undo_when: { field, note }>: a revert that undoes it on a record whose C<field> is set
+adds C<note> to the undo's line.
+
+=cut
+
+sub side_creates ($self) {
+    my @out;
+    for my $e ( grep { $_->{on} eq 'create' && ref $_->{creates} eq 'ARRAY' } @{ $self->{effects} } ) { push @out, @{ $e->{creates} } }
+    return @out;
+}
+sub record_effect ($self, $only_for) { ( grep { defined $_->{only_for} && $_->{only_for} eq $only_for } @{ $self->{effects} } )[0] }
+sub guards ($self) { @{ $self->{guards} // [] } }
 sub state_fields ($self) {
     my $st = $self->{state} or return ();
     return ( $st->{field}, @{ $st->{also} // [] } );
 }
 
+# the creates: list of an action, a wizard or an effect on: create
+sub _check_creates ( $path, $what, $e ) {
+    my $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "behaviour $path: $m" ) };
+    return if !exists $e->{creates};
+    $bad->("$what: creates must be a list of { model, link }") if ref $e->{creates} ne 'ARRAY' || !@{ $e->{creates} };
+    my %m;
+    for my $c ( @{ $e->{creates} } ) {
+        $bad->("$what: creates needs a model on each entry (physical, with a dot)")
+            if ref $c ne 'HASH' || ref $c->{model} || ( $c->{model} // '' ) !~ /\A\w+(?:\.\w+)+\z/;
+        $bad->("$what: creates lists $c->{model} twice") if $m{ $c->{model} }++;
+        $bad->("$what: creates link must be a field name")
+            if exists $c->{link} && ( ref $c->{link} || ( $c->{link} // '' ) !~ /\A\w+\z/ );
+        $bad->("$what: creates removed_with must be record") if exists $c->{removed_with} && ( ref $c->{removed_with} || $c->{removed_with} ne 'record' );
+    }
+    $bad->("$what: creates needs creates_evidence (what showed the records being made)") if !length( $e->{creates_evidence} // '' );
+}
+
 sub _check_actions ( $path, $d ) {
     my $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "behaviour $path: $m" ) };
-    my $check_creates = sub ($what, $e) {
-        return if !exists $e->{creates};
-        $bad->("$what: creates must be a list of { model, link }") if ref $e->{creates} ne 'ARRAY' || !@{ $e->{creates} };
-        my %m;
-        for my $c ( @{ $e->{creates} } ) {
-            $bad->("$what: creates needs a model on each entry (physical, with a dot)")
-                if ref $c ne 'HASH' || ref $c->{model} || ( $c->{model} // '' ) !~ /\A\w+(?:\.\w+)+\z/;
-            $bad->("$what: creates lists $c->{model} twice") if $m{ $c->{model} }++;
-            $bad->("$what: creates link must be a field name")
-                if exists $c->{link} && ( ref $c->{link} || ( $c->{link} // '' ) !~ /\A\w+\z/ );
-        }
-        $bad->("$what: creates needs creates_evidence (what showed the records being made)") if !length( $e->{creates_evidence} // '' );
-    };
+    my $check_creates = sub ($what, $e) { _check_creates( $path, $what, $e ) };
     my $check_on = sub ($a) {
         my $what = "action $a->{method}";
         $bad->("$what: on must be records or model") if exists $a->{on} && ( ref $a->{on} || ( $a->{on} // '' ) !~ /\A(?:records|model)\z/ );
@@ -347,8 +394,14 @@ sub _check_actions ( $path, $d ) {
         for my $k (qw(from to)) {
             $bad->("action $a->{method}: $k must be a list of states") if exists $a->{$k} && ref $a->{$k} ne 'ARRAY';
         }
+        $bad->("action $a->{method}: done_as must be deleted, archived or keep_done") if exists $a->{done_as} && ( ref $a->{done_as} || ( $a->{done_as} // '' ) !~ /\A(?:deleted|archived|keep_done)\z/ );
         $check_on->( $a );
         $check_creates->( "action $a->{method}", $a );
+        if ( exists $a->{undo_when} ) {
+            my $u = $a->{undo_when};
+            $bad->("action $a->{method}: undo_when needs a field and a note") if ref $u ne 'HASH' || ref $u->{field} || !length( $u->{field} // '' ) || !length( $u->{note} // '' ) || ref $u->{note};
+            $bad->("action $a->{method}: undo_when applies to an action with an undo") if !defined $a->{undo};
+        }
         push @actions, {%$a};
     }
     my %level = map { $_->{method} => ( $_->{on} // 'records' ) } @actions;
@@ -400,6 +453,8 @@ sub effects_for ($self, $on, $what = undef) {
     my @out;
     for my $e ( @{ $self->{effects} } ) {
         next if $e->{on} ne $on;
+        # an effect for one named record (the default user template) is stated by the code that finds the record
+        next if defined $e->{only_for};
         if ( $on eq 'call' ) {
             next if ( $e->{method} // '' ) ne ( $what // '' );
         }

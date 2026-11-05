@@ -9,6 +9,7 @@ use File::Basename qw(dirname);
 use File::Spec;
 use JSON::PP ();
 use Odoo::JSON ();
+use Odoo::Ops::Input ();
 use Math::BigFloat;
 use Template;
 use Text::CSV_XS;
@@ -19,6 +20,7 @@ use Odoo::Ops;
 use Odoo::Ops::Credential;
 use Odoo::Ops::Match;
 use Odoo::Ops::Source::Lazysite;
+use Odoo::Ops::Zone;
 
 =head1 NAME
 
@@ -109,6 +111,19 @@ The first number found by L<Odoo::Ops::Match/norm_phones> for the
 country calling code CC (C<phone:44>): digits with a leading C<+>, a
 leading single 0 read as C<+CC>. Nothing usable (fewer than 7 digits)
 gives undef.
+
+=item C<datetime:FORMAT:ZONE>
+
+A local date and time to Odoo's own UTC text, C<YYYY-MM-DD HH:MM:SS>. FORMAT
+is C<strptime>-style (C<%Y %y %m %d %e %H %I %M %S %p %b %B %z %T>; C<%I>
+reads a 12-hour clock with C<%p>). ZONE is an IANA name
+(C<America/New_York>), C<UTC>, a fixed offset (C<+05:30>) or C<@column>, the
+zone read from another column of the row; with C<%z> in FORMAT the offset
+comes from the value and ZONE may be left out. A value that does not parse,
+a zone that is unknown, and a local time that a clock change skips or
+repeats (the two possible UTC instants are named) leave an
+C<invalid:datetime> mark that names the value and the zone, so the row is held
+(see C<require>) and the caller chooses. See L<Odoo::Ops::Zone>.
 
 =item C<json>
 
@@ -314,12 +329,12 @@ my %TRANSFORM = (
 my %TRANSFORM_ARG = (
     split => sub ($arg, $lf) {
         my $sep = $arg;
-        return ( sub ($v, $m) { defined $v && !ref $v ? [ split /\Q$sep\E/, $v ] : $v }, 1 );
+        return ( sub ($v, $m, $rec = undef) { defined $v && !ref $v ? [ split /\Q$sep\E/, $v ] : $v }, 1 );
     },
     round => sub ($arg, $lf) {
         Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'round:$arg' needs a number of places 0-12", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if $arg !~ /^\d{1,2}\z/ || $arg > 12;
-        return sub ($v, $m) { _round( $v, $arg ) };
+        return sub ($v, $m, $rec = undef) { _round( $v, $arg ) };
     },
     regex => sub ($arg, $lf) {
         my ( $pat, $repl ) = split /(?<!\\):/, $arg, 2;
@@ -327,7 +342,7 @@ my %TRANSFORM_ARG = (
         my $re = eval { qr/$pat/ };
         Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'regex:$arg' has an invalid pattern: " . ( $@ =~ s/ at \S+ line \d+.*//sr ), fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if !$re || $pat eq '';
-        return sub ($v, $m) {
+        return sub ($v, $m, $rec = undef) {
             return $v if !defined $v;
             return $v =~ s{$re}{ _expand( $repl, [ @{^CAPTURE} ] ) }ger;
         };
@@ -336,17 +351,18 @@ my %TRANSFORM_ARG = (
         Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'vat:$arg' needs a two-letter country code", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if $arg !~ /^[A-Za-z]{2}\z/;
         my $cc = uc $arg;
-        return sub ($v, $m) {
+        return sub ($v, $m, $rec = undef) {
             my $out = _vat( $v, $cc );
             push @$m, 'invalid:vat' if defined $v && $v =~ /\S/ && !defined $out;
             return $out;
         };
     },
+    datetime => sub ($arg, $lf) { return ( Odoo::Ops::Zone->compile( $arg, $lf ) ) },
     phone => sub ($arg, $lf) {
         Odoo::Error->throw( kind => 'usage', message => "mapping field '$lf': transform 'phone:$arg' needs a country calling code (digits, e.g. phone:44)", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
             if $arg !~ /^\d{1,3}\z/;
         my $match = Odoo::Ops::Match->new( keys => ['phone'], phone_cc => $arg );
-        return sub ($v, $m) {
+        return sub ($v, $m, $rec = undef) {
             return $v if !defined $v;
             my ($first) = $match->norm_phones($v);
             return $first;
@@ -446,6 +462,7 @@ handle for a C<dbi> reader (see below), used instead of connecting.
 =cut
 
 sub load ($class, $path, %opts) {
+    Odoo::Ops::Input->check_file( $path, 'mapping' );
     my $m = eval { YAML::PP->new( schema => ['Core'] )->load_file($path) }
         or Odoo::Error->throw( kind => 'usage', message => "cannot load mapping $path: $@", fix => 'check the path exists and this user can read it' );
     for my $req (qw(source target reader fields)) {
@@ -468,7 +485,7 @@ sub load ($class, $path, %opts) {
             }
             elsif ( $TRANSFORM{$name} && !defined $arg ) {
                 my $fn = $TRANSFORM{$name};
-                push @chain, [ sub ($v, $marks) { $fn->($v) }, 0 ];
+                push @chain, [ sub ($v, $marks, $rec = undef) { $fn->($v) }, 0 ];
             }
             else {
                 Odoo::Error->throw( kind => 'usage',
@@ -508,6 +525,7 @@ sub rows ($self) {
 sub _overrides ($self) {
     my $file = $self->{mapping}{overrides} or return {};
     my $path = $self->_abs($file);
+    Odoo::Ops::Input->check_file( $path, 'mapping overrides' );
     my $o = eval { YAML::PP->new( schema => ['Core'] )->load_file($path) } // {};
     Odoo::Error->throw( kind => 'usage', message => "cannot load overrides $path: $@", fix => 'check the path exists and this user can read it' ) if $@;
     Odoo::Error->throw( kind => 'usage', message => "overrides $path must map keys to entries", fix => 'correct the mapping file the message names (oom-ops mapping-skeleton shows the shape)' )
@@ -556,6 +574,7 @@ sub _read_json_dir ($self, $r, $dir) {
 }
 
 sub _read_jsonl ($self, $r, $file) {
+    Odoo::Ops::Input->check_file( $file, 'source reader' );
     open my $fh, '<:raw', $file or Odoo::Error->throw( kind => 'usage', message => "cannot read $file: $!", fix => 'check the path exists and this user can read it' );
     my @out;
     while ( my $line = <$fh> ) {
@@ -569,6 +588,7 @@ sub _read_jsonl ($self, $r, $file) {
 }
 
 sub _read_csv ($self, $r, $file) {
+    Odoo::Ops::Input->check_file( $file, 'source reader' );
     my $csv = Text::CSV_XS->new( { binary => 1, auto_diag => 0, sep_char => $r->{sep} // ',' } );
     open my $fh, '<:encoding(UTF-8)', $file
         or Odoo::Error->throw( kind => 'usage', message => "cannot read $file: $!", fix => 'check the path exists and this user can read it' );
@@ -707,6 +727,7 @@ sub _credential_path ($self, $name, $ext = 'dsn') {
 }
 
 sub _read_json ($file) {
+    Odoo::Ops::Input->check_file( $file, 'source reader' );
     open my $fh, '<:raw', $file or Odoo::Error->throw( kind => 'usage', message => "cannot read $file: $!", fix => 'check the path exists and this user can read it' );
     my $raw = do { local $/; <$fh> };
     close $fh;
@@ -792,7 +813,7 @@ sub _value ($self, $lf, $spec, $rec, $key, $marks = []) {
     }
     for my $step ( @{ $self->{chain}{$lf} // [] } ) {
         my ( $fn, $whole ) = @$step;
-        $v = ref $v eq 'ARRAY' && !$whole ? [ map { $fn->( $_, $marks ) } @$v ] : $fn->( $v, $marks );
+        $v = ref $v eq 'ARRAY' && !$whole ? [ map { $fn->( $_, $marks, $rec ) } @$v ] : $fn->( $v, $marks, $rec );
     }
     if ( ref $v eq 'ARRAY' ) {
         my $map = $spec->{map} // {};

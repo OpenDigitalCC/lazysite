@@ -128,6 +128,8 @@ sub plan ($self) {
 sub _orders ($self) {
     return map { +{ key => $_, order => $_ } } @{ $self->param('orders') } if defined $self->param('orders');
     my $path = $self->param('rows');
+    require Odoo::Ops::Input;
+    Odoo::Ops::Input->check_file( $path, 'stock.link_stranded' );
     open my $fh, '<:raw', $path or Odoo::Error->throw( kind => 'usage', message => "stock.link_stranded: cannot read $path: $!", fix => 'check the path exists and this user can read it' );
     my @out;
     while ( my $line = <$fh> ) {

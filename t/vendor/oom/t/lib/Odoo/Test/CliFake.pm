@@ -47,7 +47,7 @@ sub context_args {
         $FAKE = $fake;
         if ( open my $fh, '<', $STATE ) {
             local $/;
-            my $s = JSON::PP->new->decode(<$fh>);
+            my $s = JSON::PP->new->utf8->decode(<$fh>);
             $fake->{data}    = $s->{data};
             $fake->{next_id} = $s->{next_id};
         }
@@ -62,7 +62,7 @@ sub finish {
     # oomd workers at once) sees the old file or the new one, never an empty one
     my $tmp = "$STATE.$$.tmp";
     open my $fh, '>', $tmp or die "$tmp: $!";
-    print {$fh} JSON::PP->new->canonical->encode( { data => $FAKE->{data}, next_id => $FAKE->{next_id} } );
+    print {$fh} JSON::PP->new->utf8->canonical->encode( { data => $FAKE->{data}, next_id => $FAKE->{next_id} } );
     close $fh or die "$tmp: $!";
     rename $tmp, $STATE or die "$STATE: $!";
     # a resident process must not write this copy again after another process changed the file

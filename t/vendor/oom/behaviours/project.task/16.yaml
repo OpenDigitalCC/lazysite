@@ -1,0 +1,15 @@
+# project.task, Odoo 16: the assignment mail. Read in the OCB 16.0 source (addons/project/models/project.py); not run on a live
+# instance outside t/160-quiet43-live.t. On 16 no context key silences it: _task_message_auto_subscribe_notify has no
+# mail_auto_subscribe_no_notify test (17 added it), so the effect stands under OOM's quiet context.
+model: project.task
+series: 16
+module: project
+effects:
+  - on: create
+    fields: [user_ids]
+    effect: emails each assignee other than the acting user "You have been assigned to <task>"; no context key silences it on 16
+    evidence: source 16.0 project.py Task.create calls _task_message_auto_subscribe_notify (line 2118), which tests no context key (lines 2321-2346)
+  - on: write
+    fields: [user_ids]
+    effect: emails each newly added assignee other than the acting user "You have been assigned to <task>"; no context key silences it on 16
+    evidence: source 16.0 project.py Task.write calls _task_message_auto_subscribe_notify (line 2227), which tests no context key

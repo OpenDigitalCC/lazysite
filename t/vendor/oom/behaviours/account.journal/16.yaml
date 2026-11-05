@@ -1,0 +1,16 @@
+# account.journal, Odoo 16 (account). Read from the 16.0 source (addons/account/models/account_journal.py, write).
+model: account.journal
+series: 16
+guards:
+- field: restrict_mode_hash_table
+  value: false
+  refused_when:
+    model: account.move
+    domain: [["journal_id", "=", "$record"], ["state", "=", "posted"], ["secure_sequence_number", "!=", 0]]
+  message: "You cannot modify the field Lock Posted Entries with Hash of a journal that already has accounting entries."
+  evidence: 'source 16.0 account_journal.write (turning restrict_mode_hash_table off raises this UserError when a posted entry of the journal has a secure_sequence_number); live 2026-10-29 t/162-revert43-live.t on 16'
+effects:
+- on: write
+  fields: [restrict_mode_hash_table]
+  effect: "Lock Posted Entries with Hash cannot be turned off once a posted entry of the journal carries a secure sequence number: Odoo refuses the write"
+  evidence: source 16.0 account_journal.write

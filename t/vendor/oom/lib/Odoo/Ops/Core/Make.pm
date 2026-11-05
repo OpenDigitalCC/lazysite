@@ -5,11 +5,14 @@ use warnings;
 use feature qw(signatures);
 no warnings 'experimental::signatures';
 
+use JSON::PP ();
 use Odoo::Error;
 use Odoo::JSON ();
 use Odoo::Ops::Modules;
+use Odoo::Ops::Core::Import;
 use Odoo::Ops::Core::OneRecord;
 use Odoo::Ops::File;
+use Odoo::Ops::Quiet ();
 
 use parent 'Odoo::Ops::Operation';
 
@@ -30,10 +33,15 @@ Odoo::Ops::Core::Make - create one record, its fields typed from fields_get
 
 C<core.make> creates one record. The parameters are C<model> and one
 C<set.E<lt>fieldE<gt>> per field, typed as C<core.set> types them (see
-L<Odoo::Ops::Core::Set>). The plan holds one C<create> change. A required,
+L<Odoo::Ops::Core::Set>; a many2many takes ids or names, and C<[]> makes it empty,
+which overrides what Odoo would default). The plan holds one C<create> change. A required,
 stored field that the pairs do not set, that C<default_get> gives no value and
-that Odoo does not compute at create (a field with C<depends>) is a usage error
-at plan naming every such field.
+that Odoo does not fill itself is a usage error at plan naming every such field.
+Odoo fills a required field when it has a default, when it computes the stored field at
+create (a field with C<depends>), or, for a model that delegates to another
+(C<hr.employee> and its C<resource_id>), makes the record the field points at: other
+fields of the model are C<related> to it. The plan names those fields in a note
+(C<left for Odoo to fill: resource_id (...)>) and does not ask for them.
 
 The apply creates the record once, reads the fields back, journals the
 change and names the record (C<created: crm.lead: 41>, and C<made: crm.lead 41>
@@ -44,6 +52,17 @@ C<probability-manual> invariant judges the pack's own writes).
 
 A pair for a state field of a model whose state Odoo changes through its own
 action is held C<state-field>, as C<core.set> holds it.
+
+C<quiet> (default off) sends the quiet context: the shared one of
+L<Odoo::Ops::Quiet> (no tracking, no "created" message, no follower, no assignment
+mail) joined with the C<suppress: { context: ... }> that the model's behaviour file
+records for a create of the fields set. For C<mail.activity> that adds
+C<mail_activity_quick_update>, so Odoo does not email the assignee. The plan line
+names the keys sent and the effect they silence; when no recorded effect applies
+to the fields set it says so, and the shared context is sent all the same (it
+does no harm). C<core.set> and C<core.action> take the same option by the same
+rule. A create that is not quiet and has a recorded effect says that Odoo mails
+and how to stop it.
 
 A binary field takes a file: C<set.E<lt>fieldE<gt>> is a file value (C<< { name,
 bytes, mimetype? } >>, see L<Odoo::Ops::File>) in a program, and
@@ -69,6 +88,7 @@ sub summary ($class) { 'Plan creating one record, each set.<field> typed from fi
 sub pack    ($class) { undef }
 sub params ($class) {
     {   model         => { type => 'str', required => 1, help => 'physical model, e.g. crm.lead' },
+        quiet         => { type => 'bool', default => 0, help => 'send the quiet context (no tracking, no chatter, no assignment mail) and whatever the behaviour file records as silencing this create (mail.activity: mail_activity_quick_update); the plan names the keys and the effect, or says no recorded effect applies' },
         'set.<field>' => { type => 'str', help => 'one per field of the new record: --set set.name=Acme --set set.type=opportunity (the value is typed from fields_get); a binary field takes a file: --file set.image_1920=PATH' },
         'lines.<field>' => { type => 'rows', max => MAX_LINES, row => 'the fields of the one2many\'s comodel', help => 'one per one2many field: --set lines.order_line=\'[{"product_id":3,"product_uom_qty":2}]\' or --rows lines.order_line=FILE; a flat object per line, its keys fields of the comodel, typed from fields_get' },
     };
@@ -121,6 +141,14 @@ sub scope_for ($self, $phase) {
     return { $m => $phase eq 'apply' ? [qw(create read search_read)] : [qw(default_get search_read)] };
 }
 
+# a name in a many2many value is looked up as core.import looks it up, in the related model
+sub _resolver ($self) {
+    return sub ( $relation, $name ) {
+        return $self->ctx->guard->with_scope( { %{ $self->scope_for('plan') }, $relation => ['search_read'] }, $self->op_name,
+            sub { Odoo::Ops::Core::Import::lookup( $self, $relation, 'name', $name ) } );
+    };
+}
+
 # fields Odoo fills itself, never asked of the caller
 my %MAGIC = map { $_ => 1 } qw(id create_uid create_date write_uid write_date display_name __last_update);
 
@@ -134,7 +162,7 @@ sub plan ($self) {
 
     my $m = $self->client->model($model);
     my $f = eval { $m->fields } || Odoo::Ops::Modules->absent_model( $self->ctx, 'core.make', $model, $@ );
-    my $vals = Odoo::Ops::Core::OneRecord->typed_values( 'core.make', $model, $f, $set );
+    my $vals = Odoo::Ops::Core::OneRecord->typed_values( 'core.make', $model, $f, $set, resolver => $self->_resolver );
     my @lines_shown;
     for my $k (@line_keys) {
         my $field = substr $k, 6;
@@ -142,7 +170,7 @@ sub plan ($self) {
         Odoo::Error->throw( kind => 'usage', message => "core.make: $model has no field '$field'",
             fix => "oom-ops run core.skeleton --conf <conf> --set model=$model lists the fields" ) if !$d;
         Odoo::Error->throw( kind => 'usage', message => "core.make: $model.$field is a $d->{type} field, not a one2many; lines.$field does not apply",
-            fix => ( $d->{type} =~ /\Amany2many\z/ ? 'a many2many is not set here' : "give it as set.$field" ) ) if $d->{type} ne 'one2many';
+            fix => ( $d->{type} =~ /\Amany2many\z/ ? "give it as set.$field, a list of ids or names" : "give it as set.$field" ) ) if $d->{type} ne 'one2many';
         Odoo::Error->throw( kind => 'usage', message => "core.make: $model.$field is given twice (set.$field and $k)", fix => "give it once" ) if exists $vals->{$field} || exists $set->{$field};
         my $relation = $d->{relation} or Odoo::Error->throw( kind => 'usage', message => "core.make: $model.$field names no comodel" );
         my $cf = eval { $self->client->model($relation)->fields } || Odoo::Ops::Modules->absent_model( $self->ctx, 'core.make', $relation, $@ );
@@ -151,7 +179,7 @@ sub plan ($self) {
         for my $row ( @{ $all->{$k} } ) {
             $n++;
             Odoo::Error->throw( kind => 'usage', message => "core.make: $k row $n holds no key", fix => 'give each line at least one field of ' . $relation ) if !%$row;
-            my $typed = eval { Odoo::Ops::Core::OneRecord->typed_values( 'core.make', $relation, $cf, $row ) };
+            my $typed = eval { Odoo::Ops::Core::OneRecord->typed_values( 'core.make', $relation, $cf, $row, resolver => $self->_resolver ) };
             if ( my $e = $@ ) {
                 die $e if !ref $e || !$e->isa('Odoo::Error');
                 ( my $why = $e->message ) =~ s/\Acore\.make: //;
@@ -177,29 +205,72 @@ sub plan ($self) {
         $vals->{$n} = $plan->blob_value( Odoo::Ops::File->base64( $vals->{$n} ) );
         push @file_fields, $n;
     }
-    # a required, stored field that nothing gives a value: Odoo would refuse the create, and says which only one at a time
+    # a required, stored field that nothing gives a value: Odoo would refuse the create, and says which only one at a time.
+    # A required field is not missing when Odoo fills it: a default (default_get), a stored field it computes at create
+    # (sale.order's pricelist_id from its partner: it names what it depends on), or the record a delegating model makes
+    # with its own (hr.employee's resource_id: other fields of the model are related to it). Those are named in the plan.
     my @required = grep { !$MAGIC{$_} && !exists $vals->{$_} && $f->{$_}{required} && ( $f->{$_}{store} // 1 ) && !$f->{$_}{readonly} } sort keys %$f;
+    my %filled;
     if (@required) {
         my $defaults = eval { $m->default_get( \@required ) };
         $defaults = {} if ref $defaults ne 'HASH';
+        $filled{$_} = 'its default' for grep { exists $defaults->{$_} } @required;
         @required = grep { !exists $defaults->{$_} } @required;
-        # a stored field Odoo computes at create (sale.order's pricelist_id from its partner) names what it
-        # depends on: Odoo fills it in, so nothing is missing
         if (@required) {
-            my $dep = eval { $self->client->execute_kw( $model, 'fields_get', [ \@required ], { attributes => ['depends'] } ) };
-            @required = grep { !( ref $dep eq 'HASH' && ref $dep->{$_}{depends} eq 'ARRAY' && @{ $dep->{$_}{depends} } ) } @required;
+            my $meta = eval { $self->client->execute_kw( $model, 'fields_get', [], { attributes => [ 'depends', 'related' ] } ) };
+            $meta = {} if ref $meta ne 'HASH';
+            my @rest;
+            for my $n (@required) {
+                my $dep = $meta->{$n}{depends};
+                if ( ref $dep eq 'ARRAY' && @$dep ) { $filled{$n} = 'computed by Odoo when the record is made'; next }
+                if ( ( $f->{$n}{type} // '' ) eq 'many2one' && grep { ( $meta->{$_}{related} // '' ) =~ /\A\Q$n\E\./ } keys %$meta ) {
+                    $filled{$n} = "the record Odoo makes with this one (fields of $model are read through it)";
+                    next;
+                }
+                push @rest, $n;
+            }
+            # a required one2many that is the inverse of the record a delegating model makes (hr.employee on 19: version_ids,
+            # the versions whose version_id the employee delegates to). Odoo makes that record and points its inverse field
+            # back in the same create, so the one2many is filled without being asked for.
+            my @still;
+            for my $n (@rest) {
+                my $d = $f->{$n};
+                my $via;
+                if ( ( $d->{type} // '' ) eq 'one2many' ) {
+                    # the delegate is the candidate most fields are read through
+                    my ( $best, $most ) = ( undef, 0 );
+                    for my $cand ( sort keys %$f ) {
+                        next if ( $f->{$cand}{type} // '' ) ne 'many2one' || ( $f->{$cand}{relation} // '' ) ne ( $d->{relation} // "\0" );
+                        my $count = grep { ( $meta->{$_}{related} // '' ) =~ /\A\Q$cand\E\./ } keys %$meta;
+                        ( $best, $most ) = ( $cand, $count ) if $count > $most;
+                    }
+                    $via = $best;
+                }
+                if ( defined $via ) { $filled{$n} = "the $d->{relation} records Odoo makes with this one, through $via" }
+                else { push @still, $n }
+            }
+            @rest = @still;
+            @required = @rest;
         }
     }
     Odoo::Error->throw( kind => 'usage',
         message => "core.make: $model needs " . join( ', ', @required ) . ' (required, and Odoo gives no default)',
         fix => 'add ' . join( ' ', map { "--set set.$_=..." } @required ) ) if @required;
+    $plan->note( 'left for Odoo to fill: ' . join( '; ', map { "$_ ($filled{$_})" } sort keys %filled ) ) if %filled;
 
-    my @line = ( ( map { "$_ " . ( $file_shown{$_} // Odoo::Ops::Core::OneRecord->shown( $vals->{$_} ) ) } grep { ref $vals->{$_} eq 'HASH' || ref $vals->{$_} ne 'ARRAY' || !@{ $vals->{$_} } || ref $vals->{$_}[0] ne 'ARRAY' } sort keys %$vals ), @lines_shown );
+    # quiet: the shared quiet context plus what the behaviour file records as silencing this create (Odoo::Ops::Quiet)
+    my $quiet = $self->param('quiet');
+    my $q     = Odoo::Ops::Quiet::quiet_for( $self->ctx->behaviour($model), 'create', [ keys %$vals ] );
+    my $qnote = $quiet ? "; $q->{words}"
+        : @{ $q->{effects} } ? "; not quiet: $q->{effects}[0] (--set quiet=1 sends " . join( ', ', @{ $q->{keys} } ) . ')' : '';
+
+    my @line = ( ( map { "$_ " . ( $file_shown{$_} // Odoo::Ops::Core::OneRecord->shown( $vals->{$_}, $f->{$_}{type} ) ) } grep { ( $f->{$_}{type} // '' ) ne 'one2many' } sort keys %$vals ), @lines_shown );
     my %is_file = map { $_ => 1 } @file_fields;
     $plan->add(
         bucket => 'make', action => 'create', key => $key, model => $model, vals => $vals,
         ( @file_fields ? ( readback => [ grep { !$is_file{$_} } sort keys %$vals ] ) : () ),
-        line   => "$model new: " . join( '; ', @line ), reason => "creates one $model",
+        ( $quiet ? ( context => $q->{context} ) : () ),
+        line   => "$model new: " . join( '; ', @line ) . $qnote, reason => "creates one $model" . ( $quiet ? ', quiet' : '' ),
     );
     return $plan;
 }

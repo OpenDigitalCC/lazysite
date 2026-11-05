@@ -418,11 +418,13 @@ Odoo's answer to a method, in words, with the parts a caller acts on:
     true / false                              reported as that (the transports read a boolean and the numbers 1 and 0 alike)
     Odoo answered with a window: M (modes)    an ir.actions.act_window: Odoo wants a
                                               wizard or shows a record; OOM does not follow
+    Odoo answered with a URL: U (target T)    an ir.actions.act_url: the link, whole, and where it opens
     Odoo answered with an action: TYPE (tag)  any other action dictionary
     Odoo answered: VALUE                      anything else
 
 When the behaviour file names the wizard for the method, a window answer also
-says to use C<core.wizard>. Returns C<< { says => TEXT, window => {...} } >>.
+says to use C<core.wizard>. Returns C<< { says => TEXT, window => {...} } >>, or
+C<< { says => TEXT, url => { url, target } } >> for a URL.
 
 =cut
 
@@ -442,6 +444,13 @@ sub answer ( $class, $ret, $wizard = undef, $model = undef, $wizard_method = und
             says   => $says,
             window => { map { $_ => $ret->{$_} } grep { defined $ret->{$_} && !ref $ret->{$_} } qw(res_model view_mode res_id name target) },
         };
+    }
+    if ( ref $ret eq 'HASH' && ( $ret->{type} // '' ) eq 'ir.actions.act_url' ) {
+        # a link to open: said whole, with its target (self: this window; new: another), for the caller to follow
+        my $url    = defined $ret->{url} && !ref $ret->{url} ? $ret->{url} : undef;
+        my $target = defined $ret->{target} && !ref $ret->{target} ? $ret->{target} : undef;
+        return { says => 'Odoo answered with a URL' . ( defined $url ? ": $url" : ' (it gave none)' ) . ( defined $target ? " (target $target)" : '' ),
+            ( defined $url ? ( url => { url => $url, ( defined $target ? ( target => $target ) : () ) } ) : () ) };
     }
     if ( ref $ret eq 'HASH' && defined $ret->{type} ) {
         my $tag = defined $ret->{tag} && !ref $ret->{tag} ? " ($ret->{tag})" : '';

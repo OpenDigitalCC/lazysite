@@ -1,0 +1,17 @@
+# account.journal, Odoo 18 (account). Read from the 18.0 source (addons/account/models/account_journal.py, write;
+# addons/account/models/account_move.py, _get_move_hash_domain).
+model: account.journal
+series: 18
+guards:
+- field: restrict_mode_hash_table
+  value: false
+  refused_when:
+    model: account.move
+    domain: [["journal_id", "=", "$record"], ["state", "=", "posted"], ["inalterable_hash", "!=", false], ["restrict_mode_hash_table", "=", true]]
+  message: "You cannot modify the field Secure Posted Entries with Hash of a journal that already has accounting entries."
+  evidence: 'source 18.0 account_journal.write (turning restrict_mode_hash_table off raises this UserError when a posted entry of the journal has an inalterable_hash; the search is _get_move_hash_domain with the journal and inalterable_hash != False); live 2026-10-29 t/162-revert43-live.t on 18'
+effects:
+- on: write
+  fields: [restrict_mode_hash_table]
+  effect: "Secure Posted Entries with Hash cannot be turned off once a posted entry of the journal carries an inalterable hash: Odoo refuses the write"
+  evidence: source 18.0 account_journal.write

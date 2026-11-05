@@ -10,6 +10,7 @@ use JSON::PP ();
 use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Mailing::Common;
+use Odoo::Ops::Quiet qw(quiet_context);
 
 use parent 'Odoo::Ops::Operation';
 
@@ -156,7 +157,7 @@ sub write_scope ($class) {
 sub scope_for ($self, $phase) { Odoo::Ops::Mailing::Common::scope( $self, $phase, $self->SUPER::scope_for($phase) ) }
 
 my %MODE = map { $_ => 1 } qw(subscribe unsubscribe remove);
-my $QUIET = sub () { { tracking_disable => JSON::PP::true, mail_create_nolog => JSON::PP::true, mail_notrack => JSON::PP::true, mail_create_nosubscribe => JSON::PP::true } };
+my $QUIET = \&quiet_context;
 
 sub plan ($self) {
     my $p    = Odoo::Ops::Mailing::Common::ready($self);

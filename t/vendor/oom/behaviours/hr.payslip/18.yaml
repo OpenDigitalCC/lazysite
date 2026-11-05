@@ -32,7 +32,10 @@ actions:
   creates_evidence: 'source OCA payroll hr_payslip.action_payslip_done (it computes the sheet first), payroll_account hr_payslip.action_payslip_done (makes the entry from the lines'' salary rules'' debit and credit accounts, writes move_id and posts it; no entry when no rule carries an account); live 2026-10-17 (t/97-hr-actions-live.t on hr18): 6 lines made again, no entry (the demo rules carry no account); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 on hr18: a payslip whose rule carries accounts made one posted account.move, named by move_id'
   to: [done]
   undo: action_payslip_draft
-  note: 'computes the sheet first unless the company sets prevent_compute_on_confirm or the context carries without_compute_sheet. With payroll_account it makes and posts the payslip''s journal entry in the contract''s journal, which takes a number from that journal for good; action_payslip_draft, its undo, leaves the entry in place'
+  undo_when:
+    field: move_id
+    note: 'this payslip has a journal entry (move_id). action_payslip_draft is a plain write of state that leaves the entry in place, and where the instance holds record rules that lock a done payslip with an entry (hr18: ir.rule 477 to 480, made by hand on 2026-10-27, global, no xml id) Odoo refuses the write as an access error naming the rule; the cause is that instance''s configuration, not the payroll module'
+  note: 'computes the sheet first unless the company sets prevent_compute_on_confirm or the context carries without_compute_sheet. With payroll_account it makes and posts the payslip''s journal entry in the contract''s journal, which takes a number from that journal for good; action_payslip_draft, its undo, leaves the entry in place, and an instance whose record rules lock a done payslip with an entry (hr18 does: ir.rule 477 to 480) refuses it'
   evidence: source OCA payroll hr_payslip.action_payslip_done; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> done); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 (verify -> done with the entry)
 - method: action_payslip_cancel
   to: [cancel]
@@ -41,7 +44,8 @@ actions:
   evidence: 'source OCA payroll hr_payslip.action_payslip_cancel, payroll_account hr_payslip.action_payslip_cancel; live 2026-10-16 t/97-hr-actions-live.t on hr18 (verify -> cancel; Odoo refused a done payslip in its words: Cannot cancel a payslip that is done); live 2026-10-17 t/59-hr-expense-flow-live.t with ODOO_OOM_LIVE_POSTS=1 (a done payslip refused and its entry kept; a draft payslip with an entry cancelled and its entry deleted, move_id null)'
 - method: action_payslip_draft
   to: [draft]
-  evidence: source OCA payroll hr_payslip.action_payslip_draft; live 2026-10-16 t/97-hr-actions-live.t on hr18 (cancel -> draft, done -> draft)
+  note: 'the payroll module writes state draft and nothing else (it does not look at the entry). Whether Odoo takes it depends on the instance: on hr18 four global record rules (ir.rule 477 payslip, 478 line, 479 input, 480 worked days: domain state != done or move_id = False, made by hand on 2026-10-27 with no xml id, so instance configuration and not module behaviour) refuse a write to a done payslip that has an entry, as an access error naming the rule; a done payslip without an entry, and every payslip on an instance without such rules, goes back to draft'
+  evidence: 'source OCA payroll hr_payslip.action_payslip_draft (return self.write({"state": "draft"})); live 2026-10-16 t/97-hr-actions-live.t on hr18 (cancel -> draft, done -> draft, no entry); read-only look at hr18 on 2026-10-29: ir.rule 477 to 480 are global, write and unlink, with no ir.model.data row; the refusal of reset to draft on a confirmed payslip with an entry, for a payroll officer, a payroll manager and a manager with invoicing rights, from the filing of 2026-10-27; not re-run, hr18 is not written'
 - method: refund_sheet
   creates:
   - model: hr.payslip

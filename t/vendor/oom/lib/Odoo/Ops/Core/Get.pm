@@ -34,7 +34,10 @@ label is C<text>, a many2one's id C<integer>).
 
 C<fields> is a comma-separated list; the default is C<id,display_name> and the
 model's C<state> when it has one. An archived record is read too. An id no
-record has is C<refused/missing>, naming the model and the id.
+record has is C<refused/missing>, naming the model and the id. A record that exists
+but that Odoo does not show to this login (a record rule hides it from a search) is
+C<refused/access>, with Odoo's own text from reading it: the search comes back empty
+for both, so the id is read to tell them apart.
 
 C<context> is the same JSON object of Odoo context keys as core.read takes (L<Odoo::Ops::Core::ReadContext>).
 
@@ -73,8 +76,8 @@ sub fields ($class) {
 sub scope_for ($self, $phase) {
     my $m = $self->param('model');
     return {} if !defined $m;
-    return { $m => ['search_read'] } if !$self->param('max_age');
-    return { $m => [ 'search_read', 'read_group' ], ( $self->param('pricelist') ? ( map { $_ => ['read_group'] } Odoo::Cache::Data->pricelist_models ) : () ) };
+    return { $m => [ 'search_read', 'read' ] } if !$self->param('max_age');    # read: told apart from a refusal when the search is empty
+    return { $m => [ 'search_read', 'read', 'read_group' ], ( $self->param('pricelist') ? ( map { $_ => ['read_group'] } Odoo::Cache::Data->pricelist_models ) : () ) };
 }
 
 sub report ($self) {
@@ -106,6 +109,8 @@ sub report ($self) {
         } );
     my $rows = $got->{rows};
     $self->{cache_note} = { Odoo::Cache::Data->says($got) };
+    # an empty search is a record that is not there, or one a record rule hides: the read tells which
+    Odoo::Ops::Core::OneRecord->refused_or_missing( 'core.get', $m, $model, $id ) if !@$rows;
     Odoo::Error->throw( kind => 'refused', code => 'missing', message => "core.get: $model has no record with id $id",
         fix => 'give the id of a record that exists; core.read finds records by a domain' ) if !@$rows;
 

@@ -27,3 +27,14 @@ wizards:
   creates_evidence: 'source OCA project_timesheet_time_control hr_timesheet_switch.action_switch (create or copy of a line); live 2026-10-17 t/60-hr-coverage-live.t on hr18: one running line made by the copy, named in the result'
   note: OCA; stops the acting user's running timer and starts a new one on the task. Odoo looks for the running timer of the acting user's employee and refuses when it finds more than one; running_timer_id given in the values (false for none) stops that search
   evidence: 'source OCA project_timesheet_time_control hr_timesheet_switch.action_switch, _default_running_timer_id; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (the acting user''s employee has two running placeholder timers on hr18, so without running_timer_id Odoo refused: 2 running timers found. Cannot know which one to stop; with no line to copy hr_timesheet_time_control_begin_end made Odoo answer: unsupported operand type(s) for +: ''dict_keys'' and ''list''; with a line to copy and running_timer_id false the timer started)'
+effects:
+- on: create
+  fields: [user_ids]
+  effect: emails each assignee other than the acting user "You have been assigned to <task>"
+  suppress: { context: { mail_auto_subscribe_no_notify: true } }
+  evidence: source 18.0 project_task.create calls _task_message_auto_subscribe_notify (line 1162), which returns when the context carries mail_auto_subscribe_no_notify (line 1520); live 2026-10-27 hr18, 394 mails from a load made without the key (filing 2026-10-27)
+- on: write
+  fields: [user_ids]
+  effect: emails each newly added assignee other than the acting user "You have been assigned to <task>"
+  suppress: { context: { mail_auto_subscribe_no_notify: true } }
+  evidence: source 18.0 project_task.write calls _task_message_auto_subscribe_notify (line 1342), same test

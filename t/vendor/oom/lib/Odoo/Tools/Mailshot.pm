@@ -26,7 +26,7 @@ use Odoo::Ops::Registry;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.42';
+our $VERSION = '0.44';
 
 =head1 NAME
 
@@ -312,7 +312,8 @@ sub _finish ($self, $command, $res, $status) {
     $res->{steps}  = [ map { +{ %$_ } } @{ $self->{steps} } ];
     if ( $self->{json} ) {
         my $fh = $self->{out};
-        print {$fh} Odoo::JSON->new( pretty => 1 )->encode($res);
+        # characters: the handle (STDOUT with its UTF-8 layer) makes the bytes
+        print {$fh} Odoo::JSON->new( pretty => 1, utf8 => 0 )->encode($res);
     }
     else {
         $self->_p( 'then: ' . ( $res->{then}[0] ), map { '      ' . $_ } @{$res->{then}}[ 1 .. $#{ $res->{then} } ] ) if @{ $res->{then} // [] };

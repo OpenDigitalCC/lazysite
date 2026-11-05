@@ -50,6 +50,8 @@ sub new ($class, %args) {
         unreadable     => {},
         require_fields => $args{require_fields} ? 1 : 0,
         fieldless      => [],
+        # "model.field" => 1: a written value Odoo drops inside the same write (an override resets it, as a role module does)
+        drop_writes    => {%{ $args{drop_writes} // {} }},
     }, $class;
     for my $m ( keys %{ $args{records} // {} } ) {
         $self->insert( $m, $_ ) for @{ $args{records}{$m} };
@@ -103,6 +105,13 @@ sub unreadable_field ($self, $model, $field, $label, $relation, @groups) {
 # reaches one of these ids (a mailing on partners filtered by invoices, among others).
 sub unreadable_rows ($self, $model, $field, @ids) {
     $self->{unreadable}{$model}{$field}{ids} = { map { $_ => 1 } @ids };
+    return $self;
+}
+
+# A record a record rule hides from this user, as Odoo does: a search leaves it out, as it leaves out a record
+# that does not exist, and reading it by id is an AccessError (Odoo's words).
+sub hide_record ($self, $model, $id) {
+    $self->{hidden}{$model}{$id} = 1;
     return $self;
 }
 
@@ -260,6 +269,9 @@ sub call ($self, $service, $method, @args) {
         } sort keys %n ];
     }
     if ( $m eq 'read' ) {
+        for my $id ( grep { $self->{hidden}{$model}{$_} } @{ $margs->[0] } ) {
+            _fault( 'AccessError', "Due to security restrictions, you are not allowed to access '$model' ($model) records.\nContact your administrator to request access if necessary." );
+        }
         return [ map { $self->_read_row( $model, $_, $kw->{fields} ) }
                 grep { $self->{data}{$model}{$_} } @{ $margs->[0] } ];
     }
@@ -440,6 +452,7 @@ sub _assign ($self, $model, $r, $vals) {
     for my $k ( keys %$vals ) {
         my $type = $f->{$k}{type} // _fault( 'ValidationError', "no field $k on $model" );
         my $v    = $vals->{$k};
+        next if $self->{drop_writes}{"$model.$k"};
         if ( $type eq 'many2many' || $type eq 'one2many' ) {
             my %set = map { $_ => 1 } @{ $r->{$k} // [] };
             for my $cmd (@$v) {
@@ -536,7 +549,7 @@ sub _search ($self, $model, $domain, $context = undef) {
         return $r if !%dotted;
         return { %$r, map { $_ => $follow->( $_, $r ) } keys %dotted };
     };
-    return grep { _eval_domain( $view->( $self->{data}{$model}{$_} ), [@dom] ) } @ids;
+    return grep { !$self->{hidden}{$model}{$_} && _eval_domain( $view->( $self->{data}{$model}{$_} ), [@dom] ) } @ids;
 }
 
 # Odoo domains: prefix '|', '&', '!' over terms; implicit '&' between

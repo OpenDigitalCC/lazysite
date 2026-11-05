@@ -60,18 +60,25 @@ sub add_member ( $odoo, $login, @teams ) {
 
 # Mail to an address in the catcher: the messages (newest first) whose subject matches, waiting up to $o{wait} half-seconds for
 # at least $o{more} more than $o{after} to arrive.
+# The catcher answers a search with its newest page (50 at most) and the matching total. In scalar context the count is
+# the total, so it does not stop at the page; in list context the page, newest first (a subject filter counts the page).
 sub mail_to ( $catcher, $to, %o ) {
     require JSON::PP;
     my $http = HTTP::Tiny->new( timeout => 10 );
-    my @m;
+    my ( @m, $count );
     for ( 1 .. ( $o{wait} // 1 ) ) {
         my $res = $http->get( "$catcher/api/v1/search?query=" . ( "to:$to" =~ s/([^A-Za-z0-9._~-])/sprintf '%%%02X', ord $1/ger ) );
-        @m = $res->{success} ? grep { !defined $o{subject} || ( $_->{Subject} // '' ) =~ $o{subject} } @{ JSON::PP::decode_json( $res->{content} )->{messages} // [] } : ();
-        last if @m > ( $o{after} // 0 );
+        my $body = $res->{success} ? JSON::PP::decode_json( $res->{content} ) : {};
+        @m = grep { !defined $o{subject} || ( $_->{Subject} // '' ) =~ $o{subject} } @{ $body->{messages} // [] };
+        $count = defined $o{subject} ? scalar @m : ( $body->{total} // scalar @m );
+        last if $count > ( $o{after} // 0 );
         select undef, undef, undef, 0.5;
     }
-    return @m;
+    return wantarray ? @m : $count;
 }
+
+# How many messages the catcher holds for an address, by the search total (never the page).
+sub mail_count ( $catcher, $to ) { return scalar mail_to( $catcher, $to ) }
 
 # Whether a stage's template mail can be sent: its sender is the company's email, and Odoo refuses a mail with no sender unless the
 # instance sets mail.catchall.domain and mail.default.from. An instance with neither leaves the template's mail in state exception

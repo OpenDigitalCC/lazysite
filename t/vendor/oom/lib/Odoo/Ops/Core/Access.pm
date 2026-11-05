@@ -47,6 +47,23 @@ permissions. One YAML file per role, shipped by whoever builds the app:
         create: true
         unlink: false
 
+A role may instead target a group that exists already, by xml id, with C<group>
+(for example the Payroll / Officer group of a payroll module):
+
+    role: payslip-read-all
+    group: hr_payroll.group_hr_payroll_user
+    rules:
+      - { label: read-all-lines, model: hr.payslip.line, domain: "[(1, '=', 1)]", create: false, write: false, unlink: false }
+
+The role's C<access> rows and C<rules> are then made for that group, found and
+brought to the file by their C<__oom__> xml ids as for any role. The group
+itself is not made, renamed, re-implied or removed: C<name> and C<implied> are a
+C<config> error beside C<group>, a revert removes only the rows and rules the
+role added, and the plan has one C<unchanged> line naming the group by its xml
+id and display name. A C<group> xml id the instance does not have is refused as
+C<config> naming it (is its module installed?). Rows of other roles on the same
+group are not this role's: removal considers only rows named C<oom:E<lt>roleE<gt>:...>.
+
 A role is the truth for what it names. The group, each access row and each
 rule is found by its xml id in the module C<__oom__> (C<role_E<lt>roleE<gt>>,
 C<access_E<lt>roleE<gt>_E<lt>modelE<gt>>, C<rule_E<lt>roleE<gt>_E<lt>labelE<gt>>, dots and dashes written
@@ -165,7 +182,7 @@ four flags). Dies as C<config> naming C<$what> and the field at fault.
 sub parse_role ($class, $y, $what = 'role file') {
     my $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "$what: $m" ) };
     $bad->('a map was expected') if ref $y ne 'HASH';
-    my %known = map { $_ => 1 } qw(role name implied access rules);
+    my %known = map { $_ => 1 } qw(role name implied access rules group);
     my @unk = grep { !$known{$_} } sort keys %$y;
     $bad->( 'unknown key(s) ' . join( ', ', @unk ) . ' (known: ' . join( ', ', sort keys %known ) . ')' ) if @unk;
     my $role = $y->{role};
@@ -173,6 +190,12 @@ sub parse_role ($class, $y, $what = 'role file') {
     $bad->("role '$role' must be letters, digits, dot, dash and underscore") if $role !~ /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/;
     my $w = "$what: role '$role'";
     $bad = sub ($m) { Odoo::Error->throw( kind => 'config', message => "$w: $m" ) };
+    my $group = $y->{group};
+    if ( defined $group ) {
+        $bad->("group is the xml id (module.name) of an existing group, got '" . ( ref $group ? ref $group : $group ) . "'") if ref $group || $group !~ /\A[\w-]+\.[\w.-]+\z/;
+        $bad->('name belongs to a group the role creates; group names one that exists already, which the role does not rename') if exists $y->{name};
+        $bad->('implied belongs to a group the role creates; group names one that exists already, which the role does not change') if exists $y->{implied} && ( ref $y->{implied} ne 'ARRAY' || @{ $y->{implied} } );
+    }
     my $name = $y->{name} // $role;
     $bad->('name is a text') if ref $name;
     my $implied = $y->{implied} // [];
@@ -205,7 +228,7 @@ sub parse_role ($class, $y, $what = 'role file') {
         for my $p (@PERMS) { $bad->("rule $l: $p is true or false") if !defined $f{$p} }
         push @rules, { label => $l, model => $r->{model}, domain => $r->{domain}, %f };
     }
-    return { role => $role, name => "$name", implied => [@$implied], access => \@access, rules => \@rules };
+    return { role => $role, name => "$name", implied => [@$implied], access => \@access, rules => \@rules, ( defined $group ? ( group => $group ) : () ) };
 }
 
 sub _flag ($v, $default) {
@@ -359,20 +382,36 @@ sub _container ($self, $plan) {
     # 16, 18 and 19, probed live 2026-10-14): the category is made when the instance lets this user, else
     # the group goes without one (it shows under "Other" on 16 and 18; on 19 the privilege is the grouping).
     my $cat;
-    if ( $self->{imd}{category_external} || $self->_can_create('ir.module.category') ) {
+    my $why = '';
+    if ( $self->{imd}{category_external} || $self->_can_create( 'ir.module.category', \$why ) ) {
         $cat = $self->_support( $plan, 'category_external', 'ir.module.category', sub { { name => 'External applications' } } );
     }
     elsif ( !$self->{noted_category}++ ) {
-        $plan->note('ir.module.category cannot be created by this user on this instance: the groups are made without a category');
+        # Odoo's access list gives group_erp_manager read only on ir.module.category (16, 18, 19; filing 2026-10-27), so
+        # no administrator can make one over RPC; the group works without it
+        $plan->note( 'ir.module.category cannot be created by this user on this instance'
+            . ( length $why ? ": Odoo says '$why'" : '' )
+            . ': the groups are made without a category. A category comes from a module\'s data file (its access list is read only for administrators); ship it there to have the groups listed under one' );
     }
     return ( $cat ? ( category_id => $cat ) : () ) if $self->{gf} eq 'category_id';
     my $priv = $self->_support( $plan, 'privilege_external', 'res.groups.privilege', sub { { name => 'External applications', ( $cat ? ( category_id => $cat ) : () ) } } );
     return ( privilege_id => $priv );
 }
 
-sub _can_create ($self, $model) {
+sub _can_create ($self, $model, $why = undef) {
     my $ok = eval { $self->model($model)->call( 'check_access_rights', [], operation => 'create', raise_exception => JSON::PP::false ) };
-    return $ok ? 1 : 0;
+    return 1 if $ok;
+    # Odoo's own words for the refusal, asked once and only to be quoted (no write is made)
+    if ($why) {
+        eval { $self->model($model)->call( 'check_access_rights', [], operation => 'create', raise_exception => JSON::PP::true ); 1 };
+        if ( my $e = $@ ) {
+            my $m = ref $e && $e->can('message') ? $e->message : "$e";
+            $m =~ s/\s+/ /g;
+            $m =~ s/\A\s+|\s+\z//g;
+            $$why = $m;
+        }
+    }
+    return 0;
 }
 
 sub _plan_role ($self, $plan, $r) {
@@ -405,7 +444,20 @@ sub _plan_role ($self, $plan, $r) {
     }
     my $gkey = "role:$role";
     my $group_ok = 1;
-    if (@unknown) {
+    if ( defined $r->{group} ) {
+        # an existing group: the role adds rows and rules to it and changes nothing of it
+        my $id = $self->_group_by_xmlid( $r->{group} );
+        Odoo::Error->throw( kind => 'config', message => "core.access: role '$role': the group $r->{group} does not exist on this instance (is its module installed?)",
+            fix => 'name a group that exists: its xml id is module.name (oom-ops run core.get --set model=ir.model.data finds it)' ) if !defined $id;
+        my $disp = $self->_records( 'res.groups', [$id], ['display_name'] )->{$id};
+        my $dn = $disp && defined $disp->{display_name} ? $disp->{display_name} : $r->{group};
+        $self->_count;
+        $plan->add( bucket => 'unchanged', action => 'skip', id => $id, key => $gkey,
+            reason => "targets the existing group $r->{group} ($dn, res.groups $id): the role adds its access rows and rules and leaves the group, its name, implied groups and members alone; a revert removes only what the role added" );
+        $gid = $id;
+        $gcur = { existing => 1 };
+    }
+    elsif (@unknown) {
         $held->( 'unknown-implied-group', $gkey, "role '$role' implies " . join( ', ', map {"'$_'"} @unknown ) . ', which this instance does not have (module not installed?)' );
         $group_ok = 0;
     }
@@ -533,6 +585,7 @@ sub _plan_role ($self, $plan, $r) {
         for my $row (@$rows) {
             my $imd = $by->{'ir.model.access'}{ $row->{id} } or next;
             next if $imd->{name} !~ /\Aaccess_/ || $want_access{ $imd->{name} };
+            next if defined $r->{group} && index( $row->{name} // '', "oom:$role:" ) != 0;    # another role's row on the same existing group
             $self->_count;
             my $mname = ref $row->{model_id} ? $row->{model_id}[1] : '';
             $plan->add( bucket => 'access-remove', action => 'custom', handler => $self->op_name, kind => 'remove', model => 'ir.model.access', id => $row->{id},
@@ -545,6 +598,7 @@ sub _plan_role ($self, $plan, $r) {
         for my $row (@$rows) {
             my $imd = $by->{'ir.rule'}{ $row->{id} } or next;
             next if $imd->{name} !~ /\Arule_/ || $want_rule{ $imd->{name} };
+            next if defined $r->{group} && index( $row->{name} // '', "oom:$role:" ) != 0;    # another role's rule on the same existing group
             $self->_count;
             $plan->add( bucket => 'rule-remove', action => 'custom', handler => $self->op_name, kind => 'remove', model => 'ir.rule', id => $row->{id},
                 key => "rule-remove:$role:$imd->{name}", before => _snap($row), calls => [ _remove_calls('ir.rule') ], vals => { xmlid => $imd->{name}, imd_id => $imd->{id} },

@@ -28,9 +28,25 @@ actions:
   evidence: source 18.0 hr_recruitment_survey hr_applicant.action_print_survey; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (answered with an ir.actions.act_url)
 - method: action_send_survey
   module: hr_recruitment_survey
+  wizard: survey.invite
   note: answers with the survey.invite window for the job's interview survey and sends nothing; the invitation is the window's wizard, which mails the applicant; Odoo refuses an application with no applicant name
   evidence: 'source 18.0 hr_recruitment_survey hr_applicant.action_send_survey; live 2026-10-17 t/60-hr-coverage-live.t on hr18 (a survey with no questions was refused in Odoo''s words: You cannot send an invitation for a survey that has no questions; with a question it answered with a window on survey.invite)'
 wizards:
+- model: survey.invite
+  module: hr_recruitment_survey
+  method: action_invite
+  button: action_send_survey
+  values: [survey_id, applicant_id, partner_ids, emails, subject, body, template_id, deadline]
+  context_from_record: [default_applicant_id]
+  context:
+    default_email_layout_xmlid: mail.mail_notification_light
+  creates:
+  - model: survey.user_input
+    link: response_ids
+  - model: mail.mail
+  creates_evidence: 'source 18.0 survey survey_invite.action_invite (_prepare_answers makes one survey.user_input per person not already answered, _send_mail makes one mail.mail per answer), hr_recruitment_survey survey_invite.action_invite (links the answer to the applicant: response_ids; mail.send() at once, and an auto_delete mail goes once sent, so the mail may not be found afterwards); not run live: hr_recruitment_survey is not installed on the 16 and 18 cluster instances'
+  note: the window action_send_survey answers with. Odoo reads the applicant's context from the button - default_applicant_id is set from the record here; the values name survey_id (the job's interview survey), applicant_id and partner_ids (a command, [[6, 0, [partner id]]]), and the invitation is mailed to them. One survey.user_input is made per person
+  evidence: 'source 18.0 hr_recruitment_survey hr_applicant.action_send_survey (the context the button sets), survey_invite.action_invite'
 - model: applicant.get.refuse.reason
   method: action_refuse_reason_apply
   button: archive_applicant

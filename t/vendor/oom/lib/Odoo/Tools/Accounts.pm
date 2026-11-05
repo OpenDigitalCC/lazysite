@@ -30,7 +30,7 @@ use Odoo::Ops::ResetForm;
 use Odoo::Ops::Runner;
 use Odoo::Ops::Runs;
 
-our $VERSION = '0.42';
+our $VERSION = '0.44';
 
 =head1 NAME
 
@@ -1076,7 +1076,7 @@ sub handover ($self, %o) {
     }
     my $text = join( "\n", @out );
     if ( defined $o{out} ) {
-        open my $fh, '>', $o{out} or Odoo::Error->throw( kind => 'config', message => "cannot write $o{out}: $!" );
+        open my $fh, '>:encoding(UTF-8)', $o{out} or Odoo::Error->throw( kind => 'config', message => "cannot write $o{out}: $!" );
         print {$fh} $text;
         close $fh;
         $self->_p("hand-over sheet written to $o{out}");

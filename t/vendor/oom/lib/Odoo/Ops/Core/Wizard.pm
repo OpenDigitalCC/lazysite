@@ -263,6 +263,7 @@ sub apply_custom ( $class, $client, $c ) {
             wizard_id => $wid, method => $v->{method}, says => $says,
             ( @$fields ? ( state_before => $was, state_after => $now ) : () ),
             ( $ans->{window} ? ( window => $ans->{window} ) : () ),
+            ( $ans->{url} ? ( url => $ans->{url} ) : () ),
             $AC->found_returned($found),
             ( @$gone ? ( gone => $gone ) : () ),
         },

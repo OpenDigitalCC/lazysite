@@ -20,6 +20,9 @@ actions:
   post_html_flag: body_is_html   # 18 and 19 escape a str body unless this flag says it is HTML (the client sends Markup)
   comment_subtype: mail.mt_comment              # subtype_xmlid of a message people write
   seen_route: /discuss/channel/mark_as_read   # JSON-RPC; channel_id, last_message_id; moves the member's seen message forward, and its unread marker to just after it; ignores a non-member
+  add_members: add_members                       # public
+  leave: action_unfollow                         # public; the acting partner leaves
+  pin_message: set_message_pin                   # public, on the channel: ( message_id, pinned )
   empty_route: /mail/message/update_content         # JSON-RPC; the author or an administrator
   empty_shape: flat
 models:
@@ -30,6 +33,8 @@ models:
       type: channel_type              # channel | chat | group
       members: member_count
       active: active
+      description: description
+      partners: channel_partner_ids   # create takes [[6, 0, ids]] or [[4, id]] and makes a member row for each, and for the creator
   member:
     model: discuss.channel.member
     fields:
@@ -49,6 +54,7 @@ models:
       parent: parent_id               # the message replied to
       attachments: attachment_ids
       mentions: partner_ids
+      pinned: pinned_at               # set while the message is pinned
       type: message_type              # comment | notification | user_notification | email ...
   attachment:
     model: ir.attachment

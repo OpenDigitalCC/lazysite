@@ -1,0 +1,59 @@
+# mail.channel, Odoo 16. Read from the 16.0 source (addons/mail/models/mail_channel.py and discuss_channel_member.py / mail_channel_member.py).
+# Channel pin (channel_pin) pins the channel in the acting member's sidebar (the member's is_pinned); it is not a message pin.
+# Facts from a filing of 2026-10-28 (project chat): the creator of a channel becomes a member; any internal user can add
+# themselves to a sub-channel (18 and later: parent_channel_id) and still cannot read it; a mention in a sub-channel invites the mentioned
+# person (sub-channels do not exist on this series). Evidence grade for this file: live 2026-11-04 t/170-discuss44-live.t on 16.
+model: mail.channel
+series: 16
+module: mail
+effects:
+- on: create
+  effect: "the creating user becomes a member whether or not named, and so does every partner in channel_partner_ids; one mail.channel.member row each, and no message is posted (the 'joined the channel' notices belong to add_members)"
+  creates:
+  - model: mail.channel.member
+    removed_with: record
+  creates_evidence: 'source 16.0 mail mail_channel.py create (channel_member_ids filled with the creator and channel_partner_ids; the create posts no message); live 2026-11-04 t/170-discuss44-live.t on 16'
+  evidence: 'source 16.0 mail mail_channel.py create (channel_member_ids filled with the creator and channel_partner_ids; the create posts no message); live 2026-11-04 t/170-discuss44-live.t on 16'
+- on: write
+  fields: [channel_type]
+  effect: refused; Odoo does not change the type of a channel after it is made
+  evidence: 'source 16.0 mail mail_channel.py write (UserError "Cannot change the channel type")'
+- on: call
+  method: add_members
+  effect: "Odoo posts a notification on the channel for each new member, whatever the channel type: 'joined the channel' when the member is the acting user, 'invited NAME to the channel' otherwise (the name is a link; message_type notification, subtype mt_comment, author the acting user's partner)."
+  evidence: 'source 16.0 mail mail_channel.py add_members; live 2026-11-04 t/170-discuss44-live.t on 16'
+- on: call
+  method: action_unfollow
+  effect: "Odoo posts 'left the channel' on the channel (a notification as mt_comment, authored by the leaver, posted as sudo after the member row went), whatever the channel type. A partner who is no member only loses a follower subscription: no message."
+  evidence: 'source 16.0 mail mail_channel.py _action_unfollow; live 2026-11-04 t/170-discuss44-live.t on 16'
+actions:
+- method: add_members
+  creates:
+  - model: mail.channel.member
+  - model: mail.message
+  creates_evidence: 'source 16.0 mail mail_channel.py add_members (one member row per new partner; the notice per the effect above); live 2026-11-04 t/170-discuss44-live.t on 16'
+  note: 'Odoo 16 refuses a partner who is not in the group_public_id group of the channel (a new channel defaults to Internal User), in its words: Channel NAME only accepts members of group NAME. Forbidden for: PARTNER; a create does not check, so the members a create names need not be in the group. kwargs partner_ids (a list of partner ids); a partner who is a member already is left alone. Access: Odoo checks write on the channel; a plain internal user may add themselves to a channel they can read. discuss.members is the operation that plans it.'
+  evidence: 'source 16.0 mail mail_channel.py add_members; live 2026-11-04 t/170-discuss44-live.t on 16'
+- method: action_unfollow
+  creates:
+  - model: mail.message
+  creates_evidence: 'source 16.0 mail mail_channel.py _action_unfollow; live 2026-11-04 t/170-discuss44-live.t on 16'
+  note: 'the acting user leaves; the member row is deleted and the partner stops following. There is no undo for the member. discuss.leave is the operation that plans it.'
+  evidence: 'source 16.0 mail mail_channel.py action_unfollow; live 2026-11-04 t/170-discuss44-live.t on 16'
+- method: channel_pin
+  note: 'args pinned (bool): pins or unpins the channel in the acting member''s own sidebar; changes the member row only.'
+  evidence: 'source 16.0 mail mail_channel.py channel_pin'
+- method: channel_rename
+  note: 'args name: writes the name and posts nothing.'
+  evidence: 'source 16.0 mail mail_channel.py channel_rename'
+- method: channel_change_description
+  note: 'args description: writes the description.'
+  evidence: 'source 16.0 mail mail_channel.py channel_change_description'
+- method: action_archive
+  undo: action_unarchive
+  note: 'archives the channel (active false); the members and messages stay. An internal user may write a channel; only an administrator may unlink one.'
+  evidence: 'source 16.0 base models.action_archive; the channel has an active field'
+- method: action_unarchive
+  undo: action_archive
+  evidence: 'source 16.0 base models.action_unarchive'
+# Odoo 16 has no pinned messages: mail.message has no pinned_at and the channel has no set_message_pin (grep of the 16.0 mail models).

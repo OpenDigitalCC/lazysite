@@ -15,6 +15,7 @@ use Odoo::Ops::Runner;
 use Odoo::Ops::Core::Import;
 use Odoo::Ops::Core::OneRecord;
 use Odoo::Ops::File;
+use Odoo::Ops::Quiet ();
 
 use parent 'Odoo::Ops::Operation';
 
@@ -35,9 +36,18 @@ integer, so a page binding can feed them from a request. Each value is typed
 from the model's C<fields_get>: integer and many2one_reference (a whole number),
 float and monetary (a number),
 boolean (C<1 0 true false yes no>), date (C<YYYY-MM-DD>), datetime
-(C<YYYY-MM-DD HH:MM:SS>), selection (the key), many2one (an id), char, text and
+(C<YYYY-MM-DD HH:MM:SS>), selection (the key), many2one (an id), many2many, char, text and
 html. An empty value clears a char, text, html, date, datetime, selection or
-many2one field.
+many2one field; C<false> clears a many2one too (it is never the id 0).
+
+A many2many field takes a list: C<--set 'set.category_id=[3,4]'> (ids),
+C<--set 'set.category_id=["Sales","HR"]'> (names; a JSON number is an id, a string a
+name) or C<--set set.category_id=3,4> (a whole number is an id, anything else a
+name). It replaces the field's set: the plan holds Odoo's replace command and the
+before-image (the ids the record has), so C<revert> puts the old set back. A name is
+looked up by the related model's C<name>, without case, as C<core.import> looks it
+up; one that no record has, or several have, is a usage error. An empty value, C<[]> or
+C<false> clears the field. A field already holding exactly the ids is unchanged.
 
 The plan holds one C<write> change with the values and the before-image of
 the same fields, and a line per field with its before and after (a value over
@@ -58,11 +68,23 @@ read the old content; OOM keeps no copy of the content it replaces, so C<revert>
 holds that change as C<irreversible> and restores the other fields.
 
 A usage error names the field and carries a fix line: a field the model does not
-have, a value that is not the field's type, a one2many or many2many field (a
-later piece) or a reference, json or properties field (not set here). Held:
+have, a value that is not the field's type, a one2many field (core.import loads
+one) or a reference, json or properties field (not set here). A record the search
+does not show is read once: when Odoo refuses that read the answer is
+C<refused/access> with Odoo's text, and only a record that is not there is held
+C<unknown-record>. Held:
 
     unknown-record   no record has that id
     state-field      the pair sets the state of a model whose state Odoo changes through its own action; the operation is named
+
+C<quiet> (default off) sends the quiet context of L<Odoo::Ops::Quiet> (no
+tracking message, no follower, no assignment mail) joined with the
+C<suppress: { context: ... }> that the model's behaviour file records for a write
+of the fields set, as C<core.make> and C<core.action> do. The plan line names the
+keys sent and the effect silenced (C<crm.lead> C<user_id>: the assignment mail);
+when no recorded effect applies it says so, and the shared context is sent all
+the same. The context rides on the planned write only; a revert is planned
+without it.
 
 Odoo's own rules (a required field, a constraint) are Odoo's to refuse.
 
@@ -74,7 +96,8 @@ sub pack    ($class) { undef }
 sub params ($class) {
     {   model         => { type => 'str', required => 1, help => 'physical model, e.g. crm.lead' },
         id            => { type => 'int', required => 1, help => 'the record id' },
-        'set.<field>' => { type => 'str', help => 'one per field to write: --set set.stage_id=3 --set set.priority=2 (the value is typed from fields_get); a binary field takes a file: --file set.image_1920=PATH' },
+        quiet         => { type => 'bool', default => 0, help => 'send the quiet context (no tracking, no chatter, no assignment mail) and whatever the behaviour file records as silencing this write (an assignee: mail_auto_subscribe_no_notify); the plan names the keys and the effect, or says no recorded effect applies' },
+        'set.<field>' => { type => 'str', help => 'one per field to write: --set set.stage_id=3 --set set.priority=2 (the value is typed from fields_get; a many2many takes ids or names, [] clears it); a binary field takes a file: --file set.image_1920=PATH' },
     };
 }
 sub check_params ($class, $raw) {
@@ -101,7 +124,15 @@ sub writes      ($class) { 1 }
 sub scope_for ($self, $phase) {
     my $m = $self->param('model');
     return {} if !defined $m;
-    return { $m => $phase eq 'apply' ? [qw(read search_read write)] : ['search_read'] };
+    return { $m => $phase eq 'apply' ? [qw(read search_read write)] : [qw(read search_read)] };    # read: tells a refusal from a missing record
+}
+
+# a name in a many2many value is looked up as core.import looks it up, in the related model
+sub _resolver ($self) {
+    return sub ( $relation, $name ) {
+        return $self->ctx->guard->with_scope( { %{ $self->scope_for('plan') }, $relation => ['search_read'] }, $self->op_name,
+            sub { Odoo::Ops::Core::Import::lookup( $self, $relation, 'name', $name ) } );
+    };
 }
 
 sub _sets ($self) {
@@ -118,7 +149,7 @@ sub plan ($self) {
 
     my $m = $self->client->model($model);
     my $f = eval { $m->fields } || Odoo::Ops::Modules->absent_model( $self->ctx, 'core.set', $model, $@ );
-    my $vals = Odoo::Ops::Core::OneRecord->typed_values( 'core.set', $model, $f, $set );
+    my $vals = Odoo::Ops::Core::OneRecord->typed_values( 'core.set', $model, $f, $set, resolver => $self->_resolver );
 
     my $plan = $self->new_plan( input_count => 1 );
     my $key  = "$model:$id";
@@ -132,6 +163,7 @@ sub plan ($self) {
     my @names = sort grep { !$is_file{$_} } keys %$vals;
     my ($row) = @{ $m->search_read( [ [ 'id', '=', $id ] ], [ 'id', @names ], limit => 1, context => { active_test => JSON::PP::false } ) };
     if ( !$row ) {
+        Odoo::Ops::Core::OneRecord->refused_or_missing( 'core.set', $m, $model, $id );
         $plan->add( bucket => 'unknown-record', action => 'hold', key => $key, model => $model, id => $id, reason => "core.set: $model has no record with id $id" );
         return $plan;
     }
@@ -142,19 +174,23 @@ sub plan ($self) {
         my $type = $d->{type} // '';
         my $same = $type eq 'html'    ? Odoo::Ops::Core::Import::_text( $row->{$n} ) eq Odoo::Ops::Core::Import::_text( $vals->{$n} )
                  : $type eq 'boolean' ? ( $row->{$n} ? 1 : 0 ) == ( $vals->{$n} ? 1 : 0 )
+                 : $type eq 'many2many' ? join( ',', sort { $a <=> $b } @{ $row->{$n} // [] } ) eq join( ',', sort { $a <=> $b } @{ $vals->{$n}[0][2] } )
                  :                      !Odoo::Ops::Runner::_diffs( { $n => $vals->{$n} }, $row );
         next if $same;
         $new{$n}    = $vals->{$n};
         $before{$n} = $row->{$n};
-        push @line, "$n " . Odoo::Ops::Core::OneRecord->shown( $row->{$n} ) . ' -> ' . Odoo::Ops::Core::OneRecord->shown( $vals->{$n} );
+        push @line, "$n " . Odoo::Ops::Core::OneRecord->shown( $row->{$n}, $type ) . ' -> ' . Odoo::Ops::Core::OneRecord->shown( $vals->{$n}, $type );
     }
     if ( !%new && !@file_names ) {
         $plan->add( bucket => 'unchanged', action => 'skip', key => $key, model => $model, id => $id, reason => "$model $id already holds every value" );
         return $plan;
     }
+    # quiet: the shared context and the behaviour file's silencing context for the fields written (Odoo::Ops::Quiet)
+    my $q = $self->param('quiet') ? Odoo::Ops::Quiet::quiet_for( $self->ctx->behaviour($model), 'write', [ sort( keys %new ), @file_names ] ) : undef;
     $plan->add(
         bucket => 'set', action => 'write', key => $key, model => $model, id => $id, vals => \%new, before => \%before,
-        line   => "$model $id: " . join( '; ', @line ), reason => "$model $id: " . join( ', ', sort keys %new ),
+        ( $q ? ( context => $q->{context} ) : () ),
+        line   => "$model $id: " . join( '; ', @line ) . ( $q ? "; $q->{words}" : '' ), reason => "$model $id: " . join( ', ', sort keys %new ) . ( $q ? ', quiet' : '' ),
     ) if %new;
     my $first = %new ? 0 : 1;    # the plan counts the record once: the changes after the first are support
     for my $n (@file_names) {
@@ -163,9 +199,10 @@ sub plan ($self) {
             ( $first-- > 0 ? () : ( support => 1 ) ),
             bucket => 'set', action => 'custom', handler => 'core.set', kind => 'set-binary', key => $key, model => $model, id => $id + 0,
             calls => [ [ $model, 'write' ], [ $model, 'read' ] ],
+            ( $q ? ( context => $q->{context} ) : () ),
             vals => { $n => $plan->blob_value( Odoo::Ops::File->base64( $vals->{$n} ) ) },
             file => { field => $n, name => $s->{name}, bytes => $s->{bytes}, sha256 => $s->{sha256}, mimetype => $s->{mimetype} },
-            line => "$model $id: $n <- $s->{name} ($s->{bytes} bytes, sha256 $s->{sha256}, $s->{mimetype})",
+            line => "$model $id: $n <- $s->{name} ($s->{bytes} bytes, sha256 $s->{sha256}, $s->{mimetype})" . ( $q ? "; $q->{words}" : '' ),
             reason => "$model $id: $n, held once in the run folder (blobs/) and checked by digest at apply",
         );
     }
@@ -187,7 +224,7 @@ sub apply_custom ($class, $client, $c) {
     my $b64 = $c->{vals}{ $f->{field} };
     Odoo::Error->throw( kind => 'refused', code => 'blob', message => "the bytes for $c->{model}.$f->{field} are not the file that was planned (digest differs)",
         fix => 'plan again with oom-ops run core.set' ) if Digest::SHA::sha256_hex( decode_base64($b64) ) ne $f->{sha256};
-    $m->write( $c->{id}, { $f->{field} => $b64 } );
+    $m->write( $c->{id}, { $f->{field} => $b64 }, ( $c->{context} ? ( context => $c->{context} ) : () ) );
     my $row = $m->read_one( $c->{id}, [ $f->{field} ] );
     my $got = ref $row eq 'HASH' && defined $row->{ $f->{field} } && !ref $row->{ $f->{field} } ? decode_base64( $row->{ $f->{field} } ) : undef;
     my $ok  = defined $got && Digest::SHA::sha256_hex($got) eq $f->{sha256} && length($got) == $f->{bytes};

@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1346 (PENDING) **lazysite is tested on OOM 0.44.** The pinned snapshot in
+  `t/vendor/oom` moves from 0.42 to OOM 0.44 (f32c444), skipping 0.43, checked against
+  the 0.44 debs. No lazysite code changes, and every Odoo test passes on it. For an
+  operator on OOM 0.44: a binding may name the new operations (`core.user delete`, the
+  Discuss pack) and `quiet` on `core.make`, `core.set` and `core.action`; a write Odoo
+  did not keep (a field dropped or reset) still reads `done` on the page and only
+  lowers `verified`; a record the Odoo user may not read is refused as before, now
+  logged with OOM's `access` code; the OOM deb needs libdatetime-perl and
+  libdatetime-timezone-perl. SM747's spec is re-filed. t/lint/207, 261.
 - SM1330 (PENDING) **tests: the compatibility tier tests the OOM it names.**
   `tools/ext-compat.sh` failed every night on the installed deb and on OOM's tree for
   reasons in lazysite's harness: under `LAZYSITE_OOM_LIB` the host's `shop` pack claimed the

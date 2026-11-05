@@ -90,7 +90,7 @@ for my $kind ( [ b => 'behaviours' ], [ p => 'profiles' ] ) {
     }
     # SM1330: under the tier that directory is the share root the tier named as the
     # deb target's OWN data, not a host root answering for the snapshot: rule 2 is the
-    # gate's (a 0.44 deb holds models the 0.42 snapshot does not, and should).
+    # gate's (a newer deb holds models an older snapshot does not, and should).
     if ( defined $ENV{LAZYSITE_OOM_LIB} ) {
         pass("$dir: under the tier the share root is the target's own data");
         next;

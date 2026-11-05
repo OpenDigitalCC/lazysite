@@ -19,6 +19,9 @@ actions:
   post_html_flag: ''   # 16 reads a str body as HTML: no flag
   comment_subtype: mail.mt_comment              # subtype_xmlid of a message people write
   seen_route: /mail/channel/set_last_seen_message   # JSON-RPC; channel_id, last_message_id; moves the member's seen message forward
+  add_members: add_members                       # public; posts 'joined the channel' (self) or 'invited X to the channel' per new member
+  leave: action_unfollow                         # public; the acting partner leaves, and Odoo posts 'left the channel'
+  pin_message: ''                                # 16 has no pinned messages (no pinned_at, no set_message_pin)
   empty_route: /mail/message/update_content         # JSON-RPC; message_id, body, attachment_ids; the author or an administrator
   empty_shape: flat
 models:
@@ -29,6 +32,8 @@ models:
       type: channel_type              # channel | chat | group
       members: member_count
       active: active
+      description: description
+      partners: channel_partner_ids   # create takes [[6, 0, ids]] or [[4, id]] and makes a member row for each, and for the creator
   member:
     model: mail.channel.member
     fields:

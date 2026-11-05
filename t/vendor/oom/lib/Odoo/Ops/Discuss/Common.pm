@@ -280,4 +280,87 @@ sub message_row ( $op, $message_id ) {
     };
 }
 
+=head2 people($op, \@given)
+
+Partners from what a caller gave: a number is a partner id, anything else a
+login. Returns C<< ( \@people, $why ) >> where each person is
+C<< { partner, name, label } >> in the order given, once each; C<$why> is the
+text of a hold when a name matches nothing (the list is then empty). A partner
+is read as this login can read it.
+
+=cut
+
+sub people ( $op, $given ) {
+    my $p = $op->profile;
+    my $f = sub ( $lm, $lf ) { $p->field( $lm => $lf ) };
+    my ( @ids, @logins );
+    for my $g (@$given) { $g =~ /\A\d+\z/ ? push @ids, 0 + $g : push @logins, $g }
+    my %pname = !@ids ? () : map { $_->{id} => $_->{ $f->( partner => 'name' ) } }
+        @{ $op->model('partner')->search_read( [ [ 'id', 'in', \@ids ] ], [ $f->( partner => 'name' ) ] ) };
+    my %user = !@logins ? () : map { $_->{ $f->( user => 'login' ) } => $_ }
+        @{ $op->model('user')->search_read( [ [ $f->( user => 'login' ), 'in', \@logins ] ], [ map { $f->( user => $_ ) } qw(login partner) ] ) };
+    my ( @out, %seen );
+    for my $g (@$given) {
+        my ( $pid, $label, $name );
+        if ( $g =~ /\A\d+\z/ ) {
+            return ( [], "no partner $g" ) if !exists $pname{ 0 + $g };
+            ( $pid, $name ) = ( 0 + $g, $pname{ 0 + $g } );
+            $label = "$name ($pid)";
+        }
+        else {
+            return ( [], "no user with login $g" ) if !$user{$g};
+            $pid   = id_of( $user{$g}{ $f->( user => 'partner' ) } );
+            $name  = name_of( $user{$g}{ $f->( user => 'partner' ) } );
+            $label = $g;
+        }
+        next if $seen{$pid}++;
+        push @out, { partner => $pid, name => $name, label => $label };
+    }
+    return ( \@out, undef );
+}
+
+=head2 members_of($op, $channel_id)
+
+The channel's membership rows as C<< { partner_id => member_id } >>; guests
+(a member with no partner) are left out.
+
+=cut
+
+sub members_of ( $op, $channel_id ) {
+    my $p = $op->profile;
+    my $f = sub ($lf) { $p->field( member => $lf ) };
+    my $rows = $op->model('member')->search_read( [ [ $f->('channel'), '=', 0 + $channel_id ] ], [ $f->('partner') ] );
+    return { map { id_of( $_->{ $f->('partner') } ) => $_->{id} } grep { id_of( $_->{ $f->('partner') } ) } @$rows };
+}
+
+=head2 channel_messages_after($client, $profile, $channel_id, $after_id)
+
+The ids of the messages on a channel newer than C<$after_id>, oldest first:
+the notifications Odoo posted while a call ran.
+
+=cut
+
+sub channel_messages_after ( $client, $p, $channel_id, $after ) {
+    my $f = sub ($lf) { $p->field( message => $lf ) };
+    my $rows = $client->model( $p->model_name('message') )->search_read(
+        [ [ $f->('model'), '=', $p->model_name('channel') ], [ $f->('res_id'), '=', 0 + $channel_id ], [ 'id', '>', 0 + ( $after // 0 ) ] ],
+        ['id'], order => 'id asc' );
+    return [ map { $_->{id} } @$rows ];
+}
+
+=head2 newest_message($client, $profile, $channel_id)
+
+The id of the channel's newest message, 0 when it has none; read before a call
+so C<channel_messages_after> can name what the call posted.
+
+=cut
+
+sub newest_message ( $client, $p, $channel_id ) {
+    my $f = sub ($lf) { $p->field( message => $lf ) };
+    my $rows = $client->model( $p->model_name('message') )->search_read(
+        [ [ $f->('model'), '=', $p->model_name('channel') ], [ $f->('res_id'), '=', 0 + $channel_id ] ],
+        ['id'], order => 'id desc', limit => 1 );
+    return @$rows ? $rows->[0]{id} : 0;
+}
+
 1;

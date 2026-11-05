@@ -1,0 +1,14 @@
+# hr.employee, Odoo 16 (hr). Read from the 16.0 source (addons/hr/models/hr_employee.py, addons/resource/models/resource_mixin.py).
+# 16 makes no work contact for an employee (address_home_id is chosen, not made); the resource is the only record made beside it.
+model: hr.employee
+series: 16
+module: hr
+effects:
+- on: create
+  effect: "creating an employee makes its resource (resource.resource, named by resource_id); deleting the employee deletes it"
+  creates:
+  - model: resource.resource
+    link: resource_id
+    removed_with: record
+  creates_evidence: 'source 16.0 resource_mixin.create; live 2026-10-29 on the 16 cluster instance (a stamped employee made one resource.resource, no res.partner and no resource.calendar, and linked the company calendar; deleting the employee removed the resource)'
+  evidence: 'source 16.0 resource_mixin.create; live 2026-10-29 on the 16 cluster instance'

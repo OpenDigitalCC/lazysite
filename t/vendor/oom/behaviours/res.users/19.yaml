@@ -1,0 +1,16 @@
+# res.users, Odoo 19. Read in the OCB 19.0 source (addons/mail/models/res_users.py): the same _notify_security_setting_update calls as 18 (six references); the lines were not compared one by one.
+model: res.users
+series: 19
+effects:
+  - on: write
+    fields: [password]
+    effect: 'emails the user "Security Update: Password Changed" (a mail.mail made with sudo, auto_delete; sent to the user''s email address)'
+    evidence: 'source 19.0 mail res_users.write calls _notify_security_setting_update when ''password'' is in the values (lines 128-131); the method tests no context key and creates the mail.mail unconditionally, so nothing silences it'
+  - on: write
+    fields: [login]
+    effect: 'emails the user "Security Update: Login Changed"'
+    evidence: 'source 19.0 mail res_users.write (line 123)'
+  - on: write
+    fields: [email]
+    effect: 'emails the user''s previous address "Security Update: Email Changed"'
+    evidence: 'source 19.0 mail res_users.write (line 135)'

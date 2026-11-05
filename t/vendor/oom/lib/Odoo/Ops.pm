@@ -9,7 +9,7 @@ use JSON::PP ();
 use Odoo::JSON ();
 use Digest::SHA qw(sha256_hex);
 
-our $VERSION = '0.42';
+our $VERSION = '0.44';
 
 =head1 NAME
 
@@ -48,6 +48,19 @@ applied as a separate step against the same instance.
 
 A shared canonical UTF-8 JSON codec, so fingerprints are stable: the one
 L<Odoo::JSON> picks (L<Cpanel::JSON::XS> when installed, else L<JSON::PP>).
+
+=head2 check_input_file($path, $who) / check_input_text($text, $label, $who) / read_input($path, $who)
+
+The size bound on input an outside party can supply (L<Odoo::Ops::Input>,
+C<max_input_bytes>): refuse a file or text over it as C<refused/input-too-large>
+before a parser sees it; C<read_input> returns the bytes of a file within it.
+Here so that a pack and L<Odoo::Ops::Rows> reach it without loading more.
+
+=cut
+
+sub check_input_file ( $path, $who = undef ) { require Odoo::Ops::Input; Odoo::Ops::Input->check_file( $path, $who ) }
+sub check_input_text ( $text, $label, $who = undef ) { require Odoo::Ops::Input; Odoo::Ops::Input->check_text( $text, $label, $who ) }
+sub read_input ( $path, $who = undef ) { require Odoo::Ops::Input; Odoo::Ops::Input->slurp( $path, $who ) }
 
 =head2 fingerprint($data)
 

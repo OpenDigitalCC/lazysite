@@ -41,23 +41,27 @@ use parent 'Odoo::Test::FakeOdoo';
 
 my $c = sub { { type => 'char', store => 1 } };
 
-sub _fields ($CH, $MEM) {
+sub _fields ($CH, $MEM, $series = 16) {
     return (
         'res.partner'   => { name => $c->() },
         'res.users'     => { login => $c->(), partner_id => { type => 'many2one', relation => 'res.partner' }, name => $c->() },
         'ir.attachment' => { name => $c->(), datas => $c->(), res_model => $c->(), res_id => { type => 'integer' }, mimetype => $c->(),
             file_size => { type => 'integer' }, checksum => $c->() },
-        $CH  => { name => $c->(), channel_type => $c->(), member_count => { type => 'integer' }, active => { type => 'boolean' } },
+        'ir.model'      => { model => $c->(), transient => { type => 'boolean' } },
+        $CH  => { name => $c->(), channel_type => $c->(), member_count => { type => 'integer' }, active => { type => 'boolean' },
+            description => { type => 'text', store => 1 }, channel_partner_ids => { type => 'many2many', relation => 'res.partner' } },
         $MEM => {
             channel_id => { type => 'many2one', relation => $CH }, partner_id => { type => 'many2one', relation => 'res.partner' },
             seen_message_id => { type => 'many2one', relation => 'mail.message' }, fetched_message_id => { type => 'many2one', relation => 'mail.message' },
             message_unread_counter => { type => 'integer' },
+            create_uid => { type => 'many2one', relation => 'res.users' }, display_name => $c->(),
         },
         'mail.message' => {
             model => $c->(), res_id => { type => 'integer' }, author_id => { type => 'many2one', relation => 'res.partner' },
             date => { type => 'datetime' }, body => { type => 'html', store => 1 }, parent_id => { type => 'many2one', relation => 'mail.message' },
             attachment_ids => { type => 'many2many', relation => 'ir.attachment' }, partner_ids => { type => 'many2many', relation => 'res.partner' },
-            message_type => $c->(),
+            message_type => $c->(), create_uid => { type => 'many2one', relation => 'res.users' }, display_name => $c->(),
+            ( $series >= 17 ? ( pinned_at => { type => 'datetime' } ) : () ),
         },
     );
 }
@@ -69,10 +73,16 @@ sub new ($class, %args) {
     my $MEM = $series >= 18 ? 'discuss.channel.member' : 'mail.channel.member';
     my %methods = (
         "$CH.message_post" => sub ( $fake, $margs, $kw ) { $fake->_post( $margs->[0][0], $kw ) },
+        "$CH.create"       => sub ( $fake, $margs, $kw ) { $fake->_create_channel( $margs->[0] ) },
+        "$CH.add_members"  => sub ( $fake, $margs, $kw ) { $fake->_add_members( $margs->[0][0], $kw ) },
+        "$CH.action_unfollow" => sub ( $fake, $margs, $kw ) { $fake->_leave( $margs->[0][0] ) },
+        "$CH.set_message_pin" => sub ( $fake, $margs, $kw ) { $fake->_pin( $margs->[0][0], $kw ) },
+        # Odoo's record rule: a login deletes its own member row, an administrator any
+        "$MEM.unlink"      => sub ( $fake, $margs, $kw ) { $fake->_unlink_members( $margs->[0] ) },
     );
     $self = $class->SUPER::new(
         series  => $series,
-        fields  => { _fields( $CH, $MEM ) },
+        fields  => { _fields( $CH, $MEM, $series ) },
         secrets => { map { $_ => "pw-$_" } qw(ann bob cy root) },
         methods => \%methods,
         records => {
@@ -99,6 +109,87 @@ sub new ($class, %args) {
     $self->{admins} = { 14 => 1 };
     $self->_recount($_) for 1, 2;
     return $self;
+}
+
+# a row the acting user's call makes: stamped with who made it, as Odoo does
+sub _make ( $self, $model, $vals ) {
+    my $name = $model eq $self->{MEM} ? ( $self->{data}{'res.partner'}{ $vals->{partner_id} }{name} // '' ) : ( $vals->{message_type} // '' );
+    return $self->insert( $model, { %$vals, create_uid => $self->{caller_uid}, display_name => $name } );
+}
+
+# Odoo's channel create: the creating user is a member whether named or not, so is each partner in channel_partner_ids; no message is posted
+sub _create_channel ( $self, $vals ) {
+    my %v = %$vals;
+    my @pids;
+    for my $cmd ( @{ delete $v{channel_partner_ids} // [] } ) { _fault( 'TypeError', "unhashable type: 'list'" ) if $cmd->[0] == 6;    # create adds cmd[2], a list, to a set (16.0 to 19.0)
+        push @pids, $cmd->[1];
+    }
+    my $id = $self->_create( $self->{CH}, { %v, channel_type => $v{channel_type} // 'channel' } );
+    $self->{data}{ $self->{CH} }{$id}{channel_partner_ids} = [ sort { $a <=> $b } @pids ];
+    my %seen;
+    $self->_make( $self->{MEM}, { channel_id => $id, partner_id => $_, message_unread_counter => 0 } )
+        for grep { !$seen{$_}++ } ( $self->partner_of( $self->{caller_uid} ), @pids );
+    $self->_count_members($id);
+    return $id;
+}
+
+sub _count_members ( $self, $cid ) {
+    $self->{data}{ $self->{CH} }{$cid}{member_count} = scalar grep { $_->{channel_id} == $cid } values %{ $self->{data}{ $self->{MEM} } };
+}
+
+# a notice Odoo posts as the acting user's partner (message_type notification)
+sub _notice ( $self, $cid, $text ) {
+    return $self->_make( 'mail.message', { model => $self->{CH}, res_id => $cid, author_id => $self->partner_of( $self->{caller_uid} ),
+        date => '2026-10-17 11:00:00', body => $text, message_type => 'notification', attachment_ids => [], partner_ids => [] } );
+}
+
+# add_members: a member row per new partner and a notice for each - on 16 and 18 for every channel type, on 19 for a group or a chat only
+sub _add_members ( $self, $cid, $kw ) {
+    my $ch = $self->{data}{ $self->{CH} }{$cid} or _fault( 'MissingError', "channel $cid gone" );
+    my $me = $self->partner_of( $self->{caller_uid} );
+    for my $pid ( @{ $kw->{partner_ids} // [] } ) {
+        next if $self->member( $cid, $pid );
+        _fault( 'MissingError', "partner $pid gone" ) if !$self->{data}{'res.partner'}{$pid};
+        $self->_make( $self->{MEM}, { channel_id => $cid, partner_id => $pid, message_unread_counter => 0 } );
+        next if $self->{series} >= 19 && $ch->{channel_type} eq 'channel';
+        $self->_notice( $cid, $pid == $me ? '<div class="o_mail_notification">joined the channel</div>'
+            : '<div class="o_mail_notification">invited ' . $self->{data}{'res.partner'}{$pid}{name} . ' to the channel</div>' );
+    }
+    $self->_count_members($cid);
+    return JSON::PP::true;
+}
+
+# action_unfollow: the acting user's member row goes; a notice follows, except on a 19 channel
+sub _leave ( $self, $cid ) {
+    my $ch = $self->{data}{ $self->{CH} }{$cid} or _fault( 'MissingError', "channel $cid gone" );
+    my $mem = $self->member( $cid, $self->partner_of( $self->{caller_uid} ) ) or return JSON::PP::true;
+    delete $self->{data}{ $self->{MEM} }{ $mem->{id} };
+    $self->_count_members($cid);
+    $self->_notice( $cid, '<div class="o_mail_notification">left the channel</div>' ) unless $self->{series} >= 19 && $ch->{channel_type} eq 'channel';
+    return JSON::PP::true;
+}
+
+# set_message_pin: silent for a message that is not on the channel or is in that state already; a pin posts a notice
+sub _pin ( $self, $cid, $kw ) {
+    _fault( 'AttributeError', "'$self->{CH}' object has no attribute 'set_message_pin'" ) if $self->{series} < 17;
+    my $m = $self->{data}{'mail.message'}{ $kw->{message_id} };
+    return undef if !$m || $m->{model} ne $self->{CH} || $m->{res_id} != $cid;
+    my $on = $kw->{pinned} ? 1 : 0;
+    return undef if ( $m->{pinned_at} ? 1 : 0 ) == $on;
+    $m->{pinned_at} = $on ? '2026-10-17 11:30:00' : undef;
+    $self->_notice( $cid, '<div data-oe-type="pin" class="o_mail_notification">Ann pinned a message to this channel.</div>' ) if $on;
+    return undef;
+}
+
+sub _unlink_members ( $self, $ids ) {
+    my $me = $self->partner_of( $self->{caller_uid} );
+    for my $id (@$ids) {
+        my $r = $self->{data}{ $self->{MEM} }{$id} or _fault( 'MissingError', "member $id gone" );
+        _fault( 'AccessError', "You are not allowed to modify 'Channel Member' ($self->{MEM}) records." ) if $r->{partner_id} != $me && !$self->{admins}{ $self->{caller_uid} };
+        delete $self->{data}{ $self->{MEM} }{$id};
+        $self->_count_members( $r->{channel_id} );
+    }
+    return JSON::PP::true;
 }
 
 # the config-less pieces a test needs to run as one login

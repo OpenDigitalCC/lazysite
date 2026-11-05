@@ -448,6 +448,7 @@ sub _static_checks ($class, $config) {
         : _check( 'config.transport', 'fail', "unknown transport '$tr' (jsonrpc, xmlrpc, json2)" );
 
     push @c, _json_check();
+    push @c, _deps_check();
     push @c, _runs_dir_check($config);
 
     my $w = $config->get('allow_writes');
@@ -468,6 +469,25 @@ sub _json_check () {
     return $be eq 'JSON::PP'
         ? _check( 'config.json', 'ok', 'JSON::PP (pure Perl); libcpanel-json-xs-perl (Cpanel::JSON::XS) decodes the same answers about a hundred times faster' )
         : _check( 'config.json', 'ok', "$be (" . ( $be->VERSION // '?' ) . ')' );
+}
+
+# the versions of the parsers and libraries OOM binds, as facts only: OOM keeps no advisory list, the host's package
+# tracker does; a module that is not installed says so (a Recommends or a lazy load)
+sub _deps_check () {
+    my @p;
+    my $v = sub ( $mod, $code = undef ) {
+        my $r = eval { ( my $f = "$mod.pm" ) =~ s{::}{/}g; require $f; $code ? $code->() : $mod->VERSION };
+        return defined $r && length $r ? $r : 'not installed';
+    };
+    push @p, 'Text::CSV_XS ' . $v->('Text::CSV_XS');
+    my $be = Odoo::JSON->backend;
+    push @p, "$be " . ( $be->VERSION // '?' );
+    my $xml = $v->('XML::LibXML');
+    push @p, "XML::LibXML $xml" . ( $xml eq 'not installed' ? '' : ', libxml2 ' . $v->( 'XML::LibXML', sub { my $n = XML::LibXML::LIBXML_RUNTIME_VERSION(); $n =~ /\A(\d+)\z/ && $n >= 10000 ? join( '.', int( $n / 10000 ), int( $n / 100 ) % 100, $n % 100 ) : $n } ) );
+    my $ssl = $v->('IO::Socket::SSL');
+    push @p, "IO::Socket::SSL $ssl" . ( $ssl eq 'not installed' ? '' : ', ' . $v->( 'Net::SSLeay', sub { Net::SSLeay::SSLeay_version() =~ s/\s+\d{1,2} \w{3} \d{4}\z//r } ) );
+    push @p, 'Template ' . $v->('Template');
+    return _check( 'config.deps', 'info', join( '; ', @p ) );
 }
 
 sub _runs_dir_check ($config) {

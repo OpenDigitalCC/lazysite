@@ -14,5 +14,9 @@ wizards:
   button: action_send_survey
   values: [partner_ids, emails, subject, body, template_id, deadline]
   context_from_record: [default_survey_id]
-  note: sends the invitation mail to the partners and the extra addresses
+  creates:
+  - model: survey.user_input
+  - model: mail.mail
+  creates_evidence: 'source 18.0 survey survey_invite.action_invite (_prepare_answers makes one survey.user_input for each partner and each address that has none; _send_mail makes one mail.mail per answer, which the mail queue sends and deletes as auto_delete); not run live: survey is not installed on the 16 and 18 cluster instances'
+  note: sends the invitation mail to the partners and the extra addresses; one survey.user_input (the person's answer record) is made for each person not already invited
   evidence: source 18.0 survey survey_invite.action_invite

@@ -1,0 +1,16 @@
+# res.users, Odoo 16 (base). Read from the 16.0 source (odoo/addons/base/models/res_users.py: res.users.write,
+# _apply_groups_to_existing_employees, _default_groups; odoo/addons/base/data/res_users_data.xml: base.default_user).
+# Odoo 19 has no template user (the default groups are the implied groups of base.default_user_group), and 17 was not probed.
+# Also read in the OCB 16.0 source (addons/mail/models/res_users.py, addons/base/models/res_users.py).
+model: res.users
+series: 16
+effects:
+- on: write
+  fields: [groups_id]
+  only_for: default-user-template
+  effect: "groups added to the default user template (base.default_user) are given by Odoo to every internal user; a group taken off the template reaches no one, so putting it back hands it to everyone"
+  evidence: 'source 16.0 res_users.write (old_groups = _default_groups(); after the write the groups added to the template are linked to base.group_user.users - self); live 2026-10-29 t/162-revert43-live.t on the 16 instance'
+- on: write
+  fields: [password]
+  effect: 'no message to the user; 16 has no security-setting mail (no _notify_security_setting_update in the source)'
+  evidence: 'source 16.0, grep of addons for _notify_security_setting_update and "Password Changed" finds nothing'

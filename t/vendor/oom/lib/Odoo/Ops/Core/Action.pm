@@ -12,6 +12,7 @@ use Odoo::Error;
 use Odoo::Ops;
 use Odoo::Ops::Core::ActionCommon;
 use Odoo::Ops::Modules;
+use Odoo::Ops::Quiet ();
 
 use parent 'Odoo::Ops::Operation';
 
@@ -46,7 +47,9 @@ method and the record's state as read now; it does not say what the method will
 do (C<from> and C<to> in the behaviour file are for C<describe>, not for the
 plan). Apply calls the method on the record with the context and arguments
 given, reads the record back and reports the state before and after as a
-fact, with Odoo's answer: nothing, C<true>, or a window (C<Odoo answered with a
+fact, with Odoo's answer: nothing, C<true>, a URL (C<Odoo answered with a URL:
+https://example.test/meet (target new)>, and C<returned.url> holds C<< { url, target } >>;
+the audit keeps the link without its query) or a window (C<Odoo answered with a
 window: hr.holidays.cancel.leave (form)>). A window means Odoo wants a wizard or
 shows a record; OOM does not follow it, and when the behaviour file names the
 wizard for the method the line says to use C<core.wizard>. If Odoo refuses, the
@@ -79,6 +82,13 @@ C<revert> of a change: when the behaviour file names an C<undo> action for the
 method, the revert plans that action; otherwise it is held C<irreversible>,
 naming the method.
 
+C<quiet> (default off) sends the quiet context of L<Odoo::Ops::Quiet> (no tracking
+message, no follower, no assignment mail) joined with the C<suppress: { context: ...
+}> that the behaviour file records for the method, as C<core.make> and C<core.set>
+do, merged under the C<context> parameter (a key given there wins). The plan line
+names the keys sent and the effect silenced, or says that no recorded effect applies
+and that only the shared context is sent.
+
 A write operation: plans only; C<apply> carries it out.
 
 =cut
@@ -91,6 +101,7 @@ sub params ($class) {
         record  => { type => 'str',  help => 'one record: an id, or field=value such as name=X (not for an on: model entry)' },
         records => { type => 'list', help => 'comma-separated record ids (instead of record)' },
         method  => { type => 'str',  required => 1, help => 'a public method the model\'s behaviour file lists under actions (oom-ops describe core.action --set model=M)' },
+        quiet   => { type => 'bool', default => 0, help => 'send the quiet context (no tracking, no chatter, no assignment mail) and whatever the behaviour file records as silencing this method; the plan names the keys and the effect, or says no recorded effect applies; keys in context win' },
         context => { type => 'json', help => 'the context of the call, a JSON object (merged over the config\'s)' },
         args    => { type => 'json', help => 'the arguments after the ids: a JSON list (positional) or object (keyword); for an on: model entry the whole argument list, checked against the entry\'s params' },
     };
@@ -111,6 +122,8 @@ sub scope_for ( $self, $phase ) {
     if ( defined $model ) {
         $s{$model}{$_} = 1 for qw(search_read read);
         $s{$model}{ $self->param('method') } = 1 if $phase eq 'apply' && defined $self->param('method');
+        # a done_as entry reads the activity's type to say what becomes of the activity
+        if ($model eq 'mail.activity') { $s{'mail.activity.type'}{$_} = 1 for qw(search_read read) }
     }
     if ( $phase eq 'apply' && defined $model && defined $self->param('method') && $self->ctx ) {
         my $entry = eval { $self->ctx->behaviour($model)->action( $self->param('method') ) };
@@ -142,6 +155,11 @@ sub plan ($self) {
     my ( $args, $kwargs ) = _call_args( $me, $self->param('args') );
 
     my $beh = $self->ctx->behaviour($model);
+    # quiet: the shared context and the behaviour file's silencing context for this method (Odoo::Ops::Quiet);
+    # a key the caller gives in context wins
+    my $q = $self->param('quiet') ? Odoo::Ops::Quiet::quiet_for( $beh, 'call', $method ) : undef;
+    $ctx_in = { %{ $q->{context} }, %$ctx_in } if $q;
+    my $qwords = $q ? "; $q->{words}" : '';
     # a model of a module this server lacks is not applicable here, before any question of what is listed
     if ( my $why = Odoo::Ops::Modules->missing( $self->ctx, $beh->module ) ) { Odoo::Ops::Modules->refuse_model( $me, $model, $why ) }
     $AC->refuse_unlisted( $self->ctx, $model, 'action', "$me: $model $method is private (a method that starts with _ is never called)" )
@@ -171,7 +189,8 @@ sub plan ($self) {
                 ( defined $entry->{undo} ? ( undo => $entry->{undo} ) : () ),
                 ( @$creates ? ( creates => $creates ) : () ),
             },
-            line   => "$model: $method(" . $shown . '); no records; ' . $AC->creates_words($creates),
+            ( $q ? ( context => $q->{context} ) : () ),
+            line   => "$model: $method(" . $shown . '); no records; ' . $AC->creates_words($creates) . $qwords,
             reason => "$model: Odoo's model-level $method is called" . ( length $shown ? " with $shown" : ' with no arguments' ),
         );
         return $plan;
@@ -180,12 +199,15 @@ sub plan ($self) {
     my $m      = eval { $self->client->model($model) };
     my $fields = eval { $m->fields } || Odoo::Ops::Modules->absent_model( $self->ctx, $me, $model, $@ );
     my @state = grep { $fields->{$_} } $beh->state_fields;
-    my @read  = ( 'id', 'display_name', @state );
+    # an activity marked done is deleted or archived: its active flag is the state read back
+    push @state, 'active' if defined $entry->{done_as} && $fields->{active} && !grep { $_ eq 'active' } @state;
+    my @read  = ( 'id', 'display_name', @state, ( defined $entry->{done_as} ? grep { $fields->{$_} } qw(activity_type_id res_model res_id user_id) : () ) );
 
     my $creates = $AC->creates_specs( $self->ctx, $entry );
     my ( $want, $by_id ) = $AC->resolve_records( $self->client, $me, $model, $fields, $self->param('record'), $self->param('records'), \@read );
     my $plan = $self->new_plan( input_count => scalar @$want );
     $plan->note("$model $method: $entry->{note}") if length( $entry->{note} // '' );
+    my $types = defined $entry->{done_as} ? $self->_done_types($by_id) : {};
     for my $w (@$want) {
         my ( $id, $label ) = @$w;
         my $key = "$model:" . ( $id // $label );
@@ -198,6 +220,7 @@ sub plan ($self) {
         my $what = "$model $id" . $AC->name_of($row);
         my %before = map { $_ => $row->{$_} } @state;
         my $sline = @state ? '; ' . join( ', ', map { "$_ " . $AC->state_text( $row->{$_} ) } @state ) : '';
+        my $done = defined $entry->{done_as} ? $self->_done_words( $entry, $row, $types ) : undef;
         my ($wiz) = defined $entry->{wizard} ? grep { $_->{model} eq $entry->{wizard} } @{ $beh->wizards } : ();
         $plan->add(
             bucket => 'call', action => 'custom', handler => $me, kind => 'action', key => $key, id => $id, model => $model,
@@ -210,11 +233,49 @@ sub plan ($self) {
                 ( @$creates ? ( creates => $creates ) : () ),
                 ( defined $entry->{wizard} ? ( wizard => $entry->{wizard}, ( $wiz ? ( wizard_method => $wiz->{method} ) : () ) ) : () ),
             },
-            line   => "$what: $method$sline; " . $AC->creates_words($creates),
-            reason => "$what: Odoo's $method is called" . ( @state ? '; ' . join( ', ', map { "$_ reads " . $AC->state_text( $row->{$_} ) } @state ) . ' now' : '' ),
+            ( $q ? ( context => $q->{context} ) : () ),
+            line   => "$what: $method$sline; " . ( $done ? "$done; " : '' ) . $AC->creates_words($creates) . $qwords,
+            reason => "$what: Odoo's $method is called" . ( @state ? '; ' . join( ', ', map { "$_ reads " . $AC->state_text( $row->{$_} ) } @state ) . ' now' : '' )
+                . ( $done ? "; $done" : '' ),
         );
     }
     return $plan;
+}
+
+# The activity types behind the rows of a done_as entry, read once: the name,
+# whether the type keeps done activities (keep_done exists on 17 and 18 only)
+# and its chain.
+sub _done_types ( $self, $by_id ) {
+    my %ids = map { ref $_->{activity_type_id} eq 'ARRAY' ? ( $_->{activity_type_id}[0] => 1 ) : () } values %$by_id;
+    return {} if !%ids;
+    my $tm = $self->client->model('mail.activity.type');
+    my $tf = eval { $tm->fields } || {};
+    my @f  = grep { $tf->{$_} } qw(name keep_done chaining_type triggered_next_type_id);
+    my $rows = $tm->search_read( [ [ 'id', 'in', [ sort { $a <=> $b } keys %ids ] ] ], [ 'id', @f ], context => { active_test => JSON::PP::false } );
+    return { map { $_->{id} => { %$_, _has_keep_done => ( $tf->{keep_done} ? 1 : 0 ) } } @$rows };
+}
+
+# What Odoo will do to this activity when it is marked done, in words: deleted
+# or archived (the entry's done_as says which rule the series follows), who it
+# is assigned to, the chain, the record the message goes on, and that nothing
+# takes it back.
+sub _done_words ( $self, $entry, $row, $types ) {
+    my $tid  = ref $row->{activity_type_id} eq 'ARRAY' ? $row->{activity_type_id}[0] : undef;
+    my $type = defined $tid ? $types->{$tid} : undef;
+    my $tname = $type && defined $type->{name} ? $type->{name} : ( ref $row->{activity_type_id} eq 'ARRAY' ? $row->{activity_type_id}[1] : 'no type' );
+    my $how = $entry->{done_as};
+    my $fate = $how eq 'keep_done'
+        ? ( $type && $type->{keep_done} ? "archived (type '$tname' keeps done activities)" : "deleted (type '$tname' does not keep done activities)" )
+        : "$how (every activity of this series is $how when done; type '$tname')";
+    my $words = "the activity will be $fate";
+    my $chain = $type && ( $type->{chaining_type} // '' ) eq 'trigger'
+        ? '; the chain makes the next activity' . ( ref $type->{triggered_next_type_id} eq 'ARRAY' ? " of type '$type->{triggered_next_type_id}[1]'" : '' )
+        : '; no next activity is made';
+    my $on = defined $row->{res_model} && defined $row->{res_id} ? "; Odoo posts the done note on $row->{res_model} $row->{res_id}" : '';
+    my $who = ref $row->{user_id} eq 'ARRAY'
+        ? '; assigned to ' . $row->{user_id}[1] . ( $row->{user_id}[0] == $self->client->uid ? ' (the signed-in user)' : ' (not the signed-in user)' )
+        : '';
+    return "$words$chain$on$who; there is no revert: Odoo removes or archives the activity and OOM does not put it back";
 }
 
 # the state fields of a read row, plain
@@ -250,6 +311,7 @@ sub _apply_model_level ( $class, $client, $c ) {
         returned => {
             method => $v->{method}, on => 'model', says => $says, args_count => scalar @{ $v->{args} // [] },
             ( $ans->{window} ? ( window => $ans->{window} ) : () ),
+            ( $ans->{url} ? ( url => $ans->{url} ) : () ),
             ( defined $ret && ref $ret ? ( value => $ret ) : () ),
             $AC->found_returned($found),
         },
@@ -297,6 +359,7 @@ sub apply_custom ( $class, $client, $c ) {
             method => $v->{method}, says => $says,
             ( @$fields ? ( state_before => $swas, state_after => $snow ) : () ),
             ( $ans->{window} ? ( window => $ans->{window} ) : () ),
+            ( $ans->{url} ? ( url => $ans->{url} ) : () ),
             $AC->found_returned($found),
             ( $now ? () : ( gone => JSON::PP::true ) ),
         },

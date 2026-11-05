@@ -8,6 +8,7 @@ no warnings 'experimental::signatures';
 use Digest::SHA ();
 use JSON::PP ();
 use Odoo::JSON ();
+use Odoo::Ops::Input ();
 
 use File::Basename ();
 use File::Spec ();
@@ -95,7 +96,10 @@ what the fingerprint seals.
 A change may carry C<< ref => 'name' >>; once it has created its
 record, later changes can use C<< { '$ref' => 'name' } >> anywhere in
 their vals (a many2one value, or inside an x2many command) and the
-runner substitutes the new id. It then seals the plan with a fingerprint over
+runner substitutes the new id. A later C<write>, C<call> or C<custom> change
+may instead carry C<< id_ref => 'name' >> in place of C<id>: it then acts on
+the record that change made, and its journal entry carries the id. A name no
+earlier change makes is refused when the change is added. It then seals the plan with a fingerprint over
 its instance, op, params and changes; C<load> refuses a plan whose
 fingerprint no longer matches, so an edited plan must be re-planned,
 not applied.
@@ -230,7 +234,8 @@ sub add ($self, %c) {
         Odoo::Error->throw( kind => 'usage', message => "$c{action} needs a model" ) if !$c{model};
     }
     if ( $c{action} =~ /^(write|unlink)\z/ ) {
-        Odoo::Error->throw( kind => 'usage', message => "$c{action} needs an id" ) if !$c{id};
+        # a write may name the record an earlier change makes (id_ref) instead of an id it cannot have yet; a call and a custom change take id_ref too
+        Odoo::Error->throw( kind => 'usage', message => "$c{action} needs an id" ) if !$c{id} && !( $c{action} eq 'write' && defined $c{id_ref} );
     }
     # ids that were Perl hash keys are strings; Odoo takes numbers, and a value that is no id is refused by name
     for my $k (qw(id ids)) {
@@ -445,10 +450,9 @@ sub save ($self, $path) {
 }
 
 sub load ($class, $path) {
-    open my $fh, '<', $path
-        or Odoo::Error->throw( kind => 'config', message => "cannot read plan $path: $!" );
-    my $raw = do { local $/; <$fh> };
-    close $fh;
+    Odoo::Ops::Input->check_file( $path, 'plan' );
+    -r $path or Odoo::Error->throw( kind => 'config', message => "cannot read plan $path: $!" );
+    my $raw = Odoo::Ops::Input->slurp( $path, 'plan' );
     my $h = eval { Odoo::Ops::json()->decode($raw) }
         or Odoo::Error->throw( kind => 'config', message => "plan $path is not valid JSON" );
     my $plan = $class->from_hash($h);

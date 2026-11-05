@@ -16,8 +16,25 @@ effects:
     evidence: source mail_activity.write (2026-10-02)
   - on: call
     method: action_feedback
-    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity; the next activity of the type's chain is created
+    effect: marks the activity done, posts the feedback on the record's chatter and deletes the activity; the next activity of the type's chain is created when its chaining type is trigger
     evidence: source mail_activity.action_feedback; live 2026-10-13 (crm.activity done)
+actions:
+  - method: action_feedback
+    done_as: deleted
+    creates:
+      - model: mail.message
+      - model: mail.activity
+    creates_evidence: 'source 16.0 mail_activity._action_done (the done note is a mail.message on the record; the next activity is created when chaining_type is trigger); live 2026-10-29 t/166-people43-live.t on 16 (probed there)'
+    note: 'kwargs feedback (text, shown in the note) and attachment_ids (list of ir.attachment ids); pass them in --set args as a JSON object, {"feedback":"..."}. Done: deleted; this series has no keep-done setting on the type. Access: the record is browsed without sudo and the note is posted as the signed-in user, so Odoo checks the right the record''s model asks for a post (_mail_post_access, write unless the model says otherwise): an assignee without it is refused by Odoo with its AccessError (source; not probed live with such a login). The signed-in user (or the person acted for) runs the call. There is no revert.'
+    evidence: 'source 16.0 mail_activity.action_feedback / _action_done; live 2026-10-29 t/166-people43-live.t on 16 (probed there)'
+  - method: action_done
+    done_as: deleted
+    creates:
+      - model: mail.message
+      - model: mail.activity
+    creates_evidence: 'source 16.0 mail_activity.action_done (action_feedback with no feedback); live 2026-10-29 t/166-people43-live.t on 16 (probed there)'
+    note: 'action_feedback without a feedback text. Done: deleted; this series has no keep-done setting on the type. Access as for action_feedback. There is no revert.'
+    evidence: 'source 16.0 mail_activity.action_done; live 2026-10-29 t/166-people43-live.t on 16 (probed there)'
 routes:
   schedule: { via: activity_schedule, args: { automated: false }, why: the assignee-access check is skipped when automated (B2) }
 probes: [acting_user_email]

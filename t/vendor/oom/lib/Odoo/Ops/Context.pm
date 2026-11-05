@@ -13,6 +13,7 @@ use Time::HiRes ();
 use Odoo::Cache;
 use Odoo::Client;
 use Odoo::Error;
+use Odoo::Ops::Input ();
 use Odoo::Ops;
 use Odoo::Ops::Acting;
 use Odoo::Ops::Audit;
@@ -83,6 +84,8 @@ sub new ($class, %args) {
     # the operations of this config's packs are found by every registry this process makes from here on
     require Odoo::Ops::Registry;
     Odoo::Ops::Registry->use_config($config);
+    # the size bound on files an outside party supplies (Odoo::Ops::Input) follows the config of the context
+    Odoo::Ops::Input->configure( $config->get('max_input_bytes') );
 
     my %cred = $args{credential} ? %{ $args{credential} } : Odoo::Ops::Credential->resolve($config);
     # who the context runs as: the login of a credential given in memory, else the config's

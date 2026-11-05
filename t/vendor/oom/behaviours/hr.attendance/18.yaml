@@ -6,6 +6,13 @@ module: hr_attendance
 state:
   field: overtime_status
   written_by: write
+effects:
+- on: create
+  effect: "creating an attendance makes Odoo compute the overtime of the employee's day: hr.attendance.overtime rows are made (or changed) beside it"
+  creates:
+  - model: hr.attendance.overtime
+  creates_evidence: 'source 18.0 hr_attendance hr_attendance.create (res._update_overtime() creates the hr.attendance.overtime rows for the days touched, none for a fully flexible employee); reported by the filing of 2026-10-27 on hr18 (8 overtime rows for the test employees); not run on the 16 and 18 cluster instances, where hr_attendance is not installed'
+  evidence: 'source 18.0 hr_attendance hr_attendance.create, _update_overtime; filing 2026-10-27 on hr18'
 actions:
 - method: action_approve_overtime
   to: [approved]

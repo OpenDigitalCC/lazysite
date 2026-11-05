@@ -10,6 +10,17 @@
 model: hr.employee
 series: 18
 module: hr
+effects:
+- on: create
+  effect: "creating an employee makes its work contact (res.partner, named by work_contact_id) and its resource (resource.resource, named by resource_id); deleting the employee deletes the resource and leaves the contact"
+  creates:
+  - model: res.partner
+    link: work_contact_id
+  - model: resource.resource
+    link: resource_id
+    removed_with: record
+  creates_evidence: 'source 18.0 hr hr_employee.create (_create_work_contacts for an employee with no work contact), resource_mixin.create (the resource); live 2026-10-29 on the 18 cluster instance (a stamped employee made one res.partner, one resource.resource, linked the company calendar and made no resource.calendar; deleting the employee removed the resource and left the contact)'
+  evidence: 'source 18.0 hr hr_employee.create, resource_mixin.create; live 2026-10-29 on the 18 cluster instance'
 actions:
 - method: register_attendance
   module: hr_attendance_rfid

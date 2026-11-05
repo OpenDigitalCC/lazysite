@@ -11,6 +11,7 @@ use Odoo::JSON ();
 
 use Odoo::Error;
 use Odoo::Ops::Modules;
+use Odoo::Ops::Quiet qw(quiet_context);
 use Odoo::Ops;
 use Odoo::Ops::Rows;
 use Odoo::Ops::Source;
@@ -80,7 +81,16 @@ Values are in the field's own terms, with relations by name:
     html        plain text is wrapped in paragraphs
 
 An empty value (undef or '') is "nothing to say": it is never written
-and never clears a field.
+and never clears a field. Two JSON values say empty on purpose: C<[]> for a
+many2many and C<false> for a many2one (or a many2many). Under the policy
+C<overwrite> for that field (a many2one takes C<on_match>; a many2many needs
+C<policy> to say C<overwrite>, its default is C<add>) the row clears the field:
+the plan holds a C<write> of the empty value with the field's before-image, and
+C<revert> writes the before-image back. Under any other policy the value leaves
+the field alone. A row that creates a record writes its cleared fields in a
+second change after the create, on the record just made (a support change, named
+in the plan), because Odoo may fill the field again in the create itself.
+C<false> is never read as the id 0.
 
 Every row lands in exactly one bucket:
 
@@ -108,8 +118,10 @@ their model is in C<create_missing>: then they are planned as support
 creates before the rows that use them.
 
 Writes carry C<tracking_disable>, C<mail_create_nolog>,
-C<mail_notrack> and C<mail_create_nosubscribe> (C<quiet>, default
-on), so a load leaves no chatter and sends no mail.
+C<mail_notrack>, C<mail_create_nosubscribe> and
+C<mail_auto_subscribe_no_notify> (C<quiet>, default on; the set is
+L<Odoo::Ops::Quiet>), so a load leaves no chatter and sends no mail,
+the "You have been assigned to" mail of a task included.
 
 =cut
 
@@ -318,13 +330,19 @@ sub _plan_rows ($self, $model, $f, $keys, $rows, $on_match, $archived) {
         my $s = $self->{support}{$ref};
         $plan->add( %$s, support => 1, ref => $ref );
     }
-    my $ctx = $self->param('quiet')
-        ? { tracking_disable => JSON::PP::true, mail_create_nolog => JSON::PP::true,
-            mail_notrack => JSON::PP::true, mail_create_nosubscribe => JSON::PP::true }
-        : undef;
+    my $ctx = $self->param('quiet') ? quiet_context() : undef;
     for my $d (@decisions) {
         $d->{context} = $ctx if $ctx && ( $d->{action} eq 'create' || $d->{action} eq 'write' );
+        my $after = delete $d->{after_create};
         $plan->add(%$d);
+        next if !$after;
+        # the clear, as its own change on the record just made, named in the plan
+        $plan->add(
+            bucket => $d->{bucket}, action => 'write', model => $model, id_ref => $d->{ref}, key => $d->{key}, support => 1,
+            vals => $after, ( $ctx ? ( context => $ctx ) : () ),
+            line => "$model $d->{key}: after the create, clears " . join( ', ', sort keys %$after ) . ' (the row says empty; Odoo may have defaulted it)',
+            reason => 'clears ' . join( ', ', sort keys %$after ) . ' on the record just made',
+        );
     }
     return $plan;
 }
@@ -399,9 +417,20 @@ sub _decide ($self, $model, $f, $keys, $row, $index, $by_id, $seen, $on_match, $
     return _hold( 'duplicate-in-source', $row, 'same ' . join( '+', @$keys ) . " as source row #$seen->{$k}" ) if $seen->{$k};
 
     # coerce every value to its field's terms; relations to ids
-    my ( %resolved, @invalid, @unresolved, @ambiguous );
+    my ( %resolved, %clear, @invalid, @unresolved, @ambiguous );
     for my $fld ( sort keys %$vals ) {
         my $v = $vals->{$fld};
+        # an empty value that is meant: [] on a many2many, false on a many2one (or a many2many) clears the field,
+        # under the policy overwrite; under any other policy it leaves the field alone, as an empty cell does
+        if ( my $kind = _clears( $f->{$fld}, $v ) ) {
+            my $type   = $f->{$fld}{type};
+            my $policy = $self->{policy}{$fld} // ( $type eq 'many2many' ? 'add' : $on_match );
+            if ( $policy eq 'overwrite' ) {
+                $resolved{$fld} = $type eq 'many2many' ? [] : JSON::PP::false;
+                $clear{$fld}    = 1;
+            }
+            next;
+        }
         next if !defined $v || ( !ref $v && !_is_bool($v) && $v !~ /\S/ ) || ( ref $v eq 'ARRAY' && !@$v );
         my $d    = $f->{$fld};
         my $type = $d->{type};
@@ -431,9 +460,12 @@ sub _decide ($self, $model, $f, $keys, $row, $index, $by_id, $seen, $on_match, $
     return _hold( 'ambiguous', $row, 'key matches records ' . join( ', ', @ids ) ) if @ids > 1;
     if ( !@ids ) {
         my %phys;
-        for my $fld ( keys %resolved ) {
+        for my $fld ( grep { !$clear{$_} } keys %resolved ) {
             $phys{$fld} = $f->{$fld}{type} eq 'many2many' ? [ [ 6, 0, $resolved{$fld} ] ] : $resolved{$fld};
         }
+        # a field the row clears is written after the create: Odoo may fill it again in the create itself
+        # (a task's assignee), which no value in the create can stop
+        my %after = map { $_ => ( $f->{$_}{type} eq 'many2many' ? [ [ 6, 0, [] ] ] : JSON::PP::false ) } sort keys %clear;
         # planning matches keys case-insensitively, so the apply-time look-up folds
         # a char part too; a part that waits on a support create has no id yet
         my $uniq;
@@ -445,6 +477,7 @@ sub _decide ($self, $model, $f, $keys, $row, $index, $by_id, $seen, $on_match, $
         return {
             bucket => 'create', action => 'create', model => $model, key => "src:$row->{key}", vals => \%phys,
             ( defined $uniq ? ( unique_by => $uniq ) : () ),
+            ( %after ? ( ref => "made:$row->{key}", after_create => \%after ) : () ),
         };
     }
 
@@ -471,6 +504,10 @@ sub _decide ($self, $model, $f, $keys, $row, $index, $by_id, $seen, $on_match, $
             elsif (@add) {
                 $write = [ map { [ 4, $_, 0 ] } @add ];
             }
+        }
+        elsif ( $type eq 'many2one' && $clear{$fld} ) {
+            my $old_id = ref $old eq 'ARRAY' ? $old->[0] : undef;
+            $write = JSON::PP::false if $old_id;
         }
         elsif ( $type eq 'many2one' ) {
             my $old_id = ref $old eq 'ARRAY' ? $old->[0] : undef;
@@ -499,6 +536,15 @@ sub _decide ($self, $model, $f, $keys, $row, $index, $by_id, $seen, $on_match, $
         bucket => 'update', action => 'write', model => $model, id => $id, key => "src:$row->{key}",
         vals   => \%set, before => \%before, reason => $via,
     };
+}
+
+# The empty value a row means: a JSON [] for a many2many, false for a many2one or a many2many. Else 0.
+sub _clears ($d, $v) {
+    my $type = $d ? $d->{type} : '';
+    return 0 if $type ne 'many2many' && $type ne 'many2one';
+    return 1 if $type eq 'many2many' && ref $v eq 'ARRAY' && !@$v;
+    return 1 if _is_bool($v) && !$v;
+    return 0;
 }
 
 # a JSON true or false (an object), or a native Perl boolean
@@ -558,11 +604,34 @@ sub _ambiguous_words ($self, $fld, $relation, $name, $ids) {
 sub _resolve ($self, $fld, $relation, $name) {
     my $lk = $self->param('lookup') // {};
     my $by = $lk->{$fld} // 'name';
-    return $name =~ /^\d+\z/ ? 0 + $name : undef if $by eq 'id';
+    my $id = lookup( $self, $relation, $by, $name );
+    return $id if defined $id;
+    return undef if !$self->{create_ok}{$relation};
+    my $norm = lc( $name =~ s/^\s+|\s+\z//gr );
+    my $ref = "$relation:$norm";
+    $self->{support}{$ref} //= {
+        bucket => "new-$relation", action => 'create', model => $relation,
+        vals   => { $by => $name =~ s/^\s+|\s+\z//gr }, unique_by => $by,
+    };
+    return { '$ref' => $ref };
+}
+
+=head2 lookup($op, $relation, $by, $name)
+
+The id of the record of C<$relation> whose C<$by> field (C<name> by default; C<id>
+takes a whole number as the id) is C<$name>, compared without case and trimmed; undef
+when none is; C<< { ambiguous => [ids] } >> when more than one is (the first is never
+taken). Archived records count. C<$op> is the operation asking: it holds the read
+cache (C<core.import> and, for a many2many value, C<core.set> and C<core.make>).
+
+=cut
+
+sub lookup ($self, $relation, $by, $name) {
+    return $name =~ /^\d+\z/ && $name > 0 ? 0 + $name : undef if $by eq 'id';
     my $norm  = lc( $name =~ s/^\s+|\s+\z//gr );
     my $index = $self->{cache}{"$relation.$by"} //= do {
         my $rm = $self->model($relation);
-        Odoo::Error->throw( kind => 'usage', message => "core.import: lookup field '$by' is not a field of $relation",
+        Odoo::Error->throw( kind => 'usage', message => $self->op_name . ": lookup field '$by' is not a field of $relation",
                 fix => "name a field of $relation in lookup" )
             if !$rm->fields->{$by};
         my @domain;
@@ -580,13 +649,7 @@ sub _resolve ($self, $fld, $relation, $name) {
         return $ids->[0] if @$ids == 1;
         return { ambiguous => [ sort { $a <=> $b } @$ids ] };
     }
-    return undef if !$self->{create_ok}{$relation};
-    my $ref = "$relation:$norm";
-    $self->{support}{$ref} //= {
-        bucket => "new-$relation", action => 'create', model => $relation,
-        vals   => { $by => $name =~ s/^\s+|\s+\z//gr }, unique_by => $by,
-    };
-    return { '$ref' => $ref };
+    return undef;
 }
 
 sub _empty ($v, $type) {

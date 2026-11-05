@@ -3,10 +3,13 @@ package Odoo::Ops::Core::OneRecord;
 use strict;
 use warnings;
 use feature qw(signatures);
-no warnings 'experimental::signatures';
+no warnings qw(experimental::signatures experimental::builtin);
 
+use Encode ();
 use JSON::PP ();
 use Odoo::JSON ();
+
+use Scalar::Util qw(blessed);
 
 use Odoo::Error;
 use Odoo::Portable;
@@ -60,13 +63,14 @@ the plan's blob store. A usage error names
 the field and carries a fix line:
 
     the model has no such field
-    the field is one2many or many2many (a later piece), or reference, json or properties (not typed here)
+    the field is one2many (core.make takes lines.<field>), or reference, json or properties (not typed here)
+    a many2many value that is not a list, names no record or names several
     the field is binary and the value is text (a binary field takes a file)
     the text is not a value of the field's type
 
 Types: integer and many2one_reference (a whole number), float and monetary (a number), boolean (C<1 0 true false yes no>),
 date (C<YYYY-MM-DD>), datetime (C<YYYY-MM-DD HH:MM:SS>), selection (the key),
-many2one (an id), char, text, and html (plain text is made into paragraphs;
+many2one (an id, or false for empty), many2many (a list, see many2many), char, text, and html (plain text is made into paragraphs;
 text that starts with a tag is kept as written). An empty value clears a
 char, text, html, date, datetime, selection or many2one; for a number or a
 boolean it is refused.
@@ -75,7 +79,7 @@ boolean it is refused.
 
 my %TYPED = map { $_ => 1 } qw(integer many2one_reference float monetary boolean date datetime selection many2one char text html);
 
-sub typed_values ($class, $op, $model, $fields, $set) {
+sub typed_values ($class, $op, $model, $fields, $set, %o) {
     my %vals;
     for my $f ( sort keys %$set ) {
         my $d = $fields->{$f};
@@ -90,10 +94,14 @@ sub typed_values ($class, $op, $model, $fields, $set) {
         }
         Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f is a binary field; give it a file, not text",
             fix => "pass --file set.$f=PATH on the command line, or a { name, bytes } value in a program" ) if $type eq 'binary';
+        if ( $type eq 'many2many' ) {
+            $vals{$f} = $class->many2many( $op, $model, $f, $d, $set->{$f}, $o{resolver} );
+            next;
+        }
         Odoo::Error->throw( kind => 'usage',
             message => "$op: $model.$f is a $type field; one record's $type fields are not set here",
-            fix => $type =~ /^(?:one2many|many2many)\z/
-                ? 'a later piece of OOM sets x2many fields; core.import loads them today'
+            fix => $type eq 'one2many'
+                ? ( $op eq 'core.make' ? "give the lines with lines.$f, or load them with core.import" : 'core.import loads a one2many field' )
                 : "core.import or core.action reaches a $type field" ) if !$TYPED{$type};
         my ( $ok, $v ) = $class->coerce( $d, $set->{$f} );
         Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: $v",
@@ -101,6 +109,85 @@ sub typed_values ($class, $op, $model, $fields, $set) {
         $vals{$f} = $v;
     }
     return \%vals;
+}
+
+=head2 many2many($op, $model, $field, \%field, $text, $resolver)
+
+The replace command Odoo takes for a many2many field, C<< [[6, 0, \@ids]] >>, from
+the text of a C<set.> value: a JSON list (C<[3,4]> ids, C<["Sales","HR"]> names, a
+JSON number is an id and a JSON string a name) or plain text split on C<;> or C<,>
+(a whole number is an id, anything else a name). An empty text, C<[]> and C<false> mean
+none: the field is cleared. A name is looked up in the comodel by its C<name>, without
+case, as C<core.import> looks a many2many name up (L<Odoo::Ops::Core::Import/lookup>);
+C<$resolver> is C<< sub ($relation, $name) >> returning that answer. A name no record
+has, or several records have, is a usage error naming it (and the ids, for several).
+
+=cut
+
+sub many2many ($class, $op, $model, $f, $d, $text, $resolver) {
+    my $t = $text =~ s/\A\s+|\s+\z//gr;
+    my @items;    # [ kind, value ]: id or name
+    if ( $t eq '' || $t eq 'false' ) { }
+    elsif ( $t =~ /\A\[/ ) {
+        my $list = eval { Odoo::JSON->new->decode( Encode::encode( 'UTF-8', $t ) ) };
+        Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: '$t' is not a JSON list",
+            fix => "give $f as a list of ids [3,4] or of names [\"Sales\",\"HR\"], or as ids and names split by commas" ) if ref $list ne 'ARRAY';
+        for my $i (@$list) {
+            Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: a list item must be an id or a name, not " . ( ref $i ? 'a ' . lc( ref $i ) : 'empty' ),
+                fix => "give $f as a list of ids [3,4] or of names" ) if ref $i || !defined $i;
+            push @items, builtin::created_as_number($i) ? [ id => 0 + $i ] : [ name => "$i" ];
+        }
+    }
+    else {
+        for my $i ( split /\s*[;,]\s*/, $t ) {
+            next if $i eq '';
+            push @items, $i =~ /\A\d+\z/ ? [ id => 0 + $i ] : [ name => $i ];
+        }
+    }
+    my ( @ids, %seen );
+    for my $it (@items) {
+        my ( $kind, $v ) = @$it;
+        my $id = $v;
+        if ( $kind eq 'name' ) {
+            Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: names are looked up in " . ( $d->{relation} // 'the related model' ) . ', which is not known here',
+                fix => 'give ids' ) if !$resolver;
+            my $r = $resolver->( $d->{relation}, $v );
+            Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: no $d->{relation} is named '$v'",
+                fix => 'give the id of the record, or a name it has' ) if !defined $r;
+            Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: '$v' names $d->{relation} " . join( ', ', @{ $r->{ambiguous} } ),
+                fix => 'give the id of the one meant' ) if ref $r eq 'HASH';
+            $id = $r;
+        }
+        Odoo::Error->throw( kind => 'usage', message => "$op: $model.$f: an id must be a whole number above 0, got $v",
+            fix => "give $f as ids [3,4] or names" ) if $id < 1;
+        push @ids, $id if !$seen{$id}++;
+    }
+    return [ [ 6, 0, \@ids ] ];
+}
+
+=head2 refused_or_missing($op, $model_object, $model, $id)
+
+Called when a search by id came back empty. A search hides a record the user's rules
+do not show as it hides one that does not exist, so the id is read: when Odoo refuses
+the read, the answer is C<refused/access> carrying Odoo's own text and the model and
+id; when Odoo says the record is gone, or answers no row, it returns (the record does
+not exist and the caller says so). Any other fault is thrown as it came.
+
+=cut
+
+sub refused_or_missing ($class, $op, $m, $model, $id) {
+    # display_name, not id: a read of id alone is answered without touching the record
+    my $rows = eval { $m->read( [$id], ['display_name'] ) };
+    my $err  = $@;
+    return if !$err;
+    die $err if !blessed($err) || !$err->isa('Odoo::Error');
+    my $cat = $err->fault_category // '';
+    return if $cat eq 'missing';
+    die $err if $cat ne 'access';
+    my $why = $err->message =~ s/\s+\z//r =~ s/\s*\n\s*/ /gr;
+    Odoo::Error->throw( kind => 'refused', code => 'access',
+        message => "$op: Odoo refuses to show $model $id to this login: $why",
+        fix => 'the record exists but this login may not read it; ask for a login that may, or for the right to be given' );
 }
 
 =head2 coerce(\%field, $text)
@@ -112,6 +199,8 @@ C<(1, $value)> in the field's terms, or C<(0, $why)>.
 sub coerce ($class, $d, $v) {
     my $type = $d->{type};
     $type = 'integer' if $type eq 'many2one_reference';    # a number on the wire, on every series
+    # false says empty for a many2one, as an empty value does (it is never the id 0)
+    return ( 1, JSON::PP::false ) if $type eq 'many2one' && $v =~ /\A\s*false\s*\z/;
     if ( $v =~ /\A\s*\z/ ) {
         return ( 1, JSON::PP::false ) if $type =~ /\A(?:char|text|html|date|datetime|selection|many2one)\z/;
         return ( 0, "an empty value is not a $type value" );
@@ -173,7 +262,12 @@ A value as a plan line shows it: short, ids for a many2one, C<false> for empty.
 
 =cut
 
-sub shown ($class, $v) {
+sub shown ($class, $v, $type = undef) {
+    if ( ( $type // '' ) eq 'many2many' ) {
+        # the before-image is a list of ids, the new value a replace command
+        my @ids = ref $v eq 'ARRAY' ? ( @$v && ref $v->[0] eq 'ARRAY' ? @{ $v->[0][2] // [] } : @$v ) : ();
+        return '[' . join( ', ', sort { $a <=> $b } grep { !ref } @ids ) . ']';
+    }
     return 'false' if !defined $v || ( !ref $v && $v eq '' ) || Odoo::Portable::is_false_value($v);
     if ( ref $v eq 'ARRAY' ) { return @$v == 2 && !ref $v->[0] ? $v->[0] : '[' . join( ', ', grep { !ref } @$v ) . ']' }
     return ( $v ? 'true' : 'false' ) if Odoo::JSON::is_bool($v);

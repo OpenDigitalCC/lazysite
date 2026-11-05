@@ -32,6 +32,8 @@ line, C<#> comments, blank lines ignored. Recognised keys:
     timeout               seconds per request
     max_response_bytes    cap on one answer
     max_inline_bytes      cap on the bytes core.report inline=1 returns in one report, default 10485760 (10 MiB)
+    max_input_bytes       cap on one input file or body an outside party can supply (a CSV, JSON or YAML file read by
+                          rows, a mapping, a plan), refused/input-too-large before it is parsed; default 67108864 (64 MiB)
     lang tz               default context
     actor                 who is running operations (audit), default $USER
     runs_dir              where run folders are created
@@ -91,7 +93,7 @@ outright - keys live in their own file.
 
 my %KNOWN = map { $_ => 1 } qw(
     url db login credential api_key_file password_file transport timeout
-    max_response_bytes max_inline_bytes lang tz actor runs_dir profile_dir
+    max_response_bytes max_inline_bytes max_input_bytes lang tz actor runs_dir profile_dir
     profile_series allow_writes name ssl_ca_file ssl_verify session
     approval plan_ttl mailcatcher record_reads blob_min
     audit_log audit_syslog audit_syslog_facility audit_level audit_required
@@ -158,6 +160,8 @@ sub new ($class, %conf) {
         if defined $conf{mailcatcher} && $conf{mailcatcher} !~ m{^https?://[^\s/]+(?::\d+)?(?:/\S*)?\z};
     Odoo::Error->throw( kind => q(config), message => "max_inline_bytes must be a whole number of bytes, not '$conf{max_inline_bytes}'" )
         if defined $conf{max_inline_bytes} && $conf{max_inline_bytes} !~ /^[1-9]\d*\z/;
+    Odoo::Error->throw( kind => q(config), message => "max_input_bytes must be a whole number of bytes, not '$conf{max_input_bytes}'" )
+        if defined $conf{max_input_bytes} && $conf{max_input_bytes} !~ /^[1-9]\d*\z/;
     Odoo::Error->throw( kind => q(config), message => "plan_ttl must be a whole number of seconds, not '$conf{plan_ttl}'" )
         if defined $conf{plan_ttl} && $conf{plan_ttl} !~ /^[1-9]\d*\z/;
     Odoo::Error->throw( kind => q(config), message => "blob_min must be a whole number of bytes, not '$conf{blob_min}'" )
