@@ -535,29 +535,8 @@ function renderGroups() {
     // grants): the address profiles a request's address must satisfy for this group to
     // count at all (its capabilities, its page and file access, operator status).
     // The operator's alone, like the directory tick above; the server refuses anyone
-    // else. A chooser of the profiles that exist, one row for "only from" (the
-    // profiles allowed) and one for "never from" (those denied); deny wins. A
-    // profile has no kind (SM1343), so either row offers every profile.
-    if (viewerOperator) {
-      var addrRow = function(key, label, note) {
-        var have = info[key] || [];
-        var names = addressProfiles.map(function(l) { return l.name; });
-        have.forEach(function(n) { if (names.indexOf(n) < 0) names.push(n); });
-        var r = '<div class="mg-line"><label class="mg-line-lbl">' + label + '</label>'
-              + '<span data-addr-group="' + ge + '" data-addr-key="' + key + '">';
-        if (!names.length) r += '<span class="mg-acc-note">No address profiles yet (Access, Address profiles).</span>';
-        names.forEach(function(n) {
-          r += '<label class="mg-chk"><input type="checkbox" value="' + escHtml(n) + '"'
-             + (have.indexOf(n) >= 0 ? ' checked' : '')
-             + ' onchange="setGroupAddresses(\'' + ge + '\', \'' + key + '\')"> ' + escHtml(n) + '</label> ';
-        });
-        return r + ' <span class="mg-acc-note">â ' + note + ' Operator only.</span></span></div>';
-      };
-      h += addrRow('addresses', 'Only from',
-        'this group counts only for a request from these addresses (none ticked: any address).');
-      h += addrRow('addresses_deny', 'Never from',
-        'this group never counts for a request from these addresses; this wins over the line above.');
-    }
+    // else. SM1344 (ruling 107): one picker, as on the Files card (groupAddressRows).
+    if (viewerOperator) h += groupAddressRows(g, info);
 
     var row = function(c, isChannel) {
       // SM180: a channel that IS granted but whose SITE service is switched off
@@ -797,17 +776,63 @@ function setDirectoryGrants(group, on) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM1140: the operator-only address limit on a group, from the ticked profiles.
-function setGroupAddresses(group, key) {
-  var box = document.querySelector('[data-addr-group="' + group + '"][data-addr-key="' + key + '"]');
-  var names = [];
-  if (box) box.querySelectorAll('input:checked').forEach(function(i) { names.push(i.value); });
-  apiCall({ action: 'group-settings-set', group: group, key: key, value: names.join(',') })
+// SM1140, SM1344 (ruling 107): the operator-only address limit on a group, as ONE
+// picker like the Files card's: a row per profile, each chosen Allow, Deny or Not
+// used. A profile has no kind (SM1343), so every row offers every choice. A name
+// the group carries that the store does not hold keeps its choice and is marked;
+// one a hand edit both allows and denies shows Deny, which decides for it.
+function groupAddressRows(g, info) {
+  var ge = escHtml(g);
+  var allow = info.addresses || [], deny = info.addresses_deny || [];
+  var names = [], seen = {};
+  addressProfiles.forEach(function(l) { if (!seen[l.name]) { seen[l.name] = 'store'; names.push(l.name); } });
+  allow.concat(deny).forEach(function(n) { if (!seen[n]) { seen[n] = 'ghost'; names.push(n); } });
+  var r = '<div class="mg-line"><label class="mg-line-lbl">Limited by address profile</label>'
+        + '<span data-addr-group="' + ge + '">';
+  if (!names.length) r += '<span class="mg-acc-note">No address profiles yet (Access, Address profiles).</span>';
+  names.forEach(function(n) {
+    var use = deny.indexOf(n) >= 0 ? 'deny' : allow.indexOf(n) >= 0 ? 'allow' : '';
+    var opt = function(v, label) {
+      return '<option value="' + v + '"' + (use === v ? ' selected' : '') + '>' + label + '</option>';
+    };
+    r += '<label class="mg-chk">' + escHtml(n) + (seen[n] === 'ghost' ? ' (no such profile yet)' : '')
+       + ' <select data-addr-profile="' + escHtml(n) + '" data-impact="edit"'
+       + ' onchange="setGroupAddresses(\'' + ge + '\')">'
+       + opt('', 'Not used') + opt('allow', 'Allow') + opt('deny', 'Deny') + '</select></label> ';
+  });
+  return r + ' <span class="mg-acc-note">&mdash; Allow: this group counts only for a request from those '
+    + 'addresses (none allowed: any address). Deny: it never counts from them, whatever is allowed. '
+    + 'Operator only.</span></span></div>';
+}
+
+// The group's picker read back as the two settings.
+function chosenGroupAddresses(group) {
+  var out = { addresses: [], addresses_deny: [] };
+  var box = document.querySelector('[data-addr-group="' + group + '"]');
+  if (!box) return out;
+  box.querySelectorAll('select[data-addr-profile]').forEach(function(s) {
+    var n = s.getAttribute('data-addr-profile');
+    if (s.value === 'allow') out.addresses.push(n);
+    else if (s.value === 'deny') out.addresses_deny.push(n);
+  });
+  return out;
+}
+
+// One change sends both settings (each a whole list, as group-settings-set takes
+// them), the deny list first: a profile moved to Deny is refused before it leaves
+// Allow. A failure stops before the second and reloads what the server holds.
+function setGroupAddresses(group) {
+  var c = chosenGroupAddresses(group);
+  var send = function(key) {
+    return apiCall({ action: 'group-settings-set', group: group, key: key, value: c[key].join(',') });
+  };
+  send('addresses_deny')
+    .then(function(d) { return d.ok ? send('addresses') : d; })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Could not set it.', true); loadGroups(); return; }
-      showStatus(names.length
-        ? '@' + group + (key === 'addresses' ? ' now counts only from ' : ' never counts from ') + names.join(', ') + '.'
-        : '@' + group + (key === 'addresses' ? ' counts from any address.' : ' is no longer refused by address.'));
+      showStatus('@' + group
+        + (c.addresses.length ? ' counts only from ' + c.addresses.join(', ') : ' counts from any address')
+        + (c.addresses_deny.length ? ', never from ' + c.addresses_deny.join(', ') : '') + '.');
       loadGroups();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
