@@ -53,7 +53,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::Groups      ();    # SM1050: list_groups, set_group
-use Lazysite::Manager::AddressLists ();    # SM1138: list_address_lists
+use Lazysite::Manager::AddressProfiles ();    # SM1138: list_address_profiles
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Extensions qw(action_form_submissions action_form_submission action_form_list);
@@ -1391,14 +1391,15 @@ my %TOOLS = (
                 _groups_who( $_[1], $_[2] ) );
         },
     },
-# SM1138 (slice A of SM1134): the twin of address-lists, on the same module. Read-only: the
-# lists are changed by the operator, in the manager. An MCP grant is always domain-confined
-# (SM648), and the lists are the instance's, so this answers it with a refusal that says so.
-    list_address_lists => {
-        description => 'List the named address lists an operator keeps for rules that limit access by the visitor\'s address: each with its name, its kind (allow or deny) and how many entries it holds. A grant not confined to some domains also sees the entries (a single address or a CIDR range, IPv4 or IPv6, each with a note) and who last changed it; a confined grant, which every MCP grant is, is not shown the site\'s addresses. Call this before naming a list in a rule, so a typo is not mistaken for a list that does not exist yet. Read-only; lists are changed by the operator in the manager.',
+# SM1138 (slice A of SM1134), SM1343: the twin of address-profiles, on the same module.
+# Read-only: the profiles are changed by the operator, in the manager. An MCP grant is
+# always domain-confined (SM648), and the profiles are the instance's, so it is shown
+# the names and counts and not the addresses.
+    list_address_profiles => {
+        description => 'List the named address profiles an operator keeps for rules that limit access by the visitor\'s address: each with its name and how many entries it holds. A profile has no kind: a rule allows it by naming it under addresses, or denies it under addresses_deny, and deny wins. A grant not confined to some domains also sees the entries (a single address or a CIDR range, IPv4 or IPv6, each with a note) and who last changed it; a confined grant, which every MCP grant is, is not shown the site\'s addresses. Call this before naming a profile in a rule, so a typo is not mistaken for a profile that does not exist yet. Read-only; profiles are changed by the operator in the manager.',
         cap => 'manage_users',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { Lazysite::Manager::AddressLists::address_lists( _groups_who( $_[1], $_[2] ) ) },
+        run => sub { Lazysite::Manager::AddressProfiles::address_profiles( _groups_who( $_[1], $_[2] ) ) },
     },
     # n573 (SM1053, "Operator-run import"): the twin of accounts-import-stage, on
     # the same module. It stages and nothing more: the review - list, plan,
@@ -1665,7 +1666,7 @@ my %TOOLS = (
     },
     set_permissions => {
         path_args => [qw(path)],
-        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), the draft flag, and the address lists that limit it by the address a visitor comes from (addresses, addresses_deny). A folder prefix (a path ending in /) gates or hides every page and asset beneath it. PARTIAL UPDATE: fields you omit keep their current value - so setting a read list on a DRAFT section leaves it draft (still a 404). The API equivalent of the Publish button is {"draft": false} alongside your grants.',
+        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), the draft flag, and the address profiles that limit it by the address a visitor comes from (addresses, addresses_deny). A folder prefix (a path ending in /) gates or hides every page and asset beneath it. PARTIAL UPDATE: fields you omit keep their current value - so setting a read list on a DRAFT section leaves it draft (still a 404). The API equivalent of the Publish button is {"draft": false} alongside your grants.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -1675,9 +1676,9 @@ my %TOOLS = (
                 draft => { type => 'boolean',
                     description => 'Hide this path outright: 404 to the public and absent from the sitemap, feeds and every listing, previewable by a signed-in editor. Omit to leave the current setting alone; false clears it and publishes.' },
                 addresses => { type => 'string',
-                    description => 'Comma-separated names of ALLOW address lists: the path is served only to a visitor whose address is in one of them (and every enclosing folder rule that names lists says the same). A name the store does not hold yet is accepted with a warning. Omit to leave the current setting alone; empty clears it.' },
+                    description => 'Comma-separated names of the address profiles to ALLOW: the path is served only to a visitor whose address is in one of them (and every enclosing folder rule that names profiles says the same). A profile has no kind of its own: the same profile may be allowed here and denied elsewhere. A name the store does not hold yet is accepted with a warning. Omit to leave the current setting alone; empty clears it.' },
                 addresses_deny => { type => 'string',
-                    description => 'Comma-separated names of DENY address lists: a visitor whose address is in one of them is refused, whatever else allows it. Omit to leave the current setting alone; empty clears it.' },
+                    description => 'Comma-separated names of the address profiles to DENY: a visitor whose address is in one of them is refused, whatever else allows it. Omit to leave the current setting alone; empty clears it.' },
                 history => { type => 'boolean',
                     description => 'SM1324: keep a version history for this protected FOLDER, in a private repository beside the private store (never the public one). History reads (list_versions, view_version, restore_version) apply the folder\'s read rule. It covers the rules nested in the folder; false on a nested rule takes that path out (ruling 100), and false on the folder stops recording. Omit to leave the current setting alone, or to inherit. What was recorded is kept; only the operator deletes it (lazysite acl purge-history). Off by default.' },
             },
@@ -1696,7 +1697,7 @@ my %TOOLS = (
     # site-wide rule, the same content moved back into the document root.
     remove_permissions => {
         path_args => [qw(path)],
-        description => 'Remove the access rule on a file OR a folder prefix (a path ending in /), or the site-wide rule ("/"): its owner, read/write lists, draft flag and address lists all go, and the path is then governed by whatever rule sits above it, or by none. Only the rule\'s owner (or an operator) may remove it. Removing a draft or read rule PUBLISHES what it held back. A path with no rule answers removed: 0. Use set_permissions to change a rule instead of removing it.',
+        description => 'Remove the access rule on a file OR a folder prefix (a path ending in /), or the site-wide rule ("/"): its owner, read/write lists, draft flag and address profiles all go, and the path is then governed by whatever rule sits above it, or by none. Only the rule\'s owner (or an operator) may remove it. Removing a draft or read rule PUBLISHES what it held back. A path with no rule answers removed: 0. Use set_permissions to change a rule instead of removing it.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
@@ -3291,7 +3292,7 @@ sub _list_pages {
             # Its title is its text, so its rule decides it before it is opened,
             # as read_page's does. A page under a read rule left in the document
             # root (a section protected before 0.10.8, or a rule carrying only
-            # address lists) had its title listed to a grant read_page refuses.
+            # address profiles) had its title listed to a grant read_page refuses.
             return if defined $user && _acl_denied( $rel, 'read', $user );
             open my $fh, '<:utf8', $full or return;
             local $/; my $c = <$fh>; close $fh;
@@ -4816,7 +4817,9 @@ elsif ( $method eq 'tools/call' ) {
     send_maintenance( $id, $caps );    # SM1118: after the credential, before any tool
     Lazysite::Timing::operator(1);    # SM1144: a verified connector is shown the phases
     Lazysite::Timing::to('render');
-    rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
+    # A tool name SM1343 renamed is told its new one.
+    rpc_error( $id, -32602, Lazysite::ControlApi::Actions::renamed_refusal($name) // "Unknown tool: $name" )
+        unless $tool;
 
     # Introspection tools (whoami, describe_capabilities) stay open to ANY
     # authenticated session, per the SM072/SM126 contract. %INTROSPECTION_TOOLS

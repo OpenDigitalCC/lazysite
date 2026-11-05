@@ -86,10 +86,10 @@ sub action_config_read {
     else { Lazysite::Util::cannot_read( 'the site conf', "$LAZYSITE_DIR/lazysite.conf" ) }
     # SM1192: the address fields on the Config page show this when every visitor would
     # be the front proxy; decided here with the limiter's own address logic.
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
-    my $proxy = Lazysite::Auth::AddressLists::front_end_warning();
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$LAZYSITE_DIR/auth";
+    my $proxy = Lazysite::Auth::AddressProfiles::front_end_warning();
     return { ok => 1, config => \%out, ( defined $proxy ? ( proxy_warning => $proxy ) : () ) };
 }
 
@@ -249,13 +249,13 @@ sub _app_offline_page_fault {
         return 'is a data page (api: or raw: true), not a page' if $line =~ /^(?:api|raw)\s*:\s*true/i;
     }
 
-    # The ACL store: a read list, an address list, or a draft section that governs the
+    # The ACL store: a read list, an address profile, or a draft section that governs the
     # page. A store that will not read refuses the page - the worker would keep an
     # answer the engine is refusing.
     ( my $rel = "$base.md" ) =~ s{\A/+}{};
     return 'is under an access rule whose store cannot be read' if Lazysite::Auth::Acl::gating_for( $docroot, $rel ) eq 'unknown';
     for my $mode (qw(read addresses addresses_deny)) {
-        return 'is under an access rule (a read list or an address list), so it is not the same for every visitor'
+        return 'is under an access rule (a read list or an address profile), so it is not the same for every visitor'
             if defined Lazysite::Auth::Acl::governing_key( $docroot, $rel, $mode );
     }
     return undef;
@@ -401,24 +401,24 @@ sub action_config_set {
         return { ok => 0, error => 'manager_path must be an absolute URL path (e.g. /manager)' };
     }
     # SM1140 (slice C of SM1134): the manager's address limit is a comma list of address
-    # list NAMES (SM1138) and each must exist, in the right slot: a name no list carries
-    # admits nobody under manager_addresses, which would lock the manager (and its
-    # operator) out, so a typo is refused here and not written.
+    # profile NAMES (SM1138) and each must exist: a name no profile carries admits
+    # nobody under manager_addresses, which would lock the manager (and its operator)
+    # out, so a typo is refused here and not written. Which key names a profile is
+    # whether it is allowed or denied (SM1343); a profile has no kind of its own.
     if ( ( $key =~ /\A(?:manager|signin)_addresses(?:_deny)?\z/ ) && defined $value && length $value ) {
-        require Lazysite::Auth::AddressLists;
+        require Lazysite::Auth::AddressProfiles;
         no warnings "once";
-        local $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
-        my $lists = Lazysite::Auth::AddressLists::lists();
-        if ( my $fault = Lazysite::Auth::AddressLists::store_fault() ) {
+        local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$LAZYSITE_DIR/auth";
+        my $profiles = Lazysite::Auth::AddressProfiles::profiles();
+        if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
             return { ok => 0, kind => 'cannot-tell',
-                error => 'lazysite/auth/address-lists.json ' . ( $fault eq 'undecodable' ? 'does not decode' : 'could not be read' )
-                    . ', so the lists this names cannot be checked.' };
+                error => Lazysite::Auth::AddressProfiles::fault_text($fault)
+                    . ', so the profiles this names cannot be checked.' };
         }
-        my $kind = $key !~ /_deny\z/ ? 'allow' : 'deny';
         for my $n ( grep { length } map { s/^\s+|\s+$//gr } split /,/, $value ) {
             return { ok => 0, field => $key,
-                error => "'$n' is not " . ( $kind eq 'allow' ? 'an allow' : 'a deny' ) . ' address list. Make it on Access, Address lists first.' }
-                unless $lists->{$n} && $lists->{$n}{kind} eq $kind;
+                error => "'$n' is not an address profile. Make it on Access, Address profiles first." }
+                unless $profiles->{$n};
         }
         $value = join ', ', grep { length } map { s/^\s+|\s+$//gr } split /,/, $value;
     }
@@ -435,9 +435,9 @@ sub action_config_set {
         return { ok => 0, field => $key,
             error => ( $key =~ /\Asignin/
                 ? 'That would shut your own address out of signing in (SM1159): the next time you signed in from here it '
-                    . 'would be refused. Add your address to an allow list first, or take it off the deny list.'
+                    . 'would be refused. Allow a profile your address is in, or stop denying the one it is in.'
                 : 'That would shut your own address out of the manager, and the manager is where it '
-                    . 'would be undone. Add your address to an allow list first, or take it off the deny list.' ) }
+                    . 'would be undone. Allow a profile your address is in, or stop denying the one it is in.' ) }
             if Lazysite::Auth::AddressScope::would_refuse( $LAZYSITE_DIR, $allow, $deny );
     }
     # SM156: canonical_ip is a comma list of this server's PUBLIC IPs (for the

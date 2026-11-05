@@ -2,7 +2,7 @@
 # SM424: the stats page renders every block at once.
 #
 # Visits, depth, entry and exit pages, devices, search terms, status codes,
-# server errors, journeys and the blocked-address list all render on one page,
+# server errors, journeys and the blocked-address profile all render on one page,
 # in that order, every time. An operator who came for hits per day scrolls past
 # the lot. There is no way to put any of it away and no way to say "not this
 # one, ever" - so the page gets longer with each thing it learns to show, and
@@ -160,7 +160,7 @@ like( $page, qr/if \(open && !cardLoaded\[key\]\)/,
 # page of statistics, where it reads as "hidden from the numbers" rather than
 # "refused the site". It lives with the extension that does the blocking.
 unlike( $page, qr/function loadBlocked/,
-    'the blocked-address list is not implemented on the statistics page' );
+    'the blocked-address profile is not implemented on the statistics page' );
 unlike( $page, qr/id="blocked-body"/,
     'and its panel is not here either' );
 # The pointer card went too, on the release manager's instruction: "no need to

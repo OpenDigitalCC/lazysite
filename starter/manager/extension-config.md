@@ -273,7 +273,7 @@ function renderExtensionCard(extension) {
   if (extension.id === 'content-history') {
     html += '<button class="mg-btn mg-btn-sm" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">History overview</button>';
   }
-  // SM703: the blocked-address list belongs to the extension that does the
+  // SM703: the blocked-address profile belongs to the extension that does the
   // blocking. It sat on Visitor Statistics, which reads as a reporting filter -
   // and a block is not a reporting filter: lazysite-auth.pl answers a blocked
   // address 403 and exits before anything is served. Putting an access control

@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 # SM1192: the three pages where address rules are edited show the server's
 # `proxy_warning` as text, and decide nothing themselves.
-#   - Address lists: loadLists -> showProxyWarning(d.proxy_warning)
+#   - Address profiles: loadLists -> showProxyWarning(d.proxy_warning)
 #   - Config: the config-read answer's proxy_warning
-#   - Groups: the address-lists answer the group editor already fetches
+#   - Groups: the address-profiles answer the group editor already fetches
 # Each page has a #proxy-warning element: hidden when the answer carries none,
 # shown with the server's sentence as text (never markup) when it does.
 use strict;
@@ -40,7 +40,7 @@ showProxyWarning(undefined);
 out({ step: 'without', hidden: els['proxy-warning'].hidden, text: els['proxy-warning'].textContent });
 JS
 
-for my $p (qw(address-lists config groups)) {
+for my $p (qw(address-profiles config groups)) {
     my $src = PageScript::page_source("$root/starter/manager/$p.md");
     like( $src, qr/id="proxy-warning"/, "$p: the page has the warning element" );
     like( $src, qr/proxy_warning/, "$p: the page reads the server's answer" );

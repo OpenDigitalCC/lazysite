@@ -2,15 +2,15 @@
 # SM1141 (slice D of SM1134), finished when the slices were stacked: THE ADDRESS
 # LISTS PAGE OFFERS THE OPERATOR "DELETE ANYWAY" FOR A LIST A RULE STILL NAMES.
 #
-# SM1141's filing left open: "The manager's Address lists page shows the refusal
+# SM1141's filing left open: "The manager's Address profiles page shows the refusal
 # text but has no "delete anyway" control; the API takes `force`." Driven through
 # the page's own JavaScript in node:
 #   - a delete the server refuses as in-use shows the server's sentence (where the
-#     list is named) with "Delete anyway", and sends no force of its own
-#   - "Delete anyway" confirms again, then sends force: true for that list; a
+#     profile is named) with "Delete anyway", and sends no force of its own
+#   - "Delete anyway" confirms again, then sends force: true for that profile; a
 #     declined confirmation sends nothing
 #   - a viewer who is not the operator is never offered it
-#   - "Keep the list" puts it away and leaves nothing to force
+#   - "Keep the profile" puts it away and leaves nothing to force
 use strict;
 use warnings;
 use Test::More;
@@ -25,10 +25,10 @@ my $root = repo_root();
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 plan skip_all => 'node not installed' unless length $node && -x $node;
 
-my $page = PageScript::page_source("$root/starter/manager/address-lists.md");
+my $page = PageScript::page_source("$root/starter/manager/address-profiles.md");
 my $fns  = join "\n",
     map { PageScript::extract_function( $page, $_ ) }
-    qw(fail deleteList showInUse hideInUse forceDelete sendDelete);
+    qw(fail deleteProfile showInUse hideInUse forceDelete sendDelete);
 my $dir = File::Temp->newdir;
 
 my $dom = <<'JS';
@@ -44,18 +44,18 @@ function mgShowWarning(m) { warned.push(m); }
 function confirm(m) { asked.push(m); return answer; }
 var API = '/api';
 function fetch(url, opt) { sent.push({ url: url, body: JSON.parse(opt.body) }); return reply(); }
-function loadLists() { loaded++; }
+function loadProfiles() { loaded++; }
 function answerWith(o) { reply = function () { return Promise.resolve({ json: function () { return Promise.resolve(o); } }); }; }
 function out(o) { console.log(JSON.stringify(o)); }
 function tick() { return new Promise(function (r) { setTimeout(r, 10); }); }
 var canEdit = true, editing = '', inUse = '';
-var IN_USE = { ok: 0, kind: 'in-use', error: "Address list 'office' is still named by page members.md; group g-ops." };
+var IN_USE = { ok: 0, kind: 'in-use', error: "Address profile 'office' is still named by page members.md; group g-ops." };
 JS
 
 my $drive = <<'JS';
 (async function () {
   answerWith(IN_USE);
-  deleteList('office');
+  deleteProfile('office');
   await tick();
   out({ step: 'refused', sent: sent.slice(), shown: !els['in-use'].hidden, text: els['in-use-text'].textContent,
     warned: warned.slice(), asked: asked.length });
@@ -80,7 +80,7 @@ my $drive = <<'JS';
   await tick();
   out({ step: 'forced-refused', warned: warned.slice() });
 
-  // Keep the list: put away, nothing left to force.
+  // Keep the profile: put away, nothing left to force.
   showInUse('office', IN_USE.error);
   hideInUse();
   var before = sent.length;
@@ -92,7 +92,7 @@ my $drive = <<'JS';
   canEdit = false;
   els['in-use'].hidden = true;
   answerWith(IN_USE);
-  deleteList('office');
+  deleteProfile('office');
   await tick();
   out({ step: 'viewer', shown: !els['in-use'].hidden });
 })();
@@ -109,7 +109,7 @@ diag "node said: @lines" unless keys %r == 6;
 subtest 'an in-use refusal is shown with Delete anyway, and sends no force' => sub {
     my $s = $r{refused} or return fail('no result');
     is( scalar @{ $s->{sent} }, 1, 'one call' );
-    like( $s->{sent}[0]{url}, qr/action=address-list-delete\z/, 'to address-list-delete' );
+    like( $s->{sent}[0]{url}, qr/action=address-profile-delete\z/, 'to address-profile-delete' );
     is_deeply( $s->{sent}[0]{body}, { name => 'office' }, 'without force' );
     ok( $s->{shown}, 'the in-use note with Delete anyway is shown' );
     like( $s->{text}, qr/still named by page members\.md; group g-ops/, 'saying where, in the server\'s words' );
@@ -124,10 +124,10 @@ subtest 'Delete anyway confirms again, and only then sends force' => sub {
     ok( $n->{shown}, '...and the note stays' );
     my $f = $r{forced} or return fail('no result');
     is( scalar @{ $f->{sent} }, 1, 'an accepted one sends once' );
-    is_deeply( $f->{sent}[0]{body}, { name => 'office', force => JSON::PP::true() }, 'force: true, for that list' );
+    is_deeply( $f->{sent}[0]{body}, { name => 'office', force => JSON::PP::true() }, 'force: true, for that profile' );
     like( $f->{asked}[-1], qr/anyway\?.*admit nobody/s, 'the confirmation says what forcing does' );
     ok( !$f->{shown}, 'the note is put away when it is deleted' );
-    is( $f->{loaded}, 1, 'and the lists are read again' );
+    is( $f->{loaded}, 1, 'and the profiles are read again' );
     is( $f->{left}, '', 'nothing is left to force' );
 };
 
@@ -136,7 +136,7 @@ subtest 'a forced call the server refuses is a refusal' => sub {
     like( $s->{warned}[0] // '', qr/still named by/, 'shown as the server said it' );
 };
 
-subtest 'Keep the list leaves nothing to force' => sub {
+subtest 'Keep the profile leaves nothing to force' => sub {
     my $s = $r{kept} or return fail('no result');
     ok( !$s->{shown}, 'the note is put away' );
     is( $s->{sent}, 0, 'and Delete anyway then sends nothing' );

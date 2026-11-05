@@ -2042,11 +2042,11 @@ sub conf_value {
 
 # SM1141 (slice D of SM1134): ADDRESS RULES THAT MEAN NOTHING, OR EVERYTHING.
 #
-# A rule that names an address list decides from the visitor's address, and that
+# A rule that names an address profile decides from the visitor's address, and that
 # address is the front end's unless trusted_proxies says the front end is one to
-# believe (SM929): behind an untrusted proxy every visitor is the proxy, so an
-# allow list admits all of them or none and a deny list blocks all or none. Three
-# things are worth saying, each of them quiet at run time:
+# believe (SM929): behind an untrusted proxy every visitor is the proxy, so a
+# profile allowed admits all of them or none and a profile denied blocks all or
+# none. Three things are worth saying, each of them quiet at run time:
 #   - rules in use and no front end trusted: `none`, or a list that resolves to
 #     nothing. Every address is the connecting peer.
 #   - rules in use on an install that has a front end in front of the engine
@@ -2055,9 +2055,10 @@ sub conf_value {
 #     192.168/16; a front end connecting from loopback or a public address is not
 #     covered. A line naming the front end settles it. The check cannot see the
 #     connecting address, so it names the evidence it went on.
-#   - a rule that names a list the store does not hold (an allow rule then admits
-#     nobody, SM1138), and a store this run cannot read or decode while rules name
-#     lists (the engine denies everything they name).
+#   - a rule that names a profile the store does not hold (allowing it then admits
+#     nobody, SM1138), and a store this run cannot read or decode, or an
+#     address-lists.json the upgrade left unconverted (SM1345), while rules name
+#     profiles (the engine denies everything they name).
 # Where the rules are is Lazysite::Auth::AddressRefs, the reader the delete guard
 # in the users tool uses, so the two cannot disagree about what "in use" means.
 sub report_address_rules {
@@ -2068,7 +2069,7 @@ sub report_address_rules {
     if ( @{ $refs->{faults} } ) {
         report( 'WARN',
             'address rules could not be looked for everywhere: ' . join( '; ', @{ $refs->{faults} } )
-                . ' - a rule that names an address list may be in what was not read',
+                . ' - a rule that names an address profile may be in what was not read',
             'run the check as root (sudo lazysite check ...) or as the site user, who can read the tree' );
     }
     return unless @rules;    # nothing uses an address rule: nothing to say
@@ -2106,61 +2107,46 @@ sub report_address_rules {
     }
 
     my @names = do { my %s; grep { !$s{$_}++ } map { $_->{name} } @rules };
-    my $store = Lazysite::Paths::lazysite_dir($d) . '/auth/address-lists.json';
-    my ( $lists, $state, $err ) = _read_json_state($store);
-    if ( $state eq 'unreadable' ) {
+    my $store = Lazysite::Paths::lazysite_dir($d) . '/auth/address-profiles.json';
+    my ( $profiles, $state, $err ) = _read_json_state($store);
+    my $old = Lazysite::Paths::lazysite_dir($d) . '/auth/address-lists.json';
+    if ( $state eq 'absent' && -e $old ) {
         report( 'WARN',
-            'cannot read address-lists.json as ' . _running_as() . " ($err) while rules name "
-                . join( ', ', @names ) . ' - whether those lists exist is unknown',
+            "address-lists.json from a release before 0.16.5 ($old) was not converted to address profiles while rules name "
+                . join( ', ', @names ) . ' - every address is refused by every rule that names one '
+                . 'until they are',
+            'run the upgrade again: it converts the lists to profiles of the same names (SM1345)' );
+    }
+    elsif ( $state eq 'unreadable' ) {
+        report( 'WARN',
+            'cannot read address-profiles.json as ' . _running_as() . " ($err) while rules name "
+                . join( ', ', @names ) . ' - whether those profiles exist is unknown',
             "run the check as root (sudo lazysite check ...) or as the site user, who can read '$store'" );
     }
     elsif ( $state eq 'undecodable' ) {
         report( 'WARN',
-            "address-lists.json does not decode as a JSON object ($store) while rules name "
-                . join( ', ', @names ) . ' - every address is refused by every rule that names a list, '
-                . 'allow and deny alike, until it is repaired',
+            "address-profiles.json does not decode as a JSON object ($store) while rules name "
+                . join( ', ', @names ) . ' - every address is refused by every rule that names a profile, '
+                . 'allowed or denied, until it is repaired',
             "repair the JSON in '$store', or restore it from a backup" );
     }
     else {
-        my %have    = map  { $_ => 1 } keys %{ $lists || {} };
+        my %have    = map  { $_ => 1 } keys %{ $profiles || {} };
         my @missing = grep { !$have{ $_->{name} } } @rules;
         if (@missing) {
             my %u;
             my @n = grep { !$u{$_}++ } sort map { $_->{name} } @missing;
             report( 'WARN',
-                'address rules name ' . ( @n == 1 ? 'a list' : 'lists' ) . ' the store does not hold: '
+                'address rules name ' . ( @n == 1 ? 'a profile' : 'profiles' ) . ' the store does not hold: '
                     . join( ', ', @n ) . ' (' . Lazysite::Auth::AddressRefs::describe(@missing)
-                    . ') - an allow rule naming a missing list admits nobody, a deny rule blocks nobody',
-                'create the list (Access -> Address lists, or lazysite-users address-list-set), or '
+                    . ') - a rule allowing a missing profile admits nobody, one denying it blocks nobody',
+                'create the profile (Access -> Address profiles, or lazysite-users address-profile-set), or '
                     . 'correct the name in the rule' );
         }
         else {
-            report( 'OK', 'every address list a rule names is in the store' );
+            report( 'OK', 'every address profile a rule names is in the store' );
         }
 
-        # SM1189 (0.15.10 walk, F-3): a list of the wrong kind. The engine refuses
-        # the path such a rule governs (an allow list under a deny slot used to be
-        # skipped, so the rule blocked nobody and said nothing); this names each
-        # rule, since the author is not told at a request. Saves refuse the
-        # combination now, so what is found here was written before that, by hand,
-        # or by a list made again as the other kind.
-    # SM1280: a binding's address_profile ('match') asks membership only, so any kind fits
-        my @wrong = grep { $_->{slot} ne 'match' && $have{ $_->{name} } && $lists->{ $_->{name} }{kind} ne $_->{slot} } @rules;
-        if (@wrong) {
-            my ( %u, @say );
-            for my $r (@wrong) {
-                my $slot = $r->{slot} eq 'allow' ? 'addresses' : 'addresses_deny';
-                $slot = $r->{ref} if $r->{where} eq 'conf';
-                my $one = "$r->{name} is " . ( $lists->{ $r->{name} }{kind} eq 'allow' ? 'an allow' : 'a deny' )
-                    . " list named in $slot (" . Lazysite::Auth::AddressRefs::describe($r) . ')';
-                push @say, $one unless $u{$one}++;
-            }
-            report( 'WARN',
-                'address rules name lists of the wrong kind: ' . join( '; ', @say )
-                    . ' - the path, group, sign-in or manager such a rule governs is refused to everyone until it is corrected',
-                'name an allow list under addresses (and manager_addresses, signin_addresses) and a deny list under '
-                    . 'addresses_deny (and the _deny keys), or make the list the kind the rule needs' );
-        }
     }
     return;
 }

@@ -118,7 +118,7 @@ subtest 'A BROADCAST REACHES NOBODY BY MAIL' => sub {
     ok( send_notice( message => 'something happened' ), 'the notice is still made' );
     is( scalar @sent, 0, 'and no mail goes anywhere' )
         or diag( 'A broadcast has no addressee; mailing "everyone" would mean '
-            . 'building the address list this filing refused to build.' );
+            . 'building the address profile this filing refused to build.' );
     my $rec = last_notice();
     ok( !exists $rec->{to}, 'the record carries no addressee' );
     ok( $rec->{message}, 'but it is in the bell, which is the record' );

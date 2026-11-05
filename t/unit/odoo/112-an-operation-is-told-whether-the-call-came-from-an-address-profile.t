@@ -1,12 +1,12 @@
 #!/usr/bin/perl
 # SM1280 (ruling 3, 2026-10-22; inbox 2026-10-22 P-8 to P-10, the OOM Lab's clock-in
 # from the office network): a binding names an address profile (`address_profile`,
-# ruling 58; for now an address list's name, SM1134) and a yes/no
+# ruling 58; for now an address profile's name, SM1134) and a yes/no
 # parameter, and its operation receives ONLY whether the call came from inside that
 # list - never the address. The server decides it from the request's address behind
 # the trusted proxies (the endpoint's _ip, SM929), and nothing the page sends can set
 # or override it. No address, an unknown list or an unreadable store is "not inside".
-# The list is a reference the address-list tools see, so it is not deleted unseen.
+# The list is a reference the address-profile tools see, so it is not deleted unseen.
 use strict;
 use warnings;
 use Test::More;
@@ -21,7 +21,7 @@ use OdooTest   qw(oom_or_skip shop_ready bind quiet odoo_site);
 BEGIN { oom_or_skip() }
 use Lazysite::Odoo               ();
 use Lazysite::Odoo::Binding      ();
-use Lazysite::Auth::AddressLists ();
+use Lazysite::Auth::AddressProfiles ();
 use Lazysite::Auth::AddressRefs  ();
 
 my $root = repo_root();
@@ -31,10 +31,10 @@ odoo_site($d);
 make_path("$d/lazysite/auth");
 {
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$d/lazysite/auth";
-    Lazysite::Auth::AddressLists::write_lists( {
-            office  => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => 'HQ' } ] },
-            blocked => { kind => 'deny',  entries => [ { cidr => '198.51.100.66', note => 'scanner' } ] } } );
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$d/lazysite/auth";
+    Lazysite::Auth::AddressProfiles::write_profiles( {
+            office  => { entries => [ { cidr => '203.0.113.0/24', note => 'HQ' } ] },
+            blocked => { entries => [ { cidr => '198.51.100.66', note => 'scanner' } ] } } );
 }
 
 sub save {
@@ -52,8 +52,10 @@ subtest 'a binding names the list and the parameter together, and the parameter 
     like( save( id => 'w2', %WHERE, address_param => 'onsite' )->{error} // '', qr/go together/, 'a parameter alone is refused' );
     like( save( id => 'w3', %WHERE, address_profile => 'Office HQ', address_param => 'onsite' )->{error} // '',
         qr/not the name of an address profile/, 'a name that is not one is refused' );
+    # old-address-name: begin (SM1343, the test sends the key that is refused)
     like( save( id => 'w8', %WHERE, address_list => 'office', address_param => 'onsite' )->{error} // '', qr/does not take: address_list\b/,
         'the old key address_list is no alias (ruling 56): it is refused by name' );
+    # old-address-name: end
     like( save( id => 'w4', %WHERE, params => 'note=note, onsite=onsite', address_profile => 'office', address_param => 'onsite' )->{error} // '',
         qr/one source/, 'a parameter a request feeds cannot be the address parameter' );
     like( save( id => 'w5', %WHERE, fixed => 'onsite=1', address_profile => 'office', address_param => 'onsite' )->{error} // '',
@@ -89,7 +91,7 @@ subtest 'the operation is told inside or not, by the server' => sub {
 };
 
 subtest 'a store that will not read is not inside' => sub {
-    my $p = "$d/lazysite/auth/address-lists.json";
+    my $p = "$d/lazysite/auth/address-profiles.json";
     rename $p, "$p.kept" or die $!;
     open my $fh, '>', $p or die $!;
     print {$fh} '{not json';
@@ -98,7 +100,7 @@ subtest 'a store that will not read is not inside' => sub {
     rename "$p.kept", $p or die $!;
 };
 
-subtest 'the list is a reference the address-list tools see' => sub {
+subtest 'the list is a reference the address-profile tools see' => sub {
     my @r = grep { $_->{where} eq 'binding' && $_->{ref} eq 'where' } @{ Lazysite::Auth::AddressRefs::rules($d)->{rules} };
     is_deeply( [ map { [ $_->{slot}, $_->{name} ] } @r ], [ [ 'match', 'office' ] ], 'named as a membership rule of the binding' );
 };

@@ -1,8 +1,8 @@
 package Lazysite::Auth::AddressScope;
 
 # SM1140 (slice C of SM1134, ruled 2026-10-17): WHERE THE VISITOR'S ADDRESS LIMITS A
-# GROUP, AND THE MANAGER. Slice A (Lazysite::Auth::AddressLists) answers "is this
-# address allowed by these lists"; this module asks it for the two rules that are
+# GROUP, AND THE MANAGER. Slice A (Lazysite::Auth::AddressProfiles) answers "is this
+# address allowed by these profiles"; this module asks it for the two rules that are
 # about a REQUEST rather than a page:
 #
 #   a group's `addresses` / `addresses_deny` (groups-settings.json)
@@ -24,18 +24,18 @@ package Lazysite::Auth::AddressScope;
 # method); either one present makes this a request, and then an address that cannot
 # be worked out is a deny (decide's `no-address`), never a pass.
 #
-# FAILS CLOSED, because decide() does: an address-list store that will not read denies
-# wherever a rule names a list, so a faulted store drops every address-limited group
+# FAILS CLOSED, because decide() does: an address-profile store that will not read denies
+# wherever a rule names a profile, so a faulted store drops every address-limited group
 # and refuses the manager, and never quietly widens either.
 #
 # Audit: one `address-refused <target>` row per target per address per hour (the
 # SM1115 pattern: the first refusal in the hour is recorded, so a scan cannot fill the
-# trail), detail = the reason decide() gave and the list names.
+# trail), detail = the reason decide() gave and the profile names.
 
 use strict;
 use warnings;
-use Lazysite::Auth::AddressLists ();
-use Lazysite::Util               qw(log_event);
+use Lazysite::Auth::AddressProfiles ();
+use Lazysite::Util                  qw(log_event);
 
 our $LAZYSITE_DIR; # optional; the audit and the conf are found from here, else from the auth dir
 
@@ -62,18 +62,18 @@ sub _address {
     my $key = join "\0", map { $_ // '' } $auth_dir, @ENV{qw(REMOTE_ADDR HTTP_X_FORWARDED_FOR)};
     return $ADDR_MEMO{$key} if exists $ADDR_MEMO{$key};
     %ADDR_MEMO = () if keys %ADDR_MEMO > 8;
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = $auth_dir;
-    return $ADDR_MEMO{$key} = Lazysite::Auth::AddressLists::client_address();
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = $auth_dir;
+    return $ADDR_MEMO{$key} = Lazysite::Auth::AddressProfiles::client_address();
 }
 
 sub _decide {
     my ( $auth_dir, $allow, $deny ) = @_;
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = $auth_dir;
-    return Lazysite::Auth::AddressLists::decide( _address($auth_dir), allow => $allow, deny => $deny );
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = $auth_dir;
+    return Lazysite::Auth::AddressProfiles::decide( _address($auth_dir), allow => $allow, deny => $deny );
 }
 
-# { group => 1 } for the groups whose own address lists refuse this request. {} when
-# no group carries a list (the common case: nothing is read), and when there is no
+# { group => 1 } for the groups whose own address profiles refuse this request. {} when
+# no group names a profile (the common case: nothing is read), and when there is no
 # request. $gs is the group-settings map the caller already holds.
 sub blocked_groups {
     my ( $gs, $auth_dir ) = @_;
@@ -110,7 +110,7 @@ sub note_dropped {
 }
 
 # The site-wide rule. Undef when the manager may be reached from this address, else
-# [ reason, list names ].
+# [ reason, profile names ].
 sub manager_refused {
     my ($lz) = @_;
     return undef unless request_context() && defined $lz && length $lz;
@@ -123,7 +123,7 @@ sub manager_refused {
     return [ $why, join( ',', @allow, @deny ) ];
 }
 
-# Would this request itself be refused the manager under these lists? For the Config
+# Would this request itself be refused the manager under these profiles? For the Config
 # page: a setting that shuts the person making it out of the manager cannot be undone
 # from the manager, so it is refused instead of written.
 sub would_refuse {
@@ -135,7 +135,7 @@ sub would_refuse {
 }
 
 # SM1159 (L2, the pocket portal plan): SIGN-IN MAY BE LIMITED BY ADDRESS. lazysite.conf
-# `signin_addresses:` / `signin_addresses_deny:` (names of address lists, SM1138) limit
+# `signin_addresses:` / `signin_addresses_deny:` (names of address profiles, SM1138) limit
 # where a sign-in attempt may come from: lazysite's own login and the Odoo endpoint's
 # signin and signin_code. The same evaluation as every other address rule (decide), the
 # same visitor address (trusted_proxies), the same audit row (`address-refused signin`,
@@ -145,7 +145,7 @@ sub would_refuse {
 # the second factor, not a second factor.
 #
 # signin_refused($lz [, $allow, $deny]) -> undef when the attempt may go on, else
-# [ reason, list names ]. $allow / $deny (arrayrefs of names) are an Odoo session
+# [ reason, profile names ]. $allow / $deny (arrayrefs of names) are an Odoo session
 # binding's own, which can only narrow the site's: both must admit the address.
 # With $binding named (a call of that binding, in a session already open) only the
 # binding's own rule is asked.
@@ -206,7 +206,7 @@ sub _conf {
 # One row per target and address per hour, written by Lazysite::Auth::AddressAudit,
 # the one writer every refusal by address goes through (SM1139's pages and files,
 # these groups and the manager): one marker store (auth/.address-refused.db) and one
-# row shape (detail "REASON; lists NAMES"), so the trail reads the same whichever
+# row shape (detail "REASON; profiles NAMES"), so the trail reads the same whichever
 # rule refused. SM1140 first kept its own marker under logs/; the stack unified them.
 #
 # The memo saves reopening the marker store for every walk of one request (a request
@@ -233,7 +233,7 @@ sub audit_refusal {
             target       => $target,
             address      => $addr,
             reason       => $why,
-            lists        => [ _names($lists) ],
+            profiles     => [ _names($lists) ],
             origin       => ( $origin // 'web' ),
             user         => $user,
         );
@@ -252,7 +252,7 @@ Lazysite::Auth::AddressScope - the visitor's address as it limits a group and th
 
 =head1 FUNCTIONS
 
-C<blocked_groups($group_settings, $auth_dir)> the groups whose address lists refuse the
+C<blocked_groups($group_settings, $auth_dir)> the groups whose address profiles refuse the
 current request; C<note_dropped> audits the ones a walk left out; C<manager_refused($lazysite_dir)>
 and C<refuse_manager> the site-wide C<manager_addresses> rule. See the comments above.
 

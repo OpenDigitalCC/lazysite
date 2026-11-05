@@ -7,7 +7,7 @@
 #
 # The server decides; the page only shows it, and it decides as the ENGINE does
 # (request_address): absent and empty trusted_proxies mean the private-range default,
-# only `none` trusts nothing. Both answers the address pages call (address-lists, and
+# only `none` trusts nothing. Both answers the address pages call (address-profiles, and
 # config-read) carry `proxy_warning` when the peer (REMOTE_ADDR, before any proxy
 # rule) is private or loopback AND no forwarded visitor address is being believed:
 #   (a) the peer is not in the effective trust set -> name the set, "Name the front
@@ -25,7 +25,7 @@ use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(site_tempdir);
 use Lazysite::Auth::Acl         ();
-use Lazysite::Manager::AddressLists ();
+use Lazysite::Manager::AddressProfiles ();
 use Lazysite::Manager::Config   ();
 
 sub site {
@@ -35,8 +35,8 @@ sub site {
     open my $fh, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$fh} "site_name: T\n" . $conf;
     close $fh;
-    open my $s, '>', "$d/lazysite/auth/address-lists.json" or die $!;
-    print {$s} encode_json( { office => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } );
+    open my $s, '>', "$d/lazysite/auth/address-profiles.json" or die $!;
+    print {$s} encode_json( { office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } );
     close $s;
     return $d;
 }
@@ -50,7 +50,7 @@ sub answers {
     $ENV{HTTP_X_FORWARDED_FOR} = $xff if defined $xff;
     local $Lazysite::Auth::Acl::DOCROOT            = $d;
     local $Lazysite::Manager::Config::LAZYSITE_DIR = "$d/lazysite";
-    my $al = Lazysite::Manager::AddressLists::address_lists( actor => 'sjm', operator => 1 );
+    my $al = Lazysite::Manager::AddressProfiles::address_profiles( actor => 'sjm', operator => 1 );
     my $cr = Lazysite::Manager::Config::action_config_read();
     return ( $al, $cr );
 }
@@ -66,8 +66,8 @@ for my $case ( [ 'trusted_proxies absent', '' ], [ 'trusted_proxies empty', "tru
 {
     my ( $name, $conf ) = @{$case};
     my ( $al, $cr ) = answers( $conf, '10.2.30.177' );
-    ok( $al->{ok}, "$name: address-lists answers" );
-    like( $al->{proxy_warning} // '', $B, "$name: address-lists names cause (b)" );
+    ok( $al->{ok}, "$name: address-profiles answers" );
+    like( $al->{proxy_warning} // '', $B, "$name: address-profiles names cause (b)" );
     like( $cr->{proxy_warning} // '', $B, "$name: config-read names cause (b)" );
 }
 
@@ -77,7 +77,7 @@ for my $case ( [ 'trusted_proxies none', "trusted_proxies: none\n", 'none' ],
 {
     my ( $name, $conf, $set ) = @{$case};
     my ( $al, $cr ) = answers( $conf, '10.2.30.177' );
-    like( $al->{proxy_warning} // '', $A, "$name: address-lists names cause (a)" );
+    like( $al->{proxy_warning} // '', $A, "$name: address-profiles names cause (a)" );
     like( $cr->{proxy_warning} // '', $A, "$name: config-read names cause (a)" );
     my ($got) = ( $al->{proxy_warning} // '' ) =~ $A;
     is( $got, $set, "$name: and names the set" );

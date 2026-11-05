@@ -155,7 +155,7 @@ What the engine accepts, and how it tells
   - `auth` other than `none` (or the site's `auth_default`), `auth_groups`,
     `payment`, `addresses` or `addresses_deny`, or an access key the engine
     cannot read: the page is gated.
-  - A read list, address list or draft section in the access store that covers
+  - A read list, address profile or draft section in the access store that covers
     the page.
   - `odoo-identity:` or `db:...(mine)` in the front matter: the page shows the
     viewer.

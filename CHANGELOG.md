@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM1343 (PENDING) **Address lists are address profiles, allowed or denied where they are
+  used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
+  set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule
+  that names one chooses: `addresses` allows it and `addresses_deny` denies it, on a page, a file
+  or folder rule, a group, the manager's and sign-in's keys and a session binding, so one office
+  range can be allowed on one page and denied on another. Deny still wins, and a folder's and a
+  page's rules must both admit. Renamed outright, with no aliases: the store is
+  `auth/address-profiles.json`, the page Access, Address profiles, the actions
+  `address-profiles`, `address-profile-set` and `address-profile-delete`, the MCP tool
+  `list_address_profiles` and the users tool's commands the same; an old name is refused naming
+  the new one, and a `kind` sent is refused by name. A profile a rule names is still not deleted
+  without a second confirmation. A site whose lists were never converted refuses every rule that
+  names a profile, rather than letting its deny rules block nobody.
+
 - SM1334 (PENDING) **A group can pin its members to a domain.** Ruling 78: only a pin removes the
   other domains, for an account or a group. An account's pin is a domain's `locked_users`; a
   domain's new `locked_groups` pins every member of the groups it names the same way: they reach

@@ -1,9 +1,9 @@
 #!/usr/bin/perl
-# SM1138 (slice A of SM1134): the address lists over the manager API, the
+# SM1138 (slice A of SM1134): the address profiles over the manager API, the
 # control API and MCP.
 #
-# Read: `address-lists` / `list_address_lists`, manage_users. Written:
-# `address-list-set` / `address-list-delete`, THE OPERATOR's, cookie only. The
+# Read: `address-profiles` / `list_address_profiles`, manage_users. Written:
+# `address-profile-set` / `address-profile-delete`, THE OPERATOR's, cookie only. The
 # store is written by the users tool, audited, and read back by the one module.
 #
 # Callers (all gated through the real CGIs):
@@ -100,165 +100,192 @@ sub mcp {
 }
 
 sub store_text {
-    open my $fh, '<', "$d/lazysite/auth/address-lists.json" or return '';
+    open my $fh, '<', "$d/lazysite/auth/address-profiles.json" or return '';
     local $/;
     return <$fh>;
 }
 sub audit_lines {
     open my $fh, '<', "$d/lazysite/logs/audit.log" or return ();
-    return grep { /address-list/ } <$fh>;
+    return grep { /address-profile/ } <$fh>;
 }
 
-subtest 'the operator creates a list; the page and the module read it back' => sub {
-    my $r = $s->call( 'op', 'address-list-set', body => { name => 'office', kind => 'allow',
-            entries => [ { cidr => '203.0.113.0/24', note => 'HQ' }, { cidr => '2001:db8::/32', note => '' } ] },
-        query => 'action=address-list-set' );
+subtest 'the operator creates a profile; the page and the module read it back' => sub {
+    my $r = $s->call( 'op', 'address-profile-set', body => { name => 'office', entries => [ { cidr => '203.0.113.0/24', note => 'HQ' }, { cidr => '2001:db8::/32', note => '' } ] },
+        query => 'action=address-profile-set' );
     ok( $r->{ok}, 'accepted' ) or diag( $r->{error} // $r->{_raw} // '' );
-    is( $r->{change}, 'created kind allow +203.0.113.0/24,+2001:db8::/32', 'the change is named' );
-    my $g = $s->call( 'op', 'address-lists', query => 'action=address-lists' );
-    ok( $g->{ok}, 'address-lists reads' ) or diag( $g->{error} // '' );
+    is( $r->{change}, 'created +203.0.113.0/24,+2001:db8::/32', 'the change is named' );
+    my $g = $s->call( 'op', 'address-profiles', query => 'action=address-profiles' );
+    ok( $g->{ok}, 'address-profiles reads' ) or diag( $g->{error} // '' );
     ok( $g->{can_edit}, 'the operator is shown the controls' );
-    is_deeply( [ map { $_->{name} } @{ $g->{lists} } ], ['office'], 'one list' );
-    is_deeply( $g->{lists}[0]{entries}, [ { cidr => '203.0.113.0/24', note => 'HQ' }, { cidr => '2001:db8::/32', note => '' } ],
+    is_deeply( [ map { $_->{name} } @{ $g->{profiles} } ], ['office'], 'one profile' );
+    is_deeply( $g->{profiles}[0]{entries}, [ { cidr => '203.0.113.0/24', note => 'HQ' }, { cidr => '2001:db8::/32', note => '' } ],
         'with its entries and notes' );
-    is( $g->{lists}[0]{entry_count}, 2, 'and the count' );
+    is( $g->{profiles}[0]{entry_count}, 2, 'and the count' );
 
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$d/lazysite/auth";
-    ok( Lazysite::Auth::AddressLists::in_list( '203.0.113.9', 'office' ), 'the module reads what the tool wrote' );
-    ok( !Lazysite::Auth::AddressLists::in_list( '198.51.100.9', 'office' ), '...and the outside is outside' );
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$d/lazysite/auth";
+    ok( Lazysite::Auth::AddressProfiles::in_profile( '203.0.113.9', 'office' ), 'the module reads what the tool wrote' );
+    ok( !Lazysite::Auth::AddressProfiles::in_profile( '198.51.100.9', 'office' ), '...and the outside is outside' );
 
     my @a = audit_lines();
     is( scalar @a, 1, 'one audit row' ) or diag(@a);
-    like( $a[0] // '', qr/\| op \| address-list-set \| address list office \|.*\| ok \| ui \| created kind allow \+203\.0\.113\.0\/24,\+2001:db8::\/32/,
-        'it names who, the list, the door and what changed' );
+    like( $a[0] // '', qr/\| op \| address-profile-set \| address profile office \|.*\| ok \| ui \| created \+203\.0\.113\.0\/24,\+2001:db8::\/32/,
+        'it names who, the profile, the door and what changed' );
 
-    $r = $s->call( 'op', 'address-list-set', body => { name => 'blocked', kind => 'deny', entries => ['198.51.100.7=scanner'] },
-        query => 'action=address-list-set' );
-    ok( $r->{ok}, 'a deny list' ) or diag( $r->{error} // '' );
-    $r = $s->call( 'op', 'address-list-set', body => { name => 'blocked', kind => 'deny', entries => ['198.51.100.7=scanner', '192.0.2.1'] },
-        query => 'action=address-list-set' );
+    $r = $s->call( 'op', 'address-profile-set', body => { name => 'blocked', entries => ['198.51.100.7=scanner'] },
+        query => 'action=address-profile-set' );
+    ok( $r->{ok}, 'a second profile' ) or diag( $r->{error} // '' );
+    $r = $s->call( 'op', 'address-profile-set', body => { name => 'blocked', entries => ['198.51.100.7=scanner', '192.0.2.1'] },
+        query => 'action=address-profile-set' );
     is( $r->{change}, '+192.0.2.1', 'an edit names what came' );
-    ok( ( grep { /address list blocked \|.*\+192\.0\.2\.1/ } audit_lines() ), 'and the audit row says so' );
+    ok( ( grep { /address profile blocked \|.*\+192\.0\.2\.1/ } audit_lines() ), 'and the audit row says so' );
 };
 
 subtest 'validation reaches the operator as a sentence naming the entry' => sub {
     my $before = store_text();
-    my $r = $s->call( 'op', 'address-list-set', body => { name => 'office', kind => 'allow', entries => ['0.0.0.0/0'] },
-        query => 'action=address-list-set' );
+    my $r = $s->call( 'op', 'address-profile-set', body => { name => 'office', entries => ['0.0.0.0/0'] },
+        query => 'action=address-profile-set' );
     ok( !$r->{ok}, 'a prefix of 0 is refused' );
     like( $r->{error} // '', qr/0\.0\.0\.0\/0/, '...naming it' );
-    $r = $s->call( 'op', 'address-list-set', body => { name => 'Not A Name', kind => 'allow' }, query => 'action=address-list-set' );
+    $r = $s->call( 'op', 'address-profile-set', body => { name => 'Not A Name' }, query => 'action=address-profile-set' );
     ok( !$r->{ok} && ( $r->{field} // '' ) eq 'name', 'a bad name is refused' );
-    $r = $s->call( 'op', 'address-list-set', body => { kind => 'allow' }, query => 'action=address-list-set' );
+    $r = $s->call( 'op', 'address-profile-set', body => {}, query => 'action=address-profile-set' );
     ok( !$r->{ok}, 'a missing name is refused' );
+    # SM1343: a profile has no kind; one sent is refused by name, not dropped.
+    $r = $s->call( 'op', 'address-profile-set', body => { name => 'office', kind => 'allow', entries => ['10.0.0.1'] },
+        query => 'action=address-profile-set' );
+    ok( !$r->{ok} && ( $r->{field} // '' ) eq 'kind', 'a kind sent is refused, as a kind problem' );
+    like( $r->{error} // '', qr/has no kind \(SM1343\)/, '...saying a profile has none' );
     is( store_text(), $before, 'the store is as it was' );
 };
 
 subtest 'a manage_users holder reads and is refused the write' => sub {
     my $before = store_text();
-    my $g = $s->call( 'ckm', 'address-lists', query => 'action=address-lists' );
+    my $g = $s->call( 'ckm', 'address-profiles', query => 'action=address-profiles' );
     ok( $g->{ok}, 'reads' ) or diag( $g->{error} // $g->{_raw} // '' );
     ok( !$g->{can_edit}, 'and is shown no controls' );
-    is( scalar @{ $g->{lists} }, 2, 'both lists' );
-    my $r = $s->call( 'ckm', 'address-list-set', body => { name => 'sneak', kind => 'allow', entries => ['0.0.0.1'] },
-        query => 'action=address-list-set' );
+    is( scalar @{ $g->{profiles} }, 2, 'both profiles' );
+    my $r = $s->call( 'ckm', 'address-profile-set', body => { name => 'sneak', entries => ['0.0.0.1'] },
+        query => 'action=address-profile-set' );
     ok( !$r->{ok}, 'set refused' );
     is( $r->{kind}, 'forbidden', '...forbidden' );
-    like( $r->{error}, qr/Only the operator changes address lists/, '...saying whose they are' );
-    $r = $s->call( 'ckm', 'address-list-delete', body => { name => 'office' }, query => 'action=address-list-delete' );
+    like( $r->{error}, qr/Only the operator changes address profiles/, '...saying whose they are' );
+    $r = $s->call( 'ckm', 'address-profile-delete', body => { name => 'office' }, query => 'action=address-profile-delete' );
     ok( !$r->{ok} && $r->{kind} eq 'forbidden', 'delete refused' );
     is( store_text(), $before, 'the store is untouched' );
 };
 
 subtest 'without manage_users the page and the API refuse the account' => sub {
-    my $g = $s->call( 'noc', 'address-lists', query => 'action=address-lists' );
+    my $g = $s->call( 'noc', 'address-profiles', query => 'action=address-profiles' );
     ok( !$g->{ok}, 'the read is refused' );
     ok( ManagerSession->refused_for_capability($g), 'and for the capability' ) or diag( $g->{error} // $g->{_raw} // '' );
-    my $r = $s->call( 'noc', 'address-list-set', body => { name => 'x', kind => 'allow' }, query => 'action=address-list-set' );
+    my $r = $s->call( 'noc', 'address-profile-set', body => { name => 'x' }, query => 'action=address-profile-set' );
     ok( ManagerSession->refused_for_capability($r), 'the write is refused for the capability' ) or diag( $r->{error} // $r->{_raw} // '' );
-    ok( !-e "$d/lazysite/auth/address-lists.json.tmp" && store_text() !~ /"x"/, 'nothing written' );
+    ok( !-e "$d/lazysite/auth/address-profiles.json.tmp" && store_text() !~ /"x"/, 'nothing written' );
 };
 
 subtest 'a token reads names and counts, never the writes' => sub {
-    my $g = api( 'tks', 'address-lists' );
+    my $g = api( 'tks', 'address-profiles' );
     ok( $g->{ok}, 'a manage_users token reads' ) or diag( $g->{error} // $g->{_raw} // '' );
     ok( $g->{confined}, '...as a confined caller' );
-    is_deeply( [ map { $_->{name} } @{ $g->{lists} } ], [qw(blocked office)], '...the names' );
-    ok( !( grep { exists $_->{entries} } @{ $g->{lists} } ), '...no entries (the site\'s addresses stay in the manager)' );
-    is_deeply( [ map { $_->{entry_count} } @{ $g->{lists} } ], [ 2, 2 ], '...with the counts' );
+    is_deeply( [ map { $_->{name} } @{ $g->{profiles} } ], [qw(blocked office)], '...the names' );
+    ok( !( grep { exists $_->{entries} } @{ $g->{profiles} } ), '...no entries (the site\'s addresses stay in the manager)' );
+    is_deeply( [ map { $_->{entry_count} } @{ $g->{profiles} } ], [ 2, 2 ], '...with the counts' );
     ok( $g->{can_edit} ? 0 : 1, '...and no controls' );
     unlike( encode_json($g), qr/203\.0\.113|198\.51\.100|HQ|scanner/, 'no address and no note anywhere in the answer' );
 
     my $before = store_text();
-    for my $act ( 'address-list-set', 'address-list-delete' ) {
-        my $r = api( 'tks', $act, { name => 'office', kind => 'deny' } );
+    for my $act ( 'address-profile-set', 'address-profile-delete' ) {
+        my $r = api( 'tks', $act, { name => 'office' } );
         ok( !$r->{ok}, "$act is refused to a token" );
         like( $r->{error} // '', qr/cookie|manager|not available|operator/i, "...with a reason ($r->{kind})" );
     }
     is( store_text(), $before, 'the store is untouched' );
     my $acts = api( 'tks', 'actions-list' );
     my %by = map { $_->{action} => $_ } @{ $acts->{actions} || [] };
-    ok( $by{'address-lists'} && !$by{'address-list-set'}, 'actions-list shows the read and not the cookie-only writes to a token' )
+    ok( $by{'address-profiles'} && !$by{'address-profile-set'}, 'actions-list shows the read and not the cookie-only writes to a token' )
         or diag( join ',', sort keys %by );
 };
 
-subtest 'MCP: list_address_lists for manage_users, nothing for anyone else, no write tool' => sub {
-    my $r = mcp( 'mcs', 'list_address_lists', {} );
+subtest 'MCP: list_address_profiles for manage_users, nothing for anyone else, no write tool' => sub {
+    my $r = mcp( 'mcs', 'list_address_profiles', {} );
     ok( $r->{ok}, 'a manage_users grant reads' ) or diag( $r->{error} // '' );
-    is_deeply( [ map { $_->{name} } @{ $r->{lists} } ], [qw(blocked office)], '...the names' );
+    is_deeply( [ map { $_->{name} } @{ $r->{profiles} } ], [qw(blocked office)], '...the names' );
     unlike( encode_json($r), qr/203\.0\.113|198\.51\.100|HQ|scanner/, '...and no address or note' );
-    my $n = mcp( 'mcn', 'list_address_lists', {} );
+    my $n = mcp( 'mcn', 'list_address_profiles', {} );
     ok( !$n->{ok}, 'a grant without manage_users is refused' );
     like( $n->{error} // '', qr/manage_users/, '...naming the capability' );
     my %tools = map { $_->{name} => 1 } @{ mcp_rpc( 'mcs', 'tools/list', {} )->{result}{tools} || [] };
-    ok( $tools{list_address_lists}, 'tools/list offers the read to manage_users' );
-    ok( !( grep { /address_list/ && $_ ne 'list_address_lists' } keys %tools ), 'and offers no write tool' );
+    ok( $tools{list_address_profiles}, 'tools/list offers the read to manage_users' );
+    ok( !( grep { /address_profile/ && $_ ne 'list_address_profiles' } keys %tools ), 'and offers no write tool' );
     my %tn = map { $_->{name} => 1 } @{ mcp_rpc( 'mcn', 'tools/list', {} )->{result}{tools} || [] };
-    ok( !$tn{list_address_lists}, 'and does not offer it without manage_users' );
-    my $w = mcp( 'mcs', 'set_address_list', { name => 'x', kind => 'allow' } );
+    ok( !$tn{list_address_profiles}, 'and does not offer it without manage_users' );
+    my $w = mcp( 'mcs', 'set_address_profile', { name => 'x' } );
     ok( !$w->{ok}, 'a write tool by that name does not exist' );
 };
 
-subtest 'the operator deletes a list; the audit row names it' => sub {
-    my $r = $s->call( 'op', 'address-list-delete', body => { name => 'blocked' }, query => 'action=address-list-delete' );
+subtest 'the operator deletes a profile; the audit row names it' => sub {
+    my $r = $s->call( 'op', 'address-profile-delete', body => { name => 'blocked' }, query => 'action=address-profile-delete' );
     ok( $r->{ok}, 'deleted' ) or diag( $r->{error} // '' );
-    like( $r->{change}, qr/\Adeleted \(2 entries, deny\)\z/, 'the change' );
-    ok( ( grep { /\| op \| address-list-delete \| address list blocked \|.*deleted \(2 entries, deny\)/ } audit_lines() ), 'the audit row' );
-    $r = $s->call( 'op', 'address-list-delete', body => { name => 'blocked' }, query => 'action=address-list-delete' );
+    like( $r->{change}, qr/\Adeleted \(2 entries\)\z/, 'the change' );
+    ok( ( grep { /\| op \| address-profile-delete \| address profile blocked \|.*deleted \(2 entries\)/ } audit_lines() ), 'the audit row' );
+    $r = $s->call( 'op', 'address-profile-delete', body => { name => 'blocked' }, query => 'action=address-profile-delete' );
     ok( !$r->{ok} && $r->{kind} eq 'not-found', 'again: not found' );
-    my @refused = grep { /address-list-set \| address list sneak/ } audit_lines();
+    my @refused = grep { /address-profile-set \| address profile sneak/ } audit_lines();
     ok( scalar @refused, 'a refused change is on the trail as a failure too' ) or diag( join '', audit_lines() );
     like( $refused[0] // '', qr/\| ckm \|.*\| fail \|/, '...as ckm, failed' );
 };
 
 subtest 'the manager module refuses a non-operator before the users tool is asked' => sub {
-    require Lazysite::Manager::AddressLists;
+    require Lazysite::Manager::AddressProfiles;
     require Lazysite::Manager::Common;
     my $asked = 0;
     no warnings 'redefine';
     local *Lazysite::Manager::Common::users_api = sub { $asked++; return { ok => 1 } };
     for my $who ( { actor => 'ckm', operator => 0 }, { actor => 'tks', operator => 0, confined => 1 }, { actor => '', operator => 1 } ) {
-        my $r = Lazysite::Manager::AddressLists::address_list_set( { name => 'x', kind => 'allow' }, %$who );
+        my $r = Lazysite::Manager::AddressProfiles::address_profile_set( { name => 'x' }, %$who );
         ok( !$r->{ok} && $r->{kind} eq 'forbidden', "set refused for actor '$who->{actor}' operator=$who->{operator}" );
-        $r = Lazysite::Manager::AddressLists::address_list_delete( { name => 'x' }, %$who );
+        $r = Lazysite::Manager::AddressProfiles::address_profile_delete( { name => 'x' }, %$who );
         ok( !$r->{ok} && $r->{kind} eq 'forbidden', '...and delete' );
     }
     is( $asked, 0, 'the users tool was never asked' );
-    my $r = Lazysite::Manager::AddressLists::address_list_set( { name => 'x', kind => 'allow' }, actor => 'op', operator => 1 );
+    my $r = Lazysite::Manager::AddressProfiles::address_profile_set( { name => 'x' }, actor => 'op', operator => 1 );
     ok( $r->{ok} && $asked == 1, 'the operator is passed through to the tool' );
 };
 
-subtest 'a store that does not decode is shown as such, never as no lists' => sub {
-    spit( "$d/lazysite/auth/address-lists.json", '{ "office": ' );
-    my $g = $s->call( 'op', 'address-lists', query => 'action=address-lists' );
+subtest 'a store that does not decode is shown as such, never as no profiles' => sub {
+    spit( "$d/lazysite/auth/address-profiles.json", '{ "office": ' );
+    my $g = $s->call( 'op', 'address-profiles', query => 'action=address-profiles' );
     ok( !$g->{ok}, 'the read is not ok' );
     is( $g->{kind}, 'cannot-tell', '...cannot-tell' );
     like( $g->{error} // '', qr/does not decode as a JSON object/, '...and says what is wrong' );
-    my $r = $s->call( 'op', 'address-list-set', body => { name => 'x', kind => 'allow' }, query => 'action=address-list-set' );
+    my $r = $s->call( 'op', 'address-profile-set', body => { name => 'x' }, query => 'action=address-profile-set' );
     ok( !$r->{ok} && $r->{kind} eq 'cannot-tell', 'a write refuses over it' );
     is( store_text(), '{ "office": ', 'the file is as it was' );
+};
+
+# SM1343 (ruling 56): renamed outright, as SM1142 renamed the plugin actions. A
+# caller still using an old name is told the new one, on every door, and nothing
+# runs.
+subtest 'the old action and tool names are refused, naming the new ones' => sub {
+    my $before = store_text();
+    # old-address-name: begin (SM1343, the test sends the names that are refused)
+    my %new = ( 'address-lists' => 'address-profiles', 'address-list-set' => 'address-profile-set',
+        'address-list-delete' => 'address-profile-delete' );
+    for my $old ( sort keys %new ) {
+        my $c = $s->call( 'op', $old, body => { name => 'office' }, query => "action=$old" );
+        ok( !$c->{ok} && ( $c->{kind} // '' ) eq 'not-found', "cookie: $old is not found" );
+        like( $c->{error} // '', qr/\Q'$old'\E.*use '\Q$new{$old}\E' \(SM1343\)/, "...and is told $new{$old}" );
+        my $k = api( 'tks', $old, { name => 'office' } );
+        ok( !$k->{ok} && ( $k->{kind} // '' ) eq 'not-found', "token: $old is not found" );
+        like( $k->{error} // '', qr/use '\Q$new{$old}\E' \(SM1343\)/, '...and is told the new name too' );
+    }
+    my $m = mcp( 'mcs', 'list_address_lists', {} );
+    ok( !$m->{ok}, 'MCP: list_address_lists is not a tool' );
+    like( $m->{error} // '', qr/use 'list_address_profiles' \(SM1343\)/, '...and the error names list_address_profiles' );
+    # old-address-name: end
+    is( store_text(), $before, 'nothing was written' );
 };
 
 done_testing;

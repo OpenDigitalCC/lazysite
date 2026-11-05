@@ -356,7 +356,7 @@ sub _content_rel {
     return undef unless defined $abs && length $abs;
     my $rel = $abs;
     # SM1284: an engine /docs page answers for the path it is SERVED at, so an
-    # access rule, an address list, a draft section and a section theme over
+    # access rule, an address profile, a draft section and a section theme over
     # docs/ govern it exactly as they would the site's own copy - and a rule at
     # `/` still covers it when the engine tree is beside the docroot, where no
     # docroot prefix would have matched and the page would have been ungoverned.
@@ -593,7 +593,7 @@ sub _acl_is_draft {
 }
 
 # SM1139 (slice B of SM1134): A PAGE, A FILE OR A FOLDER LIMITED BY THE VISITOR'S
-# ADDRESS. Three places can name address lists for a path, and the path is served
+# ADDRESS. Three places can name address profiles for a path, and the path is served
 # only when EVERY layer that names any admits the visitor:
 #
 #   the page's front matter    `addresses: [office]`  `addresses_deny: [blocked]`
@@ -601,10 +601,11 @@ sub _acl_is_draft {
 #   each enclosing folder rule acls.json entries for every ancestor, and the
 #                              site-wide rule
 #
-# EACH LAYER IS DECIDED ON ITS OWN, by Lazysite::Auth::AddressLists::decide: the
-# address must be in one of THAT layer's allow lists and in none of its deny lists.
-# So a page allowing [office] inside a folder allowing [office, vpn] is served to
-# the office only, and a folder's allow list cannot be widened by a page inside it:
+# EACH LAYER IS DECIDED ON ITS OWN, by Lazysite::Auth::AddressProfiles::decide: the
+# address must be in one of the profiles THAT layer allows and in none of those it
+# denies. So a page allowing [office] inside a folder allowing [office, vpn] is
+# served to the office only, and what a folder allows cannot be widened by a page
+# inside it:
 # AND across layers, OR within a layer, and any deny wins (SM1134 ruling).
 #
 # NOT the longest-match rule the read lists use (_acl_entry_for). A read rule
@@ -625,7 +626,7 @@ sub _acl_is_draft {
 # holds the two together.
 sub _address_refusal_sentence { return 'This page is not available from your address.' }
 
-# The acls.json entries, nearest first, that name an address list for $rel: its own
+# The acls.json entries, nearest first, that name an address profile for $rel: its own
 # key, its page stem's (a folder's rule covers the section's landing page, SM268
 # H14), every ancestor folder's, then the site-wide rule. Returns [ { key, allow,
 # deny } ]. An entry naming no list is not a layer.
@@ -700,15 +701,15 @@ sub _address_refused {
     # SM651: the way in is never gated by the thing it is the way in to.
     return 0 if is_auth_surface($uri) || _is_engine_asset($uri);
 
-    _lazy_lib('Lazysite::Auth::AddressLists');
+    _lazy_lib('Lazysite::Auth::AddressProfiles');
     _lazy_lib('Lazysite::Auth::AddressAudit');
     {
         no warnings 'once';
-        $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
+        $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$LAZYSITE_DIR/auth";
     }
-    my $address = Lazysite::Auth::AddressLists::client_address();
+    my $address = Lazysite::Auth::AddressProfiles::client_address();
     for my $l (@$layers) {
-        my ( $verdict, $why ) = Lazysite::Auth::AddressLists::decide( $address,
+        my ( $verdict, $why ) = Lazysite::Auth::AddressProfiles::decide( $address,
             allow => $l->{allow}, deny => $l->{deny} );
         next if $verdict eq 'allow';
 
@@ -718,7 +719,7 @@ sub _address_refused {
             target       => $uri,
             address      => $address,
             reason       => $why,
-            lists        => [ @{ $l->{allow} }, @{ $l->{deny} } ],
+            profiles     => [ @{ $l->{allow} }, @{ $l->{deny} } ],
             origin       => 'web',
         );
         $ACCESS_REC{ar} = 1;
@@ -779,7 +780,7 @@ sub _acl_governed {
 sub _acl_governing_key {
     my ($abs) = @_;
     my $f = "$LAZYSITE_DIR/auth/acls.json";
-    # SM1139: no store still leaves a page's own front-matter address lists.
+    # SM1139: no store still leaves a page's own front-matter address profiles.
     unless ( -f $f ) {
         my @own = map { $_->{key} } @{ _address_layers_for($abs) };
         return @own ? join( '+', @own ) : undef;

@@ -27,8 +27,8 @@ sub slurp { my ($p) = @_; open my $fh, '<', $p or return ''; local $/; my $t = <
 my $s = new_site( root => $root );
 my $d = $s->docroot;
 $s->add_user( 'alice', $PW );
-$s->users( 'address-list-set', 'office',  '--kind', 'allow', '--entry', '203.0.113.0/24' );
-$s->users( 'address-list-set', 'blocked', '--kind', 'deny',  '--entry', $IN );
+$s->users( 'address-profile-set', 'office',  '--entry', '203.0.113.0/24' );
+$s->users( 'address-profile-set', 'blocked', '--entry', $IN );
 
 sub set_conf {
     my (%k) = @_;
@@ -128,10 +128,10 @@ subtest 'audit: one row per address per hour' => sub {
 
 subtest 'a store that cannot be read refuses (fails closed)' => sub {
     set_conf( signin_addresses => 'office' );
-    my $good = slurp("$d/lazysite/auth/address-lists.json");
-    spit( "$d/lazysite/auth/address-lists.json", 'not json' );
+    my $good = slurp("$d/lazysite/auth/address-profiles.json");
+    spit( "$d/lazysite/auth/address-profiles.json", 'not json' );
     like( login( 'alice', $PW, via => $IN ), qr/error=address/, 'a faulted store never quietly admits' );
-    spit( "$d/lazysite/auth/address-lists.json", $good );
+    spit( "$d/lazysite/auth/address-profiles.json", $good );
 };
 
 subtest 'the login page says it plainly' => sub {
@@ -139,7 +139,7 @@ subtest 'the login page says it plainly' => sub {
     like( $page, qr/query\.error == 'address'.*?Sign-in is not available from your address\./s, 'the sentence is on the page' );
 };
 
-subtest 'the Config keys: real lists of the right kind, cookie only, and not one that shuts the setter out' => sub {
+subtest 'the Config keys: real profiles, cookie only, and not one that shuts the setter out' => sub {
     require Lazysite::Manager::Config;
     my $set = sub {
         my ( $k, $v ) = @_;
@@ -150,9 +150,11 @@ subtest 'the Config keys: real lists of the right kind, cookie only, and not one
     local $ENV{HTTP_X_FORWARDED_FOR} = $IN;
     set_conf();
     my $r = $set->( 'signin_addresses', 'nope' );
-    ok( !$r->{ok}, 'an unknown list is refused' );
+    ok( !$r->{ok}, 'an unknown profile is refused' );
+    # SM1343: a profile has no kind; `blocked` denies below and may be allowed here.
     $r = $set->( 'signin_addresses', 'blocked' );
-    ok( !$r->{ok}, 'a deny list in the allow slot is refused' );
+    ok( $r->{ok}, 'a profile denied elsewhere may be allowed (SM1343: no kind)' ) or diag explain $r;
+    $r = $set->( 'signin_addresses', '' );
     $r = $set->( 'signin_addresses_deny', 'blocked' );
     ok( !$r->{ok}, 'a deny list holding the setter\'s own address is refused' ) or diag explain $r;
     like( $r->{error} // '', qr/shut your own address out of signing in/, '...saying why' );

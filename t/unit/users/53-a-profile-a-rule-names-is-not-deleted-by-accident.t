@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1141 (slice D of SM1134): address-list-delete refuses to delete a list that a
+# SM1141 (slice D of SM1134): address-profile-delete refuses to delete a list that a
 # rule still names, and says WHERE; --force (CLI) / force:true (API) deletes it
 # anyway and the audit names what still refers to it.
 #   - unreferenced: deleted as before
@@ -41,7 +41,7 @@ sub api {
 
 sub names {
     my ($d) = @_;
-    open my $fh, '<', "$d/lazysite/auth/address-lists.json" or return ();
+    open my $fh, '<', "$d/lazysite/auth/address-profiles.json" or return ();
     local $/;
     return sort keys %{ decode_json(<$fh>) };
 }
@@ -49,7 +49,7 @@ sub names {
 sub audit_rows {
     my ($d) = @_;
     open my $fh, '<', "$d/lazysite/logs/audit.log" or return ();
-    return grep {/address-list-delete/} <$fh>;
+    return grep {/address-profile-delete/} <$fh>;
 }
 
 sub site {
@@ -59,7 +59,7 @@ sub site {
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n" . ( $o{conf} // '' );
     close $cf;
-    cli( $d, 'address-list-set', $_, '--kind', 'allow', '--entry', '203.0.113.0/24' ) for qw(office other);
+    cli( $d, 'address-profile-set', $_, '--entry', '203.0.113.0/24' ) for qw(office other);
     if ( $o{page} ) {
         open my $p, '>', "$d/staff.md" or die $!;
         print {$p} "---\ntitle: Staff\naddresses: [$o{page}]\n---\n\nbody\n";
@@ -80,7 +80,7 @@ sub site {
 
 subtest 'unreferenced: deleted' => sub {
     my $d = site( page => 'other' );    # a rule exists, but for another list
-    like cli( $d, 'address-list-delete', 'office' ), qr/Address list 'office' deleted \(1 entries, allow\)\./, 'deleted';
+    like cli( $d, 'address-profile-delete', 'office' ), qr/Address profile 'office' deleted \(1 entries\)\./, 'deleted';
     is_deeply( [ names($d) ], ['other'], 'and only that one' );
 };
 
@@ -95,11 +95,11 @@ for my $c (
     my ( $what, $o, $re ) = @$c;
     subtest "refused while $what names it" => sub {
         my $d = site(%$o);
-        my $out = cli( $d, 'address-list-delete', 'office' );
+        my $out = cli( $d, 'address-profile-delete', 'office' );
         like $out, qr/still named by .*$re/, 'refused, naming where';
         like $out, qr/--force/, 'and how to override';
         is_deeply( [ names($d) ], [ 'office', 'other' ], 'the store is untouched' );
-        my $r = api( $d, { action => 'address-list-delete', name => 'office' } );
+        my $r = api( $d, { action => 'address-profile-delete', name => 'office' } );
         ok !$r->{ok} && $r->{kind} eq 'in-use', 'the API refuses with kind in-use';
         like $r->{error}, $re, 'and names it';
         ok scalar @{ $r->{references} }, 'and carries the references';
@@ -108,15 +108,15 @@ for my $c (
 
 subtest 'a forced delete goes through and is audited naming what still refers to it' => sub {
     my $d = site( page => 'office', acl => 'office' );
-    my $out = cli( $d, 'address-list-delete', 'office', '--force' );
-    like $out, qr/deleted \(1 entries, allow, forced\); still named by .*page staff\.md.*access rule for \/intranet\//,
+    my $out = cli( $d, 'address-profile-delete', 'office', '--force' );
+    like $out, qr/deleted \(1 entries, forced\); still named by .*page staff\.md.*access rule for \/intranet\//,
         'the CLI says it was forced and what still names it';
     is_deeply( [ names($d) ], ['other'], 'gone' );
     my ($row) = audit_rows($d);
     like( $row // '', qr/forced.*still named by .*page staff\.md/, 'the audit row names what still refers to it' );
 
     my $d2 = site( group => 'office' );
-    my $r = api( $d2, { action => 'address-list-delete', name => 'office', force => JSON::PP::true } );
+    my $r = api( $d2, { action => 'address-profile-delete', name => 'office', force => JSON::PP::true } );
     ok $r->{ok}, 'force:true over the API' or diag $r->{error};
     like $r->{change}, qr/forced\); still named by group operators/, 'the change line (the manager audit row carries it) names the group';
 };
@@ -126,10 +126,10 @@ subtest 'a rule store that cannot be read refuses, and force overrides' => sub {
     open my $a, '>', "$d/lazysite/auth/acls.json" or die $!;
     print {$a} '{ nope';
     close $a;
-    my $out = cli( $d, 'address-list-delete', 'office' );
+    my $out = cli( $d, 'address-profile-delete', 'office' );
     like $out, qr/could not check: acls\.json does not decode/, 'refused: it cannot say nothing names the list';
     ok( ( grep { $_ eq 'office' } names($d) ), 'still there' );
-    like cli( $d, 'address-list-delete', 'office', '--force' ), qr/forced\); still named by could not check/, 'forced goes through';
+    like cli( $d, 'address-profile-delete', 'office', '--force' ), qr/forced\); still named by could not check/, 'forced goes through';
 };
 
 done_testing();

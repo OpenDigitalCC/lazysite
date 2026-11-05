@@ -247,9 +247,9 @@ sub read_access_keys {
         }
 
         # auth_groups, addresses, addresses_deny (SM1139): an inline value, or the
-        # indented `- name` lines below it. The last two name ADDRESS LISTS, whose
+        # indented `- name` lines below it. The last two name ADDRESS PROFILES, whose
         # names are the store's ([a-z0-9_-], SM1138), not a group's.
-        my $noun   = $key eq 'auth_groups' ? 'group' : 'address list';
+        my $noun   = $key eq 'auth_groups' ? 'group' : 'address profile';
         my $NAMEOK = $key eq 'auth_groups' ? $NAME   : qr/\A[a-z0-9_-]{1,64}\z/;
         my $inline = $rest;
         $inline =~ s/\s+#.*\z//;
@@ -287,7 +287,7 @@ sub read_access_keys {
             $why = length( $bad // '' )
                 ? ( $key eq 'auth_groups'
                 ? "'$bad' is not a group name (letters, digits, '.', '_' or '-')"
-                : "'$bad' is not an address list name (lowercase letters, digits, '_' or '-')" )
+                : "'$bad' is not an address profile name (lowercase letters, digits, '_' or '-')" )
                 : 'has an empty entry'
                 if defined $bad;
         }
@@ -311,43 +311,9 @@ sub _check_access_keys {
             message => "$u->{$k}, so the page is refused to everyone (403) until it is "
                 . ( $k eq 'auth_groups'
                 ? 'a list of group names - [a, b], or one "- name" line each'
-                : $k =~ /\Aaddresses/ ? 'a list of address list names - [office], or one "- name" line each'
+                : $k =~ /\Aaddresses/ ? 'a list of address profile names - [office], or one "- name" line each'
                 : $u->{$k} =~ /auth: manager/ ? 'changed as it says'
                 :                               'one of the values listed' ) };
-    }
-    return;
-}
-
-# SM1189 (0.15.10 walk, F-3): A PAGE THAT NAMES A LIST OF THE WRONG KIND. A deny
-# list under `addresses:` admits nobody and an allow list under `addresses_deny:`
-# blocks nobody, and the second used to be ignored in silence - the page stayed
-# open to the address its author meant to shut out. The engine refuses the page
-# now (Lazysite::Auth::AddressLists::decide, 'wrong-kind'); this says why before
-# a visitor finds out. A name the store does not hold is another matter (a list
-# may be created later) and is not reported here. No store, or one that will not
-# read, says nothing: `lazysite check` reports the store.
-sub _check_address_kinds {
-    my ( $issues, $fm, $lz ) = @_;
-    return unless defined $lz && length $lz;
-    my $keys = read_access_keys($fm);
-    return unless ref $keys->{addresses} eq 'ARRAY' || ref $keys->{addresses_deny} eq 'ARRAY';
-    require Lazysite::Auth::AddressLists;
-    no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$lz/auth";
-    my $lists = Lazysite::Auth::AddressLists::lists();
-    return if Lazysite::Auth::AddressLists::store_fault();
-    for my $k (qw(addresses addresses_deny)) {
-        my $want = $k eq 'addresses' ? 'allow' : 'deny';
-        for my $n ( @{ $keys->{$k} || [] } ) {
-            my $l = $lists->{$n} or next;
-            next if $l->{kind} eq $want;
-            push @$issues, { kind => 'address-list-wrong-kind', key => $k, list => $n,
-                message => "'$k' names '$n', which is " . ( $l->{kind} eq 'allow' ? 'an allow' : 'a deny' )
-                    . " list, and $k takes $want lists - the page is refused to everyone (403) until "
-                    . ( $k eq 'addresses'
-                    ? "the rule names an allow list (or '$n' moves to addresses_deny)"
-                    : "the rule names a deny list (or '$n' moves to addresses)" ) };
-        }
     }
     return;
 }
@@ -1052,7 +1018,6 @@ sub validate_content {
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
-    _check_address_kinds( \@issues, $fm, $lz );                                  # SM1189
     _check_permissions( \@issues, \@warnings, $fm, $lz );    # SM1174, SM1266, SM1294
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so

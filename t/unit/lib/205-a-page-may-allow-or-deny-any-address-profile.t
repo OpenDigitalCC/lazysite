@@ -6,7 +6,10 @@
 #        write it: "write it as a list: addresses: [name]". auth_groups shares the
 #        fault and the sentence.
 #   F-3  `addresses_deny: [zz60-mine]`, zz60-mine being an ALLOW list, was ignored
-#        in silence; the validator now names the list and the kind it is.
+#        in silence, and the validator was made to name the list and its kind.
+# SM1343 (0.16.5): a profile has no kind, so a page may allow or deny any profile
+# and the validator says nothing about which slot names it. Every issue the page
+# raises is collected, so a kind-shaped complaint under any name fails here.
 use strict;
 use warnings;
 use Test::More;
@@ -29,8 +32,10 @@ subtest 'a bare value says to write a list' => sub {
 
 my $d = site_tempdir();
 make_path("$d/lazysite/auth");
-open my $fh, '>', "$d/lazysite/auth/address-lists.json" or die $!;
+open my $fh, '>', "$d/lazysite/auth/address-profiles.json" or die $!;
 print {$fh} encode_json( {
+    # A kind left by a hand edit (or an unconverted record) is ignored: a page names
+    # the slot.
     mine    => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
     blocked => { kind => 'deny',  entries => [ { cidr => '203.0.113.9',    note => '' } ] },
 } );
@@ -40,19 +45,17 @@ sub issues_for {
     my ($fm) = @_;
     my $r = Lazysite::Validate::validate_content(
         content => "---\ntitle: T\n$fm---\nbody\n", path => "$d/p.md", docroot => $d, lazysite_dir => "$d/lazysite" );
-    return [ grep { $_->{kind} eq 'address-list-wrong-kind' } @{ $r->{issues} } ];
+    return [ grep { ( $_->{key} // '' ) =~ /\Aaddresses/ || ( $_->{message} // '' ) =~ /address|profile/i }
+            @{ $r->{issues} } ];
 }
 
-subtest 'a list of the wrong kind is an issue that names it' => sub {
-    my $i = issues_for("addresses_deny: [mine]\n");
-    is( scalar @$i, 1, 'an allow list under addresses_deny is reported' ) or diag explain $i;
-    like( $i->[0]{message} // '', qr/'mine', which is an allow list/, '  naming the list and its kind' );
-    like( $i->[0]{message} // '', qr/addresses_deny/,          '  and the key' );
-    $i = issues_for("addresses: [blocked]\n");
-    is( scalar @$i, 1, 'a deny list under addresses is reported' );
-    like( $i->[0]{message} // '', qr/'blocked', which is a deny list/, '  naming it' );
-    is( scalar @{ issues_for("addresses: [mine]\naddresses_deny: [blocked]\n") }, 0, 'the right kinds: nothing said' );
-    is( scalar @{ issues_for("addresses: [nosuch]\n") }, 0, 'a list the store does not hold is not "wrong kind"' );
+subtest 'a page may allow or deny any profile, and nothing is said' => sub {
+    for my $fm ( "addresses_deny: [mine]\n", "addresses: [blocked]\n", "addresses: [mine]\naddresses_deny: [blocked]\n",
+        "addresses: [blocked]\naddresses_deny: [mine]\n", "addresses: [nosuch]\n" )
+    {
+        ( my $say = $fm ) =~ s/\n/; /g;
+        is_deeply( issues_for($fm), [], "$say no issue" );
+    }
 };
 
 done_testing();

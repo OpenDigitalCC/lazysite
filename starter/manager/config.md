@@ -94,26 +94,26 @@ var SITE_SCHEMA = [
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
   // SM1140 (SM1134, ruled): who may reach the manager and its API by address, apart from
-  // any group. Names of address lists (Access, Address lists). The Config page has no list
-  // chooser, so these are text fields with the names listed in the note; the server checks
-  // each name is a list of the right kind before it writes.
-  { key: 'manager_addresses', placeholder: 'any address', label: 'Manager only from (address lists)', type: 'text',
+  // any group. Names of address profiles (Access, Address profiles). The Config page has no
+  // profile chooser, so these are text fields; the server checks each name is a profile
+  // that exists before it writes. Which key names a profile allows or denies it (SM1343).
+  { key: 'manager_addresses', placeholder: 'any address', label: 'Manager only from (address profiles)', type: 'text',
     default: '', group: 'Manager user interface',
     show_when: { key: 'manager', value: ['enabled'] },
-    note: 'Names of ALLOW address lists, comma separated (see Access, Address lists). When set, the manager and its API answer only to requests from those addresses, whatever groups the visitor holds; the sign-in pages are unaffected. Empty means any address. Needs trusted_proxies to cover your front end, or every visitor looks like the proxy.' },
-  { key: 'manager_addresses_deny', placeholder: 'no address refused', label: 'Manager never from (address lists)', type: 'text',
+    note: 'Names of address profiles to allow, comma separated (see Access, Address profiles). When set, the manager and its API answer only to requests from those addresses, whatever groups the visitor holds; the sign-in pages are unaffected. Empty means any address. Needs trusted_proxies to cover your front end, or every visitor looks like the proxy.' },
+  { key: 'manager_addresses_deny', placeholder: 'no address refused', label: 'Manager never from (address profiles)', type: 'text',
     default: '', group: 'Manager user interface',
     show_when: { key: 'manager', value: ['enabled'] },
-    note: 'Names of DENY address lists, comma separated. A request from one of these addresses is refused the manager and its API even if it is in an allow list above.' },
+    note: 'Names of address profiles to deny, comma separated. A request from one of these addresses is refused the manager and its API even if a profile allowed above holds it.' },
   // SM1159 (L2): where a sign-in may be made from, beside the manager's own limit. Names of
-  // address lists, as above; the server checks each name and refuses a value that would
+  // address profiles, as above; the server checks each name and refuses a value that would
   // shut the person setting it out of signing in.
-  { key: 'signin_addresses', placeholder: 'any address', label: 'Sign-in only from (address lists)', type: 'text',
+  { key: 'signin_addresses', placeholder: 'any address', label: 'Sign-in only from (address profiles)', type: 'text',
     default: '', group: 'Manager user interface',
-    note: 'Names of ALLOW address lists, comma separated (see Access, Address lists). When set, a sign-in attempt (this site\'s own and the Odoo sign-in through a page, including its code step) from any other address is refused before the password is looked at and before the sign-in rate limit counts it. A session already open is unaffected. Empty means any address. Needs trusted_proxies to cover your front end, or every visitor looks like the proxy.' },
-  { key: 'signin_addresses_deny', placeholder: 'no address refused', label: 'Sign-in never from (address lists)', type: 'text',
+    note: 'Names of address profiles to allow, comma separated (see Access, Address profiles). When set, a sign-in attempt (this site\'s own and the Odoo sign-in through a page, including its code step) from any other address is refused before the password is looked at and before the sign-in rate limit counts it. A session already open is unaffected. Empty means any address. Needs trusted_proxies to cover your front end, or every visitor looks like the proxy.' },
+  { key: 'signin_addresses_deny', placeholder: 'no address refused', label: 'Sign-in never from (address profiles)', type: 'text',
     default: '', group: 'Manager user interface',
-    note: 'Names of DENY address lists, comma separated. A sign-in attempt from one of these addresses is refused even if it is in an allow list above.' },
+    note: 'Names of address profiles to deny, comma separated. A sign-in attempt from one of these addresses is refused even if a profile allowed above holds it.' },
   // SM1191 (test plan 0.15.10 F-5): the settings SM1155 reads, so a site becomes an app
   // without shell access. The server refuses what the engine would turn the app off for
   // (config-set, _app_setting_fault) and names the key; setting a name turns the app on.

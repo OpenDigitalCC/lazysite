@@ -11,14 +11,14 @@ package Lazysite::Auth::AddressAudit;
 # so there is one marker store and one row shape for every refusal by address.
 #
 #   refused( lazysite_dir => $dir, target => '/office/rota', address => $ip,
-#            reason => 'not-allowed', lists => ['office'], origin => 'web',
+#            reason => 'not-allowed', profiles => ['office'], origin => 'web',
 #            user => $name )   # user optional: the account, where the door knows it
 #     -> 1 when it wrote the row, 0 when this hour already has one for this target
 #        and address (or the marker store could not be opened).
 #
 # The row is `address-refused <target>`, detail = the reason code decide() gave and
-# the list name(s), so the trail says which rule refused without the visitor ever
-# being told (the refusal page does not name a list).
+# the profile name(s), so the trail says which rule refused without the visitor ever
+# being told (the refusal page does not name a profile).
 #
 # THE MARKERS ARE BOUNDED. They live in $lazysite_dir/auth/.address-refused.db
 # (DB_File, 0600, as the sign-in limiter's counter is), and the first call of each
@@ -65,11 +65,11 @@ sub refused (%o) {
     untie %db;
     return 0 if $seen;
 
-    my $lists = join ',', @{ ref $o{lists} eq 'ARRAY' ? $o{lists} : [] };
+    my $profiles = join ',', @{ ref $o{profiles} eq 'ARRAY' ? $o{profiles} : [] };
     no warnings 'once';
     local $Lazysite::Audit::LAZYSITE_DIR = $dir;
     Lazysite::Audit::audit_log( ( $o{user} // '' ), 'address-refused', $target, $address, 'fail',
-        ( $o{origin} // 'web' ), join( '; ', grep { length } ( $o{reason}, length $lists ? "lists $lists" : '' ) ) );
+        ( $o{origin} // 'web' ), join( '; ', grep { length } ( $o{reason}, length $profiles ? "profiles $profiles" : '' ) ) );
     return 1;
 }
 

@@ -334,7 +334,7 @@ set_permissions `{ path, read, write, draft }`
 
 remove_permissions `{ path }`
 : Remove the rule on a path (a file, a folder prefix ending in `/`, or `/` for the
-  site-wide rule) - owner, lists, draft flag and address lists together. Only the
+  site-wide rule) - owner, lists, draft flag and address profiles together. Only the
   rule's owner (or an operator) may. Removing a draft or read rule publishes what it
   held back. Audited as `acl-remove`. Use `set_permissions` to change a rule.
 

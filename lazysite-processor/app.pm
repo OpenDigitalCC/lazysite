@@ -263,7 +263,7 @@ sub _app_page_fault {
     return 'binds the viewer\'s own rows (db:...(mine))'        if $m->{db_mine};
     return 'is rendered fresh for each request (nocache: true)' if $m->{nocache};
     return 'is a data page (api: or raw: true), not a page'     if $m->{api} || $m->{raw};
-    return 'is under an access rule (a read list, a draft section or an address list)' if _acl_governed($file);
+    return 'is under an access rule (a read list, a draft section or an address profile)' if _acl_governed($file);
     return undef;
 }
 

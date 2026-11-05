@@ -24,8 +24,8 @@ sub spit { my ( $p, $t ) = @_; make_path( $p =~ s{/[^/]+\z}{}r ); open my $fh, '
 sub slurp { my ($p) = @_; open my $fh, '<', $p or return undef; local $/; my $t = <$fh>; close $fh; return $t }
 
 my $LISTS = encode_json( {
-    office  => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => 'HQ' } ] },
-    blocked => { kind => 'deny',  entries => [ { cidr => '203.0.113.9',    note => 'scanner' } ] },
+    office  => { entries => [ { cidr => '203.0.113.0/24', note => 'HQ' } ] },
+    blocked => { entries => [ { cidr => '203.0.113.9',    note => 'scanner' } ] },
 } );
 
 my $OFFICE  = '203.0.113.5';
@@ -38,7 +38,7 @@ my $s   = new_site( root => $root, conf => "control_api_enabled: true\ntrusted_p
 my $d   = $s->docroot;
 $s->add_user('boss');
 $s->grant( 'boss', 'sysops', [qw(ui manage_users manage_content)], \@ALL );
-spit( "$d/lazysite/auth/address-lists.json", $LISTS );
+spit( "$d/lazysite/auth/address-profiles.json", $LISTS );
 spit( "$d/internal/a.md", "---\ntitle: A\n---\nSecret A.\n" );
 
 sub boss {
@@ -57,13 +57,13 @@ subtest 'acl-set writes the two fields, and acl-get returns them' => sub {
     my $g = boss( 'acl-get', undef, 'action=acl-get&path=internal/' );
     is_deeply( $g->{acl}{addresses}, ['office'], 'acl-get returns addresses' );
     is_deeply( $g->{acl}{addresses_deny}, ['blocked'], 'and addresses_deny' );
-    is_deeply( $g->{address_lists}, [ { name => 'blocked', kind => 'deny' }, { name => 'office', kind => 'allow' } ],
-        'and the lists the rule may name: names and kinds, never entries' );
+    is_deeply( $g->{address_profiles}, [ { name => 'blocked' }, { name => 'office' } ],
+        'and the profiles the rule may name: names only, no kind, never entries' );
     my $l = boss( 'list', undef, 'action=list&path=/' );
-    ok( ref $l->{address_lists} eq 'ARRAY' && @{ $l->{address_lists} } == 2, 'the listing offers the lists for the permissions editor' );
+    ok( ref $l->{address_profiles} eq 'ARRAY' && @{ $l->{address_profiles} } == 2, 'the listing offers the lists for the permissions editor' );
 };
 
-subtest 'a rule changed for another reason keeps its address lists; an empty list clears' => sub {
+subtest 'a rule changed for another reason keeps its address profiles; an empty list clears' => sub {
     my $r = boss( 'acl-set', { owner => 'boss', read => [] }, 'action=acl-set&path=internal/' );
     ok( $r->{ok}, 'an unrelated change is accepted' ) or diag( explain $r );
     is_deeply( acls()->{internal}{addresses}, ['office'], 'addresses survive it' );
@@ -77,7 +77,7 @@ subtest 'a rule changed for another reason keeps its address lists; an empty lis
 subtest 'a name is validated; an unknown list is accepted with a warning that says why' => sub {
     my $bad = boss( 'acl-set', { owner => 'boss', addresses => ['Not A Name'] }, 'action=acl-set&path=other/' );
     ok( !$bad->{ok}, 'a name that cannot be a list name is refused' );
-    like( $bad->{error}, qr/not an address list name/, 'saying so' );
+    like( $bad->{error}, qr/not an address profile name/, 'saying so' );
     ok( !exists acls()->{other}, 'and nothing was written' );
     my $r = boss( 'acl-set', { owner => 'boss', addresses => ['later'] }, 'action=acl-set&path=other/' );
     ok( $r->{ok}, 'a list the store does not hold yet is accepted' ) or diag( explain $r );
@@ -86,11 +86,10 @@ subtest 'a name is validated; an unknown list is accepted with a warning that sa
     ok( $w, 'with a warning' ) or diag( explain $r->{warnings} );
     like( $w // '', qr/may be created later/, 'that says a list may be created later' );
     like( $w // '', qr/admits NO address/,    'and what the rule does until it is' );
-    my $wrong = boss( 'acl-set', { owner => 'boss', addresses => ['blocked'] }, 'action=acl-set&path=wrong/' );
-    # SM1189: it was accepted with a warning; a rule the engine now refuses is not saved.
-    ok( !$wrong->{ok}, 'a deny list under addresses is refused' );
-    like( $wrong->{error} // '', qr/'blocked' is a deny list and is named in addresses/, 'saying which list is the wrong kind' );
-    ok( !exists acls()->{wrong}, 'and nothing was written' );
+    # SM1343: a profile has no kind; one denied on internal/ may be allowed elsewhere.
+    my $other = boss( 'acl-set', { owner => 'boss', addresses => ['blocked'] }, 'action=acl-set&path=elsewhere/' );
+    ok( $other->{ok}, 'a profile denied on one rule is allowed on another' ) or diag( explain $other );
+    is_deeply( acls()->{elsewhere}{addresses}, ['blocked'], 'and stored as written' );
 };
 
 subtest 'the manager API refuses a file under the rule to an address outside it' => sub {
@@ -130,7 +129,7 @@ subtest 'the manager API refuses a file under the rule to an address outside it'
 # ------------------------------------------------------------------- WebDAV
 my $dav = setup_dav_site( conf => "webdav_enabled: true\ntrusted_proxies: 127.0.0.1\n" );
 my $dd  = $dav->{docroot};
-spit( "$dd/lazysite/auth/address-lists.json", $LISTS );
+spit( "$dd/lazysite/auth/address-profiles.json", $LISTS );
 spit( "$dd/internal/a.md", "dav secret\n" );
 spit( "$dd/open.md",       "dav open\n" );
 spit( "$dd/lazysite/auth/acls.json", encode_json( { internal => { owner => 'deploy', addresses => ['office'], addresses_deny => ['blocked'] } } ) );

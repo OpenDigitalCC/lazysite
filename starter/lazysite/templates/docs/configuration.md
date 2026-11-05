@@ -145,11 +145,12 @@ works on staging and production.
   then set `trusted_proxies: none`.
 
 `manager_addresses`, `manager_addresses_deny`
-: Names of address lists (Access, Address lists) that limit who may reach the
+: Names of address profiles (Access, Address profiles) that limit who may reach the
   manager and its API by the address they come from, for everyone and apart from
-  any group. `manager_addresses: office` allows only the addresses in the allow
-  list `office`; `manager_addresses_deny: blocked` refuses those in the deny list
-  `blocked`, and deny wins. A refused visitor is told "This page is not available
+  any group. `manager_addresses: office` allows only the addresses in the
+  profile `office`; `manager_addresses_deny: blocked` refuses those in the
+  profile `blocked`, and deny wins. A profile has no kind: the key that names it
+  decides whether it allows or denies. A refused visitor is told "This page is not available
   from your address." The sign-in pages are outside the manager and stay
   reachable. Comma separated; empty means any address. Set from the Config page by
   a signed-in session (a value that would shut your own address out is refused).
@@ -158,11 +159,11 @@ works on staging and production.
   means nothing. A group can be limited the same way on the Groups page.
 
 `signin_addresses`, `signin_addresses_deny`
-: Names of address lists (Access, Address lists) that limit where a sign-in may be
+: Names of address profiles (Access, Address profiles) that limit where a sign-in may be
   made from: this site's own sign-in and the Odoo extension's sign-in through a
   page (its password step and its authenticator-code step). `signin_addresses:
-  office` allows sign-in only from the addresses in the allow list `office`;
-  `signin_addresses_deny: blocked` refuses those in the deny list `blocked`, and
+  office` allows sign-in only from the addresses in the profile `office`;
+  `signin_addresses_deny: blocked` refuses those in the profile `blocked`, and
   deny wins. The refusal comes before the password is looked at and before the
   sign-in rate limit counts the attempt, and the visitor is told "Sign-in is not
   available from your address." Each address is recorded once an hour as

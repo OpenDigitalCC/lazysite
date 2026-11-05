@@ -1,16 +1,16 @@
 package Lazysite::Auth::AddressRefs;
 
-# SM1141 (slice D of SM1134): WHERE A RULE NAMES AN ADDRESS LIST.
+# SM1141 (slice D of SM1134): WHERE A RULE NAMES AN ADDRESS PROFILE.
 #
 # Two readers need the same answer and must not each carry their own walk:
-# `lazysite check` (warn when a rule names a list that is not in the store, or
+# `lazysite check` (warn when a rule names a profile that is not in the store, or
 # when rules exist and the front end is not trusted) and the users tool's
-# address-list-delete (refuse to delete a list a rule still names, and say where).
-# A deleted list is not an empty list - an allow rule naming it admits nobody
+# address-profile-delete (refuse to delete a profile a rule still names, and say where).
+# A deleted profile is not an empty one - a rule allowing it admits nobody
 # (SM1138) - so a delete that did not look would lock a page, a folder, a group or
 # the manager out with nothing said.
 #
-# The places a rule names lists are the SM1134 contract's, and only these:
+# The places a rule names profiles are the SM1134 contract's, and only these:
 #   page front matter     addresses: [a]      addresses_deny: [b]
 #   acls.json entry       fields addresses, addresses_deny (a list of names)
 #   groups-settings.json  fields addresses, addresses_deny (a list of names)
@@ -26,10 +26,11 @@ package Lazysite::Auth::AddressRefs;
 # rules($docroot) -> { rules => [ {where, ref, slot, name} ], faults => [ text ] }
 #   where  'page' | 'acl' | 'group' | 'conf' | 'binding'
 #   ref    page path (docroot-relative), acl path, group name, conf key, binding id
-#   slot   'allow' | 'deny', or 'match' for a binding's address_profile (SM1280), which
-#          asks membership only and so may name a list of either kind
+#   slot   'allow' | 'deny' (the profile allowed or denied, SM1343: a profile has no
+#          kind, the slot is the choice), or 'match' for a binding's address_profile
+#          (SM1280), which asks membership only
 # A store that exists and will not read or decode is a FAULT, named, never read as
-# "no rules" (SM1024): the caller cannot say a list is unreferenced then.
+# "no rules" (SM1024): the caller cannot say a profile is unreferenced then.
 
 use strict;
 use warnings;
@@ -108,8 +109,8 @@ sub _conf_names {
 # SM1229: a binding's own sign-in address limit. The records are read straight
 # from lazysite/forms/handlers.conf (this module loads nothing of the engine's).
 # A handler of type odoo carrying signin_addresses / signin_addresses_deny names
-# lists exactly as lazysite.conf's keys do, so deleting one it names would leave a
-# session binding refusing every call (an allow rule naming a deleted list admits
+# profiles exactly as lazysite.conf's keys do, so deleting one it names would leave
+# a session binding refusing every call (a rule allowing a deleted profile admits
 # nobody, SM1138). Disabled bindings count: they can be switched on again.
 sub _binding_rules {
     my ( $path, $rules, $faults ) = @_;
@@ -146,7 +147,7 @@ sub _binding_rules {
                 }
                 for map { s/\A["']|["']\z//gr } _names( [ split /,/, $v ] );
         }
-       # SM1280: the list a binding's operation is told about; a deleted one tells it "no"
+       # SM1280: the profile a binding's operation is told about; a deleted one tells it "no"
         push @{$rules}, { where => 'binding', ref => $r->{id}, slot => 'match', name => $_ }
             for map { s/\A["']|["']\z//gr } _names( $r->{address_profile} );
     }
@@ -226,7 +227,7 @@ sub rules {
         for _names( $conf{manager_addresses} );
     push @rules, { where => 'conf', ref => 'manager_addresses_deny', slot => 'deny', name => $_ }
         for _names( $conf{manager_addresses_deny} );
-    # SM1159: sign-in's own limit names lists too, so a list it uses is not deleted.
+    # SM1159: sign-in's own limit names profiles too, so a profile it uses is not deleted.
     push @rules, { where => 'conf', ref => 'signin_addresses', slot => 'allow', name => $_ }
         for _names( $conf{signin_addresses} );
     push @rules, { where => 'conf', ref => 'signin_addresses_deny', slot => 'deny', name => $_ }

@@ -264,19 +264,18 @@ says what a request may set and who may cause it:
   path*). The server supplies it; a request cannot.
 
 `address_profile`, `address_param`
-: Optional, and together. `address_profile` names an address profile: for now, an
-  address list by its name (Access, *Address lists*). `address_param` names a parameter
-  the operation declares as `bool`. The
-  operation then receives, in that parameter, **only whether the call came from
-  inside the list**: `1` or `0`, never the address. The server decides it from the
+: Optional, and together. `address_profile` names an address profile (Access,
+  *Address profiles*). `address_param` names a parameter the operation declares
+  as `bool`. The operation then receives, in that parameter, **only whether the
+  call came from inside the profile**: `1` or `0`, never the address. The server decides it from the
   request's address, worked out behind the front ends `trusted_proxies` names (the
   address the call record keeps), so set `trusted_proxies` or every visitor looks
   like the proxy. A request cannot set or override it: the page endpoint refuses a
   field the binding does not map, and the parameter cannot also be in `params` or
-  `fixed`. A call with no address, a list the store does not hold, or a store that
-  will not read, is `0`. The list may be an allow or a deny list (membership is all
-  that is asked), and it counts as in use, so deleting it is refused while the
-  binding names it. Refused at save on a `scheduled` binding (a timer comes from no
+  `fixed`. A call with no address, a profile the store does not hold, or a store
+  that will not read, is `0`. Membership is all that is asked (the operation
+  decides what being inside means), and the profile counts as in use, so deleting
+  it is refused while the binding names it. Refused at save on a `scheduled` binding (a timer comes from no
   address); a page variable does not run such a binding (a render is shared).
 
   **How the operation reads it.** As any parameter: declare it in `params` with
@@ -645,7 +644,7 @@ What the binding is, as saved:
   likely wider than the person's; a read says `signin-required` (`401`).
 
 A session binding may also carry `signin_addresses` and `signin_addresses_deny`
-(names of address lists, as in lazysite.conf), which narrow the site's own
+(names of address profiles, as in lazysite.conf), which narrow the site's own
 `signin_addresses` and never widen it. The sign-in requests name no binding, so the
 site-wide rule is what limits the sign-in itself; a binding's rule is held on that
 binding's calls: a call from an address it refuses is answered `address` (`403`).

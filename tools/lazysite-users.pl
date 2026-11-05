@@ -126,7 +126,7 @@ BEGIN {
 use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Auth::Verify ();    # SM685: the credential path, shared with the CGIs
-use Lazysite::Auth::AddressLists ();   # SM1138: the address-list store and its one reader
+use Lazysite::Auth::AddressProfiles ();   # SM1138: the address-profile store and its one reader
 use Lazysite::Auth::AddressRefs (); # SM1141: where a rule names a list (the delete guard)
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Mail         ();              # SM1017: what one mail address is
@@ -168,11 +168,11 @@ my $CONNECT_CODE_TTL = 1_800;        # SM200: 30 min (was 15) - the connect code
 my $TOKEN_TTL_MIN = $Lazysite::Auth::Settings::TOKEN_TTL_MIN;
 my $TOKEN_TTL_MAX = $Lazysite::Auth::Settings::TOKEN_TTL_MAX;
 my $CLAIM_TTL     = 86_400;    # SM072 setup/reset claim: 24 hours
-# SM1138: the bounds on an address list. Declared HERE, above the dispatch: a file-scoped
+# SM1138: the bounds on an address profile. Declared HERE, above the dispatch: a file-scoped
 # `my` below it is still empty when a verb runs (the main body exits first).
-my $AL_MAX_LISTS   = 200;
-my $AL_MAX_ENTRIES = 1000;
-my $AL_MAX_NOTE    = 200;
+my $AP_MAX_PROFILES = 200;
+my $AP_MAX_ENTRIES  = 1000;
+my $AP_MAX_NOTE     = 200;
 
 my $DOCROOT;
 my $API_MODE = 0;
@@ -221,7 +221,7 @@ my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 
 # SM1140: this tool manages the stores (what a group grants, who holds what) and answers
-# for any account, not for one web request, so a group's address list is not applied
+# for any account, not for one web request, so a group's address profile is not applied
 # here. It may have inherited a request's environment from the manager API that ran
 # it; the doors narrow the caller's own settings to the request themselves
 # (Auth::Settings::narrow_caps_to_request).
@@ -254,7 +254,7 @@ my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 my $BUNDLES_HAD_FILE    = "$AUTH_DIR/bundles-adopted.json";    # SM1262
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
-$Lazysite::Auth::AddressLists::AUTH_DIR = $AUTH_DIR;
+$Lazysite::Auth::AddressProfiles::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 
 # Verbs (API actions and CLI commands) that ONLY read the auth store - they take
@@ -267,7 +267,7 @@ $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 # is harmless - it stays lock-free deliberately.
 my %STORE_READONLY = map { $_ => 1 } qw(
     list groups users-detail users-page group-settings-get settings-get settings
-    address-lists-get
+    address-profiles-get
     permissions-grid capability-holders permissions credential-status keys-list partner-caps
     audit-scope audit-registry totp-code verify-credential
 );
@@ -319,10 +319,10 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_settings_set        => 'user-group-settings-set',
     cmd_group_create              => 'user-group-create',
     cmd_group_delete              => 'user-group-delete',
-    # SM1138: the address-list store. Named as the manager's own actions are, so
+    # SM1138: the address-profile store. Named as the manager's own actions are, so
     # one change is one name whichever door it came through.
-    cmd_address_list_set    => 'address-list-set',
-    cmd_address_list_delete => 'address-list-delete',
+    cmd_address_profile_set    => 'address-profile-set',
+    cmd_address_profile_delete => 'address-profile-delete',
     cmd_group_nest                => 'user-group-nest',
     # SM644: writes the group store wholesale, so it is emphatically mutating.
     # The audit line names how many groups were restored and how many were left
@@ -344,14 +344,14 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_permissions_cli    => 'read-only',
     cmd_credential_status  => 'read-only',
     cmd_keys_list          => 'read-only',
-    cmd_address_lists      => 'read-only',
+    cmd_address_profiles      => 'read-only',
     cmd_audit_registry     => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
     cmd_set_cli                       => 'delegates to cmd_set',
     cmd_group_set_cli                 => 'delegates to cmd_group_settings_set',
-    cmd_address_list_set_cli          => 'delegates to cmd_address_list_set',
-    cmd_address_list_delete_cli       => 'delegates to cmd_address_list_delete',
-    cmd_address_lists_cli             => 'delegates to cmd_address_lists',
+    cmd_address_profile_set_cli          => 'delegates to cmd_address_profile_set',
+    cmd_address_profile_delete_cli       => 'delegates to cmd_address_profile_delete',
+    cmd_address_profiles_cli             => 'delegates to cmd_address_profiles',
     cmd_brief_cli                     => 'delegates to cmd_onboarding',
     cmd_account_create_cli            => 'delegates to cmd_account_create',
     cmd_account_disable_cli           => 'delegates to cmd_account_set_disabled',
@@ -634,15 +634,15 @@ if ($API_MODE) {
         elsif ( $action eq 'group-delete' ) {
             $result = cmd_group_delete( $req->{group} );
         }
-        elsif ( $action eq 'address-lists-get' ) {
-            $result = cmd_address_lists();
+        elsif ( $action eq 'address-profiles-get' ) {
+            $result = cmd_address_profiles();
         }
-        elsif ( $action eq 'address-list-set' ) {
-            $result = cmd_address_list_set( $req->{name}, $req->{kind}, $req->{entries},
-                actor => $req->{actor} );
+        elsif ( $action eq 'address-profile-set' ) {
+            $result = cmd_address_profile_set( $req->{name}, $req->{entries}, actor => $req->{actor},
+                ( exists $req->{kind} ? ( kind => $req->{kind} ) : () ) );
         }
-        elsif ( $action eq 'address-list-delete' ) {
-            $result = cmd_address_list_delete( $req->{name}, actor => $req->{actor},
+        elsif ( $action eq 'address-profile-delete' ) {
+            $result = cmd_address_profile_delete( $req->{name}, actor => $req->{actor},
                 force => ( $req->{force} ? 1 : 0 ) );
         }
         elsif ( $action eq 'settings-get' ) {
@@ -861,9 +861,9 @@ elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
 elsif ( $cmd eq 'group-nest' )   { cmd_group_nest(@args) }
 elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
 elsif ( $cmd eq 'group-set' )    { cmd_group_set_cli(@args) }
-elsif ( $cmd eq 'address-lists' )       { cmd_address_lists_cli(@args) }
-elsif ( $cmd eq 'address-list-set' )    { cmd_address_list_set_cli(@args) }
-elsif ( $cmd eq 'address-list-delete' ) { cmd_address_list_delete_cli(@args) }
+elsif ( $cmd eq 'address-profiles' )       { cmd_address_profiles_cli(@args) }
+elsif ( $cmd eq 'address-profile-set' )    { cmd_address_profile_set_cli(@args) }
+elsif ( $cmd eq 'address-profile-delete' ) { cmd_address_profile_delete_cli(@args) }
 elsif ( $cmd eq 'groups' )       { cmd_groups() }
 elsif ( $cmd eq 'group-reach' )  { cmd_group_reach(@args) }
 elsif ( $cmd eq 'reset-groups' ) { cmd_reset_groups(@args) }
@@ -892,6 +892,15 @@ elsif ( $cmd eq 'mfa-disable' )               { cmd_mfa_disable(@args) }
 elsif ( $cmd eq 'partner-create' )            { cmd_partner_create_cli(@args) }
 elsif ( $cmd eq 'permissions' )               { cmd_permissions_cli(@args) }
 elsif ( $cmd eq 'audit-registry' )            { cmd_audit_registry() }
+# old-address-name: begin (SM1343, the refusal names the spelling it refuses)
+# SM1343 (ruling 56): the address-list commands were renamed outright; the old
+# name is told the new one rather than shown the usage.
+elsif ( $cmd =~ /\Aaddress-list(s|-set|-delete)\z/ ) {
+    print STDERR "lazysite-users.pl: unknown command '$cmd': address lists are address profiles "
+        . 'now, so use \'address-profile' . ( $1 eq 's' ? 's' : $1 ) . "' (SM1343)\n";
+    exit 2;
+}
+# old-address-name: end
 else {
     print STDERR "lazysite-users.pl: unknown command '$cmd'\n\n" if $cmd;
     usage();
@@ -4922,7 +4931,7 @@ sub _group_settings_view {
             # capabilities? Served for the Groups page's operator-only tick.
             directory_grants =>
                 ( $cfg->{directory_grants} ? JSON::PP::true() : JSON::PP::false() ),
-            # SM1140: the address lists that limit what this group grants (names).
+            # SM1140: the address profiles that limit what this group grants (names).
             addresses => [ @{ ref $cfg->{addresses} eq 'ARRAY' ? $cfg->{addresses} : [] } ],
             addresses_deny => [ @{ ref $cfg->{addresses_deny} eq 'ARRAY' ? $cfg->{addresses_deny} : [] } ],
             assignable => (
@@ -5379,11 +5388,12 @@ sub cmd_group_settings_set {
             directory_grants => $on ? JSON::PP::true() : JSON::PP::false() };
     }
 
-    # SM1140 (slice C of SM1134, ruled 2026-10-17: "a group's address list limits only
-    # what the group grants"): `addresses` (allow) and `addresses_deny`, the NAMES of
-    # address lists (SM1138) a request's address must satisfy for this group to count at
-    # all: its capabilities, its page and file access and operator status. Deny wins;
-    # an allow list means only those addresses. Not a capability, so the SM195 ceiling
+    # SM1140 (slice C of SM1134, ruled 2026-10-17: "a group's address profile limits only
+    # what the group grants"): `addresses` (allowed) and `addresses_deny` (denied), the
+    # NAMES of address profiles (SM1138) a request's address must satisfy for this group
+    # to count at all: its capabilities, its page and file access and operator status.
+    # Deny wins; a profile allowed means only those addresses. Either key may name any
+    # profile (SM1343: a profile has no kind). Not a capability, so the SM195 ceiling
     # has nothing to weigh, but it decides when the group's grants stand, and a
     # holder of manage_users who could set it could shut an operator group out of
     # everywhere or open one to anywhere. So it is the operator's alone, on the same
@@ -5397,36 +5407,20 @@ sub cmd_group_settings_set {
             error => "Only a sysop may limit a group by address: it decides when '$group' "
                 . 'grants anything at all.' }
             unless $operator;
-        require Lazysite::Auth::AddressLists;
+        require Lazysite::Auth::AddressProfiles;
         my @names;
         my %seen;
         for my $n ( grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $value // '' ) ) {
-            return { ok => 0, error => "'$n' is not an address list name (lowercase letters, digits, hyphen, underscore)." }
-                unless Lazysite::Auth::AddressLists::valid_name($n);
+            return { ok => 0, error => "'$n' is not an address profile name (lowercase letters, digits, hyphen, underscore)." }
+                unless Lazysite::Auth::AddressProfiles::valid_name($n);
             push @names, $n unless $seen{$n}++;
         }
-        # SM1189 (0.15.10 walk, F-3): a list of the other kind is refused here, as
-        # Config refuses it for the manager's and sign-in's keys. An allow list under
-        # addresses_deny blocked nobody and said nothing; the engine refuses the rule
-        # at request time now (decide: 'wrong-kind'), which would withdraw every grant
-        # of the group. A name the store does not hold stays accepted (SM1138).
-        my $want  = $key eq 'addresses' ? 'allow' : 'deny';
-        my $lists = Lazysite::Auth::AddressLists::lists();
-        my @wrong = grep { $lists->{$_} && $lists->{$_}{kind} ne $want } @names;
-        return { ok => 0, kind => 'invalid', field => $key,
-            error => join( ', ', map { "'$_'" } @wrong ) . (
-                @wrong == 1
-                ? ' is ' . ( $want eq 'allow' ? 'a deny' : 'an allow' ) . ' list'
-                : ' are lists of the other kind'
-                )
-                . ", and $key takes $want lists. Nothing was changed." }
-            if @wrong;
         my $gs = read_group_settings();
         $gs->{$group} ||= _new_group_record($group);
         my $was = join ',', @{ ref $gs->{$group}{$key} eq 'ARRAY' ? $gs->{$group}{$key} : [] };
         if (@names) { $gs->{$group}{$key} = \@names } else { delete $gs->{$group}{$key} }
         write_group_settings($gs);
-        log_event( 'WARN', $group, 'group address limit set', key => $key, lists => join( ',', @names ) );
+        log_event( 'WARN', $group, 'group address limit set', key => $key, profiles => join( ',', @names ) );
         cli_audit( 'user-group-settings-set', $group,
             "$key=" . ( @names ? join( ',', @names ) : '(cleared)' ) . ( length $was ? "; was $was" : '' ) );
         return { ok => 1, $key => \@names };
@@ -5884,13 +5878,14 @@ sub cmd_group_delete {
     return { ok => 1 };
 }
 
-# --- SM1138: address lists (lazysite/auth/address-lists.json) ----------------
+# --- SM1138: address profiles (lazysite/auth/address-profiles.json) -----------
 #
-# SLICE A OF SM1134 (access limited by the visitor's address). The store is read
-# by Lazysite::Auth::AddressLists and written ONLY here, as the other access
+# SLICE A OF SM1134 (access limited by the visitor's address); SM1343 made the
+# lists profiles, which have no kind. The store is read by
+# Lazysite::Auth::AddressProfiles and written ONLY here, as the other access
 # stores are written only by this tool, under the same store lock.
 #
-# WHO MAY WRITE: THE OPERATOR, and nobody holding manage_users alone. A list
+# WHO MAY WRITE: THE OPERATOR, and nobody holding manage_users alone. A profile
 # decides who may reach a page, a group's grants or the manager itself, so a
 # delegate that could edit one could lock the operator out of the manager (slice
 # D) or let itself in from anywhere: it is the operator's the way the operator
@@ -5899,13 +5894,13 @@ sub cmd_group_delete {
 # one is the shell. An UNSECURED site (no group grants manager access) has no
 # operator to ask, as for every verb in this tool. READING needs only
 # manage_users, which the manager API asks.
-sub _address_list_refusal {
+sub _address_profile_refusal {
     my ($actor) = @_;
     return undef unless defined $actor && length $actor && $actor ne 'local';
     return undef unless Lazysite::Auth::Settings::site_grants_manager();
     return undef if Lazysite::Auth::Settings::account_is_operator($actor);
     return { ok => 0, kind => 'forbidden',
-        error => 'Only the operator changes address lists: a list decides who may reach '
+        error => 'Only the operator changes address profiles: a profile decides who may reach '
             . 'a page, a group or the manager, so it is the operator\'s as the operator '
             . 'group is.' };
 }
@@ -5913,11 +5908,11 @@ sub _address_list_refusal {
 # Entries arrive as the CLI spells them ("CIDR=note"), as the API sends them
 # ({cidr, note} objects), or as bare strings. Returns ( \@entries, undef ) or
 # ( undef, $reason ); every entry is validated before anything is written.
-sub _address_list_entries {
+sub _address_profile_entries {
     my ($in) = @_;
     return ( [],    undef )                    unless defined $in;
     return ( undef, 'entries must be a list' ) unless ref $in eq 'ARRAY';
-    return ( undef, "a list holds at most $AL_MAX_ENTRIES entries" ) if @{$in} > $AL_MAX_ENTRIES;
+    return ( undef, "a profile holds at most $AP_MAX_ENTRIES entries" ) if @{$in} > $AP_MAX_ENTRIES;
     my ( @out, %seen );
     for my $e ( @{$in} ) {
         my ( $text, $note );
@@ -5926,56 +5921,60 @@ sub _address_list_entries {
             ( $text, $note ) = split /=/, $e, 2;
         }
         else { return ( undef, 'each entry is a CIDR or {cidr, note}' ) }
-        my ( $canon, $why ) = Lazysite::Auth::AddressLists::check_entry($text);
+        my ( $canon, $why ) = Lazysite::Auth::AddressProfiles::check_entry($text);
         return ( undef, $why ) unless defined $canon;
         return ( undef, "'$canon' is listed twice" ) if $seen{$canon}++;
         $note = '' unless defined $note && !ref $note;
         $note =~ s/[\r\n]+/ /g;
         $note =~ s/\A\s+|\s+\z//g;
-        return ( undef, "the note on '$canon' is longer than $AL_MAX_NOTE characters" )
-            if length $note > $AL_MAX_NOTE;
+        return ( undef, "the note on '$canon' is longer than $AP_MAX_NOTE characters" )
+            if length $note > $AP_MAX_NOTE;
         push @out, { cidr => $canon, note => $note };
     }
     return ( \@out, undef );
 }
 
 # The store, for the manager's page and the control API. A faulted store is
-# reported as such, never as "no lists".
-sub cmd_address_lists {
-    my $lists = Lazysite::Auth::AddressLists::lists();
-    my $fault = Lazysite::Auth::AddressLists::store_fault();
-    return { ok => 1, lists => $lists, store_fault => ( $fault || '' ) };
+# reported as such, never as "no profiles".
+sub cmd_address_profiles {
+    my $profiles = Lazysite::Auth::AddressProfiles::profiles();
+    my $fault    = Lazysite::Auth::AddressProfiles::store_fault();
+    return { ok => 1, profiles => $profiles, store_fault => ( $fault || '' ) };
 }
 
-sub cmd_address_list_set {
-    my ( $name, $kind, $entries, %o ) = @_;
-    if ( my $no = _address_list_refusal( $o{actor} ) ) { return $no }
-    return { ok => 0, kind => 'invalid', field => 'name',
-        error => 'A list name is 1 to 64 characters of a-z, 0-9, _ or -.' }
-        unless Lazysite::Auth::AddressLists::valid_name($name);
-
-    my $raw = Lazysite::Auth::AddressLists::raw_lists();
-    my $why = Lazysite::Auth::AddressLists::store_fault();
+# The store's fault as the write refusal says it.
+sub _address_profile_fault {
+    my $why = Lazysite::Auth::AddressProfiles::store_fault() or return undef;
     return { ok => 0, kind => 'cannot-tell',
-        error => 'lazysite/auth/address-lists.json '
-            . ( $why eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' )
-            . ', so nothing is written over it. Repair the file and retry.' }
-        if $why;
+        error => Lazysite::Auth::AddressProfiles::fault_text($why)
+            . ( $why eq 'unconverted' ? ', so nothing is written.' : ', so nothing is written over it. Repair the file and retry.' ) };
+}
+
+sub cmd_address_profile_set {
+    my ( $name, $entries, %o ) = @_;
+    if ( my $no = _address_profile_refusal( $o{actor} ) ) { return $no }
+    # SM1343: a profile has no kind; a caller still sending one is told why rather
+    # than having it dropped, so it does not believe it made an allow or deny list.
+    return { ok => 0, kind => 'invalid', field => 'kind',
+        error => 'An address profile has no kind (SM1343): each rule that names it allows it '
+            . '(addresses) or denies it (addresses_deny). Send the name and the entries only.' }
+        if exists $o{kind};
+    return { ok => 0, kind => 'invalid', field => 'name',
+        error => 'A profile name is 1 to 64 characters of a-z, 0-9, _ or -.' }
+        unless Lazysite::Auth::AddressProfiles::valid_name($name);
+
+    my $raw = Lazysite::Auth::AddressProfiles::raw_profiles();
+    if ( my $fault = _address_profile_fault() ) { return $fault }
 
     my $had = ref $raw->{$name} eq 'HASH' ? $raw->{$name} : undef;
-    $kind = $had->{kind} if !defined $kind && $had;
-    return { ok => 0, kind => 'invalid', field => 'kind',
-        error => 'kind is required for a new list: allow or deny.' }
-        unless defined $kind && !ref $kind && $kind =~ /\A(?:allow|deny)\z/;
     return { ok => 0, kind => 'invalid', field => 'name',
-        error => "A site holds at most $AL_MAX_LISTS address lists." }
-        if !$had && keys %{$raw} >= $AL_MAX_LISTS;
+        error => "A site holds at most $AP_MAX_PROFILES address profiles." }
+        if !$had && keys %{$raw} >= $AP_MAX_PROFILES;
 
     # No entries given at all (the API key absent, no --entry on the command line)
-    # leaves an existing list's entries as they are, so a kind can be changed
-    # without retyping the list; an empty LIST clears it.
+    # leaves an existing profile's entries as they are; an empty LIST clears it.
     my ( $new, $err ) = defined $entries
-        ? _address_list_entries($entries)
+        ? _address_profile_entries($entries)
         : (
         [ map { +{ cidr => $_->{cidr}, note => ( $_->{note} // '' ) } }
             grep { ref $_ eq 'HASH' && defined $_->{cidr} }
@@ -5986,15 +5985,15 @@ sub cmd_address_list_set {
     return { ok => 0, kind => 'invalid', field => 'entries', error => "$err. Nothing was changed." }
         unless $new;
 
-    # WHAT CHANGED, for the audit row: the trail says which list and which
-    # addresses came or went, not that "a list changed".
+    # WHAT CHANGED, for the audit row: the trail says which profile and which
+    # addresses came or went, not that "a profile changed".
     my %before = map { $_->{cidr} => ( $_->{note} // '' ) }
         grep { ref $_ eq 'HASH' && defined $_->{cidr} }
         ( $had && ref $had->{entries} eq 'ARRAY' ? @{ $had->{entries} } : () );
     my %after = map { $_->{cidr} => $_->{note} } @{$new};
     my ( @add, @del, @note );
     # In the order the operator gave them (and, for what went, the order they were
-    # stored in): the trail reads as the list does.
+    # stored in): the trail reads as the profile does.
     my @new_order = map { $_->{cidr} } @{$new};
     my @old_order = map { $_->{cidr} }
         grep { ref $_ eq 'HASH' && defined $_->{cidr} }
@@ -6003,9 +6002,7 @@ sub cmd_address_list_set {
     push @del,  grep { !exists $after{$_} } @old_order;
     push @note, grep { exists $before{$_} && $before{$_} ne $after{$_} } @new_order;
     my @bits = (
-        ( $had                                    ? () : ('created') ),
-        ( $had && ( $had->{kind} // '' ) ne $kind ? ( "kind " . ( $had->{kind} // '?' ) . "->$kind" ) : () ),
-        ( !$had ? ("kind $kind")                   : () ),
+        ( $had  ? ()                               : ('created') ),
         ( @add  ? ( '+' . join( ',+', @add ) )     : () ),
         ( @del  ? ( '-' . join( ',-', @del ) )     : () ),
         ( @note ? ( 'note ' . join( ',', @note ) ) : () ),
@@ -6014,46 +6011,43 @@ sub cmd_address_list_set {
 
     if (@bits) {
         my $who = defined $o{actor} && length $o{actor} ? $o{actor} : 'system:' . ( getpwuid($<) // "uid:$<" );
+        my %rec = ( $had ? %{$had} : () );
+        delete $rec{kind};    # SM1343: a kind left by a hand edit goes with the next write
         $raw->{$name} = {
-            ( $had ? %{$had} : () ),
-            kind       => $kind,
+            %rec,
             entries    => $new,
             updated_by => $who,
             updated    => time(),
             ( $had ? () : ( created_by => $who ) ),
         };
-        Lazysite::Auth::AddressLists::write_lists($raw);
-        log_event( 'INFO', $name, 'address list set', change => $change );
+        Lazysite::Auth::AddressProfiles::write_profiles($raw);
+        log_event( 'INFO', $name, 'address profile set', change => $change );
     }
-    cli_audit( 'address-list-set', $name, $change ) if @bits;
-    return { ok => 1, name => $name, kind => $kind, entries => scalar @{$new},
+    cli_audit( 'address-profile-set', $name, $change ) if @bits;
+    return { ok => 1, name => $name, entries => scalar @{$new},
         created => ( $had ? JSON::PP::false() : JSON::PP::true() ), change => $change };
 }
 
-sub cmd_address_list_delete {
+sub cmd_address_profile_delete {
     my ( $name, %o ) = @_;
-    if ( my $no = _address_list_refusal( $o{actor} ) ) { return $no }
+    if ( my $no = _address_profile_refusal( $o{actor} ) ) { return $no }
     return { ok => 0, kind => 'invalid', field => 'name',
-        error => 'A list name is 1 to 64 characters of a-z, 0-9, _ or -.' }
-        unless Lazysite::Auth::AddressLists::valid_name($name);
-    my $raw = Lazysite::Auth::AddressLists::raw_lists();
-    my $why = Lazysite::Auth::AddressLists::store_fault();
-    return { ok => 0, kind => 'cannot-tell',
-        error => 'lazysite/auth/address-lists.json '
-            . ( $why eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' )
-            . ', so nothing is written over it. Repair the file and retry.' }
-        if $why;
-    return { ok => 0, kind => 'not-found', error => "No address list called '$name'." }
+        error => 'A profile name is 1 to 64 characters of a-z, 0-9, _ or -.' }
+        unless Lazysite::Auth::AddressProfiles::valid_name($name);
+    my $raw = Lazysite::Auth::AddressProfiles::raw_profiles();
+    if ( my $fault = _address_profile_fault() ) { return $fault }
+    return { ok => 0, kind => 'not-found', error => "No address profile called '$name'." }
         unless exists $raw->{$name};
     my $had = ref $raw->{$name} eq 'HASH'    ? $raw->{$name}               : {};
     my $n   = ref $had->{entries} eq 'ARRAY' ? scalar @{ $had->{entries} } : 0;
 
-    # SM1141: A LIST A RULE NAMES IS NOT DELETED BY ACCIDENT. A deleted list is
-    # not an empty one: an allow rule naming it admits nobody (SM1138), so the
-    # page, folder, group or manager behind it would shut with nothing said. The
-    # refusal says WHERE, so the operator edits those first; --force / force:true
-    # deletes anyway and the audit row names what still refers to it. A rule store
-    # that cannot be read cannot say nothing refers to the list, so it refuses too.
+    # SM1141, SM1343 (ruling 57): A PROFILE A RULE NAMES IS NOT DELETED BY ACCIDENT.
+    # A deleted profile is not an empty one: a rule allowing it admits nobody
+    # (SM1138), so the page, folder, group or manager behind it would shut with
+    # nothing said. The refusal says WHERE, so the operator edits those first;
+    # --force / force:true deletes anyway and the audit row names what still refers
+    # to it. A rule store that cannot be read cannot say nothing refers to the
+    # profile, so it refuses too.
     my $refs   = Lazysite::Auth::AddressRefs::rules($DOCROOT);
     my @named  = grep { $_->{name} eq $name } @{ $refs->{rules} };
     my @cannot = @{ $refs->{faults} };
@@ -6063,70 +6057,72 @@ sub cmd_address_list_delete {
         $where .= ( length $where ? '; ' : '' ) . 'could not check: ' . join( ', ', @cannot ) if @cannot;
         unless ( $o{force} ) {
             return { ok => 0, kind => 'in-use', references => [ map { { %$_ } } @named ],
-                error => "Address list '$name' is still named by $where. Remove it from those "
-                    . 'first, or delete it anyway with --force (API: force) - a rule naming a '
-                    . 'deleted allow list admits nobody.' };
+                error => "Address profile '$name' is still named by $where. Remove it from those "
+                    . 'first, or delete it anyway with --force (API: force) - a rule allowing a '
+                    . 'deleted profile admits nobody.' };
         }
         $left = "; still named by $where";
     }
     delete $raw->{$name};
-    Lazysite::Auth::AddressLists::write_lists($raw);
-    my $change = "deleted ($n entries" . ( $had->{kind} ? ", $had->{kind}" : '' )
-        . ( length $left ? ', forced' : '' ) . ")$left";
-    log_event( 'INFO', $name, 'address list deleted', change => $change );
-    cli_audit( 'address-list-delete', $name, $change );
+    Lazysite::Auth::AddressProfiles::write_profiles($raw);
+    my $change = "deleted ($n entries" . ( length $left ? ', forced' : '' ) . ")$left";
+    log_event( 'INFO', $name, 'address profile deleted', change => $change );
+    cli_audit( 'address-profile-delete', $name, $change );
     return { ok => 1, name => $name, change => $change };
 }
 
-# CLI: address-list-set NAME --kind allow|deny --entry CIDR[=note] ...
-sub cmd_address_list_set_cli {
+# CLI: address-profile-set NAME --entry CIDR[=note] ...
+sub cmd_address_profile_set_cli {
     my @a = @_;
-    my ( $name, $kind, @entries, $have_entries );
+    my ( $name, @entries, $have_entries );
     while (@a) {
         my $x = shift @a;
-        if ( $x eq '--kind' ) { $kind = shift @a }
-        elsif ( $x eq '--entry' ) { my $e = shift @a; die "--entry needs a value\n" unless defined $e; push @entries, $e; $have_entries = 1 }
-        elsif ( $x =~ /\A--/ )   { die "address-list-set: unknown option '$x'\n" }
+        if ( $x eq '--entry' ) { my $e = shift @a; die "--entry needs a value\n" unless defined $e; push @entries, $e; $have_entries = 1 }
+        elsif ( $x eq '--kind' ) {
+            die "address-profile-set: an address profile has no kind (SM1343): each rule that names it "
+                . "allows it (addresses) or denies it (addresses_deny). Leave --kind off.\n";
+        }
+        elsif ( $x =~ /\A--/ )   { die "address-profile-set: unknown option '$x'\n" }
         elsif ( !defined $name ) { $name = $x }
-        else                     { die "address-list-set: unexpected '$x'\n" }
+        else                     { die "address-profile-set: unexpected '$x'\n" }
     }
-    die "Usage: address-list-set NAME --kind allow|deny [--entry CIDR[=note] ...]\n"
+    die "Usage: address-profile-set NAME [--entry CIDR[=note] ...]\n"
         unless defined $name;
-    my $r = cmd_address_list_set( $name, $kind, $have_entries ? \@entries : undef );
-    die "$r->{error}\n"                                        unless $r->{ok};
-    print "Address list '$name' ($r->{kind}): $r->{change}.\n" unless $API_MODE;
+    my $r = cmd_address_profile_set( $name, $have_entries ? \@entries : undef );
+    die "$r->{error}\n"                                unless $r->{ok};
+    print "Address profile '$name': $r->{change}.\n" unless $API_MODE;
     return $r;
 }
 
-sub cmd_address_list_delete_cli {
+sub cmd_address_profile_delete_cli {
     my @a = @_;
     my ( $name, $force );
     for my $x (@a) {
         if    ( $x eq '--force' ) { $force = 1 }
-        elsif ( $x =~ /\A--/ )    { die "address-list-delete: unknown option '$x'\n" }
+        elsif ( $x =~ /\A--/ )    { die "address-profile-delete: unknown option '$x'\n" }
         elsif ( !defined $name )  { $name = $x }
-        else                      { die "address-list-delete: unexpected '$x'\n" }
+        else                      { die "address-profile-delete: unexpected '$x'\n" }
     }
-    die "Usage: address-list-delete NAME [--force]\n" unless defined $name && length $name;
-    my $r = cmd_address_list_delete( $name, force => $force );
-    die "$r->{error}\n"                          unless $r->{ok};
-    print "Address list '$name' $r->{change}.\n" unless $API_MODE;
+    die "Usage: address-profile-delete NAME [--force]\n" unless defined $name && length $name;
+    my $r = cmd_address_profile_delete( $name, force => $force );
+    die "$r->{error}\n"                             unless $r->{ok};
+    print "Address profile '$name' $r->{change}.\n" unless $API_MODE;
     return $r;
 }
 
-sub cmd_address_lists_cli {
+sub cmd_address_profiles_cli {
     my ($one) = @_;
-    my $r = cmd_address_lists();
-    die "lazysite/auth/address-lists.json is $r->{store_fault}: the lists cannot be read.\n"
+    my $r = cmd_address_profiles();
+    die Lazysite::Auth::AddressProfiles::fault_text( $r->{store_fault} ) . ": the profiles cannot be read.\n"
         if $r->{store_fault};
-    my @names = defined $one ? ($one) : sort keys %{ $r->{lists} };
+    my @names = defined $one ? ($one) : sort keys %{ $r->{profiles} };
     for my $n (@names) {
-        my $l = $r->{lists}{$n} or die "No address list called '$n'.\n";
-        print "$n ($l->{kind}, " . scalar( @{ $l->{entries} } ) . " entries)\n";
+        my $l = $r->{profiles}{$n} or die "No address profile called '$n'.\n";
+        print "$n (" . scalar( @{ $l->{entries} } ) . " entries)\n";
         print '  ' . $_->{cidr} . ( length $_->{note} ? "  # $_->{note}" : '' ) . "\n"
             for @{ $l->{entries} };
     }
-    print "No address lists.\n" unless @names;
+    print "No address profiles.\n" unless @names;
     return $r;
 }
 
@@ -6189,15 +6185,16 @@ Commands:
                               live capability tables through the nesting closure
   group-nest CHILD PARENT     Nest CHILD inside PARENT, so PARENT's members
                               inherit CHILD's capabilities through the closure
-  address-lists [NAME]        List the address lists (SM1138): name, kind, entries
-  address-list-set NAME --kind allow|deny [--entry CIDR[=note] ...]
-                              Create or replace an address list. Every entry is a
+  address-profiles [NAME]     List the address profiles (SM1138, SM1343): name and
+                              entries. A profile has no kind: each rule that
+                              names one allows or denies it
+  address-profile-set NAME [--entry CIDR[=note] ...]
+                              Create or replace an address profile. Every entry is a
                               single address or a CIDR range (IPv4 or IPv6) with an
-                              optional note; the entries given are the whole list.
-                              With no --entry an existing list keeps its entries.
+                              optional note; the entries given are the whole profile.
                               Names are a-z, 0-9, _ and -, up to 64 characters.
-  address-list-delete NAME [--force]
-                              Delete an address list; refused, naming where, while a
+  address-profile-delete NAME [--force]
+                              Delete an address profile; refused, naming where, while a
                               page, folder, group or the manager still names it
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
@@ -6216,7 +6213,7 @@ Commands:
                               groups a trusted proxy names grant this group's
                               capabilities only when it is on; sysop only).
                               SM1140: addresses and addresses_deny take
-                              address-list names (comma-separated, empty
+                              address-profile names (comma-separated, empty
                               clears): the group counts only for a request
                               from those addresses; sysop only.
   permissions USERNAME        Print the channel x capability grid for a user

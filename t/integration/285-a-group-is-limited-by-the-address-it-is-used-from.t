@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1140 (slice C of SM1134, ruled 2026-10-17: "a group's address list limits only
+# SM1140 (slice C of SM1134, ruled 2026-10-17: "a group's address profile limits only
 # what the group grants"; "tokens too"): A GROUP, THE MANAGER AND THE MACHINE DOORS
 # ARE LIMITED BY THE ADDRESS THE REQUEST COMES FROM.
 #
@@ -71,8 +71,8 @@ for my $g (qw(g-par g-par2)) {
 $s->users( 'group-nest', 'g-kid',  'g-par' );
 $s->users( 'group-nest', 'g-kid2', 'g-par2' );
 
-$s->users( 'address-list-set', 'office',  '--kind', 'allow', '--entry', "$IN=office desk", '--entry', '203.0.113.0/24' );
-$s->users( 'address-list-set', 'blocked', '--kind', 'deny',  '--entry', $IN );
+$s->users( 'address-profile-set', 'office',  '--entry', "$IN=office desk", '--entry', '203.0.113.0/24' );
+$s->users( 'address-profile-set', 'blocked', '--entry', $IN );
 $s->users( 'group-set', $_->[0], 'addresses', 'office' ) for ( [ 'g-ed' ], [ 'g-par' ], [ 'g-kid2' ], [ 'g-ops' ], [ 'g-tok' ] );
 
 my %tok = map { $_ => ( uapi( { action => 'token', username => $_ } )->{token} // '' ) } qw(tok);
@@ -192,12 +192,12 @@ subtest 'its page access follows the same limit' => sub {
 };
 
 subtest 'an operator group limited by address is not the operator from outside' => sub {
-    my $set = sub { cookie( $_[0], 'olga', 'address-list-set', body => { name => 'scratch', kind => 'allow', entries => ['192.0.2.1'] }, query => 'action=address-list-set' ) };
+    my $set = sub { cookie( $_[0], 'olga', 'address-profile-set', body => { name => 'scratch', entries => ['192.0.2.1'] }, query => 'action=address-profile-set' ) };
     my $r = $set->($IN);
-    ok( $r->{ok}, 'inside: the operator writes an address list (an operator-only act)' ) or diag( $r->{error} // $r->{_raw} // '' );
+    ok( $r->{ok}, 'inside: the operator writes an address profile (an operator-only act)' ) or diag( $r->{error} // $r->{_raw} // '' );
     $r = $set->($OUT);
     ok( !$r->{ok}, 'outside: refused' ) or diag( explain $r );
-    my $store = slurp("$d/lazysite/auth/address-lists.json");
+    my $store = slurp("$d/lazysite/auth/address-profiles.json");
     is( () = $store =~ /"scratch"/g, 1, 'and the list was written once, by the inside call' );
 };
 
@@ -282,18 +282,18 @@ subtest 'a refused group is audited once an hour per address' => sub {
     cookie( $OUT, 'ed', 'pages' ) for 1 .. 3;
     my $hours = int( time() / 3600 ) - $h0 + 1;
     is( $log->(), $hours, 'three requests from one address leave one row (one per clock hour they touched)' );
-    like( slurp("$d/lazysite/logs/audit.log"), qr/\| address-refused \| group g-ed \| \Q$OUT\E \| fail \| web \| not-allowed; lists office/,
-        'naming the target, the address, the reason and the list' );
+    like( slurp("$d/lazysite/logs/audit.log"), qr/\| address-refused \| group g-ed \| \Q$OUT\E \| fail \| web \| not-allowed; profiles office/,
+        'naming the target, the address, the reason and the profile' );
 };
 
-subtest 'a faulted address-list store denies' => sub {
-    my $good = slurp("$d/lazysite/auth/address-lists.json");
-    spit( "$d/lazysite/auth/address-lists.json", '{"office": [' );
+subtest 'a faulted address-profile store denies' => sub {
+    my $good = slurp("$d/lazysite/auth/address-profiles.json");
+    spit( "$d/lazysite/auth/address-profiles.json", '{"office": [' );
     my $r = cookie( $IN, 'ed', 'pages' );
     ok( !held($r), 'a group that names a list is refused even from inside when the store will not read' ) or diag( explain $r );
     my $f = cookie( $IN, 'free', 'pages' );
     ok( held($f), 'a group that names none is untouched' );
-    spit( "$d/lazysite/auth/address-lists.json", $good );
+    spit( "$d/lazysite/auth/address-profiles.json", $good );
     ok( held( cookie( $IN, 'ed', 'pages' ) ), 'repaired, the group counts again' );
 };
 
@@ -342,33 +342,35 @@ subtest 'the site-wide deny list wins over the allow list' => sub {
 };
 
 subtest 'a faulted store refuses the manager when a rule names a list' => sub {
-    my $good = slurp("$d/lazysite/auth/address-lists.json");
+    my $good = slurp("$d/lazysite/auth/address-profiles.json");
     set_conf( manager_addresses => 'office' );
-    spit( "$d/lazysite/auth/address-lists.json", 'not json' );
+    spit( "$d/lazysite/auth/address-profiles.json", 'not json' );
     is( status( page( $IN, '/manager/', 'free', 'g-free' ) ), 403, 'the page refuses from inside' );
     ok( !held( cookie( $IN, 'free', 'pages' ) ), 'and the API' );
-    spit( "$d/lazysite/auth/address-lists.json", $good );
+    spit( "$d/lazysite/auth/address-profiles.json", $good );
     set_conf();
 };
 
-subtest 'the Config page keys: names must be real lists of the right kind, and cookie only' => sub {
+subtest 'the Config page keys: names must be real profiles, and cookie only' => sub {
     my $set = sub {
         my ( $who, $k, $v ) = @_;
         return cookie( $IN, $who, 'config-set', body => { key => $k, value => $v }, query => 'action=config-set' );
     };
     my $r = $set->( 'olga', 'manager_addresses', 'office' );
-    ok( $r->{ok}, 'the operator sets manager_addresses to an allow list' ) or diag( explain $r );
+    ok( $r->{ok}, 'the operator sets manager_addresses to a profile' ) or diag( explain $r );
     like( slurp("$d/lazysite/lazysite.conf"), qr/^manager_addresses:\s*office$/m, '...and it is in lazysite.conf' );
     $r = $set->( 'olga', 'manager_addresses', 'nope' );
-    ok( !$r->{ok}, 'an unknown list is refused' );
+    ok( !$r->{ok}, 'an unknown profile is refused' );
+    # SM1343: a profile has no kind; `blocked`, denied below, may be allowed here.
     $r = $set->( 'olga', 'manager_addresses', 'blocked' );
-    ok( !$r->{ok}, 'a deny list in the allow slot is refused' );
+    ok( $r->{ok}, 'a profile denied elsewhere may be allowed' ) or diag( explain $r );
+    $r = $set->( 'olga', 'manager_addresses', 'office' );
     $r = $set->( 'olga', 'manager_addresses_deny', 'blocked' );
-    ok( !$r->{ok}, 'a deny list holding the requester\'s own address is refused: it would lock the setter out' ) or diag( explain $r );
+    ok( !$r->{ok}, 'denying a profile that holds the requester\'s own address is refused: it would lock the setter out' ) or diag( explain $r );
     like( $r->{error} // '', qr/shut your own address out/, '...saying why' );
-    $s->users( 'address-list-set', 'outsiders', '--kind', 'deny', '--entry', $OUT );
+    $s->users( 'address-profile-set', 'outsiders', '--entry', $OUT );
     $r = $set->( 'olga', 'manager_addresses_deny', 'outsiders' );
-    ok( $r->{ok}, 'a deny list that does not hold the setter is accepted' ) or diag( explain $r );
+    ok( $r->{ok}, 'denying a profile that does not hold the setter is accepted' ) or diag( explain $r );
     $r = $set->( 'olga', 'manager_addresses_deny', '' );
     ok( $r->{ok}, 'and clears' ) or diag( explain $r );
     $r = $set->( 'olga', 'manager_addresses', '' );

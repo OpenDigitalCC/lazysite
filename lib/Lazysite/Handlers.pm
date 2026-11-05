@@ -298,9 +298,9 @@ our %TYPES      = (
             { key => 'visitor_param', label => 'Visitor parameter', type => 'text',
                 note => 'The parameter that receives the visitor\'s own key (a basket, say). '
                     . 'The server mints the key; a visitor cannot choose or see another\'s.' },
-            # SM1280 (ruling 3): whether the call came from inside an address list.
+            # SM1280 (ruling 3): whether the call came from inside an address profile.
             { key => 'address_profile', label => 'Address profile the operation is told about', type => 'text',
-                note => 'Optional: the name of an address profile - for now, of an address list (Access, Address lists). With an address '
+                note => 'Optional: the name of an address profile (Access, Address profiles). With an address '
                     . 'parameter, the operation is told whether the call came from inside it - yes or no, '
                     . 'never the address. Needs trusted_proxies to cover your front end.' },
             { key => 'address_param', label => 'Address parameter', type => 'text',
@@ -323,12 +323,12 @@ our %TYPES      = (
                     . 'to Odoo through the page, with their own Odoo rights; the binding is '
                     . 'authenticated mode only, names no callers, and is never run by a page '
                     . 'render, a form, the schedule or an agent.' },
-            { key => 'signin_addresses', label => 'Session binding: only from (address lists)', type => 'text',
-                note => 'Optional, session bindings only: names of ALLOW address lists, comma '
+            { key => 'signin_addresses', label => 'Session binding: only from (address profiles)', type => 'text',
+                note => 'Optional, session bindings only: names of address profiles to allow, comma '
                     . 'separated. A call of this binding from any other address is refused. It can '
                     . 'only narrow the site\'s signin_addresses, never widen it.' },
-            { key => 'signin_addresses_deny', label => 'Session binding: never from (address lists)', type => 'text',
-                note => 'Optional, session bindings only: names of DENY address lists. A call of '
+            { key => 'signin_addresses_deny', label => 'Session binding: never from (address profiles)', type => 'text',
+                note => 'Optional, session bindings only: names of address profiles to deny. A call of '
                     . 'this binding from one of these addresses is refused.' },
             { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
                 note => 'Optional. A parameter the operation declares as a list of rows has a cap '

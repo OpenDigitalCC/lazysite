@@ -202,7 +202,7 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS
         $m{auth}    = $ak->{auth}    if defined $ak->{auth};
         $m{payment} = $ak->{payment} if defined $ak->{payment};
         $m{groups} = $ak->{auth_groups} if ref $ak->{auth_groups} eq 'ARRAY' && @{ $ak->{auth_groups} };
-        # SM1139: the address lists a page names, on the same terms as its groups.
+        # SM1139: the address profiles a page names, on the same terms as its groups.
         for my $k (qw(addresses addresses_deny)) {
             $m{$k} = $ak->{$k} if ref $ak->{$k} eq 'ARRAY' && @{ $ak->{$k} };
         }
@@ -225,7 +225,7 @@ sub peek_auth {
     return {
         auth   => $m->{auth},
         groups => $m->{groups} // [],
-        # SM1139: the address lists the page names (empty when it names none).
+        # SM1139: the address profiles the page names (empty when it names none).
         addresses      => $m->{addresses}      // [],
         addresses_deny => $m->{addresses_deny} // [],
         # SM993: a paid page's auth_groups is its payment bypass, not a sign-in.

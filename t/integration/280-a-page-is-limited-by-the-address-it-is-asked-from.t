@@ -41,10 +41,10 @@ sub site {
         "site_name: Test\nsite_url: http://localhost\nlayout: test\n"
             . ( $o{no_proxy} ? '' : "trusted_proxies: 127.0.0.1\n" ) );
     make_path("$d/lazysite/auth");
-    spit( "$d/lazysite/auth/address-lists.json", encode_json( {
-        office  => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24',  note => 'HQ' } ] },
-        vpn     => { kind => 'allow', entries => [ { cidr => '198.51.100.0/24', note => 'VPN' } ] },
-        blocked => { kind => 'deny',  entries => [ { cidr => '203.0.113.9',     note => 'scanner' } ] },
+    spit( "$d/lazysite/auth/address-profiles.json", encode_json( {
+        office  => { entries => [ { cidr => '203.0.113.0/24',  note => 'HQ' } ] },
+        vpn     => { entries => [ { cidr => '198.51.100.0/24', note => 'VPN' } ] },
+        blocked => { entries => [ { cidr => '203.0.113.9',     note => 'scanner' } ] },
     } ) );
     spit( "$d/rota.md",  "---\ntitle: Rota\naddresses: [office]\n---\nThe rota body.\n" );
     spit( "$d/open.md",  "---\ntitle: Open\naddresses_deny: [blocked]\n---\nThe open body.\n" );
@@ -121,9 +121,9 @@ subtest 'layers are ANDed: a page and each enclosing folder must all admit the a
     is( hit( $d, '/nested/inner/page', $VPN )->{status},    403, 'in the inner folder\'s list but not the outer\'s: refused' );
     $d = site(
         after => sub {
-            spit( "$_[0]/lazysite/auth/address-lists.json", encode_json( {
-                office => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
-                vpn    => { kind => 'allow', entries => [ { cidr => '203.0.113.0/25', note => '' } ] },
+            spit( "$_[0]/lazysite/auth/address-profiles.json", encode_json( {
+                office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
+                vpn    => { entries => [ { cidr => '203.0.113.0/25', note => '' } ] },
             } ) );
         } );
     is( hit( $d, '/nested/inner/page', $OFFICE )->{status}, 200, 'in both folders\' lists: served' );
@@ -162,7 +162,7 @@ subtest 'a refusal is audited once per target and address per hour' => sub {
 };
 
 subtest 'a store that will not read denies every limited page; an unlimited page is unaffected' => sub {
-    my $d = site( after => sub { spit( "$_[0]/lazysite/auth/address-lists.json", "{ not json" ) } );
+    my $d = site( after => sub { spit( "$_[0]/lazysite/auth/address-profiles.json", "{ not json" ) } );
     my $r = hit( $d, '/rota', $OFFICE );
     is( $r->{status}, 403, 'a faulted store refuses even the address that would have been allowed' );
     like( $r->{body}, qr/\Q$SENTENCE\E/, 'with the sentence' );
@@ -179,7 +179,7 @@ subtest 'without a trusted proxy the forwarded address is not believed' => sub {
 };
 
 subtest 'an unruled page does not load or consult the lists at all' => sub {
-    my $d = site( after => sub { unlink "$_[0]/lazysite/auth/address-lists.json" } );
+    my $d = site( after => sub { unlink "$_[0]/lazysite/auth/address-profiles.json" } );
     my $p = hit( $d, '/plain', $OUTSIDE );
     is( $p->{status}, 200, 'no store, no rule on the page: served' );
     my $r = hit( $d, '/rota', $OFFICE );

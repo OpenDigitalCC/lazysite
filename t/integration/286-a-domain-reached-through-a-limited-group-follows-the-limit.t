@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1140 (slice C of SM1134, ruled: "a group's address list limits only what the
+# SM1140 (slice C of SM1134, ruled: "a group's address profile limits only what the
 # group grants"; machine doors too): THE DOMAINS A GROUP GRANTS FOLLOW ITS ADDRESS
 # LIMIT, AS ITS CAPABILITIES DO.
 #
@@ -62,7 +62,7 @@ $s->grant( 'dt', 'g-dom',  [], \@ALL );
 $s->add_user( 'dc', 'pw-dc-0123456789' );
 $s->grant( 'dc', 'g-cookie', [qw(ui manage_content)], \@ALL );
 $s->users( 'group-add', 'dc', 'g-dom' );
-$s->users( 'address-list-set', 'office', '--kind', 'allow', '--entry', '203.0.113.0/24' );
+$s->users( 'address-profile-set', 'office', '--entry', '203.0.113.0/24' );
 $s->users( 'group-set', 'g-dom', 'addresses', 'office' );
 
 sub uapi {

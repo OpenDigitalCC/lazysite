@@ -71,7 +71,7 @@ subtest 'the pin can see a difference' => sub {
 subtest 'both refuse in the ruled words' => sub {
     make_path( "$docroot/lazysite/auth", "$docroot/internal" );
     for my $f (
-        [ 'address-lists.json', encode_json( { office => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } ) ],
+        [ 'address-profiles.json', encode_json( { office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } ) ],
         [ 'acls.json', encode_json( { internal => { owner => 'x', addresses => ['office'] } } ) ],
         )
     {

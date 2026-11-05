@@ -258,21 +258,27 @@ group can be deleted only once it is empty (the row says *Remove members to
 delete* until then). (Per-user assignment is also available on the Users
 page.)
 
-### Address lists
+### Address profiles
 
-`/manager/address-lists` (under **Access**). Named lists of addresses, each an
-**allow** list or a **deny** list. An entry is a single address or a CIDR range
-(IPv4 or IPv6), with a note saying whose it is. Anyone who holds the **Users &
-groups** permission may read the lists; **only the operator** creates, edits or
-deletes one. Every change is recorded in the audit log with the list and the
-addresses added or removed.
+`/manager/address-profiles` (under **Access**). Named sets of addresses: each
+entry is a single address or a CIDR range (IPv4 or IPv6), with a note saying
+whose it is. Anyone who holds the **Users & groups** permission may read the
+profiles; **only the operator** creates, edits or deletes one. Every change is
+recorded in the audit log with the profile and the addresses added or removed.
 
-A list does nothing by itself: it is applied by a rule that names it. Where an
-allow list and a deny list both match an address, deny wins. An address that is
-not a valid address, or a list the site cannot read, is refused where a rule
-names a list - the rules fail closed. The same lists are read over the control
-API (`address-lists`) and MCP (`list_address_lists`); writing them is the
-manager's.
+A profile does nothing by itself, and it is neither an allow nor a deny: a rule
+that names it chooses. A page's `addresses:` allows the profiles it names and
+`addresses_deny:` denies them; an access rule on the Files page, a group, the
+manager and sign-in limits do the same, so one `office` profile can let the
+office into one page and keep it out of another. Where an address is in a
+profile allowed and in one denied, deny wins. An address that is not a valid
+address, or a profile store the site cannot read, is refused where a rule names
+a profile - the rules fail closed. A profile a rule still names is not deleted
+unless the operator confirms it twice. The same profiles are read over the
+control API (`address-profiles`) and MCP (`list_address_profiles`); writing them
+is the manager's. Until 0.16.5 these were *address lists*, each fixed as allow
+or deny; the upgrade made each list a profile of the same name, and every rule
+kept its effect.
 
 ### Sessions
 

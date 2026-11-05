@@ -366,7 +366,7 @@ sub cmd_show {
     # SM1324: a folder that keeps a private history says so.
     print "  history: " . ( $a->{history} ? 'kept (a private history of this folder)' : 'not kept (says false)' ) . "\n"
         if exists $a->{history};
-    # SM1139: the address lists, when the rule names any.
+    # SM1139: the address profiles, when the rule names any.
     print '  addresses:      ' . join( ',', @{ $a->{addresses} } ) . "\n"
         if ref $a->{addresses} eq 'ARRAY' && @{ $a->{addresses} };
     print '  addresses-deny: ' . join( ',', @{ $a->{addresses_deny} } ) . "\n"
@@ -727,10 +727,10 @@ Options:
                  are the folder's. It covers nested rules; --no-history on one
                  takes it out, and on the folder stops recording. What was
                  recorded is kept (see purge-history). Off by default.
-  --addresses LIST       (SM1139) comma-separated names of ALLOW address lists: the
-                 path is served only to an address in one of them. Omit to
+  --addresses LIST       (SM1139) comma-separated names of address profiles to ALLOW:
+                 the path is served only to an address in one of them. Omit to
                  leave unchanged; an EMPTY value clears.
-  --addresses-deny LIST  likewise for DENY lists; deny wins.
+  --addresses-deny LIST  likewise, the profiles to DENY; deny wins.
   --json         machine-readable output.
 
 PATH is relative to the document root, NOT to a domain's URL - on a

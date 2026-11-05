@@ -70,8 +70,8 @@ spit( "$d/lazysite/auth/users",  "alice:x\ndora:x\nrhea:x\n" );
 spit( "$d/lazysite/auth/groups", "staff: alice, rhea\noffice-only: alice\n" );
 spit( "$d/lazysite/auth/user-settings.json", encode_json( { dora => { disabled => 1 } } ) );
 spit( "$d/lazysite/auth/revoked.json", encode_json( { not_before => { rhea => time() + 3600 } } ) );
-spit( "$d/lazysite/auth/address-lists.json",
-    encode_json( { office => { kind => 'allow', entries => [ { cidr => '198.51.100.0/24', note => 'HQ' } ] } } ) );
+spit( "$d/lazysite/auth/address-profiles.json",
+    encode_json( { office => { entries => [ { cidr => '198.51.100.0/24', note => 'HQ' } ] } } ) );
 spit( "$d/lazysite/auth/groups-settings.json", encode_json( { 'office-only' => { addresses => ['office'] } } ) );
 
 # A legacy three-field cookie (user:ts:groups), which verifies without a registry

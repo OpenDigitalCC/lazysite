@@ -50,10 +50,10 @@ $Lazysite::Odoo::TRANSPORT     = $conn_fake;
     $Lazysite::Odoo::Visitor::DOCROOT = $d;
 }
 File::Path::make_path("$d/lazysite/auth", "$d/lazysite/logs");
-spit( "$d/lazysite/auth/address-lists.json", encode_json( {
-        office  => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
-        desk    => { kind => 'allow', entries => [ { cidr => '203.0.113.9',    note => '' } ] },
-        blocked => { kind => 'deny',  entries => [ { cidr => $IN,              note => '' } ] },
+spit( "$d/lazysite/auth/address-profiles.json", encode_json( {
+        office  => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
+        desk    => { entries => [ { cidr => '203.0.113.9',    note => '' } ] },
+        blocked => { entries => [ { cidr => $IN,              note => '' } ] },
 } ) );
 
 sub set_conf {
@@ -218,13 +218,13 @@ subtest 'audit: one `address-refused signin` row per address per hour, for both 
     is( audit_rows('signin') - $a0, 2, 'another address has its own' );
 };
 
-subtest 'a faulted address-list store refuses (fails closed)' => sub {
+subtest 'a faulted address-profile store refuses (fails closed)' => sub {
     set_conf( signin_addresses => 'office' );
-    my $good = slurp("$d/lazysite/auth/address-lists.json");
-    spit( "$d/lazysite/auth/address-lists.json", 'not json' );
+    my $good = slurp("$d/lazysite/auth/address-profiles.json");
+    spit( "$d/lazysite/auth/address-profiles.json", 'not json' );
     my ( undef, $st, undef, $j ) = signin($IN);
     is( $j->{kind}, 'address', 'never quietly admits' );
-    spit( "$d/lazysite/auth/address-lists.json", $good );
+    spit( "$d/lazysite/auth/address-profiles.json", $good );
 };
 
 subtest 'signing out is never refused' => sub {

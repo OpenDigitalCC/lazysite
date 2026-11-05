@@ -22,7 +22,7 @@ use TestHelper qw(repo_root site_tempdir run_child);
 my $tool = repo_root() . '/tools/lazysite-check.pl';
 plan skip_all => "no $tool" unless -f $tool;
 
-my $lists = { office => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] } };
+my $lists = { office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] } };
 
 sub site {
     my (%o) = @_;
@@ -32,7 +32,7 @@ sub site {
     print {$fh} "site_name: T\n" . ( $o{conf} // '' );
     close $fh;
     if ( !exists $o{store} || defined $o{store} ) {
-        open my $s, '>', "$d/lazysite/auth/address-lists.json" or die $!;
+        open my $s, '>', "$d/lazysite/auth/address-profiles.json" or die $!;
         print {$s} ( $o{store} // encode_json($lists) );
         close $s;
     }
@@ -62,7 +62,7 @@ sub run {
 }
 
 my $none = run( site() );
-unlike( $none, qr/address rule|address list/i, 'no rule anywhere: nothing said' );
+unlike( $none, qr/address rule|address profile/i, 'no rule anywhere: nothing said' );
 
 # --- no front end trusted -----------------------------------------------------
 my $distrust = run( site( conf => "trusted_proxies: none\n", page => 'office' ) );
@@ -108,11 +108,11 @@ like( $miss, qr/store does not hold: blocked \(page staff\.md\)/, 'a rule naming
 unlike( $miss, qr/does not hold: [^\n]*office/, 'a list that exists is not named' );
 
 my $good = run( site( conf => "trusted_proxies: 127.0.0.1\n", page => 'office' ) );
-like( $good, qr/every address list a rule names is in the store/, 'all present: said so' );
+like( $good, qr/every address profile a rule names is in the store/, 'all present: said so' );
 
 # --- a store that will not decode -----------------------------------------------
 my $bad = run( site( conf => "trusted_proxies: 127.0.0.1\n", page => 'office', store => '{ nope' ) );
-like( $bad, qr/address-lists\.json does not decode.*while rules name office/s, 'an undecodable store while rules name lists: warned' );
+like( $bad, qr/address-profiles\.json does not decode.*while rules name office/s, 'an undecodable store while rules name lists: warned' );
 
 # An absent store is the same as no lists: every named list is missing.
 my $absent = run( site( conf => "trusted_proxies: 127.0.0.1\n", page => 'office', store => undef ) );

@@ -1,86 +1,98 @@
-package Lazysite::Auth::AddressLists;
+package Lazysite::Auth::AddressProfiles;
 
-# SM1138 (slice A of SM1134, ruled 2026-10-17): NAMED ADDRESS LISTS, AND THE ONE
-# MODULE THAT ANSWERS "IS THIS ADDRESS IN THAT LIST". The store is
-# lazysite/auth/address-lists.json, per instance, written only through the users
-# tool (address-list-set / address-list-delete) and read here. This slice enforces
-# nothing: pages, folders, groups and the manager apply a list in slices B, C and D,
-# and each asks THIS module, so the matching, the deny-wins rule and the failure
-# behaviour are written once.
+# SM1138 (slice A of SM1134, ruled 2026-10-17), SM1343 (0.16.5, rulings 56-57):
+# NAMED ADDRESS PROFILES, AND THE ONE MODULE THAT ANSWERS "IS THIS ADDRESS IN THAT
+# PROFILE". The store is lazysite/auth/address-profiles.json, per instance, written
+# only through the users tool (address-profile-set / address-profile-delete) and
+# read here. Pages, folders, groups, the manager, sign-in and the Odoo binding apply
+# a profile, and each asks THIS module, so the matching, the deny-wins rule and the
+# failure behaviour are written once.
+#
+# A PROFILE HAS NO KIND (SM1343). Until 0.16.5 these were address LISTS, each an
+# allow list or a deny list for life, so one office range allowed in one place and
+# denied in another was kept twice. A profile is only a named set of addresses;
+# whether it allows or denies is the choice of the rule that names it - the slot it
+# is named in (`addresses` allows, `addresses_deny` denies, on a page, an access
+# rule, a group, lazysite.conf's manager and sign-in keys and a session binding).
+# The upgrade (install.pl, SM1345) turns each list into a profile of the same name.
 #
 # THE STORE
 #
-#   { "office":  { "kind": "allow", "entries": [ { "cidr": "203.0.113.0/24", "note": "HQ" } ],
+#   { "office":  { "entries": [ { "cidr": "203.0.113.0/24", "note": "HQ" } ],
 #                  "created_by": "sjm", "updated_by": "sjm", "updated": 1760000000 },
-#     "blocked": { "kind": "deny",  "entries": [ { "cidr": "198.51.100.7",   "note": "scanner" } ] } }
+#     "blocked": { "entries": [ { "cidr": "198.51.100.7",   "note": "scanner" } ] } }
 #
-# A name is [a-z0-9_-]{1,64}. `kind` is allow or deny. An entry is a single address
-# or a CIDR range, IPv4 or IPv6, with a note (which may be empty). `cidr` is stored
-# as the canonical spelling of what was typed: one spelling per address, host bits
-# NOT masked (10.1.2.3/8 keeps its address and matches the whole /8).
+# A name is [a-z0-9_-]{1,64}. An entry is a single address or a CIDR range, IPv4 or
+# IPv6, with a note (which may be empty). `cidr` is stored as the canonical
+# spelling of what was typed: one spelling per address, host bits NOT masked
+# (10.1.2.3/8 keeps its address and matches the whole /8). A `kind` left on a
+# record by a hand edit is ignored.
 #
-# API (kept small; slices B-D call only these)
+# API (kept small; the rules call only these)
 #
-#   lists()                       { name => { kind, entries => [ { cidr, note } ],
+#   profiles()                    { name => { entries => [ { cidr, note } ],
 #                                   created_by, updated_by, updated, rejected => [...] } }
 #                                 A fresh copy each call. {} for an absent store AND
 #                                 for a faulted one - ask store_fault() which.
-#   list_names()                  sorted names
-#   in_list( $address, $name )    1 or 0. 0 for an unknown name (logged once per name
+#   profile_names()               sorted names
+#   in_profile( $address, $name ) 1 or 0. 0 for an unknown name (logged once per name
 #                                 per process), an address that is not an address,
-#                                 and a faulted store. Membership only: it does not
-#                                 care whether the list is allow or deny.
+#                                 and a faulted store. Membership only.
 #   decide( $address, allow => [names], deny => [names] )
 #                                 ( 'allow' | 'deny', $reason ). Rules, in order:
-#                                   no list named at all          -> allow, 'no-rules'
-#                                   store unreadable/undecodable  -> deny,  'store-fault'
-#                                   a name of the wrong kind      -> deny,  'wrong-kind' (SM1189)
+#                                   no profile named at all       -> allow, 'no-rules'
+#                                   store faulted                 -> deny,  'store-fault'
 #                                   no usable address             -> deny,  'no-address'
-#                                   address in any deny list      -> deny,  'deny-list'  (DENY WINS)
-#                                   an allow list named, address
+#                                   address in a profile denied   -> deny,  'deny-profile'  (DENY WINS)
+#                                   a profile allowed, address
 #                                   in none of them               -> deny,  'not-allowed'
-#                                   address in an allow list      -> allow, 'allow-list'
-#                                   only deny lists, no match     -> allow, 'not-denied'
+#                                   address in a profile allowed  -> allow, 'allow-profile'
+#                                   only profiles denied, no match -> allow, 'not-denied'
 #   client_address()              the visitor's address, from Lazysite::Util::request_address
 #                                 with the instance's trusted_proxies. X-Forwarded-For is
 #                                 believed only from a listed proxy, never directly.
-#   store_fault()                 0, or 'unreadable' / 'undecodable' for the LAST read
+#   store_fault()                 0, or 'unreadable' / 'undecodable' / 'unconverted'
+#                                 for the LAST read
 #   valid_name( $name )           1 or 0
 #   check_entry( $text )          ( $canonical_cidr, '' ) or ( undef, $reason )
-#   write_lists( \%lists )        atomic write; refuses over a faulted store (SM785/SM1024).
+#   write_profiles( \%profiles )  atomic write; refuses over a faulted store (SM785/SM1024).
 #                                 For the users tool; nothing else writes.
 #
-# Context: $Lazysite::Auth::AddressLists::AUTH_DIR (the auth/ directory), else
+# Context: $Lazysite::Auth::AddressProfiles::AUTH_DIR (the auth/ directory), else
 # $Lazysite::Auth::Settings::AUTH_DIR, which every script that reads the other auth
 # stores already sets.
 #
 # FAILS CLOSED, as SM1024 ruled for groups-settings.json and acls.json. A store that
 # exists and will not open, or opens and does not decode to an object, is a store
 # whose contents are UNKNOWN, not an empty one. decide() then denies whenever a rule
-# names a list - allow OR deny: with an allow list "in none of them" is true of an
-# unreadable list, and with a deny list "not in it" would be an unproven claim, so
-# the broken file never opens a door that a working file would have shut. An ABSENT
-# store is an answer (no lists): a rule naming a list is then an unknown name.
+# names a profile - allowed OR denied: "in none of them" is true of an unreadable
+# profile, and "not in it" would be an unproven claim, so the broken file never
+# opens a door that a working file would have shut. An ABSENT store is an answer
+# (no profiles): a rule naming one is then an unknown name.
 #
-# UNKNOWN NAMES. A name no list carries contributes no addresses and is logged once.
-# In `allow` it still counts as "an allow list is present", so a page that names only
-# a deleted allow list refuses everybody rather than becoming public; in `deny` it
-# blocks nobody (there is nothing to match, and denying all for a deleted deny list
-# would be an outage out of proportion to the typo). A list named in the wrong slot -
-# a deny-kind list under `allow`, or an allow-kind list under `deny` - is a
-# configuration error handled the same way: logged once, contributes no addresses.
+# UNCONVERTED (SM1345). A site whose store from before 0.16.5 (auth/address-lists.json) is still
+# there with no profile store beside it has not had the upgrade's conversion: its
+# rules name lists this module cannot read. That is a fault ('unconverted'), not an
+# absent store, because an absent store would let every rule that denies a profile
+# block nobody - the site would open to the addresses it shuts out today.
+#
+# UNKNOWN NAMES. A name no profile carries contributes no addresses and is logged
+# once. Allowed, it still counts as "a profile is allowed", so a page that allows
+# only a deleted profile refuses everybody rather than becoming public; denied, it
+# blocks nobody (there is nothing to match, and denying all for a deleted profile
+# would be an outage out of proportion to the typo).
 #
 # ADDRESS MATCHING is Lazysite::Util's (parse_trusted_proxies and its range matcher),
 # the same code the trusted_proxies and auth_proxy_trusted_from settings use, so an
-# address means the same in every list. IPv4 and IPv6, same family only: an IPv4
+# address means the same in every profile. IPv4 and IPv6, same family only: an IPv4
 # range never contains an IPv6 address. THE IPv4-MAPPED FORM (::ffff:203.0.113.5) IS
 # AN IPv6 ADDRESS TO THIS MATCHER and is not converted: it is in no IPv4 range, as
 # with trusted_proxies. A site whose front end hands the CGI mapped addresses lists
-# them as ::ffff:... ranges. That fails closed for an allow list (not matched, so
-# refused) and open for a deny list, which is why check_entry accepts the mapped
-# spelling so an operator can name it. A zero-length prefix (0.0.0.0/0, ::/0) is
-# refused, as parse_trusted_proxies refuses it: "every address" is not an address
-# list, and an allow-everyone list is no rule.
+# them as ::ffff:... ranges. That fails closed where a profile is allowed (not
+# matched, so refused) and open where it is denied, which is why check_entry accepts
+# the mapped spelling so an operator can name it. A zero-length prefix (0.0.0.0/0,
+# ::/0) is refused, as parse_trusted_proxies refuses it: "every address" is not an
+# address profile, and allowing everyone is no rule.
 
 use strict;
 use warnings;
@@ -94,7 +106,8 @@ use Lazysite::Util qw(log_event secure_write_perms cannot_read parse_trusted_pro
 
 our $AUTH_DIR;    # set by the script; falls back to Auth::Settings::AUTH_DIR
 
-# 'unreadable' or 'undecodable' for the last read; 0 when it read, or is absent.
+# 'unreadable', 'undecodable' or 'unconverted' for the last read; 0 when it read,
+# or is absent.
 my $FAULT = 0;
 
 my $NAME_RE = qr/\A[a-z0-9_-]{1,64}\z/;
@@ -104,9 +117,22 @@ sub _dir {
     return $Lazysite::Auth::Settings::AUTH_DIR;
 }
 
-sub store_path { my $d = _dir(); return defined $d ? "$d/address-lists.json" : undef }
+sub store_path { my $d = _dir(); return defined $d ? "$d/address-profiles.json" : undef }
+
+# SM1345: the store the upgrade converts from. Named here only to tell an
+# unconverted site from one with no profiles (see UNCONVERTED above).
+sub _unconverted_path { my $d = _dir(); return defined $d ? "$d/address-lists.json" : undef }
 
 sub store_fault { return $FAULT }
+
+# The fault as a sentence, for a refusal or a page that cannot list the profiles.
+sub fault_text ($fault) {
+    return 'lazysite/auth/address-lists.json (the address lists of a release before 0.16.5) has not been converted to '
+        . 'address profiles: run the upgrade again, which converts it (SM1345)'
+        if $fault eq 'unconverted';
+    return 'lazysite/auth/address-profiles.json '
+        . ( $fault eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' );
+}
 
 sub valid_name ($name) { return ( defined $name && !ref $name && $name =~ $NAME_RE ) ? 1 : 0 }
 
@@ -132,12 +158,21 @@ sub check_entry ($text) {
 }
 
 # The store as decoded, or undef after setting $FAULT. An absent file is an answer
-# ({} with the flag clear); the open decides, not a -f guard (SM770).
+# ({} with the flag clear) unless the unconverted store is beside it; the open
+# decides, not a -f guard (SM770).
 sub _read_raw ($path) {
     $FAULT = 0;
     open my $fh, '<:raw', $path or do {
         $FAULT = $!{ENOENT} ? 0 : 'unreadable';    # errno first: cannot_read clobbers $!
-        cannot_read( 'address-lists.json', $path );
+        cannot_read( 'address-profiles.json', $path );
+        my $old = _unconverted_path();
+        if ( !$FAULT && defined $old && -e $old ) {
+            $FAULT = 'unconverted';
+            _warn_once( 'unconverted',
+                'address-lists.json has not been converted to address-profiles.json - every rule naming '
+                    . 'an address profile denies until the upgrade converts it',
+                file => 'lazysite/auth/address-lists.json' );
+        }
         return $FAULT ? undef : {};
     };
     my $raw = do { local $/; <$fh> };
@@ -146,19 +181,19 @@ sub _read_raw ($path) {
     unless ( ref $d eq 'HASH' ) {
         $FAULT = 'undecodable';
         _warn_once( 'undecodable',
-            'address-lists.json does not decode as a JSON object - every rule naming '
-                . 'an address list denies until it is repaired',
-            file => 'lazysite/auth/address-lists.json' );
+            'address-profiles.json does not decode as a JSON object - every rule naming '
+                . 'an address profile denies until it is repaired',
+            file => 'lazysite/auth/address-profiles.json' );
         return undef;
     }
     return $d;
 }
 
-# THE STORE EXACTLY AS WRITTEN, uncached, for the one writer: it changes one list
-# and must hand every other record back untouched (a hand-edited entry that
-# lists() skips is still there to be repaired). {} when absent; undef and
+# THE STORE EXACTLY AS WRITTEN, uncached, for the one writer: it changes one
+# profile and must hand every other record back untouched (a hand-edited entry
+# that profiles() skips is still there to be repaired). {} when absent; undef and
 # store_fault() set when it faulted.
-sub raw_lists () {
+sub raw_profiles () {
     my $path = store_path();
     return undef unless defined $path;
     return _read_raw($path);
@@ -167,37 +202,35 @@ sub raw_lists () {
 {
     # Decoded once per change: keyed on (path, mtime, size) with the one-second
     # guard Auth::Acl uses (a file younger than a second is read fresh, since a
-    # same-second same-length rewrite carries the same key). write_lists clears it.
-    my ( $cache_key, $cache_lists, $cache_sets ) = ( '', undef, undef );
+    # same-second same-length rewrite carries the same key). write_profiles clears it.
+    my ( $cache_key, $cache_profiles, $cache_sets ) = ( '', undef, undef );
     my %WARNED;
 
-    sub _clear_cache { ( $cache_key, $cache_lists, $cache_sets ) = ( '', undef, undef ); return }
+    sub _clear_cache { ( $cache_key, $cache_profiles, $cache_sets ) = ( '', undef, undef ); return }
 
     sub _warn_once ( $what, $msg, %f ) {
         return if $WARNED{$what}++;
-        log_event( 'WARN', 'address-lists', $msg, %f );
+        log_event( 'WARN', 'address-profiles', $msg, %f );
         return;
     }
 
-    # ( \%lists, \%sets ): the decoded map and, per name, the parsed ranges.
+    # ( \%profiles, \%sets ): the decoded map and, per name, the parsed ranges.
     sub _load {
         my $path = store_path();
         $FAULT = 0;
         return ( {}, {} ) unless defined $path;
         my @st  = stat $path;
         my $key = @st ? "$path:$st[9]:$st[7]" : '';
-        if ( length $key && $key eq $cache_key && $cache_lists ) {
+        if ( length $key && $key eq $cache_key && $cache_profiles ) {
             $FAULT = 0;
-            return ( $cache_lists, $cache_sets );
+            return ( $cache_profiles, $cache_sets );
         }
         my $d = _read_raw($path);
         return ( {}, {} ) unless $d;
-        my ( %lists, %sets );
+        my ( %profiles, %sets );
         for my $name ( keys %{$d} ) {
             my $rec = $d->{$name};
             next unless valid_name($name) && ref $rec eq 'HASH';
-            my $kind = ( $rec->{kind} // '' );
-            $kind = '' unless $kind eq 'allow' || $kind eq 'deny';
             my ( @entries, @set, @rejected );
             for my $e ( ref $rec->{entries} eq 'ARRAY' ? @{ $rec->{entries} } : () ) {
                 my $text = ref $e eq 'HASH' ? $e->{cidr} : $e;
@@ -210,16 +243,11 @@ sub raw_lists () {
                 else {
                     push @rejected, defined $text ? "$text" : '';
                     _warn_once( "bad:$name:" . ( $text // '' ),
-                        "address list '$name' has an entry that is not an address or range; it matches nothing",
+                        "address profile '$name' has an entry that is not an address or range; it matches nothing",
                         entry => ( $text // '' ) );
                 }
             }
-            # A list with no kind (hand-edited) is not usable in either role.
-            _warn_once( "kind:$name", "address list '$name' has no kind (allow or deny); it is ignored",
-                list => $name )
-                unless length $kind;
-            $lists{$name} = {
-                kind    => $kind,
+            $profiles{$name} = {
                 entries => \@entries,
                 ( map { $_ => $rec->{$_} } grep { defined $rec->{$_} && !ref $rec->{$_} } qw(
                         created_by
@@ -227,35 +255,35 @@ sub raw_lists () {
                         updated ) ),
                 ( @rejected ? ( rejected => \@rejected ) : () ),
             };
-            $sets{$name} = length $kind ? \@set : [];
+            $sets{$name} = \@set;
         }
         if ( length $key && @st && $st[9] < time() - 1 ) {
-            ( $cache_key, $cache_lists, $cache_sets ) = ( $key, \%lists, \%sets );
+            ( $cache_key, $cache_profiles, $cache_sets ) = ( $key, \%profiles, \%sets );
         }
-        return ( \%lists, \%sets );
+        return ( \%profiles, \%sets );
     }
 
     sub _warn_unknown ( $name, $why ) {
-        _warn_once( "unknown:$name:$why", "address list '$name' $why; it matches no address", list => $name );
+        _warn_once( "unknown:$name:$why", "address profile '$name' $why; it matches no address", profile => $name );
     }
 }
 
-sub _copy ($lists) {
+sub _copy ($profiles) {
     return {
         map {
-            my $r = $lists->{$_};
+            my $r = $profiles->{$_};
             $_ => {
                 %{$r},
                 entries => [ map { { %$_ } } @{ $r->{entries} } ],
                 ( $r->{rejected} ? ( rejected => [ @{ $r->{rejected} } ] ) : () ),
             }
-        } keys %{$lists}
+        } keys %{$profiles}
     };
 }
 
-sub lists () { my ($l) = _load(); return _copy($l) }
+sub profiles () { my ($p) = _load(); return _copy($p) }
 
-sub list_names () { my ($l) = _load(); my @n = sort keys %{$l}; return @n }
+sub profile_names () { my ($p) = _load(); my @n = sort keys %{$p}; return @n }
 
 # The address as the matcher sees it: ( packed bytes ) or ''.
 sub _packed ($address) {
@@ -268,10 +296,10 @@ sub _in_set ( $packed, $set ) {
     return Lazysite::Util::_address_in_set( $packed, $set ) ? 1 : 0; ## no critic (Subroutines::ProtectPrivateSubs)
 }
 
-sub in_list ( $address, $name ) {
-    my ( $lists, $sets ) = _load();
+sub in_profile ( $address, $name ) {
+    my ( $profiles, $sets ) = _load();
     return 0 if $FAULT;
-    unless ( defined $name && exists $lists->{$name} ) {
+    unless ( defined $name && exists $profiles->{$name} ) {
         _warn_unknown( $name // '', 'is not in the store' );
         return 0;
     }
@@ -280,41 +308,27 @@ sub in_list ( $address, $name ) {
     return _in_set( $p, $sets->{$name} );
 }
 
+# SM1343: the slot a rule names a profile in is the whole of its meaning - `allow`
+# admits only the addresses of the profiles it names, `deny` refuses theirs - so a
+# profile is never "of the wrong kind" for a slot, and the SM1189 refusal of one
+# went with the kind.
 sub decide ( $address, %o ) {
     my @allow = grep { defined } @{ $o{allow} || [] };
     my @deny  = grep { defined } @{ $o{deny}  || [] };
     return ( 'allow', 'no-rules' ) unless @allow || @deny;
-    my ( $lists, $sets ) = _load();
+    my ( $profiles, $sets ) = _load();
     return ( 'deny', 'store-fault' ) if $FAULT;
-    # SM1189 (0.15.10 walk, F-3): A RULE NAMING A LIST OF THE WRONG KIND IS REFUSED, in
-    # either slot. An allow list under `deny` used to be skipped, so a rule written
-    # to shut an address out blocked nobody and said nothing; the author's intent is
-    # unknowable and the safe answer to a rule the engine cannot apply is no, as for
-    # an unreadable access key (SM980). An unknown name is not this: it may be
-    # created later (SM1138). Saves refuse the combination; this is for a rule that
-    # reached the store another way (a hand edit, a list re-made as the other kind).
-    for my $pair ( [ deny => \@deny ], [ allow => \@allow ] ) {
-        my ( $slot, $names ) = @$pair;
-        for my $name (@$names) {
-            my $l = $lists->{$name} or next;
-            if ( $l->{kind} ne $slot ) { _warn_unknown( $name, 'is named as ' . ( $slot eq 'allow' ? 'an allow' : 'a deny' ) . ' list and is not one; the rule is refused' ); return ( 'deny', 'wrong-kind' ) }
-        }
-    }
     my $p = _packed($address);
     return ( 'deny', 'no-address' ) unless length $p;
 
     for my $name (@deny) {
-        my $l = $lists->{$name};
-        unless ($l) { _warn_unknown( $name, 'is named by a rule and is not in the store' ); next }
-        if ( $l->{kind} ne 'deny' ) { _warn_unknown( $name, 'is named as a deny list and is not one' ); next }
-        return ( 'deny', 'deny-list' ) if _in_set( $p, $sets->{$name} );
+        unless ( $profiles->{$name} ) { _warn_unknown( $name, 'is named by a rule and is not in the store' ); next }
+        return ( 'deny', 'deny-profile' ) if _in_set( $p, $sets->{$name} );
     }
     if (@allow) {
         for my $name (@allow) {
-            my $l = $lists->{$name};
-            unless ($l) { _warn_unknown( $name, 'is named by a rule and is not in the store' ); next }
-            if ( $l->{kind} ne 'allow' ) { _warn_unknown( $name, 'is named as an allow list and is not one' ); next }
-            return ( 'allow', 'allow-list' ) if _in_set( $p, $sets->{$name} );
+            unless ( $profiles->{$name} ) { _warn_unknown( $name, 'is named by a rule and is not in the store' ); next }
+            return ( 'allow', 'allow-profile' ) if _in_set( $p, $sets->{$name} );
         }
         return ( 'deny', 'not-allowed' );
     }
@@ -354,16 +368,17 @@ sub front_end_warning () {
 # THE ONLY WRITER. Atomic (temp, lock, rename) like the other auth JSON stores, at
 # 0660 owned by the directory's owner (SM289, SM428). It refuses to write over a
 # store whose last read faulted: every caller is a read-modify-write of the whole
-# map, and a faulted read answered {}, so the write would erase every other list.
-sub write_lists ($ref) {
+# map, and a faulted read answered {}, so the write would erase every other
+# profile. An unconverted site is refused too: a first profile written there would
+# leave the lists its rules name unread.
+sub write_profiles ($ref) {
     my $path = store_path();
     die "no auth directory is set\n" unless defined $path;
     # Read first so the fault flag is this store's, not a stale one.
     _read_raw($path);
-    die "Refusing to overwrite lazysite/auth/address-lists.json: it "
-        . ( $FAULT eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' )
-        . ", so this write would replace every other list with the one being changed. "
-        . "Repair the file and retry.\n"
+    die 'Refusing to write the address profiles: ' . fault_text($FAULT)
+        . ( $FAULT eq 'unconverted' ? ".\n"
+        : ", so this write would replace every other profile with the one being changed. Repair the file and retry.\n" )
         if $FAULT;
     my $json = JSON::PP->new->canonical->pretty->encode($ref);
     my $tmp  = "$path.tmp.$$";
@@ -373,7 +388,7 @@ sub write_lists ($ref) {
     flock( $fh, LOCK_UN );
     close $fh;
     secure_write_perms( $tmp, 0660 );
-    rename( $tmp, $path ) or die "cannot replace address-lists.json: $!\n";
+    rename( $tmp, $path ) or die "cannot replace address-profiles.json: $!\n";
     _clear_cache();
     return 1;
 }
@@ -384,63 +399,63 @@ __END__
 
 =head1 NAME
 
-Lazysite::Auth::AddressLists - the named address lists (lazysite/auth/address-lists.json) and the one reader of them
+Lazysite::Auth::AddressProfiles - the named address profiles (lazysite/auth/address-profiles.json) and the one reader of them
 
 =head1 SYNOPSIS
 
-    use Lazysite::Auth::AddressLists ();
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$lazysite_dir/auth";  # or Auth::Settings' AUTH_DIR
+    use Lazysite::Auth::AddressProfiles ();
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$lazysite_dir/auth";  # or Auth::Settings' AUTH_DIR
 
-    my $addr = Lazysite::Auth::AddressLists::client_address();
-    if ( Lazysite::Auth::AddressLists::in_list( $addr, 'office' ) ) { ... }
+    my $addr = Lazysite::Auth::AddressProfiles::client_address();
+    if ( Lazysite::Auth::AddressProfiles::in_profile( $addr, 'office' ) ) { ... }
 
-    my ( $verdict, $reason ) = Lazysite::Auth::AddressLists::decide(
+    my ( $verdict, $reason ) = Lazysite::Auth::AddressProfiles::decide(
         $addr, allow => ['office'], deny => ['blocked'] );
 
 =head1 DESCRIPTION
 
-SM1138, slice A of SM1134. A list has a name (C<[a-z0-9_-]{1,64}>), a kind
-(C<allow> or C<deny>) and entries: a single address or a CIDR range, IPv4 or
-IPv6, each with a note. The store is written only by the users tool
-(C<address-list-set>, C<address-list-delete>) and only for the operator. This
-module enforces nothing by itself; the slices that apply a list to a page, a
-folder, a group or the manager call it and nothing else.
+SM1138, slice A of SM1134; SM1343 made the lists profiles. A profile has a name
+(C<[a-z0-9_-]{1,64}>) and entries: a single address or a CIDR range, IPv4 or
+IPv6, each with a note. It has no kind: a rule that names it allows or denies it
+by the slot it names it in. The store is written only by the users tool
+(C<address-profile-set>, C<address-profile-delete>) and only for the operator.
+This module enforces nothing by itself; the rules that apply a profile to a page,
+a folder, a group or the manager call it and nothing else.
 
 =head1 FUNCTIONS
 
 =over 4
 
-=item lists()
+=item profiles()
 
-Hashref C<< name => { kind, entries => [ { cidr, note } ], rejected, ... } >>.
-A fresh copy each call. A record also says who made it, who last changed it and when. C<rejected> names stored entries that are not addresses
-(they match nothing). Empty for an absent store and for a faulted one; ask
+Hashref C<< name => { entries => [ { cidr, note } ], rejected, ... } >>.
+A fresh copy each call. A record also says who made it, who last changed it and
+when. C<rejected> names stored entries that are not addresses (they match
+nothing). Empty for an absent store and for a faulted one; ask
 C<store_fault()> which.
 
-=item list_names()
+=item profile_names()
 
 The names, sorted.
 
-=item in_list( $address, $name )
+=item in_profile( $address, $name )
 
 1 or 0. 0 for an unknown name (logged once per name per process), for something
-that is not an address, and for a faulted store. It answers membership only and
-does not care whether the list is allow or deny.
+that is not an address, and for a faulted store. It answers membership only.
 
 =item decide( $address, allow =E<gt> [names], deny =E<gt> [names] )
 
 Returns C<( 'allow' | 'deny', $reason )>. In order: nothing named is
 C<allow, no-rules>; a faulted store is C<deny, store-fault>; no usable address
-is C<deny, no-address>; a name of the wrong kind is C<deny, wrong-kind>; in a deny list is C<deny, deny-list> (DENY WINS, even
-over an allow list that also matches); an allow list named and the address in
-none of them is C<deny, not-allowed>; in an allow list is C<allow, allow-list>;
-only deny lists named and no match is C<allow, not-denied>.
+is C<deny, no-address>; in a profile denied is C<deny, deny-profile> (DENY WINS,
+even over a profile allowed that also matches); a profile allowed and the
+address in none of them is C<deny, not-allowed>; in a profile allowed is
+C<allow, allow-profile>; only profiles denied and no match is
+C<allow, not-denied>.
 
-A list named in the wrong slot (a deny-kind list under C<allow>, or an allow-kind
-list under C<deny>) is C<deny, wrong-kind> (SM1189): a rule the engine cannot apply
-refuses, it is not skipped. An unknown name contributes no addresses and is logged once. Under C<allow> it still
-counts as "an allow list is present", so a rule naming only a deleted allow list
-admits nobody; under C<deny> it blocks nobody.
+An unknown name contributes no addresses and is logged once. Allowed, it still
+counts as "a profile is allowed", so a rule allowing only a deleted profile
+admits nobody; denied, it blocks nobody.
 
 =item client_address()
 
@@ -448,9 +463,10 @@ The visitor's address, from C<Lazysite::Util::request_address> with the
 instance's C<trusted_proxies>. C<X-Forwarded-For> is believed only from a listed
 proxy (rightmost untrusted hop), never directly.
 
-=item store_fault()
+=item store_fault(), fault_text( $fault )
 
-0, or C<unreadable> or C<undecodable> for the last read.
+0, or C<unreadable>, C<undecodable> or C<unconverted> for the last read;
+C<fault_text> says one as a sentence.
 
 =item valid_name( $name ), check_entry( $text )
 
@@ -459,10 +475,10 @@ is one address or one CIDR; a prefix of 0 (C<0.0.0.0/0>, C<::/0>), a word list,
 C<none>, an empty string and a prefix longer than the address are refused.
 C</32> and C</128> are stored as the bare address.
 
-=item raw_lists(), write_lists( \%lists )
+=item raw_profiles(), write_profiles( \%profiles )
 
 For the users tool: the store as written (uncached), and an atomic write
-(temp, lock, rename; 0660 owned as the directory). C<write_lists> dies rather
+(temp, lock, rename; 0660 owned as the directory). C<write_profiles> dies rather
 than write over a store whose last read faulted.
 
 =back
@@ -471,7 +487,9 @@ than write over a store whose last read faulted.
 
 Fails closed (SM1024). A store that exists and will not open, or opens and does
 not decode to a JSON object, is unknown and not empty: C<decide> denies whenever
-a rule names a list, allow or deny. An absent store is an answer (no lists).
+a rule names a profile, allowed or denied. So does a site whose address-lists.json from
+before 0.16.5 was never converted (C<unconverted>, SM1345). An absent store is an
+answer (no profiles).
 
 =head1 ADDRESS MATCHING
 

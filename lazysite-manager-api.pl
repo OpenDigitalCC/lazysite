@@ -93,7 +93,7 @@ use Lazysite::Manager::AuditTrail qw(_audit_trail_set _audit_implicit_target _au
 use Lazysite::Manager::Users qw(action_whoami _handler_who action_display_names action_principals action_users action_rotate_auth_secret); # SM944 S32
 use Lazysite::Manager::Groups        ();    # SM1050: groups-list, group-set
 use Lazysite::Manager::AccountImport ();    # SM1053: accounts-import-*
-use Lazysite::Manager::AddressLists (); # SM1138: address-lists, address-list-set, address-list-delete
+use Lazysite::Manager::AddressProfiles (); # SM1138: address-profiles, address-profile-set, address-profile-delete
 use Lazysite::Manager::SiteBackup qw(dispatch_backup_list); # SM944 S33: backup-list's branch
 use Lazysite::Manager::Csrf       qw(csrf_refusal);         # SM944 S34: the M-1 CSRF gate
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -1177,7 +1177,8 @@ if ($token_auth) {
         }
         else {
             respond( { ok => 0, kind => 'not-found',
-                    error => "Unrecognised action name: '$action_as_sent'. This is not an "
+                    error => Lazysite::ControlApi::Actions::renamed_refusal($action_as_sent)
+                        // "Unrecognised action name: '$action_as_sent'. This is not an "
                         . 'action - check the spelling and the query string (a '
                         . 'doubled "action=" is the usual cause). Call '
                         . 'describe-capabilities for the actions this account can '
@@ -2218,22 +2219,23 @@ elsif ( $action eq 'group-set' ) {
     my $req = _json_body();
     $result = Lazysite::Manager::Groups::group_set( $req->{group}, $req->{caps}, _groups_who() );
 }
-elsif ( $action eq 'address-lists' ) {
-    # SM1138: the address lists, for a manage_users holder who is not confined
-    # to some domains (the lists are the instance's).
-    $result = Lazysite::Manager::AddressLists::address_lists( _groups_who() );
+elsif ( $action eq 'address-profiles' ) {
+    # SM1138, SM1343: the address profiles, for a manage_users holder; a caller
+    # confined to some domains is shown names only (the profiles are the instance's).
+    $result = Lazysite::Manager::AddressProfiles::address_profiles( _groups_who() );
 }
-elsif ( $action eq 'address-list-set' ) {
+elsif ( $action eq 'address-profile-set' ) {
     # SM1138: the operator's, cookie-only; the users tool owns the store.
     my $req = _json_body();
-    $result = Lazysite::Manager::AddressLists::address_list_set(
-        { name => $req->{name}, kind => $req->{kind},
+    $result = Lazysite::Manager::AddressProfiles::address_profile_set(
+        { name => $req->{name},
+            ( exists $req->{kind}    ? ( kind    => $req->{kind} )    : () ),    # SM1343: refused by name
             ( exists $req->{entries} ? ( entries => $req->{entries} ) : () ) },
         _groups_who() );
 }
-elsif ( $action eq 'address-list-delete' ) {
+elsif ( $action eq 'address-profile-delete' ) {
     my $req = _json_body();
-    $result = Lazysite::Manager::AddressLists::address_list_delete( { name => $req->{name}, force => $req->{force} }, _groups_who() );
+    $result = Lazysite::Manager::AddressProfiles::address_profile_delete( { name => $req->{name}, force => $req->{force} }, _groups_who() );
 }
 elsif ( $action eq 'display-names' ) {
     my $req = _json_body() || {};
@@ -2694,8 +2696,10 @@ elsif ( $action eq 'preview-clear' ) {
 elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \%params ) }
 elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
 else {
-    # SM670: an action that does not exist is not found - 404, not 400.
-    $result = { ok => 0, kind => 'not-found', error => "Unknown action: $action" };
+    # SM670: an action that does not exist is not found - 404, not 400. A name
+    # SM1343 renamed is told its new one.
+    $result = { ok => 0, kind => 'not-found',
+        error => Lazysite::ControlApi::Actions::renamed_refusal($action) // "Unknown action: $action" };
 }
 $DISPATCH_CRASH_GUARD = 0;    # P24: the chain finished
 
@@ -2975,7 +2979,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         # each capability granted (+) or revoked (-) - as acl-set records the rule.
         # SM1053: an account import's apply records what it did the same way,
         # and (n571) a removal whose import it was.
-        if ( ( grep { $aud_action eq $_ } qw(group-set accounts-import-apply accounts-import-remove address-list-set address-list-delete) )
+        if ( ( grep { $aud_action eq $_ } qw(group-set accounts-import-apply accounts-import-remove address-profile-set address-profile-delete) )
             && ref $result eq 'HASH'
             && defined $result->{change} )
         {
@@ -3318,7 +3322,7 @@ sub _acl_audit_fmt {
         # disagree with enforcement about the most misread rule in the system.
         push @bits, @{$v} ? "$k: " . join( ', ', @{$v} ) : "$k: (unrestricted)";
     }
-    # SM1139: the address lists a rule names, so the trail says who could reach a
+    # SM1139: the address profiles a rule names, so the trail says who could reach a
     # path from where, not only who could reach it.
     for my $k (qw(addresses addresses_deny)) {
         push @bits, "$k: " . join( ', ', @{ $acl->{$k} } )

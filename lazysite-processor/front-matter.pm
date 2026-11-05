@@ -250,9 +250,9 @@ sub _access_keys_read {
         }
 
         # auth_groups, addresses, addresses_deny (SM1139): an inline value, or the
-        # indented `- name` lines below it. The last two name ADDRESS LISTS, whose
+        # indented `- name` lines below it. The last two name ADDRESS PROFILES, whose
         # names are the store's ([a-z0-9_-], SM1138), not a group's.
-        my $noun   = $key eq 'auth_groups' ? 'group' : 'address list';
+        my $noun   = $key eq 'auth_groups' ? 'group' : 'address profile';
         my $NAMEOK = $key eq 'auth_groups' ? $NAME   : qr/\A[a-z0-9_-]{1,64}\z/;
         my $inline = $rest;
         $inline =~ s/\s+#.*\z//;
@@ -290,7 +290,7 @@ sub _access_keys_read {
             $why = length( $bad // '' )
                 ? ( $key eq 'auth_groups'
                 ? "'$bad' is not a group name (letters, digits, '.', '_' or '-')"
-                : "'$bad' is not an address list name (lowercase letters, digits, '_' or '-')" )
+                : "'$bad' is not an address profile name (lowercase letters, digits, '_' or '-')" )
                 : 'has an empty entry'
                 if defined $bad;
         }

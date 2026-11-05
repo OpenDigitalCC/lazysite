@@ -415,7 +415,7 @@ sub action_list {
                     $entry->{owner} = $a->{owner} if defined $a->{owner};
                     $entry->{read}  = $a->{read}  if ref $a->{read} eq 'ARRAY';
                     $entry->{write} = $a->{write} if ref $a->{write} eq 'ARRAY';
-                   # SM1139: the address lists the rule names, for the permissions editor.
+                   # SM1139: the address profiles the rule names, for the permissions editor.
                     for my $af (qw(addresses addresses_deny)) {
                         $entry->{$af} = $a->{$af} if ref $a->{$af} eq 'ARRAY' && @{ $a->{$af} };
                     }
@@ -456,7 +456,7 @@ sub action_list {
         if $hidden;
 
     return { ok => 1, path => $dir_path, entries => \@entries,
-        address_lists => _address_list_choices() }; # SM1139: for the permissions editor's pickers
+        address_profiles => _address_profile_choices() }; # SM1139: for the permissions editor's pickers
 }
 
 # SM1174: what the editor's status bar says about a page's camera, decided
@@ -2133,7 +2133,7 @@ sub action_acl_get {
                 if $a && ( $a->{owner} // '' ) ne ( $user // '' );
         }
         return { ok => 1, path => '/', acl => $a, key => ( $a ? $present : undef ),
-            address_lists => _address_list_choices(),
+            address_profiles => _address_profile_choices(),
             Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
     }
 
@@ -2158,20 +2158,21 @@ sub action_acl_get {
             if $a && ( $a->{owner} // '' ) ne ( $user // '' );
     }
     return { ok => 1, path => $r->{rel}, acl => $a, key => $key, ( @$keys > 1 ? ( keys => $keys ) : () ),
-        address_lists => _address_list_choices(),
+        address_profiles => _address_profile_choices(),
         Lazysite::Auth::Settings::display_names_block( _acl_logins($a) ) };
 }
 
-# SM1139: the address lists a rule may name - name and kind, no entries. Offered by
+# SM1139: the address profiles a rule may name - names only, no entries. Offered by
 # acl-get so the Files page's permissions editor can show a choice to whoever may
 # set a rule; the entries are the site's own network and stay with Access -> Address
-# lists (manage_users), as SM1138 holds them.
-sub _address_list_choices {
-    require Lazysite::Auth::AddressLists;
+# profiles (manage_users), as SM1138 holds them. A profile has no kind (SM1343): the
+# rule allows or denies it.
+sub _address_profile_choices {
+    require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
-    my $lists = Lazysite::Auth::AddressLists::lists();
-    return [ map { { name => $_, kind => $lists->{$_}{kind} } } sort keys %$lists ];
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $profiles = Lazysite::Auth::AddressProfiles::profiles();
+    return [ map { { name => $_ } } sort keys %$profiles ];
 }
 
 # SM287: which spellings mean "the whole site", and which are refused.
@@ -2696,72 +2697,44 @@ sub _acl_set_many {
 # SM1139: the names in an `addresses` / `addresses_deny` value - an array, or a
 # comma-separated string as the other lists arrive from a form or the MCP schema.
 # ( \@names, undef ) or ( undef, why ). Only the SHAPE is checked here (the
-# store's own name rule); whether the list exists is a warning, not a refusal.
-sub _address_list_names {
+# store's own name rule); whether the profile exists is a warning, not a refusal.
+sub _address_profile_names {
     my ( $v, $field ) = @_;
     my @in = ref $v eq 'ARRAY' ? @$v : ref $v ? () : split( /\s*,\s*/, $v );
-    return ( undef, "$field is a list of address list names - an array, or names separated by commas" )
+    return ( undef, "$field is a list of address profile names - an array, or names separated by commas" )
         if ref $v && ref $v ne 'ARRAY';
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     my ( @names, %seen );
     for my $n (@in) {
         next unless defined $n;
         $n =~ s/\A\s+|\s+\z//g if !ref $n;
         next                   if !ref $n && !length $n;
-        return ( undef, "'" . ( ref $n ? 'a nested value' : $n ) . "' is not an address list name in $field "
+        return ( undef, "'" . ( ref $n ? 'a nested value' : $n ) . "' is not an address profile name in $field "
                 . "(lowercase letters, digits, '_' or '-', up to 64). Nothing was changed." )
-            unless Lazysite::Auth::AddressLists::valid_name($n);
+            unless Lazysite::Auth::AddressProfiles::valid_name($n);
         push @names, $n unless $seen{$n}++;
     }
     return ( \@names, undef );
 }
 
-# SM1189 (0.15.10 walk, F-3): A RULE NAMING A LIST OF THE WRONG KIND IS REFUSED AT
-# SAVE. An allow list under addresses_deny blocked nobody and said nothing (the
-# page stayed open to the address its author meant to shut out), and a deny list
-# under addresses is an allow list with nothing in it. It was a warning here; the
-# engine refuses such a rule at request time now (decide: 'wrong-kind'), so a
-# saved one would shut the path to everyone, and the save says so instead. A name
-# the store does not hold is still accepted (a list may be created later). A store
-# that will not read cannot be checked: the names are accepted, as an unknown one
-# is, and `lazysite check` names the store. Returns the error text or undef.
-sub _address_list_kind_refusal {
-    my ($pairs) = @_;
-    return undef unless @$pairs;
-    require Lazysite::Auth::AddressLists;
-    no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
-    my $lists = Lazysite::Auth::AddressLists::lists();
-    my @wrong;
-    for my $p (@$pairs) {
-        my ( $f, $n ) = @$p;
-        my $want = $f eq 'addresses' ? 'allow' : 'deny';
-        push @wrong, "'$n' is " . ( $lists->{$n}{kind} eq 'allow' ? 'an allow' : 'a deny' ) . " list and is named in $f, which takes $want lists"
-            if $lists->{$n} && $lists->{$n}{kind} ne $want;
-    }
-    return undef unless @wrong;
-    return join( '; ', @wrong ) . '. Nothing was changed. Name a list of the kind the field takes (Access, Address lists shows each list\'s kind).';
-}
-
-# The warnings for a rule's address lists: [ field, name ] pairs.
-sub _address_list_warnings {
+# The warnings for a rule's address profiles: [ field, name ] pairs.
+sub _address_profile_warnings {
     my ($pairs) = @_;
     return () unless @$pairs;
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
-    my $lists = Lazysite::Auth::AddressLists::lists();
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
+    my $profiles = Lazysite::Auth::AddressProfiles::profiles();
     my @unknown;
     for my $p (@$pairs) {
         my ( $f, $n ) = @$p;
-        # the wrong kind never gets here: _address_list_kind_refusal
-        push @unknown, "$n ($f)" unless $lists->{$n};
+        push @unknown, "$n ($f)" unless $profiles->{$n};
     }
     my @w;
-    push @w, 'this rule names address lists the store does not hold yet: ' . join( ', ', @unknown )
-        . '. They are accepted, because a list may be created later. Until it exists, an allow list '
-        . 'that is missing admits NO address (the path is refused to everyone) and a deny list that '
-        . 'is missing blocks none.'
+    push @w, 'this rule names address profiles the store does not hold yet: ' . join( ', ', @unknown )
+        . '. They are accepted, because a profile may be created later. Until it exists, a missing '
+        . 'profile allowed admits NO address (the path is refused to everyone) and a missing profile '
+        . 'denied blocks none.'
         if @unknown;
     return @w;
 }
@@ -2831,19 +2804,20 @@ sub action_acl_set {
         return $no;
     }
 
-    # SM1139 (slice B of SM1134): THE RULE MAY NAME ADDRESS LISTS. `addresses`
-    # (allow) and `addresses_deny` are lists of list NAMES from the store SM1138
-    # keeps. Like `draft`, absent means "leave as it is" - this record is rebuilt
-    # from scratch, so an existing rule's lists would otherwise be erased by an
-    # unrelated change - and an empty list clears. A name must be a valid list
+    # SM1139 (slice B of SM1134): THE RULE MAY NAME ADDRESS PROFILES. `addresses`
+    # (allowed) and `addresses_deny` (denied) are lists of profile NAMES from the
+    # store SM1138 keeps; which of the two names a profile is the rule's choice
+    # (SM1343). Like `draft`, absent means "leave as it is" - this record is rebuilt
+    # from scratch, so an existing rule's profiles would otherwise be erased by an
+    # unrelated change - and an empty list clears. A name must be a valid profile
     # name (the store's own rule); a name the store does not know YET is accepted
-    # and WARNED about below, because a list may be created later (the same ruling
-    # as SM901's unknown account), not refused.
+    # and WARNED about below, because a profile may be created later (the same
+    # ruling as SM901's unknown account), not refused.
     my @addr_names;
     for my $f (qw(addresses addresses_deny)) {
         my $given = ref $opts eq 'HASH' ? $opts->{$f} : undef;
         if ( defined $given ) {
-            my ( $names, $why ) = _address_list_names( $given, $f );
+            my ( $names, $why ) = _address_profile_names( $given, $f );
             return { ok => 0, kind => 'invalid', field => $f, error => $why } if defined $why;
             $rec{$f} = $names                                                 if @$names;
             push @addr_names, map { [ $f, $_ ] } @$names;
@@ -2851,9 +2825,6 @@ sub action_acl_set {
         elsif ( $existing && ref $existing->{$f} eq 'ARRAY' && @{ $existing->{$f} } ) {
             $rec{$f} = [ @{ $existing->{$f} } ];
         }
-    }
-    if ( my $wrong = _address_list_kind_refusal( \@addr_names ) ) {
-        return { ok => 0, kind => 'invalid', field => 'addresses', error => $wrong };
     }
 
     # SM901: EVERY NAME IN A LIST IS CHECKED AGAINST THE STORE.
@@ -3158,11 +3129,11 @@ sub action_acl_set {
             . 'is spelt @name.';
     }
 
-    # SM1139: the address lists this rule names that the store does not hold, or
-    # holds the other way round. Accepted, because a list may be created later;
-    # said, because until it exists an allow list naming it admits nobody (the
-    # path is refused to every address) and a deny list naming it blocks nobody.
-    push @warnings, _address_list_warnings( \@addr_names );
+    # SM1139: the address profiles this rule names that the store does not hold.
+    # Accepted, because a profile may be created later; said, because until it
+    # exists allowing it admits nobody (the path is refused to every address) and
+    # denying it blocks nobody.
+    push @warnings, _address_profile_warnings( \@addr_names );
 
     # SM912 P4: said in the same place, for the same reason. A rule written
     # against a store that knows nobody is stored as typed and checked against

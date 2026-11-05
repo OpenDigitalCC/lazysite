@@ -306,12 +306,12 @@ my %T = (
         '$ACLS_FAULT' => [ exempt => $STATUS ],
         '%_acls_cache' => [ exempt => $KEYED ],
     },
-    'lib/Lazysite/Auth/AddressLists.pm' => {
-        '$FAULT'       => [ exempt => $STATUS ],
-        '$cache_key'   => [ exempt => $KEYED ],
-        '$cache_lists' => [ exempt => $KEYED ],
-        '$cache_sets'  => [ exempt => $KEYED ],
-        '%WARNED'      => [ exempt => 'warn-once latch for a bad list entry; holds the entry\'s text, not a visitor' ],
+    'lib/Lazysite/Auth/AddressProfiles.pm' => {
+        '$FAULT'          => [ exempt => $STATUS ],
+        '$cache_key'      => [ exempt => $KEYED ],
+        '$cache_profiles' => [ exempt => $KEYED ],
+        '$cache_sets'     => [ exempt => $KEYED ],
+        '%WARNED'         => [ exempt => 'warn-once latch for a bad profile entry; holds the entry\'s text, not a visitor' ],
     },
     'lib/Lazysite/Auth/AddressScope.pm' => {
         '%ADDR_MEMO'          => [ exempt => 'the client address worked out once per (auth dir, REMOTE_ADDR, X-Forwarded-For): the request\'s own inputs are the key, so one visitor\'s address never answers for another\'s' ],

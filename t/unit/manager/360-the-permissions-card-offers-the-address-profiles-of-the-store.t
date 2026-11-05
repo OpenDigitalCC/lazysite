@@ -1,15 +1,14 @@
 #!/usr/bin/perl
 # SM1139 (slice B of SM1134): the Files page's permissions card lets a rule name
-# address lists, chosen from the store, and sends exactly the names picked.
+# address profiles, chosen from the store, and sends exactly the names picked.
 #
 # Driven through the page's own JavaScript in node (PageScript), with a stand-in
 # card:
 #
-# - an allow list is offered under "Only these addresses" and a deny list under
-#   "Never these", never the other way round
-# - the lists the rule already names are selected
+# - every profile is offered under both pickers (SM1343: a profile has no kind)
+# - the profiles the rule already names are selected
 # - a name the rule carries that the store does not hold stays selected and says
-#   "no such list yet", so saving the card does not drop it silently
+#   "no such profile yet", so saving the card does not drop it silently
 # - chosenAddresses reads back the selected names of each picker
 # - the save sends `addresses` and `addresses_deny`, and a card with an address
 #   list and nothing else is NOT turned into an acl-remove
@@ -34,8 +33,8 @@ my $fns  = join "\n",
 my $dir = File::Temp->newdir;
 
 my $js = <<'JS';
-var ADDRESS_LISTS = [ { name: 'office', kind: 'allow' }, { name: 'vpn', kind: 'allow' },
-                      { name: 'blocked', kind: 'deny' } ];
+var ADDRESS_PROFILES = [ { name: 'office' }, { name: 'vpn' },
+                      { name: 'blocked' } ];
 function out(o) { console.log(JSON.stringify(o)); }
 
 function Opt(v, sel) { this.value = v; this.selected = sel; }
@@ -51,7 +50,7 @@ out({ step: 'block',
       allowHasOffice: /<option value="office" selected>/.test(block),
       allowHasVpn: /<option value="vpn">/.test(block),
       allowOffersDeny: /data-addr="allow"[^]*?<option value="blocked">[^]*?data-addr="deny"/.test(block),
-      ghost: /<option value="ghost" selected>ghost \(no such list yet\)<\/option>/.test(block),
+      ghost: /<option value="ghost" selected>ghost \(no such profile yet\)<\/option>/.test(block),
       denySelected: /<option value="blocked" selected>/.test(block),
       impact: (block.match(/data-impact="edit"/g) || []).length });
 
@@ -59,7 +58,7 @@ var c = new Card([ new Opt('office', true), new Opt('vpn', false), new Opt('ghos
                  [ new Opt('blocked', false) ]);
 out({ step: 'chosen', chosen: chosenAddresses(c) });
 
-// savePerms: a card with only an address list must be an acl-set carrying it.
+// savePerms: a card with only an address profile must be an acl-set carrying it.
 var sent = null;
 var API = '/api';
 function fetch(url, o) { sent = { url: url, body: JSON.parse(o.body) }; return new Promise(function () {}); }
@@ -93,12 +92,12 @@ require JSON::PP;
 my %r = map { my $o = eval { JSON::PP::decode_json($_) }; $o ? ( $o->{step} => $o ) : () } @lines;
 diag "node said: @lines" unless keys %r == 4;
 
-subtest 'the card offers lists of the right kind and keeps what the rule names' => sub {
+subtest 'the card offers every profile in both pickers and keeps what the rule names' => sub {
     my $s = $r{block} or return fail('no result');
-    ok $s->{allowHasOffice}, 'the allow list the rule names is selected under "Only these addresses"';
-    ok $s->{allowHasVpn},    'another allow list is offered, unselected';
-    ok !$s->{allowOffersDeny}, 'a deny list is not offered under "Only these addresses"';
-    ok $s->{denySelected},   'the deny list the rule names is selected under "Never these"';
+    ok $s->{allowHasOffice}, 'the profile the rule allows is selected under "Only these addresses"';
+    ok $s->{allowHasVpn},    'another profile is offered, unselected';
+    ok $s->{allowOffersDeny}, 'a profile denied elsewhere is offered under "Only these addresses" too';
+    ok $s->{denySelected},   'the profile the rule denies is selected under "Never these"';
     ok $s->{ghost},          'a name the store does not hold stays selected and is marked';
     is $s->{impact}, 2,      'both pickers declare their impact (lint 109)';
 };
@@ -109,9 +108,9 @@ subtest 'the names picked are read back' => sub {
         'only the selected options of each picker' );
 };
 
-subtest 'saving sends the address lists, and a card with only a list is not a removal' => sub {
+subtest 'saving sends the address profiles, and a card with only a profile is not a removal' => sub {
     my $s = $r{'save-address-only'} or return fail('no result');
-    is $s->{action}, 'acl-set', 'a card whose only content is an address list is an acl-set';
+    is $s->{action}, 'acl-set', 'a card whose only content is an address profile is an acl-set';
     is_deeply( $s->{body}{addresses}, ['office'], 'it sends addresses' );
     is_deeply( $s->{body}{addresses_deny}, [], 'and addresses_deny' );
     my $n = $r{'save-nothing'} or return fail('no result');

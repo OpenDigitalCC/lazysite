@@ -40,12 +40,14 @@ use warnings;
 our ( $DOCROOT, $LAZYSITE_DIR, $RESPONSE_LANG, $TT_COMPILE_DIR, %AUTH_CONTEXT, %PAYMENT_CONTEXT, %PREVIEW_CONTEXT, $RENDER_BY_ADDRESS );
 
 # SM1141 (slice D of SM1134): THE TEMPLATE TEST FOR THE VISITOR'S ADDRESS.
-# [% visitor.in_list('office') %] is true when the visitor's address is on that
-# list, [% visitor.in_any(['a','b']) %] when it is on any. MEMBERSHIP ONLY (ruled
-# 2026-10-17): `visitor` holds these two methods and no value, so there is no
-# spelling that prints the address, and the answer is a number, not a list.
+# [% visitor.in_list('office') %] is true when the visitor's address is in that
+# address profile, [% visitor.in_any(['a','b']) %] when it is in any. MEMBERSHIP ONLY
+# (ruled 2026-10-17): the template chooses what being in it means, so there is no
+# allow or deny here, and SM1343 kept the two method names. `visitor` holds these two
+# methods and no value, so there is no spelling that prints the address, and the
+# answer is a number, not a list.
 #
-# The address is Lazysite::Auth::AddressLists::client_address(), the one reader
+# The address is Lazysite::Auth::AddressProfiles::client_address(), the one reader
 # that honours trusted_proxies, never X-Forwarded-For read here. The module is
 # loaded when a template first asks, so a page that never asks pays nothing and
 # the render path stays free of the Lazysite:: tree (ADR 0001). The flag is set
@@ -57,12 +59,12 @@ sub _visitor_tests {
         my (@names) = grep { defined && !ref } map { ref($_) eq 'ARRAY' ? @{$_} : $_ } @_;
         $RENDER_BY_ADDRESS = 1;
         my $ok = eval {
-            _lazy_lib('Lazysite::Auth::AddressLists');
-            local $Lazysite::Auth::AddressLists::AUTH_DIR = "$LAZYSITE_DIR/auth";
-            my $ip  = Lazysite::Auth::AddressLists::client_address();
+            _lazy_lib('Lazysite::Auth::AddressProfiles');
+            local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$LAZYSITE_DIR/auth";
+            my $ip  = Lazysite::Auth::AddressProfiles::client_address();
             my $hit = 0;
             for my $n (@names) {
-                if ( Lazysite::Auth::AddressLists::in_list( $ip, $n ) ) { $hit = 1; last }
+                if ( Lazysite::Auth::AddressProfiles::in_profile( $ip, $n ) ) { $hit = 1; last }
             }
             $hit;
         };

@@ -949,28 +949,30 @@ visitor's address (SM929, "The request address"). The 0.15.10 and 0.15.11 change
 Access can be limited by the visitor's address. It narrows what the existing rules
 grant and never widens it.
 
-- **Lists** (SM1138): named allow or deny lists of addresses and CIDR ranges in
-  `lazysite/auth/address-lists.json`, written only by the users tool and audited.
-  `Lazysite::Auth::AddressLists::decide` is the one module that answers: deny wins,
-  an allow list means only those addresses, an unreadable store denies whenever a
-  rule names a list (SM1024's rule), an address that cannot be worked out denies,
-  and a name the store does not hold in an allow slot admits nobody. Matching is
+- **Profiles** (SM1138; SM1343, 0.16.5): named sets of addresses and CIDR ranges in
+  `lazysite/auth/address-profiles.json`, written only by the users tool and audited.
+  A profile has no kind: each rule that names one allows it (`addresses`) or denies
+  it (`addresses_deny`). `Lazysite::Auth::AddressProfiles::decide` is the one module
+  that answers: deny wins, a profile allowed means only those addresses, an
+  unreadable store (or the address lists of an earlier release the upgrade has not converted, SM1345) denies
+  whenever a rule names a profile (SM1024's rule), an address that cannot be worked
+  out denies, and a name the store does not hold in an allow slot admits nobody. Matching is
   `trusted_proxies`' matcher, so an address means the same everywhere; a prefix of 0
   is refused; an IPv4-mapped IPv6 address is an IPv6 address.
 - **Pages, files and folders** (SM1139): `addresses` and `addresses_deny` in front
-  matter and in `acls.json`. Every layer that names a list must admit (AND across
+  matter and in `acls.json`. Every layer that names a profile must admit (AND across
   layers, OR within one), so an inner rule cannot open what an outer one limits. The
   address is asked first, before the who-may-read rule, so `auth: none` on a page
   cannot lift it. Enforced in the processor, WebDAV, the manager API and MCP.
-  The refusal says the page is not available from this address and names no list.
-- **Groups** (SM1140): a group carrying a list does not count for a request from a
+  The refusal says the page is not available from this address and names no profile.
+- **Groups** (SM1140): a group naming a profile does not count for a request from a
   refused address - not its capabilities, page access or operator status, nor
   anything reached through it by nesting. The account stays signed in with its other
   groups. The limit is applied in `Auth::Settings::_group_closure`, the processor's
   marked copy, and `request_identity`; machine doors cut the caller's settings back
   with `narrow_caps_to_request`, which only removes. Outside a web request (the users
   tool, scheduler) the rules do not apply.
-- **The template test** (SM1141): `visitor.in_list` and `visitor.in_any` expose list
+- **The template test** (SM1141): `visitor.in_list` and `visitor.in_any` expose profile
   membership only, never the address; a render that asked is the visitor's own and
   never cached. `lazysite check` warns when rules exist and `trusted_proxies` trusts
   no front end, or leaves the default behind a front end it does not cover.

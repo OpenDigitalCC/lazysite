@@ -68,7 +68,7 @@ my @TEXTS = (
     "title: T\r\nauth: required\r\nauth_groups: [a, b]\r\n",
     "tt_page_var:\n  auth: x\n",
     "sections:\n  - auth_groups: [x]\n",
-    # SM1139: the address lists a page names, read as auth_groups is.
+    # SM1139: the address profiles a page names, read as auth_groups is.
     "addresses: [office]\n",
     "addresses: [office, vpn]\naddresses_deny: [blocked]\n",
     "addresses:\n  - office\n  - vpn\n",
@@ -97,7 +97,7 @@ subtest 'the pin can see a difference at all' => sub {
     is_deeply( proc("auth_groups:\n- a\n- b\n")->{auth_groups}, [qw(a b)],
         'a block list at the key\'s own column is read (valid YAML)' );
     is_deeply( proc("auth_groups: [a, b]\n")->{auth_groups}, [qw(a b)], 'the flow list is read' );
-    is_deeply( proc("addresses: [office, vpn]\n")->{addresses}, [qw(office vpn)], 'SM1139: an address list name list is read' );
+    is_deeply( proc("addresses: [office, vpn]\n")->{addresses}, [qw(office vpn)], 'SM1139: an address profile name list is read' );
     ok( proc("addresses: [Office]\n")->{unreadable}{addresses}, 'SM1139: a name the store could not hold is unreadable' );
     ok( proc("auth_groups: a\n")->{unreadable}{auth_groups}, 'a bare name is not a list' );
     ok( proc("auth: \"x\"\n")->{unreadable}{auth}, 'an unknown auth value is unreadable' );
@@ -138,7 +138,7 @@ for my $t (@TEXTS) {
     is_deeply( $peek->{unreadable} // {}, $want->{unreadable}, "peek agrees on what is unreadable: page $i" );
     is_deeply( $peek->{groups}, ( $want->{auth_groups} && @{ $want->{auth_groups} } ? $want->{auth_groups} : [] ),
         "peek agrees on the groups: page $i" );
-    # SM1139: and on the address lists, which the gate reads from the same peek.
+    # SM1139: and on the address profiles, which the gate reads from the same peek.
     for my $k (qw(addresses addresses_deny)) {
         is_deeply( $peek->{$k}, ( $want->{$k} && @{ $want->{$k} } ? $want->{$k} : [] ),
             "peek agrees on $k: page $i" );

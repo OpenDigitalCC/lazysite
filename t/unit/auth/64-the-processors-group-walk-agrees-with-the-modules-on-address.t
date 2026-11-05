@@ -5,7 +5,7 @@
 # A request's groups are resolved in one place per side: Auth::Settings::_group_closure
 # for everything that loads the library, and lazysite-processor/acl.pm's `_group_closure`
 # for the render path, which loads no Lazysite:: module up front (ADR 0001). A group
-# whose address list refuses the visitor is left out of the walk, and nothing is reached
+# whose address profile refuses the visitor is left out of the walk, and nothing is reached
 # through it. If the two copies drifted, the page gate and the capability gates would
 # disagree about who is in a group - the defect SM1129 and SM1135 each pinned for their
 # own copy. The processor's functions are lifted out of the source by name and run
@@ -60,9 +60,9 @@ spit( "$lz/auth/groups-settings.json", encode_json( {
     open  => {},
     plain => {},
 } ) );
-spit( "$lz/auth/address-lists.json", encode_json( {
-    office  => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
-    blocked => { kind => 'deny',  entries => [ { cidr => '203.0.113.9',    note => '' } ] },
+spit( "$lz/auth/address-profiles.json", encode_json( {
+    office  => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
+    blocked => { entries => [ { cidr => '203.0.113.9',    note => '' } ] },
 } ) );
 
 require Lazysite::Auth::Settings;

@@ -31,11 +31,11 @@ package Lazysite::Odoo::Binding;
 #   visitor_param  the parameter that receives the visitor's key - minted by
 #                  the server (Lazysite::Odoo::Visitor), never read from input.
 #                  This is what keeps a visitor to their own basket.
-#   address_param  SM1280 (ruling 3): with `address_profile` (ruling 58: address
-#                  lists become address profiles; for now it names an address
-#                  list), the parameter that receives WHETHER the call came from
-#                  inside it (SM1134) - 1 or 0, decided by the server from the request's
-#                  address behind the trusted proxies (SM929). The address itself
+#   address_param  SM1280 (ruling 3): with `address_profile` (ruling 58: the
+#                  name of an address profile, SM1343), the parameter that
+#                  receives WHETHER the call came from inside it (SM1134) -
+#                  1 or 0, decided by the server from the request's address
+#                  behind the trusted proxies (SM929). The address itself
 #                  is never passed, and nothing a request sends can set it.
 #
 # A name in two of the three is refused at save: the order of precedence would
@@ -211,7 +211,7 @@ sub parse {
     $b{domain} = lc( $h->{domain} // '' );
 
     # SM1280 (ruling 3, 2026-10-22): the operation may be told whether the call came
-    # from inside a named address list - a soft fence (on the office network, accept;
+    # from inside a named address profile - a soft fence (on the office network, accept;
     # elsewhere, ask for more), where SM1159's signin_addresses is a hard one. Only the
     # yes or no reaches the operation, never the address.
     my ( $al, $ap ) = map { ( $_ // '' ) =~ s/\A\s+|\s+\z//gr } $h->{address_profile}, $h->{address_param};
@@ -219,7 +219,7 @@ sub parse {
         return ( undef, 'address_profile and address_param go together: the profile says where from, and the '
                 . 'parameter receives whether the call came from inside it', length $al ? 'address_param' : 'address_profile' )
             unless length $al && length $ap;
-        return ( undef, "address_profile: '$al' is not the name of an address profile (for now, an address list's name)", 'address_profile' ) unless $al =~ /\A[a-z0-9_-]{1,64}\z/;
+        return ( undef, "address_profile: '$al' is not the name of an address profile", 'address_profile' ) unless $al =~ /\A[a-z0-9_-]{1,64}\z/;
         return ( undef, "address_param '$ap' is not a parameter name", 'address_param' ) unless $ap =~ $PARAM;
     }
     $b{address_profile} = $al;
@@ -283,7 +283,7 @@ sub parse {
     }
 
     # SM1159 (L2): a session binding may carry its own sign-in address limit, names of
-    # address lists (SM1138), which can only narrow the site's `signin_addresses`.
+    # address profiles (SM1138), which can only narrow the site's `signin_addresses`.
     # Held on the binding's calls (the sign-in itself names no binding). Meaning
     # nothing on a connection binding, it is refused there rather than ignored.
     for my $k (qw(signin_addresses signin_addresses_deny)) {
@@ -293,7 +293,7 @@ sub parse {
         next unless @n;
         return ( undef, "$k limits sign-in through a session binding; a connection binding has no sign-in", $k )
             unless $cred eq 'session';
-        for (@n) { return ( undef, "$k: '$_' is not an address list name", $k ) unless /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/ }
+        for (@n) { return ( undef, "$k: '$_' is not an address profile name", $k ) unless /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/ }
         $b{$k} = \@n;
     }
 
@@ -467,7 +467,7 @@ sub check_against {
     if ( length( $b->{address_param} // '' ) ) {    # SM1280
         my $t = $spec->{ $b->{address_param} }{type} // 'str';
         return "address_param '$b->{address_param}' is $t - it receives whether the call came from inside "
-            . "the address list, yes or no (bool)"
+            . "the address profile, yes or no (bool)"
             unless $t eq 'bool';
     }
     return '';

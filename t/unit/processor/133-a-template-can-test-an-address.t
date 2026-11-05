@@ -26,10 +26,10 @@ make_path("$d/lazysite/auth");
 open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "trusted_proxies: 10.0.0.0/8\n";
 close $cf;
-open my $sf, '>', "$d/lazysite/auth/address-lists.json" or die $!;
+open my $sf, '>', "$d/lazysite/auth/address-profiles.json" or die $!;
 print {$sf} encode_json( {
-        office => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
-        branch => { kind => 'allow', entries => [ { cidr => '198.51.100.0/24', note => '' } ] },
+        office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
+        branch => { entries => [ { cidr => '198.51.100.0/24', note => '' } ] },
 } );
 close $sf;
 
@@ -86,7 +86,7 @@ via( '/plain', '203.0.113.9' );
 ok( -f "$d/plain.html", 'a page that does not ask the address is cached' );
 
 # A faulted store answers false (the rule layer denies; the template just cannot say yes).
-open my $bad, '>', "$d/lazysite/auth/address-lists.json" or die $!;
+open my $bad, '>', "$d/lazysite/auth/address-profiles.json" or die $!;
 print {$bad} "{ not json";
 close $bad;
 like( via( '/where', '203.0.113.9' ), qr/IN:\s*no:END/, 'a store that will not decode: false' );

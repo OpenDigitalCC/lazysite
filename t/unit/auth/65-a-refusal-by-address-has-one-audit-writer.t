@@ -30,8 +30,8 @@ make_path( "$lz/auth", "$lz/logs" );
 spit( "$lz/lazysite.conf", "trusted_proxies: 127.0.0.1\nmanager_addresses: office\n" );
 spit( "$lz/auth/groups", "g-ed: ed\n" );
 spit( "$lz/auth/groups-settings.json", encode_json( { 'g-ed' => { ui => 1, addresses => ['office'] } } ) );
-spit( "$lz/auth/address-lists.json", encode_json( {
-    office => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
+spit( "$lz/auth/address-profiles.json", encode_json( {
+    office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] },
 } ) );
 
 require Lazysite::Auth::Settings;
@@ -47,7 +47,7 @@ local $ENV{HTTP_X_FORWARDED_FOR} = $OUT;
 # The page refusal, as every page door writes it (processor, manager API, WebDAV).
 my $page = sub {
     Lazysite::Auth::AddressAudit::refused( lazysite_dir => $lz, target => '/rota', address => $OUT,
-        reason => 'not-allowed', lists => ['office'], origin => 'web' );
+        reason => 'not-allowed', profiles => ['office'], origin => 'web' );
 };
 # The group refusal, through the real walk every capability gate goes through.
 my $group = sub { Lazysite::Auth::Settings::group_closure('g-ed') };
@@ -62,9 +62,9 @@ is( scalar( grep { /\| address-refused \| group g-ed \| \Q$OUT\E \|/ } @rows ), 
 is( scalar( grep { /\| address-refused \| manager \| \Q$OUT\E \|/ } @rows ),      1, 'the manager refusal is its own row, once' );
 is( scalar @rows, 3, 'and nothing else' ) or diag($log);
 
-# One shape: user | address-refused | target | address | fail | origin | reason; lists NAMES
+# One shape: user | address-refused | target | address | fail | origin | reason; profiles NAMES
 for my $r (@rows) {
-    like( $r, qr/\| address-refused \| [^|]+ \| \Q$OUT\E \| fail \| \w+ \| not-allowed; lists office\z/,
+    like( $r, qr/\| address-refused \| [^|]+ \| \Q$OUT\E \| fail \| \w+ \| not-allowed; profiles office\z/,
         "one row shape: $r" );
 }
 

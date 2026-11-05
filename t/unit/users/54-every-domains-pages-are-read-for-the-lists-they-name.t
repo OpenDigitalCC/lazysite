@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM1141 (slice D of SM1134), checked when the slices were stacked: EVERY DOMAIN'S
-# PAGES ARE READ FOR THE ADDRESS LISTS THEY NAME.
+# PAGES ARE READ FOR THE ADDRESS PROFILES THEY NAME.
 #
 # SM1141's filing left open: "Pages are looked for under the docroot and its private
 # store; a domain with its own content root outside both is not walked." There is no
@@ -50,8 +50,8 @@ spit( "$d/lazysite/lazysite.conf", join "\n",
     # written as an absolute path: the engine serves it from <docroot>/abs
     'alias.abs.example.org.content_root: /abs',
     '' );
-spit( "$d/lazysite/auth/address-lists.json", encode_json( {
-    ( map { $_ => { kind => 'allow', entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } qw(l-ext l-priv l-abs) ),
+spit( "$d/lazysite/auth/address-profiles.json", encode_json( {
+    ( map { $_ => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } qw(l-ext l-priv l-abs) ),
 } ) );
 spit( "$d/sites/ext/p.md",               "---\ntitle: P\naddresses: [l-ext]\n---\nP\n" );
 spit( "$priv/sites/ext/members/m.md",    "---\ntitle: M\nauth: required\naddresses:\n  - l-priv\n---\nM\n" );
@@ -65,7 +65,7 @@ is( $found{'l-priv'}, 'sites/ext/members/m.md', 'a gated page of that domain, in
 is( $found{'l-abs'},  'abs/a.md',               'a page under a root written as an absolute path is read where it is served' );
 
 for my $n (qw(l-ext l-priv l-abs)) {
-    my $del = api( $d, { action => 'address-list-delete', name => $n } );
+    my $del = api( $d, { action => 'address-profile-delete', name => $n } );
     ok( !$del->{ok}, "the delete guard refuses $n" );
     is( $del->{kind}, 'in-use', '...as in use' ) or diag( $del->{error} // '' );
 }

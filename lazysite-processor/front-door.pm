@@ -66,7 +66,7 @@ our ( $DOCROOT, $LAZYSITE_DIR, $FRONT_CGIBIN, $RELAY_TIMEOUT, $REQUEST_IDENT, $T
 # process and loads what it needs, as before.
 our @POOL_PRELOAD = qw(
     Lazysite::Auth::Identity
-    Lazysite::Auth::AddressLists
+    Lazysite::Auth::AddressProfiles
     Lazysite::Auth::AddressAudit
     Lazysite::Auth::AddressScope
     Lazysite::I18n

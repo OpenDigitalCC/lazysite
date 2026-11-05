@@ -956,10 +956,10 @@ sub group_confers_operator {
 # which cannot load this tree up front (ADR 0001); t/unit/processor/140 holds the
 # two chains and the sentence to the same answers.
 #
-# THE LAYERS. Every acls.json entry that names an address list for $rel - its own
+# THE LAYERS. Every acls.json entry that names an address profile for $rel - its own
 # key, its page stem's, each ancestor folder's, the site-wide rule - is one layer.
-# Each layer is decided alone by Lazysite::Auth::AddressLists::decide (the address
-# in one of its allow lists, in none of its deny lists) and EVERY layer must admit:
+# Each layer is decided alone by Lazysite::Auth::AddressProfiles::decide (the address
+# in one of the profiles it allows, in none of those it denies) and EVERY layer must admit:
 # AND across layers, OR within one, deny wins. See the processor's note for why this
 # is not the longest-match rule the read lists use.
 sub address_chain {
@@ -1005,13 +1005,13 @@ sub address_denial {
     my $layers = address_chain( $map, $rel );
     return undef unless @$layers;
 
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     require Lazysite::Auth::AddressAudit;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = _settings_dir();
-    my $address = Lazysite::Auth::AddressLists::client_address();
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = _settings_dir();
+    my $address = Lazysite::Auth::AddressProfiles::client_address();
     for my $l (@$layers) {
-        my ( $verdict, $why ) = Lazysite::Auth::AddressLists::decide( $address,
+        my ( $verdict, $why ) = Lazysite::Auth::AddressProfiles::decide( $address,
             allow => $l->{allow}, deny => $l->{deny} );
         next if $verdict eq 'allow';
         Lazysite::Auth::AddressAudit::refused(
@@ -1019,7 +1019,7 @@ sub address_denial {
             target       => '/' . ( _acl_norm($rel) // '' ),
             address      => $address,
             reason       => $why,
-            lists        => [ @{ $l->{allow} }, @{ $l->{deny} } ],
+            profiles     => [ @{ $l->{allow} }, @{ $l->{deny} } ],
             origin       => ( $origin // 'api' ),
         );
         return { ok => 0, kind => 'address', error => 'This page is not available from your address.' };

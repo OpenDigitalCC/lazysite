@@ -80,8 +80,8 @@ subtest 'a passwordless account is flagged in the value' => sub {
 };
 
 subtest 'groups go through the address filter the reader applies' => sub {
-    spit( "$lz/auth/address-lists.json",
-        encode_json( { office => { kind => 'allow', entries => [ { cidr => '198.51.100.0/24', note => 'HQ' } ] } } ) );
+    spit( "$lz/auth/address-profiles.json",
+        encode_json( { office => { entries => [ { cidr => '198.51.100.0/24', note => 'HQ' } ] } } ) );
     spit( "$lz/auth/groups-settings.json", encode_json( { 'office-only' => { addresses => ['office'] } } ) );
     local $ENV{REQUEST_METHOD} = 'GET';
     local $ENV{REMOTE_ADDR}    = '198.51.100.4';
@@ -90,7 +90,7 @@ subtest 'groups go through the address filter the reader applies' => sub {
     local $ENV{REMOTE_ADDR} = '203.0.113.9';
     ($v) = session( cookie => cookie('alice') );
     is_deeply( $v->{groups}, ['staff'], 'from outside it, the limited group does not count' );
-    unlink "$lz/auth/groups-settings.json", "$lz/auth/address-lists.json";
+    unlink "$lz/auth/groups-settings.json", "$lz/auth/address-profiles.json";
 };
 
 subtest 'a trusted proxy user wins, and the cookie is not consulted' => sub {

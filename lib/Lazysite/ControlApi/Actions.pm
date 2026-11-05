@@ -283,9 +283,9 @@ our %GATE = (
     # creates one, giving it only capabilities it holds (Manager::Groups).
     'groups-list' => [qw(manage_users)],
     'group-set'   => [qw(manage_users)],
-    # SM1138 (slice A of SM1134): the address lists, read-only on the token doors.
+    # SM1138 (slice A of SM1134): the address profiles, read-only on the token doors.
     # Writing them is the operator's and cookie-only (see %ACTION).
-    'address-lists' => [qw(manage_users)],
+    'address-profiles' => [qw(manage_users)],
     # SM1053: a partner stages an account import for the operator to apply.
     'accounts-import-stage' => [qw(manage_users)],
     # n571: the account that staged it, or the operator, removes a staged import.
@@ -439,13 +439,13 @@ our %ACTION = (
     # [cookie_cap] SM591: no copy survives
     # [mcp] delete_brief: destroys a record; changes nothing live
     'brief-delete' => { mcp => 'delete_brief', mutates => 1, destructive => 1, cookie_cap => 'purge', params => [ { name => 'path', in => 'query' } ] },
-# SM1138 (slice A of SM1134): named address lists. The read is manage_users on every door; the
-# writes are the OPERATOR's (Manager::AddressLists), and the operator is never a token
-# (SM991), so they are cookie-only. A list decides who may reach a page, a group or the
-# manager, so it changes access the way a file's rule does.
-    'address-list-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'force', in => 'body' } ] },
-    'address-list-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address lists are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'kind', in => 'body' }, { name => 'entries', in => 'body' } ] },
-    'address-lists' => { mcp => 'list_address_lists', cookie_cap => 'manage_users', params => [] },
+# SM1138 (slice A of SM1134), SM1343: named address profiles. The read is manage_users on every
+# door; the writes are the OPERATOR's (Manager::AddressProfiles), and the operator is never a
+# token (SM991), so they are cookie-only. A profile decides who may reach a page, a group or
+# the manager, so it changes access the way a file's rule does. A profile has no kind.
+    'address-profile-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'force', in => 'body' } ] },
+    'address-profile-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'entries', in => 'body' } ] },
+    'address-profiles' => { mcp => 'list_address_profiles', cookie_cap => 'manage_users', params => [] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },
     'analyse_visitors' => { mcp => 'analyse_visitors', cookie_cap => 'analytics', params => [ { name => 'window', in => 'query' }, { name => 'day', in => 'query' }, { name => 'month', in => 'query' }, { name => 'index', in => 'query' }, { name => 'trails', in => 'query' }, { name => 'host', in => 'query' }, { name => 'by_host', in => 'query' }, { name => 'by_account', in => 'query' } ] },
     # [cookie_cap] SM591: no copy survives
@@ -1100,6 +1100,26 @@ sub cookie_caps         { return _valued('cookie_cap') }
 sub cookie_gates_itself { return _valued('cookie_gates_itself') }
 sub cookie_only_reasons { return _valued('cookie_only_reason') }
 sub content_writes      { return _flagged('content_write') }
+
+# SM1343 (ruling 56): THE ADDRESS-LIST NAMES WERE RENAMED OUTRIGHT, with no alias,
+# as SM1142 renamed the plugin actions. A caller still sending an old name is told
+# the new one rather than "no such action", on the control API and MCP alike.
+# old-address-name: begin (SM1343, the refusal names the spelling it refuses)
+my %RENAMED = (
+    'address-lists'       => 'address-profiles',
+    'address-list-set'    => 'address-profile-set',
+    'address-list-delete' => 'address-profile-delete',
+    'list_address_lists'  => 'list_address_profiles',
+);
+
+# The refusal text for an old name, or undef for any other.
+sub renamed_refusal {
+    my ($name) = @_;
+    return undef unless defined $name && exists $RENAMED{$name};
+    return "unknown " . ( $name =~ /_/ ? 'tool' : 'action' ) . " '$name': address lists are address "
+        . "profiles now, so use '$RENAMED{$name}' (SM1343)";
+}
+# old-address-name: end
 
 # SM1043: the actions whose subject is always the signed-in caller (`self`).
 sub self_actions { return _flagged('self') }

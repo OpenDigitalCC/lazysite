@@ -65,8 +65,9 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     `X-Forwarded-For` through lets any visitor choose their address, so the rollout
     and `lazysite check` name that as a failure. Every address-keyed control and
     every address rule sits behind this boundary.
-11. **The address rule** (SM1134, 0.15.10) -> named allow and deny lists that pages,
-    folders and groups apply; it narrows what other rules grant and never widens it.
+11. **The address rule** (SM1134, 0.15.10; SM1343, 0.16.5) -> named address profiles
+    that pages, folders and groups allow or deny; it narrows what other rules grant
+    and never widens it.
 12. **The Odoo extension** (SM747, 0.15.5; SM1160, 0.15.10) -> an outbound
     connection to an ERP on the operator's URL, a connection user's key, a person's
     own Odoo session, an anonymous visitor's bounded write path, and (opt-in) the

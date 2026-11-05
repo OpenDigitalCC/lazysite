@@ -64,7 +64,7 @@ search: false
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var currentDir = '/';
 var PRINCIPALS = { users: [], groups: [] };   // SM077: assignable users + @groups
-var ADDRESS_LISTS = [];                       // SM1139: [{ name, kind }] the rule may name
+var ADDRESS_PROFILES = [];                    // SM1139: [{ name }] the rule may name
 
 // SM019: must mirror %TEXT_EXTENSIONS in lazysite-manager-api.pl.
 var TEXT_EXTENSIONS = {
@@ -159,7 +159,7 @@ function loadDir(dir) {
             }
             return;
           }
-          ADDRESS_LISTS = data.address_lists || [];
+          ADDRESS_PROFILES = data.address_profiles || [];
           renderFiles(data.entries || []);
           updateSelection();
         });
@@ -608,22 +608,20 @@ function protectionBlock(f) {
     + '</div>' + acts;
 }
 
-// SM1139: the address lists a rule may name, as the two pickers of the permissions
-// card. Only the lists of the right kind are offered (an allow list under "Only
-// these addresses", a deny list under "Never these"); a name the rule already
-// carries that the store does not hold stays selected and is marked, so saving the
-// card does not silently drop it.
+// SM1139: the address profiles a rule may name, as the two pickers of the permissions
+// card. A profile has no kind (SM1343), so either picker offers every profile; a
+// name the rule already carries that the store does not hold stays selected and is
+// marked, so saving the card does not silently drop it.
 function addressOptions(kind, chosen) {
   chosen = chosen || [];
   var have = {};
   var h = '';
-  ADDRESS_LISTS.forEach(function(l) {
+  ADDRESS_PROFILES.forEach(function(l) {
     have[l.name] = true;
-    if (l.kind !== kind) return;
     h += '<option value="' + escHtml(l.name) + '"' + (chosen.indexOf(l.name) >= 0 ? ' selected' : '') + '>' + escHtml(l.name) + '</option>';
   });
   chosen.forEach(function(n) {
-    if (!have[n]) h += '<option value="' + escHtml(n) + '" selected>' + escHtml(n) + ' (no such list yet)</option>';
+    if (!have[n]) h += '<option value="' + escHtml(n) + '" selected>' + escHtml(n) + ' (no such profile yet)</option>';
   });
   return h;
 }
@@ -634,7 +632,7 @@ function addressBlock(f) {
     +   '<select multiple data-addr="allow" data-impact="edit">' + addressOptions('allow', f.addresses) + '</select></div>'
     + '<div class="mg-perms-owner"><label>Never these</label>'
     +   '<select multiple data-addr="deny" data-impact="edit">' + addressOptions('deny', f.addresses_deny) + '</select></div>'
-    + '<div class="mg-perms-hint">A visitor outside every list under <b>Only these addresses</b> is told the page is not available from their address; one on a list under <b>Never these</b> is refused whatever else allows them. Where a folder above also names lists, the address must satisfy both. Lists are kept under Access &rarr; Address lists.</div>';
+    + '<div class="mg-perms-hint">A visitor outside every list under <b>Only these addresses</b> is told the page is not available from their address; one on a list under <b>Never these</b> is refused whatever else allows them. Where a folder above also names lists, the address must satisfy both. Lists are kept under Access &rarr; Address profiles.</div>';
 }
 
 // The names chosen in a card's two address pickers.

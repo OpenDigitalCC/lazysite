@@ -152,7 +152,7 @@ sub _group_closure {
     my %membership = _groups_membership();
     my $gs         = read_group_settings();
 
-    # SM1140 (slice C of SM1134, ruled: a group's address list limits only what the
+    # SM1140 (slice C of SM1134, ruled: a group's address profile limits only what the
     # group grants): THE ONE PLACE A REQUEST'S GROUPS ARE WALKED. Every gate that
     # asks what a request's groups grant or open (capabilities, operator status,
     # page access, per-file @group entries, domain access) resolves membership here
@@ -529,7 +529,7 @@ our $ADDRESS_RULES = 1;
 # ADDRESS. The cookie manager reads the caller's settings from the users tool and an
 # OAuth connector's from `partner-caps` (also the tool), and a deployment that names
 # LAZYSITE_USERS_TOOL verifies a token there too; the tool answers what the account's
-# groups grant, whoever asks from wherever. A group whose address list refuses this
+# groups grant, whoever asks from wherever. A group whose address profile refuses this
 # request must not count at the door, so the capabilities are cut back to what
 # caps_for (which walks the filtered membership) says. It only ever removes: a
 # capability the tool did not report stays absent. Nothing to do, and nothing read
