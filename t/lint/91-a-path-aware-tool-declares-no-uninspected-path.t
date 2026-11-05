@@ -68,6 +68,9 @@ $NOT_A_PATH{filename} = 1;
 # SM1278: and a run id, the keys of the changes a person says were or were not
 # made, and a dismissal's line of reason.
 $NOT_A_PATH{$_} = 1 for qw(run assume_done assume_not_done reason);
+# SM1327: write_file's base_mtime - a modification time in seconds, compared with
+# the file the path already names.
+$NOT_A_PATH{base_mtime} = 1;
 
 # A path-shaped name that is not a content path on this tool, and why.
 my %NOT_A_PATH_HERE = (

@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1327 (PENDING) **A write names the version it replaces.** MCP `write_file` saved with
+  no modification time, which skips the save's conflict check, so an agent writing back a
+  file it had read replaced whatever another writer saved in between. It takes an optional
+  `base_mtime`, the `mtime` `read_file` answers (`read_page`'s `modified`): given and stale,
+  nothing is written and the answer is a conflict (`kind: conflict`) naming the file's
+  current `mtime`; a base for a file that no longer exists is refused the same way; absent,
+  the write is what it was. `rename_page`'s alias and its link rewrite, which read a page
+  and write it back, now save with the time they read, as `replace_text` does. The
+  building-sites briefing says to write back with the version read. Ruled 2026-11-04
+  (ruling 51, part (b)).
+
 - SM1325 (PENDING) **A site can audit the AI reads of its pages and files.** Ruling 50 (T-17):
   a successful read is kept off the audit trail (SM943). `audit_reads: on` in lazysite.conf
   records each successful MCP `read_file`, `read_page`, `view_version` and `preview_page`, and a

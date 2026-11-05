@@ -1014,14 +1014,41 @@ my %TOOLS = (
     },
     write_file => {
         path_args => [qw(path)],
-        description => 'Create or overwrite a text file with the given content. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no sysop-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
+        description => 'Create or overwrite a text file with the given content. TO CHANGE A FILE ANOTHER WRITER MAY ALSO BE CHANGING, pass `base_mtime`: the `mtime` read_file returned (read_page calls it `modified`). If the file has been saved since that read, nothing is written and the answer is a conflict (kind conflict) naming the file\'s current mtime: read it again, make the change on what it holds now, and write with the new mtime. Without base_mtime the file is written whatever it holds. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no sysop-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
-            properties => { path => { type => 'string' }, content => { type => 'string' } },
+            properties => { path => { type => 'string' }, content => { type => 'string' },
+                base_mtime => { type => 'integer',
+                    description => 'The mtime read_file returned for this file (read_page: modified). Given, the write is refused as a conflict if the file was saved since; absent, the file is written whatever it holds.' } },
             required => [ 'path', 'content' ], additionalProperties => JSON::PP::false },
         run => sub {
             my ( $a, $user ) = @_;
-            my $r = action_save( $a->{path}, $user, $a->{content}, undef );
+            # SM1327 (ruling 51 (b), T-06): A WRITE MAY NAME THE VERSION IT REPLACES.
+            # write_file saved with mtime undef, which skips action_save's conflict
+            # check, so an agent writing back a file it had read overwrote whatever
+            # another writer had saved in between. With base_mtime the check runs;
+            # without it the write is what it always was.
+            my $base = $a->{base_mtime};
+            if ( defined $base ) {
+                return { ok => 0, kind => 'invalid', field => 'base_mtime',
+                    error => 'base_mtime must be the whole number of seconds read_file returned as mtime.' }
+                    if ref $base || $base !~ /\A[1-9][0-9]*\z/;
+                # A base names a version, and a file that is gone is not that version:
+                # action_save would create it afresh.
+                my $vp = Lazysite::Manager::Common::validate_path( $a->{path} );
+                return { ok => 0, conflict => 1, kind => 'conflict',
+                    error => "'" . ( $a->{path} // '' ) . "' no longer exists, so it is not the version "
+                        . 'base_mtime names, and nothing was written. list_files shows what is there; '
+                        . 'write without base_mtime to create it.' }
+                    if ref $vp eq 'HASH' && $vp->{ok} && !-f $vp->{full};
+            }
+            my $r = action_save( $a->{path}, $user, $a->{content}, $base );
+            if ( ref $r eq 'HASH' && $r->{conflict} ) {
+                return { %$r, kind => 'conflict',
+                    error => "'" . ( $a->{path} // '' ) . "' was saved after the read base_mtime $base "
+                        . "came from: its mtime is now $r->{mtime}, and nothing was written. Read it again, "
+                        . 'make the change on what it holds now, and write with that mtime.' };
+            }
             # Validate-on-write: surface front-matter / form / public-data issues
             # in the write result so the agent sees them without a second call.
             if ( ref $r eq 'HASH' && $r->{ok} ) {
@@ -4281,12 +4308,15 @@ sub _rewrite_links {
     my $truncated = _each_page( sub {
             my ( $rel, $full ) = @_;
             open my $fh, '<:utf8', $full or return;
+            my $read_mtime = ( stat $fh )[9];
             local $/; my $c = <$fh>; close $fh;
             my $orig = $c;
             $c =~ s{(/)\Q$old\E(?=[\s)"'#?\]]|\z)}{$1$new}g;
             $c =~ s{\b\Q$old\E\.md\b}{$new.md}g;
             if ( $c ne $orig ) {
-                my $sr = action_save( "/$rel", $user, $c, undef );
+                # SM1327: saved with the time it read, so a page saved since is
+                # refused (and not counted) rather than written back without it.
+                my $sr = action_save( "/$rel", $user, $c, $read_mtime );
                 $changed++ if ref $sr eq 'HASH' && $sr->{ok};
             }
     }, undef, $roots );
@@ -4353,7 +4383,8 @@ sub _rename_page {
                     $c =~ s/\A(---\s*\n)/$1aliases:\n  - $alias\n/;
                 }
 
-                my $w = action_save( "/$new.md", $user, $c, undef );
+                # SM1327: with the time it read, as replace_text (SM1310).
+                my $w = action_save( "/$new.md", $user, $c, $rd->{mtime} );
                 $r->{alias_added} =
                     ( ref $w eq 'HASH' && $w->{ok} ) ? JSON::PP::true : JSON::PP::false;
                 $r->{alias_error} = $w->{error}

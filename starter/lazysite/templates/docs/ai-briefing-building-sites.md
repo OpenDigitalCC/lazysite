@@ -271,6 +271,12 @@ rather than reaching for a remote URL.
   activate it, retire the old) - the live one is write-locked.
 - **One editor per file.** If a page is open in the manager it is locked;
   don't fight the lock - edit the underlying data file instead.
+- **Write back with the version you read.** `read_file` answers the file's
+  `mtime` (`read_page` calls it `modified`); pass it to `write_file` as
+  `base_mtime`. If anyone saved the file after your read, nothing is written and
+  the answer is a conflict naming the current `mtime`: read it again and make the
+  change on what it holds now. Without `base_mtime` the write replaces whatever
+  the file holds. `replace_text` does this for you.
 - **Screenshots use the `lazysite-agent/<partner-id>` UA** (see rule 10) so QA
   traffic stays out of the human analytics.
 
