@@ -66,8 +66,12 @@ Archive
   control API's `acl-set` and MCP `set_permissions`, `lazysite acl set --history`; whoever may
   set the rule may set it). The folder's versions are kept in a second repository whose work
   tree is the private store (`<store>/lazysite/git`, 02770), never the public one. Its first
-  version is taken when it is set; it records while the site's content history is on, and
-  clearing it stops recording and keeps what was recorded. Every history read
+  version is taken when it is set, and it records while the site's content history is on
+  (ruling 98). It covers the rules nested in the folder unless one says `history: false`;
+  a rule that says nothing inherits (ruling 100). Clearing it, or removing the rule, keeps
+  what was recorded; `lazysite acl purge-history PATH --actor USER` deletes a folder's
+  history from the repository and its object store, for the operator only, audited as
+  `history-purge` (ruling 99). Every history read
   (`list_versions`, `view_version`, `restore_version`, `list_content_history` and the
   manager's history view) applies the file's read rule, and a restore its write rule. Off by
   default: a site that does not set it changes nothing and gets no repository. MCP

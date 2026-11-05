@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 50 (Q5, T-16), on a protected agent-first intranet's gap G5"
 area: access
-status-note: "SHIPPED (PENDING) on n743: `history` on a folder rule, on every surface that sets the rule; a second repository at <store>/lazysite/git; the history readers apply the file's read rule and restore its write rule. t/unit/manager/420."
+status-note: "SHIPPED (PENDING) on n743: `history` on a folder rule, on every surface that sets the rule, covering nested rules unless one says false; a second repository at <store>/lazysite/git; the history readers apply the file's read rule and restore its write rule; the operator deletes a folder's history with `lazysite acl purge-history` (rulings 98-100). t/unit/manager/420."
 ---
 
 # What was asked
@@ -47,11 +47,23 @@ The repository
 Recording
 : `Lazysite::Git::commit_paths` and `commit_move` record, once, for every write hook (the
   manager, WebDAV, MCP, uploads, restores): a path is kept when the site's content history
-  is enabled and the rule that relocates it (the nearest, as for every rule question)
-  carries `history`. A subfolder with a rule of its own keeps history only if that rule
-  says so. A move within kept folders carries the rename trailer, so history follows the
+  is enabled, a rule moves it into the store, and the nearest rule that SAYS `history`
+  says true. So a folder's `history: true` covers the rules nested in it, a nested rule's
+  explicit `history: false` takes its path out, and a rule that says nothing inherits
+  (ruling 100). False is stored, and a rewrite that omits the field keeps it. A move within kept folders carries the rename trailer, so history follows the
   file. Setting the flag records the folder's current content as its first version.
-  Clearing it stops recording and keeps what was recorded.
+  Clearing it, or removing the rule, stops recording and keeps what was recorded.
+
+Deleting it (ruling 99)
+: `lazysite acl purge-history PATH --actor USER`. The operator only (`local`, or an account
+  in the operator group: `Acl::file_rule_bypass`, the manager's own test); anyone else is
+  refused. Audited as `history-purge` on origin `cli`, refused or done, naming the actor and
+  how many versions went. `ProtectedHistory::purge` replays every commit on a scratch index
+  with the folder taken out (authors, dates and messages kept, a commit left empty dropped),
+  then expires the reflog and prunes, so the bytes leave the object store. The rule and the
+  files are not touched. It is an `acl` sub-command, the nearest existing shape to the
+  `lazysite history purge` the ruling suggested: `acl` is where history is set, and it
+  needs no new top-level verb.
 
 Reading
 : `git-history` / `list_versions`, `git-show` / `view_version`, `git-restore` /
@@ -63,13 +75,14 @@ Reading
   files before its read-rule filter. MCP `list_content_history` gave the filter no caller,
   so it hid every protected file from everyone; it now passes the caller.
 
-# Decisions taken (safest default, for confirmation)
+# Rulings
 
-- The site's content history must be on as well. A site that pauses its history pauses
-  this one too.
-- Clearing the flag keeps the recorded versions (still read under the folder's rule).
-  Removing the rule or the history is not done automatically.
-- The nearest relocating rule decides, so a nested rule without `history` keeps none.
+- 98: the site's content history must be on as well. A site that pauses its history
+  pauses this one too.
+- 99: clearing the flag or removing the rule keeps the recorded versions (still read under
+  the folder's rule); the operator deletes them with `purge-history`.
+- 100: a folder's `history` covers nested rules unless one says `history: false`.
+- 101: the public repository's pre-protection versions are left (a separate candidate).
 
 # Not done
 
@@ -87,8 +100,15 @@ Reading
   write cannot restore, and a writer's restore is the newest version. A folder only; the
   site-wide rule and an unrecognised value are refused. A protected folder beside a kept
   one keeps nothing. Clearing it keeps the first version. `lazysite acl set --history`.
+  A nested rule that says nothing inherits; one that says false - a folder's, or a page's
+  stem rule - is kept out, from the first version on (the first version asks each file the
+  rule lookup the recording asks, never a path prefix), and keeps its false through a rewrite. Removing the rule keeps the history;
+  `purge-history` refuses a manager who is not the operator (audited, nothing deleted), and
+  for an operator account and `local` deletes it from the log and the object store, audited,
+  leaving the file.
 
 Sabotaged one at a time, each fails the test: no recording hook; reading the public
 repository; no read rule on the history readers; no read-rule filter on the overview; no
 private files in the overview; `history` accepted on any path; the flag ignored; the flag
-not read from the request.
+not read from the request; inheritance ignored; false not stored; false not excluded from
+the first version (and the prefix-matched first version, which missed a stem rule); the operator check; the purge's audit row; the object-store prune.

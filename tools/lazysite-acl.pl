@@ -97,7 +97,7 @@ fail("not a directory: $opt{docroot}") unless -d $opt{docroot};
 # LAZYSITE_CLI_FAKE_ROOT is the same test-only override lazysite-cli.pl uses, and
 # like it, only ever makes this MORE restrictive.
 if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} )
-    && ( $verb eq 'set' || $verb eq 'remove' ) )
+    && ( $verb eq 'set' || $verb eq 'remove' || $verb eq 'purge-history' ) )
 {
     fail( "refusing to change access as root.\n"
             . "  A write here creates files in the site tree, and root-owned files\n"
@@ -136,6 +136,7 @@ my %HANDLER = (
     remove        => \&cmd_remove,
     reapply       => \&cmd_reapply,
     'group-reach' => \&cmd_group_reach,
+    'purge-history' => \&cmd_purge_history,    # SM1324, ruling 99
 );
 my $handler = $HANDLER{$verb} or do {
     print {*STDERR} "lazysite acl: unknown sub-command '$verb'\n\n";
@@ -363,7 +364,8 @@ sub cmd_show {
         . ( @{ $a->{write} || [] } ? join( ',', @{ $a->{write} } ) : '- (anyone)' ) . "\n";
     print '  policy: ' . ( $a->{draft} ? 'draft (404 to the public)' : 'gated' ) . "\n";
     # SM1324: a folder that keeps a private history says so.
-    print "  history: kept (a private history of this folder)\n" if $a->{history};
+    print "  history: " . ( $a->{history} ? 'kept (a private history of this folder)' : 'not kept (says false)' ) . "\n"
+        if exists $a->{history};
     # SM1139: the address lists, when the rule names any.
     print '  addresses:      ' . join( ',', @{ $a->{addresses} } ) . "\n"
         if ref $a->{addresses} eq 'ARRAY' && @{ $a->{addresses} };
@@ -622,6 +624,40 @@ sub _still_in_docroot {
     return -e "$opt{docroot}/$rel" ? 1 : 0;
 }
 
+# SM1324 (ruling 99): delete a folder's recorded protected history. The
+# operator only - `local`, or an account in the operator group, the same test
+# the manager's bypass asks (Acl::file_rule_bypass) - and audited, done or
+# refused. The folder's rule and its files are left as they are.
+sub cmd_purge_history {
+    my $path  = shift @ARGV;
+    my $actor = require_actor();
+    fail('a folder PATH is required') unless defined $path && length $path;
+    require Lazysite::Audit;
+    require Lazysite::ProtectedHistory;
+    no warnings 'once';
+    local $Lazysite::Audit::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
+    ( my $target = $path ) =~ s{\A/*}{/};
+    my $who      = 'system:' . ( getpwuid($<) // "uid:$<" );
+    my $operator = with_actor( $actor, sub { Lazysite::Auth::Acl::file_rule_bypass() } );
+    unless ($operator) {
+        Lazysite::Audit::audit_log( $who, 'history-purge', $target, '', 'fail', 'cli',
+            "denied: actor=$actor is not the operator" );
+        return emit( { ok => 0, kind => 'forbidden',
+                error => "only the operator may delete a folder's history, and '$actor' "
+                    . 'is not (use --actor local, or an account in the operator group)' } );
+    }
+    my $r = Lazysite::ProtectedHistory::purge( $docroot, $path );
+    Lazysite::Audit::audit_log( $who, 'history-purge', $target, '', ( $r->{ok} ? 'ok' : 'fail' ), 'cli',
+        "actor=$actor " . ( $r->{ok} ? "versions=$r->{versions}" : ( $r->{error} // 'failed' ) ) );
+    my $rc = emit($r);
+    if ( !$rc && !$opt{json} ) {
+        print "purged: $r->{folder} ($r->{versions} recorded versions removed)\n";
+        print "  history is still being kept for it: its rule says so\n"
+            if Lazysite::ProtectedHistory::recording( $docroot, $path );
+    }
+    return $rc;
+}
+
 sub cmd_remove {
     my $path  = shift @ARGV;
     my $actor = require_actor();
@@ -658,6 +694,10 @@ Sub-commands:
                          [--draft | --no-draft] [--history | --no-history]
                          [--addresses LIST] [--addresses-deny LIST]
   remove PATH --actor USER
+  purge-history PATH --actor USER
+                         (SM1324) delete the recorded private history of a
+                         protected folder. The operator only, and audited.
+                         The rule and the files are not touched.
   reapply --actor USER [--apply]
                          re-issue every stored rule so its content moves out
                          of the document root. Repairs sections protected
@@ -684,8 +724,9 @@ Options:
                  from the sitemap, feeds and search. --no-draft clears it.
   --history      (SM1324) keep a version history of this protected FOLDER, in
                  a private repository beside the private store. Its readers
-                 are the folder's. --no-history stops recording and keeps what
-                 was recorded. Off by default.
+                 are the folder's. It covers nested rules; --no-history on one
+                 takes it out, and on the folder stops recording. What was
+                 recorded is kept (see purge-history). Off by default.
   --addresses LIST       (SM1139) comma-separated names of ALLOW address lists: the
                  path is served only to an address in one of them. Omit to
                  leave unchanged; an EMPTY value clears.

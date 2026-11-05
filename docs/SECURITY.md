@@ -2081,9 +2081,13 @@ who can read it
   and its write rule; the overview filters each path by the read rule (SM683 step one).
 
 data and privacy
-: a second copy of protected content, kept for as long as the repository is kept. Clearing
-  the flag stops recording and keeps what was recorded; nothing deletes it but an
-  operator. It is in a site backup, as the store is. The public repository still holds a
+: a second copy of protected content, kept for as long as the repository is kept. A
+  folder's flag covers the rules nested in it unless one says `history: false` (ruling
+  100), so a nested folder an owner did not think about is copied too unless it says
+  otherwise. Clearing the flag or removing the rule keeps what was recorded; only the
+  operator deletes it, with `lazysite acl purge-history` (ruling 99), which rewrites the
+  folder out of the history and prunes its objects, and is audited. It is in a site
+  backup, as the store is, and a backup taken before a purge still holds it. The public repository still holds a
   file's versions from before its folder was protected (SM683's third step, open).
 
 residual risk

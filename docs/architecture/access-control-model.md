@@ -265,12 +265,16 @@ the store is outside the tree each of them walks. What each now does is **say
 so** - a count in the package manifest, `versioned: false` plus a notice on the
 history response.
 
-A folder's history is recorded while the site's content history is enabled and
-the rule that relocates the path - the nearest, as for every other question a
-rule answers - carries `history`. Setting it records the folder's current
-content as the first version; clearing it stops recording and keeps what was
-recorded. The public repository's versions of a file from before its folder was
-protected stay where they were (SM683's third step).
+A folder's history is recorded while the site's content history is enabled, a
+rule moves the path into the store, and the nearest rule that says `history`
+says true: a folder's `history: true` covers the rules nested in it, a nested
+rule's explicit `history: false` takes its path out, and a rule that says
+nothing inherits. Setting it records the folder's current content as the first
+version; clearing it, or removing the rule, stops recording and keeps what was
+recorded. Only the operator deletes it (`lazysite acl purge-history`, audited),
+which rewrites the folder out of the history and prunes its objects. The public
+repository's versions of a file from before its folder was protected stay where
+they were (SM683's third step).
 
 ## Checking it, rather than believing it
 

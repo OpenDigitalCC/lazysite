@@ -132,8 +132,10 @@ sub record {
 }
 
 # The first version of a folder that has just opted in: what is in it now, less
-# any subfolder whose own rule does not keep history. One commit. Returns 1 when
-# a commit was made.
+# whatever a nested rule says `history: false` for (ruling 100). Each file is
+# asked the question the recording hook asks (Acl::history_key_in), so a page
+# whose stem rule says no is left out exactly as its later edits are. One commit.
+# Returns 1 when a commit was made.
 sub baseline {
     my ( $docroot, $user, $key ) = @_;
     return 0 unless Lazysite::Git::enabled($docroot);
@@ -144,18 +146,30 @@ sub baseline {
 
     require Lazysite::Auth::Acl;
     my $map = Lazysite::Auth::Acl::load_acls();
-    my @not;
-    for my $k ( sort keys %$map ) {
-        ( my $p = $k ) =~ s{\A/+|/+\z}{}g;
-        next unless index( $p, "$folder/" ) == 0;
-        my $e = $map->{$k};
-        next unless ref $e eq 'HASH' && !$e->{history};
-        next unless $e->{draft} || ( ref $e->{read} eq 'ARRAY' && @{ $e->{read} } );
-        push @not, ":(exclude)$p";
+    my @keep;
+    {
+        no warnings 'once';    # File::Find's own variables
+        require File::Find;
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    my $p = $File::Find::name;
+                    return if -l $p || !-f _;
+                    ( my $rel = $p ) =~ s{\A\Q$root\E/}{};
+                    push @keep, $rel if defined Lazysite::Auth::Acl::history_key_in( $map, $rel );
+                },
+            },
+            "$root/$folder"
+        );
     }
+    return 0 unless @keep;
     my $made = eval {
-        my ($aok) = Lazysite::Git::run_git( $root, 'add', '-A', '--', $folder, @not );
-        die "git add failed for $folder\n" unless $aok;
+        # In batches, so a large folder stays inside the argument limit.
+        my @todo = sort @keep;
+        while ( my @batch = splice @todo, 0, 500 ) {
+            my ($aok) = Lazysite::Git::run_git( $root, 'add', '--', @batch );
+            die "git add failed for $folder\n" unless $aok;
+        }
         my ($clean) = Lazysite::Git::run_git( $root, 'diff', '--cached', '--quiet' );
         return 0 if $clean;
         my ($cok) = Lazysite::Git::run_git( $root, 'commit', '-q', '-m',
@@ -171,6 +185,77 @@ sub baseline {
         return 0;
     }
     return $made;
+}
+
+# SM1324 (ruling 99): DELETE A FOLDER'S RECORDED HISTORY. Clearing the flag or
+# removing the rule keeps what was recorded; this is the one way to remove it,
+# and the caller (`lazysite acl purge-history`) lets only the operator ask and
+# audits it. The history is rewritten without the folder - every commit
+# replayed on a scratch index with the folder taken out, a commit left empty
+# dropped, authors, dates and messages kept - then the old objects are expired
+# and pruned, so the bytes leave the object store and not merely the log. The
+# files in the store are not touched. Returns { ok, folder, versions, dropped }.
+sub purge {
+    my ( $docroot, $key ) = @_;
+    ( my $folder = $key // '' ) =~ s{\A/+|/+\z}{}g;
+    return { ok => 0, kind => 'invalid', error => 'Name the folder whose history is to be deleted.' }
+        unless length $folder
+        && $folder !~ /\0/
+        && $folder !~ /\A-/
+        && !grep { $_ eq '' || $_ eq '.' || $_ eq '..' } split m{/}, $folder;
+    my $root = root($docroot)
+        or return { ok => 0, kind => 'invalid', error => 'This site has no private store.' };
+    return { ok => 1, folder => "/$folder", versions => 0, dropped => 0 }
+        unless Lazysite::Git::initialised($root);
+
+    my ( undef, $count ) = Lazysite::Git::run_git( $root, 'rev-list', '--count', 'HEAD', '--', $folder );
+    my $versions = ( ( $count // '' ) =~ /(\d+)/ ) ? $1 + 0 : 0;
+    return { ok => 1, folder => "/$folder", versions => 0, dropped => 0 } unless $versions;
+
+    my ( $lok, $list ) = Lazysite::Git::run_git( $root, 'rev-list', '--reverse', 'HEAD' );
+    return { ok => 0, error => 'The history could not be read; nothing was deleted.' } unless $lok;
+    my $index = Lazysite::Git::git_dir($root) . "/purge-index.$$";
+    my ( $parent, $parent_tree, $dropped ) = ( undef, undef, 0 );
+    my $done = eval {
+        for my $c ( grep { /\A[0-9a-f]{40}\z/ } split /\n/, $list ) {
+            local $ENV{GIT_INDEX_FILE} = $index;
+            my ($rok) = Lazysite::Git::run_git( $root, 'read-tree', $c );
+            die "read-tree $c\n" unless $rok;
+            Lazysite::Git::run_git( $root, 'rm', '-r', '--cached', '-q', '--ignore-unmatch', '--', $folder );
+            my ( $wok, $tree ) = Lazysite::Git::run_git( $root, 'write-tree' );
+            die "write-tree $c\n" unless $wok && defined $tree;
+            chomp $tree;
+            if ( defined $parent && $tree eq $parent_tree ) { $dropped++; next }
+            my ( undef, $meta ) = Lazysite::Git::run_git( $root, 'log', '-1',
+                '--format=%an%x00%ae%x00%aD%x00%cn%x00%ce%x00%cD%x00%B', $c );
+            my ( $an, $ae, $ad, $cn, $ce, $cd, $msg ) = split /\0/, ( $meta // '' ), 7;
+            local @ENV{ qw(GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_AUTHOR_DATE
+                    GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_COMMITTER_DATE) }
+                = ( $an, $ae, $ad, $cn, $ce, $cd );
+            my ( $cok, $new ) = Lazysite::Git::run_git( $root, 'commit-tree', $tree,
+                ( defined $parent ? ( '-p', $parent ) : () ), '-m', ( $msg // '' ) );
+            die "commit-tree $c\n" unless $cok && defined $new;
+            chomp $new;
+            ( $parent, $parent_tree ) = ( $new, $tree );
+        }
+        die "nothing replayed\n" unless defined $parent;
+        my ($uok) = Lazysite::Git::run_git( $root, 'update-ref', 'HEAD', $parent );
+        die "update-ref\n" unless $uok;
+        1;
+    };
+    unlink $index;
+    unless ($done) {
+        log_event( 'WARN', 'git', 'protected history purge failed; the history is unchanged',
+            folder => $folder, error => ( $@ // 'unknown' ) );
+        return { ok => 0, error => 'The history could not be rewritten; nothing was deleted.' };
+    }
+    # The real index first: it names the folder's last recorded blobs, and gc
+    # keeps whatever an index names.
+    Lazysite::Git::run_git( $root, 'read-tree', 'HEAD' );
+    Lazysite::Git::run_git( $root, 'reflog',    'expire', '--expire=now', '--all' );
+    Lazysite::Git::run_git( $root, 'gc',        '-q',     '--prune=now' );
+    log_event( 'INFO', 'git', 'protected history purged', folder => $folder, versions => $versions );
+    return { ok => 1, folder => "/$folder", versions => $versions, dropped => $dropped };
 }
 
 1;

@@ -3006,11 +3006,12 @@ sub action_acl_set {
 
     # SM1324 (ruling 50): `history` keeps a history of a protected FOLDER, in the
     # private store's own repository (Lazysite::ProtectedHistory). Read as `draft`
-    # is: absent leaves it as it is, an unrecognised value is refused. Set by
-    # whoever may set the rule - the operator or the rule's owner, the check
-    # above - on every surface, since they all funnel through here. A folder
-    # only: the site-wide rule moves nothing into the store, and a single file
-    # is not a folder.
+    # is: absent leaves it as it is (and inherits, ruling 100), an unrecognised
+    # value is refused. Set by whoever may set the rule - the operator or the
+    # rule's owner, the check above - on every surface, since they all funnel
+    # through here. True on a folder only: the site-wide rule moves nothing into
+    # the store, and a single file is not a folder. False may be said anywhere
+    # inside one.
     if ( defined( my $hist = ref $opts eq 'HASH' ? $opts->{history} : undef ) ) {
         my $on;
         if    ( ref $hist eq 'JSON::PP::Boolean' )                { $on = $hist ? 1 : 0 }
@@ -3032,10 +3033,13 @@ sub action_acl_set {
                 error => "History is kept for a protected folder, and '$rel' is not a "
                     . 'folder. Set it on the rule of the folder that holds it. Nothing was changed.' };
         }
-        $rec{history} = JSON::PP::true() if $on;
+        # Ruling 100: false is STORED. A folder's history covers the rules nested
+        # in it unless one says false, so an explicit false is a statement (this
+        # path keeps none) where an absent one inherits.
+        $rec{history} = $on ? JSON::PP::true() : JSON::PP::false();
     }
-    elsif ( $existing && $existing->{history} ) {
-        $rec{history} = JSON::PP::true();
+    elsif ( $existing && exists $existing->{history} ) {
+        $rec{history} = $existing->{history} ? JSON::PP::true() : JSON::PP::false();
     }
     return { ok => 1, dry_run => 1, path => $rel } if ref $opts eq 'HASH' && $opts->{dry_run};
     $acls->{$rel} = \%rec;

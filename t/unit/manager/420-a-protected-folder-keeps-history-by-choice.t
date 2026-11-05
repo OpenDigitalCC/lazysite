@@ -34,6 +34,7 @@ use Lazysite::Manager::Files  ();
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl       ();
 use Lazysite::Private         ();
+use Lazysite::Paths           ();
 
 sub spit {
     my ( $p, $t ) = @_;
@@ -270,6 +271,113 @@ subtest 'lazysite acl set --history' => sub {
     my $show = run_child( [ $^X, $tool, 'show', 'members', '--docroot', $d, '--actor', 'local' ],
         stderr => 'inherit' );
     like( $show->{out}, qr/history: kept/, 'show says so' );
+};
+
+# Ruling 100: a folder's history covers the rules nested in it, unless a nested
+# rule says `history: false`. A nested rule that says nothing inherits.
+subtest 'a nested rule inherits the folder\'s history unless it says false' => sub {
+    my ( $t, $d ) = site();
+    make_path( "$d/members/board", "$d/members/hr" );
+    spit( "$d/members/board/minutes.md", "---\ntitle: M\n---\n\nBOARD-ONE\n" );
+    spit( "$d/members/hr/pay.md",        "---\ntitle: P\n---\n\nHR-ONE\n" );
+    protect();
+    as_operator();
+    my $b = Lazysite::Manager::Files::action_acl_set( 'members/board', 'local', ['alice'], ['alice'],
+        'local', undef, {} );
+    ok( $b->{ok} && !exists $b->{acl}{history}, 'board has its own rule and says nothing' );
+    my $h = Lazysite::Manager::Files::action_acl_set( 'members/hr', 'local', ['alice'], ['alice'],
+        'local', undef, { history => JSON::PP::false() } );
+    ok( $h->{ok}, 'hr has its own rule' ) or diag explain $h;
+    ok( exists $h->{acl}{history} && !$h->{acl}{history}, '...that says false, and false is stored' );
+    # A page's STEM rule saying false: the page's .md is governed by the stem
+    # key, not by a path the key is a prefix of, so the first version must ask
+    # the rule lookup rather than match a path.
+    spit( Lazysite::Private::private_path( $d, 'members/secret.md' ), "---\ntitle: S\n---\n\nSTEM-ONE\n" );
+    my $st = Lazysite::Manager::Files::action_acl_set( 'members/secret', 'local', ['alice'], ['alice'],
+        'local', undef, { history => 0 } );
+    ok( $st->{ok}, 'the page has a stem rule' ) or diag explain $st;
+    ok( exists Lazysite::Auth::Acl::load_acls()->{'members/secret'}, '...keyed on the stem' );
+    protect( history => 1 );    # the folder opts in after its nested rules exist
+
+    save_as( 'alice', 'members/board/minutes.md', "---\ntitle: M\n---\n\nBOARD-TWO\n" );
+    save_as( 'alice', 'members/hr/pay.md',        "---\ntitle: P\n---\n\nHR-TWO\n" );
+    as_partner('alice');
+    my $bh = Lazysite::Manager::Files::action_git_history( 'members/board/minutes.md', 'alice' );
+    ok( $bh->{versioned}, 'the nested rule that says nothing inherits: versioned' ) or diag explain $bh;
+    is( $bh->{history_kept_by}, '/members', '...kept by the folder above' );
+    my $hh = Lazysite::Manager::Files::action_git_history( 'members/hr/pay.md', 'alice' );
+    ok( !$hh->{versioned}, 'the nested rule that says false: not versioned' );
+    my ( undef, $log ) = Lazysite::Git::run_git( Lazysite::Private::private_root($d), 'log', '--all', '-p' );
+    like( $log // '', qr/BOARD-TWO/, 'the inheriting folder is in the private repository' );
+    unlike( $log // '', qr/HR-/, 'the one that says false is not, not even in the first version' );
+    unlike( $log // '', qr/STEM-/, 'nor the page whose stem rule says false' )
+        or diag('The owner said no: not even the first copy.');
+    save_as( 'alice', 'members/secret.md', "---\ntitle: S\n---\n\nSTEM-TWO\n" );
+    as_partner('alice');
+    ok( !Lazysite::Manager::Files::action_git_history( 'members/secret.md', 'alice' )->{versioned},
+        '...and its later edits are not kept either' );
+    ( undef, $log ) = Lazysite::Git::run_git( Lazysite::Private::private_root($d), 'log', '--all', '-p' );
+    unlike( $log // '', qr/STEM-/, '...the repository still holds none of it' );
+
+    # A re-application of the rule (`lazysite acl reapply`, any surface's
+    # partial update) keeps the stated false.
+    as_operator();
+    my $again = Lazysite::Manager::Files::action_acl_set( 'members/hr', 'local', ['alice'], ['alice'],
+        'local', undef, {} );
+    ok( exists $again->{acl}{history} && !$again->{acl}{history}, 'a rewrite that omits it keeps false' );
+};
+
+# Ruling 99: what was recorded is kept when the rule goes, and only the
+# operator can delete it - audited either way.
+subtest 'removing the rule keeps the history; only the operator purges it' => sub {
+    my ( $t, $d ) = site();
+    protect( history => 1 );
+    save_as( 'alice', 'members/plan.md', "---\ntitle: Plan\n---\n\nSECRET-TWO\n" );
+    as_operator();
+    my $rm = Lazysite::Manager::Files::action_acl_remove( 'members', 'local' );
+    ok( $rm->{ok}, 'the rule is removed' ) or diag explain $rm;
+    my $proot = Lazysite::Private::private_root($d);
+    my ( undef, $kept ) = Lazysite::Git::run_git( $proot, 'log', '--all', '-p' );
+    like( $kept // '', qr/SECRET-TWO/, 'the recorded history is still there' );
+
+    # A secured site, so "operator" means something: bob is a manager account
+    # with no operator group, opal is in the operator group.
+    TestHelper::grant_caps( $d, 'bob',  qw(ui manage_content) );
+    TestHelper::grant_caps( $d, 'opal', qw(ui manager) );
+    my $tool  = repo_root() . '/tools/lazysite-acl.pl';
+    my $audit = Lazysite::Paths::lazysite_dir($d) . '/logs/audit.log';
+    my $no = run_child( [ $^X, $tool, 'purge-history', 'members', '--docroot', $d, '--actor', 'bob' ],
+        stderr => 'merge' );
+    isnt( $no->{status}, 0, 'bob, not the operator, is refused' );
+    like( $no->{out}, qr/only the operator/, '...saying why' );
+    ( undef, $kept ) = Lazysite::Git::run_git( $proot, 'log', '--all', '-p' );
+    like( $kept // '', qr/SECRET-TWO/, '...and nothing is deleted' );
+    like( slurp($audit), qr/\| history-purge \| \/members \|  \| fail \| cli \| denied: actor=bob/,
+        'the refusal is audited' );
+
+    # The blobs the history holds for the file, to look for after the purge: a
+    # rewrite that left them in the object store would still hold the bytes.
+    my ( undef, $before ) = Lazysite::Git::run_git( $proot, 'rev-list', '--all', '--objects' );
+    my @blobs = map { /\A([0-9a-f]{40}) members\/plan\.md\z/ ? $1 : () } split /\n/, ( $before // '' );
+    ok( scalar @blobs, 'the history holds versions of the file' );
+
+    for my $who (qw(opal local)) {
+        save_as( 'alice', 'members/plan.md', "---\ntitle: Plan\n---\n\nSECRET-THREE\n" ) if $who eq 'local';
+        my $yes = run_child( [ $^X, $tool, 'purge-history', 'members', '--docroot', $d, '--actor', $who ],
+            stderr => 'merge' );
+        is( $yes->{status}, 0, "$who, the operator, purges" ) or diag $yes->{out};
+        like( slurp($audit), qr/\| history-purge \| \/members \|  \| ok \| cli \| actor=$who versions=\d+/,
+            '...audited with what went' );
+    }
+    my ( undef, $after ) = Lazysite::Git::run_git( $proot, 'log', '--all', '-p' );
+    unlike( $after // '', qr/SECRET-/, 'the folder is gone from the history' );
+    my ( undef, $grep ) = Lazysite::Git::run_git( $proot, 'rev-list', '--all', '--objects' );
+    unlike( $grep // '', qr{members/plan\.md}, 'and from what the history reaches' );
+    my @left = grep { ( Lazysite::Git::run_git( $proot, 'cat-file', '-e', $_ ) )[0] } @blobs;
+    is( scalar @left, 0, 'and its bytes from the object store' )
+        or diag('An unreachable object is still a copy: the purge expires and prunes.');
+    like( slurp( Lazysite::Private::private_path( $d, 'members/plan.md' ) ) . slurp("$d/members/plan.md"),
+        qr/SECRET-THREE/, 'the file itself is untouched' );
 };
 
 done_testing();

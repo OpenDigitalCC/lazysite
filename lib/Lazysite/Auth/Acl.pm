@@ -703,19 +703,53 @@ sub relocating_key {
     return $best;
 }
 
-# SM1324 (ruling 50): the key of the folder rule that keeps history for $rel, or
-# undef. The rule that relocates the path decides - the nearest, as for every
-# other question a rule answers - so a subfolder with a rule of its own keeps
-# history only if that rule says so. A store that will not read keeps none.
+# SM1324 (rulings 50, 100): the key of the folder rule that keeps history for
+# $rel, or undef. Only content a rule moves into the private store has one. The
+# nearest rule that SAYS `history` decides: a folder's `history: true` covers
+# the rules nested in it, and a nested rule's explicit `history: false` takes
+# its path out; a rule that says nothing inherits. A store that will not read
+# keeps none.
 sub history_key {
     my ( $docroot, $rel ) = @_;
     return undef unless defined $rel && length $rel;
     local $DOCROOT = ( defined $docroot && length $docroot ) ? $docroot : $DOCROOT;
     my ($map) = _acl_map_or_state();
     return undef unless ref $map eq 'HASH';
+    return history_key_in( $map, $rel );
+}
+
+# The same answer from a map the caller already holds - one store read for a
+# caller asking about many paths (ProtectedHistory::baseline), and the one
+# lookup both it and the recording hook use.
+sub history_key_in {
+    my ( $map, $rel ) = @_;
+    return undef unless ref $map eq 'HASH' && defined $rel && length $rel;
     return undef unless grep { ref $_ eq 'HASH' && $_->{history} } values %$map;
-    my $k = relocating_key( $map, $rel );
+    return undef unless defined relocating_key( $map, $rel );
+    my $k = history_rule_key( $map, $rel );
     return ( defined $k && $map->{$k}{history} ) ? $k : undef;
+}
+
+# The nearest rule key governing $rel (its own, its page stem's, an ancestor
+# folder's) that carries a `history` value, true or false; undef when none does.
+sub history_rule_key {
+    my ( $map, $rel ) = @_;
+    $rel = _acl_norm($rel) // '';
+    $rel =~ s{/+\z}{};
+    return undef unless length $rel;
+    my $stem = $rel =~ m{\A(.+)\.(?:md|url|html)\z} ? $1 : undef;
+    my ( $best, $best_len );
+    for my $k ( keys %$map ) {
+        my $e = $map->{$k};
+        next unless ref $e eq 'HASH' && exists $e->{history};
+        ( my $p = $k ) =~ s{\A/+}{};
+        $p =~ s{/+\z}{};
+        next unless length $p;
+        next unless $p eq $rel || ( defined $stem && $p eq $stem ) || index( $rel, "$p/" ) == 0;
+        next if defined $best_len && length($p) <= $best_len;
+        ( $best, $best_len ) = ( $k, length $p );
+    }
+    return $best;
 }
 
 # SM882: is EVERY page under this root gated? The invariant the release manager

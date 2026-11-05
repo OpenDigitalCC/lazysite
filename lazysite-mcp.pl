@@ -1652,7 +1652,7 @@ my %TOOLS = (
                 addresses_deny => { type => 'string',
                     description => 'Comma-separated names of DENY address lists: a visitor whose address is in one of them is refused, whatever else allows it. Omit to leave the current setting alone; empty clears it.' },
                 history => { type => 'boolean',
-                    description => 'SM1324: keep a version history for this protected FOLDER, in a private repository beside the private store (never the public one). History reads (list_versions, view_version, restore_version) apply the folder\'s read rule. Omit to leave the current setting alone; false stops recording and keeps what was recorded. Off by default.' },
+                    description => 'SM1324: keep a version history for this protected FOLDER, in a private repository beside the private store (never the public one). History reads (list_versions, view_version, restore_version) apply the folder\'s read rule. It covers the rules nested in the folder; false on a nested rule takes that path out (ruling 100), and false on the folder stops recording. Omit to leave the current setting alone, or to inherit. What was recorded is kept; only the operator deletes it (lazysite acl purge-history). Off by default.' },
             },
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
