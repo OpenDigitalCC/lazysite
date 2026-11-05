@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-24
 raised-by: release manager (inbox 2026-10-24-address-profiles-replace-address-lists.md, A-3)
 area: manager
-status-note: "SHIPPED (0.16.5) on n750: starter/manager/files.md addressRows / addressBlock / chosenAddresses, starter/manager/groups.md groupAddressRows / chosenGroupAddresses / setGroupAddresses; t/unit/manager/360, 440."
+status-note: "SHIPPED (0.16.5) on n750: starter/manager/files.md addressRows / addressBlock / chosenAddresses, starter/manager/groups.md groupAddressRows / chosenGroupAddresses / setGroupAddresses; t/unit/manager/360, 440, t/unit/users/60."
 ---
 
 # What was asked
@@ -33,10 +33,16 @@ kind-filtered pickers."
   and one with nothing chosen anywhere still clears the rule. The server side is
   unchanged (SM1139's fields, checked by the same save).
 - **The Groups page (ruling 107)** has the same picker under the group's operator-only
-  settings, in place of SM1140's two rows of ticks ("Only from" / "Never from"). A
-  change sends both settings (`addresses_deny` first, so a profile moved to Deny is
-  refused before it leaves Allow, then `addresses`); a refusal of the first stops the
-  second and reloads what the server holds.
+  settings, in place of SM1140's two rows of ticks ("Only from" / "Never from").
+- **One request, one write.** A change is one `group-settings-set` with the new key
+  `address_limit`, whose value carries both lists (`{ addresses: [...],
+  addresses_deny: [...] }`). The users tool validates both and writes the group store
+  once, under the store lock its dispatcher holds across every mutating verb. Sent as
+  two settings, a profile moved from Deny to Allow was in neither list for a
+  round-trip, and a group whose only limit it was counted from every address in that
+  time. A half-update (one list missing, or a value that is not both) is refused,
+  naming what it needs; a bad name in either list refuses the whole change. The
+  single keys `addresses` and `addresses_deny` remain for the CLI.
 
 # Tests
 
@@ -45,5 +51,11 @@ of the old pickers, a row per profile, Allow / Deny / Not used shown from the ru
 a missing name kept and marked, both-slots shown as Deny, the read-back into the two
 fields, and the save. On the old page it fails at the first subtest (no
 `addressRows`). t/unit/manager/440 drives the Groups page the same way: rows,
-choices, read-back, the two sends in order, and a refusal; on the old page it dies at
-the first extraction (no `groupAddressRows`).
+choices, read-back, the one request carrying both lists, and a refusal; on the old
+page it dies at the first extraction (no `groupAddressRows`). t/unit/users/60 holds
+the server half: a Deny -> Allow move is one write of groups-settings.json and no
+state of the store (each rename is snapshotted by a spy loaded into the tool) has the
+profile in neither list; a half-update and a bad name are refused and change nothing;
+it is the operator's. Sabotage: writing each list in its own write fails the one-write
+test; accepting a half-update fails the refusal test; the page's earlier two-request
+save fails 440.

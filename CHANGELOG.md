@@ -75,6 +75,9 @@ Archive
   store does not hold keeps its choice and is marked, so saving the card does not drop it.
 
   The Groups page limits a group by address profile with the same picker.
+  The Groups page limits a group by address profile with the same picker, saved as one request
+  (`address_limit`, both lists, one write), so a profile moved from Deny to Allow is never in
+  neither list.
 - SM1343 (PENDING) **Address lists are address profiles, allowed or denied where they are
   used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
   set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule

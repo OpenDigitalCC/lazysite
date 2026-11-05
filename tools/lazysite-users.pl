@@ -5399,7 +5399,15 @@ sub cmd_group_settings_set {
     # everywhere or open one to anywhere. So it is the operator's alone, on the same
     # terms as directory_grants above (SM991: manage_users is not the operator). The
     # value is a comma-separated list of names; empty clears it. Audited.
-    if ( defined $key && ( $key eq 'addresses' || $key eq 'addresses_deny' ) ) {
+    # SM1344: `address_limit` sets BOTH lists in one request, one validation and one
+    # write, under the store lock the dispatcher holds across every mutating verb.
+    # The Groups page's picker changes a profile's slot, and two requests (deny
+    # list, then allow list) left a window: a profile moved from Deny to Allow was
+    # in neither list for a round-trip, and a group whose only restriction it was
+    # counted from every address in that time. The value is { addresses => [..],
+    # addresses_deny => [..] }, each a list or a comma string, and both are
+    # required: a half-update is refused, so the caller cannot recreate the window.
+    if ( defined $key && ( $key eq 'addresses' || $key eq 'addresses_deny' || $key eq 'address_limit' ) ) {
         my $operator = !( defined $actor && length $actor && $actor ne 'local' )
             || Lazysite::Auth::Settings::account_is_operator($actor)
             || !Lazysite::Auth::Settings::site_grants_manager();
@@ -5408,22 +5416,42 @@ sub cmd_group_settings_set {
                 . 'grants anything at all.' }
             unless $operator;
         require Lazysite::Auth::AddressProfiles;
-        my @names;
-        my %seen;
-        for my $n ( grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $value // '' ) ) {
-            return { ok => 0, error => "'$n' is not an address profile name (lowercase letters, digits, hyphen, underscore)." }
-                unless Lazysite::Auth::AddressProfiles::valid_name($n);
-            push @names, $n unless $seen{$n}++;
+        my %want;
+        if ( $key eq 'address_limit' ) {
+            return { ok => 0, kind => 'invalid', field => 'value',
+                error => 'address_limit takes both lists together: { "addresses": [...], '
+                    . '"addresses_deny": [...] } (an empty list clears one). Nothing was changed.' }
+                unless ref $value eq 'HASH' && exists $value->{addresses} && exists $value->{addresses_deny};
+            %want = map { $_ => $value->{$_} } qw(addresses addresses_deny);
+        }
+        else { %want = ( $key => $value ) }
+        my %names;
+        for my $k ( sort keys %want ) {
+            my $v = $want{$k};
+            return { ok => 0, kind => 'invalid', field => $k, error => "$k is a list of profile names. Nothing was changed." }
+                if ref $v && ref $v ne 'ARRAY';
+            my %seen;
+            for my $n ( grep { length } map { s/^\s+|\s+$//gr } map { split /,/ } ( ref $v ? @$v : ( $v // '' ) ) ) {
+                return { ok => 0, error => "'$n' is not an address profile name (lowercase letters, digits, hyphen, underscore)." }
+                    unless Lazysite::Auth::AddressProfiles::valid_name($n);
+                push @{ $names{$k} }, $n unless $seen{$n}++;
+            }
+            $names{$k} ||= [];
         }
         my $gs = read_group_settings();
         $gs->{$group} ||= _new_group_record($group);
-        my $was = join ',', @{ ref $gs->{$group}{$key} eq 'ARRAY' ? $gs->{$group}{$key} : [] };
-        if (@names) { $gs->{$group}{$key} = \@names } else { delete $gs->{$group}{$key} }
+        my ( @said, %out );
+        for my $k ( sort keys %names ) {
+            my @n = @{ $names{$k} };
+            my $was = join ',', @{ ref $gs->{$group}{$k} eq 'ARRAY' ? $gs->{$group}{$k} : [] };
+            if (@n) { $gs->{$group}{$k} = \@n } else { delete $gs->{$group}{$k} }
+            push @said, "$k=" . ( @n ? join( ',', @n ) : '(cleared)' ) . ( length $was ? "; was $was" : '' );
+            $out{$k} = \@n;
+        }
         write_group_settings($gs);
-        log_event( 'WARN', $group, 'group address limit set', key => $key, profiles => join( ',', @names ) );
-        cli_audit( 'user-group-settings-set', $group,
-            "$key=" . ( @names ? join( ',', @names ) : '(cleared)' ) . ( length $was ? "; was $was" : '' ) );
-        return { ok => 1, $key => \@names };
+        log_event( 'WARN', $group, 'group address limit set', map { ( $_ => join( ',', @{ $names{$_} } ) ) } sort keys %names );
+        cli_audit( 'user-group-settings-set', $group, join( '; ', @said ) );
+        return { ok => 1, %out };
     }
 
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );

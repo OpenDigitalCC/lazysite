@@ -818,16 +818,14 @@ function chosenGroupAddresses(group) {
   return out;
 }
 
-// One change sends both settings (each a whole list, as group-settings-set takes
-// them), the deny list first: a profile moved to Deny is refused before it leaves
-// Allow. A failure stops before the second and reloads what the server holds.
+// One change is ONE request carrying both lists (key address_limit): the server
+// checks and writes them together, so a profile moved between Allow and Deny is
+// never in neither list - which, for a group whose only limit it was, would have
+// let the group count from every address for a round-trip.
 function setGroupAddresses(group) {
   var c = chosenGroupAddresses(group);
-  var send = function(key) {
-    return apiCall({ action: 'group-settings-set', group: group, key: key, value: c[key].join(',') });
-  };
-  send('addresses_deny')
-    .then(function(d) { return d.ok ? send('addresses') : d; })
+  apiCall({ action: 'group-settings-set', group: group, key: 'address_limit',
+            value: { addresses: c.addresses, addresses_deny: c.addresses_deny } })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Could not set it.', true); loadGroups(); return; }
       showStatus('@' + group

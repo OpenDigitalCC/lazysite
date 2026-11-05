@@ -11,8 +11,10 @@
 #   denied ones Deny, the rest Not used; a name both allowed and denied shows Deny;
 #   a name the store does not hold keeps its choice and is marked
 # - chosenGroupAddresses reads the picker back as addresses and addresses_deny
-# - setGroupAddresses sends both settings, the deny list first, and stops at a
-#   refusal (reloading what the server holds)
+# - setGroupAddresses sends ONE request carrying both lists (key address_limit),
+#   so a profile moved between Allow and Deny is never in neither list; a refusal
+#   is shown and what the server holds is reloaded. The server's half of it (one
+#   validated write, a half-update refused) is t/unit/users/60.
 use strict;
 use warnings;
 use Test::More;
@@ -114,16 +116,16 @@ subtest 'the picker is read back as the two settings' => sub {
         { addresses => ['office'], addresses_deny => [ 'blocked', 'ghost' ] }, 'Allow and Deny rows, Not used in neither' );
 };
 
-subtest 'a change sends both settings, the deny list first, and stops at a refusal' => sub {
+subtest 'a change is one request carrying both lists' => sub {
     my $s = $r{save} or return fail('no result');
     is_deeply( $s->{sent}, [
-            { action => 'group-settings-set', group => 'g-ed', key => 'addresses_deny', value => 'blocked,ghost' },
-            { action => 'group-settings-set', group => 'g-ed', key => 'addresses',      value => 'office' } ],
-        'addresses_deny, then addresses, each the whole list' );
+            { action => 'group-settings-set', group => 'g-ed', key => 'address_limit',
+                value => { addresses => ['office'], addresses_deny => [ 'blocked', 'ghost' ] } } ],
+        'one group-settings-set with address_limit, both whole lists' );
     like $s->{status}[0][0], qr/\@g-ed counts only from office, never from blocked, ghost\./, 'and says what it set';
     is $s->{loads}, 1, 'and reloads';
     my $f = $r{refused} or return fail('no result');
-    is scalar @{ $f->{sent} }, 1, 'a refusal of the first stops the second';
+    is scalar @{ $f->{sent} }, 1, 'a refusal is one request, not retried';
     ok $f->{status}[0][1] && $f->{status}[0][0] =~ /Only a sysop/, 'the refusal is shown as it came';
     is $f->{loads}, 1, 'and what the server holds is reloaded';
 };
