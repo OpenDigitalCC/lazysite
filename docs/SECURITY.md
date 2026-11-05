@@ -2126,5 +2126,43 @@ residual risk
 : volume, bounded by rotation only. The reads have their own file and view, so they do
   not push a change off the change view.
 
+### 2026-11-05 - SM1332 (0.16.5): a domain grant adds, and the primary can be granted
+
+Assessment drafted by the developer agent; for the release manager's confirmation.
+
+what changed
+: Ruling 78. The primary site is a grantable row in the domain list (the bare
+  `allowed_groups:` line in `lazysite.conf`). A grant there adds the scope `/` (the
+  docroot, `DomainAccess::PRIMARY_SCOPE`) to its members; grants add, so an account keeps
+  the other domains it is granted. An account granted nothing keeps the primary, as
+  before. `caller_may_reach_domain` reads `/` as the primary only; the content checks read
+  it as the whole docroot, as they read an unbound account's empty list.
+
+threat delta
+: Elevation of privilege is the question: a scope that by path contains every domain's
+  content root, read as such by the domain rule, would reach every domain. It does not:
+  the domain rule sets it apart (t/unit/manager/425 holds beta.test out of reach of a
+  caller granted alpha and the primary), and the sub-user ceiling lets it meet only
+  itself. Reach widens only through an explicit grant on the primary's row, and only to
+  what an unbound account already had there - the primary's content, which by path is the
+  whole docroot as it always was for an unbound account, and the primary's
+  instance-wide settings (SM976 R1, for a caller not confined to other domains). Nothing
+  widens at upgrade: no primary row named a group before (t/unit/lib/210). No trigger of
+  ADR 0007's four fires: no interface, method, dependency or data is added; the row is a
+  new value for an existing key, written through the existing `domain-set`.
+
+controls
+: One resolver (`DomainAccess::effective_scopes`, with the processor's rooting copy held
+  to it by t/unit/processor/175) and one domain rule (`caller_may_reach_domain`, asked by
+  every host-addressed action, t/lint/218). Writing the primary's row needs what writing
+  any domain's access does: `manage_domains` and `manage_users`, and a confined caller
+  reaches the row only when it already reaches the primary.
+
+residual risk
+: An account granted the primary reaches the primary's content as an unbound account
+  does, and by path that holds the other domains' folders (sites/...). This is today's
+  unbound reach, carried over; whether the primary's content should exclude the other
+  domains' roots is a question put to the release manager with this branch.
+
 verdict
 : proposed: accepted, pending the release manager's confirmation.

@@ -42,7 +42,7 @@ like( $r->{error}, qr/mirror\.test/, 'and the domains it does reach' );
 
 as( token => 1, confined => 1, scopes => ['sites/alpha'] );
 $r = domain_reach_refusal( host => 'beta.test' );
-like( $r->{error}, qr/A domain-confined caller reaches only the domains whose content lies inside its scope \(sites\/alpha\/\)/,
+like( $r->{error}, qr/A domain-confined caller reaches only the domains it is granted, whose content lies inside its scope \(sites\/alpha\/\)/,
     'a caller with a scope keeps the confined-caller wording' );
 
 done_testing();

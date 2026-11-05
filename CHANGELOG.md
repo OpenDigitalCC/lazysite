@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1332 (PENDING) **A domain grant adds, and the primary can be granted.** Ruling 78: naming an
+  account's group on a secondary domain took the primary site away from it, because the primary
+  was reached only by having no scope at all, and there was no primary row to grant it back on.
+  The primary's row now carries `allowed_groups` (the bare `allowed_groups:` line), and a grant
+  there adds the primary (`dav_scopes` holds `/`) to the domains the account already has. An
+  account granted nothing keeps the primary; only a lock removes the others. The one domain rule
+  reads `/` as the primary only, never as the other domains' folders; WebDAV, MCP and the manager
+  read it as the whole site, as for an unbound account; the refusal names the primary's row.
+  Nothing changes at upgrade: an account scoped today keeps exactly its reach.
+
 - SM1328 (PENDING) **Odoo is shown by the name the site gives it.** Every dialog label and
   error text a visitor or a manager reads said "Odoo", with no way for a site to call its
   back office what its people call it. One setting, `odoo_display_name` in the Odoo

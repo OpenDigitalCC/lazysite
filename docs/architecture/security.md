@@ -611,7 +611,10 @@ per-user flags:
   the DOMAIN model (SM165, 0.7.26): each domain names `allowed_groups`
   and `locked_users`, and an account's scopes are the content roots of
   the domains its groups may manage, intersected up the `created_by`
-  chain. The per-account and per-group `dav_scope` settings that
+  chain. Grants add (SM1332): the primary has a row of its own, the bare
+  `allowed_groups:` line, whose grant adds the scope `/` (the docroot, read
+  as the primary only by the domain rule); an account granted nothing keeps
+  the primary; only a lock removes the other domains. The per-account and per-group `dav_scope` settings that
   preceded it are retired (SM279) and refused by the tooling; the
   resolved scopes still travel under the name `dav_scopes` everywhere
   they are enforced.

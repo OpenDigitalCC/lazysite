@@ -87,5 +87,6 @@ Negative
 
 Intentionally omitted: a group `dav_scope`. It was retired in 0.7.26 and the
 tooling now refuses it. Confinement lives on the **domain** - configure the domain
-with its own content root and name the group in its `allowed_groups`. See
-Domains.
+with its own content root and name the group in its `allowed_groups`. A group
+named on a secondary domain reaches the primary site too only when the primary's
+own row, (default), names it (grants add, SM1332). See Domains.

@@ -1967,7 +1967,13 @@ sub authorise {
         my $ok = 0;
         for my $sc (@$scope) {
             ( my $s = $sc ) =~ s{^/+|/+$}{}g;
-            next unless length $s;
+            # SM1332: the primary's grant names the docroot, which holds every
+            # content path, as an unbound account's empty list does.
+            if ( !length $s ) {
+                next unless length $sc;
+                $ok = 1;
+                last;
+            }
             if ( $rel eq $s || index( $rel, "$s/" ) == 0 ) { $ok = 1; last }
         }
         unless ($ok) {

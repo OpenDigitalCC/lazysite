@@ -40,6 +40,13 @@ Content reach stays as documented: an unbound WebDAV, MCP or control-API
 account still reaches the whole primary site's content (`_confine_scope`, the
 DAV `authorise`, MCP's path confinement, `whoami` showing `allow: /`).
 
+**Amended by SM1332 (ruling 78, 0.16.5).** "Keep for primary" read the primary as
+reached only by an account with no scope, so naming its group on any secondary
+domain took the primary away, with no primary row to grant it back on. The
+primary is now a grantable row (the bare `allowed_groups:` line), grants add,
+and an account granted nothing keeps the primary as before. A token granted the
+primary's row names a scope, so this ruling's refusal does not apply to it.
+
 # The fix
 
 `Lazysite::Manager::Common::no_scope_refusal` is the one refusal, and it says

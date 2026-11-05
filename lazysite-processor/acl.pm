@@ -1026,6 +1026,10 @@ sub _read_domain_access {
         if ( $l =~ /^content_root\s*:\s*(.+)/ ) {
             ( $dom{''}{content_root} = $1 ) =~ s/^\s+|\s+$//g;
         }
+        # SM1332: the primary's row.
+        elsif ( $l =~ /^(allowed_groups|locked_users)\s*:\s*(.+)/ ) {
+            $dom{''}{$1} = [ grep { length } map { s/^\s+|\s+$//gr } split /,/, $2 ];
+        }
         elsif ( $l =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users)\s*:\s*(.+)/x ) {
             my ( $h, $k, $v ) = ( $1, $2, $3 );
             $v =~ s/^\s+|\s+$//g;
@@ -1043,24 +1047,28 @@ sub _domain_eff {
     @groups = _group_closure(@groups);
     my %g   = map { $_ => 1 } @groups;
     my %dom = _read_domain_access();
-    my ( %allowed, %locked );
+    # SM1332: grants add; the primary is granted on its row, and allowed to an
+    # account granted nothing, or while its row names nobody.
+    my ( %granted, %locked );
     for my $h ( keys %dom ) {
         my @ag = @{ $dom{$h}{allowed_groups} || [] };
-        if ( $h eq '' ) { $allowed{$h} = 1 if !@ag || grep { $g{$_} } @ag }
-        else            { $allowed{$h} = 1 if @ag && grep { $g{$_} } @ag }
+        $granted{$h} = 1 if @ag && grep { $g{$_} } @ag;
         $locked{$h} = 1
             if defined $user && grep { $_ eq $user } @{ $dom{$h}{locked_users} || [] };
     }
+    my %allowed = %granted;
+    $allowed{''} = 1 if !%granted || !@{ $dom{''}{allowed_groups} || [] };
     my @eff = %locked ? ( grep { $allowed{$_} } keys %locked ) : ( keys %allowed );
-    return ( \%dom, \@eff );
+    return ( \%dom, \@eff, \%granted );
 }
 
 sub _domain_scopes {
-    my ( $dom, $eff ) = _domain_eff(@_);
+    my ( $dom, $eff, $granted ) = _domain_eff(@_);
     return () unless @{$eff};
     my ( %seen, @sc );
     for my $h ( @{$eff} ) {
         my $cr = $dom->{$h}{content_root} // '';
+        $cr = '/' if $h eq '' && !length $cr && $granted->{''};    # PRIMARY_SCOPE
         next unless length $cr;
         push @sc, $cr unless $seen{$cr}++;
     }
@@ -1068,8 +1076,8 @@ sub _domain_scopes {
 }
 
 sub _domain_home {
-    my ( $dom, $eff ) = _domain_eff(@_);
-    my @rooted = grep { length( $dom->{$_}{content_root} // '' ) } @{$eff};
+    my ( $dom, $eff, $granted ) = _domain_eff(@_);
+    my @rooted = grep { length( $dom->{$_}{content_root} // '' ) || ( $_ eq '' && $granted->{''} ) } @{$eff};
     return ( @rooted == 1 ) ? $rooted[0] : '';
 }
 

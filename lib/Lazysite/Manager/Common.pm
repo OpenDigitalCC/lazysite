@@ -656,9 +656,16 @@ sub _no_scope_refusal {
 #   - a domain with a content root of its own: yes when that root lies inside
 #     one of its scopes, no otherwise, and no when it names none (SM975);
 #   - the PRIMARY, and a domain with no root of its own (it serves the primary's
-#     content): the content-path rule, which SM975 left as documented - an
-#     unbound account reaches the primary site, a scoped one does not (ruled
-#     2026-10-09, R3 "Keep for primary"; any other domain needs a scope).
+#     content): yes for an unbound account (ruled 2026-10-09, R3 "Keep for
+#     primary") and for one whose grant names the primary's row (its scopes hold
+#     the primary's, the docroot); no for a scope naming only other domains.
+#
+# SM1332 (ruling 78): GRANTS ADD. The primary was reached only by having no
+# scope at all, so naming an account's group on any secondary domain took the
+# primary away, and there was no primary row to grant it back on. The primary's
+# row now grants like any other (DomainAccess::PRIMARY_SCOPE); that scope holds
+# the primary and the domains serving its content, and never another domain's
+# root, which by path it would contain.
 # Actions that refuse a token naming no scope outright (the domain writes and
 # the site packages, SM975/SM578) keep that refusal ahead of this one.
 sub caller_may_reach_domain {
@@ -669,10 +676,38 @@ sub caller_may_reach_domain {
         ? grep { defined && length } @{ $a{scopes} || [] }
         : @REQUEST_SCOPES;
     my $root = exists $a{root} ? _clean_root( $a{root} ) : _domain_root_of( $a{host} );
-    return 0                   unless defined $root;   # not a domain this instance serves
-    return ( @scopes ? 0 : 1 ) unless length $root;    # the primary's content
-    return 0                   unless @scopes;         # SM975: no scope, no domain
-    return outside_all_scopes( \@scopes, $root ) ? 0 : 1;
+    return 0 unless defined $root;    # not a domain this instance serves
+    my @domains = grep { !_is_primary_scope($_) } @scopes;
+    # The primary's content: unbound, or holding the primary's grant.
+    return ( !@scopes || @domains < @scopes ) ? 1 : 0 unless length $root;
+
+    return 0 unless @domains;         # SM975: no scope, no domain
+    return outside_all_scopes( \@domains, $root ) ? 0 : 1;
+}
+
+# SM1332: does this scope name the primary's row (the docroot itself)? The one
+# reading, from the resolver that writes it.
+sub _is_primary_scope {
+    require Lazysite::Auth::DomainAccess;
+    return Lazysite::Auth::DomainAccess::is_primary_scope( $_[0] );
+}
+
+# SM1332: does a scope list reach the whole docroot as a content path - an
+# unbound list, or one holding the primary's grant? The walks that start at a
+# caller's scope roots start at the docroot for it.
+sub scopes_reach_docroot {
+    my ($scopes) = @_;
+    my @s = grep { defined && length } @{ $scopes || [] };
+    return ( !@s || grep { _is_primary_scope($_) } @s ) ? 1 : 0;
+}
+
+# SM1332: a scope list as a sentence names it - the primary's grant as the
+# primary site, any other as its folder.
+sub scope_names {
+    my (@scopes) = @_;
+    return join ', ',
+        map { _is_primary_scope($_) ? 'the primary site' : do { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } }
+        grep { defined && length } @scopes;
 }
 
 # Is the manager request a domain-confined caller? The token channel always is;
@@ -762,11 +797,20 @@ sub domain_reach_refusal {
                 . 'a scope that covers that root'
                 . ( @mine ? '. It reaches: ' . join( ', ', @mine ) . '.' : '.' ) };
     }
-    my $scope = 'its scope (' . join( ', ', map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; "$x/" } @scopes ) . ')';
+    # SM1332 (ruling 78): the primary is granted on its own row, as any domain is;
+    # a caller scoped to other domains is told where that grant is made.
+    my $primary = exists $a{root}
+        ? !length _clean_root( $a{root} )
+        : do { my $r = _domain_root_of( $a{host} ); defined $r && !length $r };
+    my $scope = 'its scope (' . scope_names(@scopes) . ')';
     return { ok => 0, kind => 'forbidden', domains => \@mine,
         error => "You cannot reach $what. A domain-confined caller reaches only the "
-            . "domains whose content lies inside $scope"
-            . ( @mine ? ': ' . join( ', ', @mine ) . '.' : ', and that is none.' ) };
+            . "domains it is granted, whose content lies inside $scope"
+            . ( @mine ? ': ' . join( ', ', @mine ) . '.' : ', and that is none.' )
+            . ( $primary
+            ? " The primary site is granted on its own row, as any domain is: an operator names "
+                . "the account's group in the (default) domain's allowed_groups (Domains page)."
+            : '' ) };
 }
 
 # SM976 R1: CONFINED MEANS NO INSTANCE-WIDE WRITE. A caller whose grant names a
@@ -781,8 +825,9 @@ sub domain_reach_refusal {
 # cookie manager whose scope was resolved) whose scope list is NOT EMPTY. Scopes
 # are the content roots of the domains its groups are named on, or SM165's
 # deny-all for a locked account, so a non-empty scope binds it to some domains
-# and never to the primary - the predicate already refuses such a caller the
-# primary site. An UNBOUND token, grant or account reaches the primary by the
+# and, unless it holds the primary's own grant (SM1332), never to the primary -
+# the predicate already refuses such a caller the primary site. A caller granted
+# the primary's row is not confined here. An UNBOUND token, grant or account reaches the primary by the
 # content-path rule (R3, "keep for primary"); the instance's settings are the
 # primary's, so it keeps them, as do the operator and an unbound cookie manager
 # (R2). Takes the predicate's `scopes => [...]` override for MCP and WebDAV.
@@ -791,7 +836,9 @@ sub caller_is_confined {
     my $confined = exists $a{scopes} ? 1 : request_domain_confined();
     return 0 unless $confined;
     my @scopes = grep { defined && length } ( exists $a{scopes} ? @{ $a{scopes} || [] } : @REQUEST_SCOPES );
-    return @scopes ? 1 : 0;
+    # SM1332: a grant naming the primary's row reaches the primary, whose settings
+    # the instance's are, as the unbound caller does.
+    return ( @scopes && !grep { _is_primary_scope($_) } @scopes ) ? 1 : 0;
 }
 
 # The refusal for an instance-wide write by a confined caller, or undef. It
@@ -830,8 +877,9 @@ sub _confined_who { my (%who) = @_; return exists $who{scopes} ? 1 : request_dom
 # Who serves it: Domains::domain_usage, the effective layout and theme of the
 # primary and of every configured host - so a domain that inherits the primary's
 # theme serves it too, and the primary is reached as caller_may_reach_domain
-# says (an unbound grant does, a scoped one does not). A theme path is served by
-# the sites using that theme under that layout; any other path under a layout
+# says (an unbound grant does, and so does one granted the primary's row; one
+# scoped to other domains does not, SM1332). A theme path is served by the sites
+# using that theme under that layout; any other path under a layout
 # (its template, its assets, its themes/ folder) by every site using the layout.
 # When the usage cannot be read, nothing is known to be unused: refused.
 #
@@ -871,10 +919,15 @@ sub served_artifact_refusal {
         . 'theme-activate with host).'
         : 'Edit a layout no other site serves, then bind it to your domain (activate_layout or '
         . 'layout-activate with host).';
+    # SM1332: when the site not reached is the primary, say where it is granted.
+    my $prim = ( $known && grep { $_ eq '' && !caller_may_reach_domain( %by, host => '' ) } @hosts )
+        ? " The primary site serves it; the primary is granted on its own row, as any domain is "
+        . "(the (default) domain's allowed_groups)."
+        : '';
     return _refusal(
         "$what is served by a site you do not reach. A domain-confined caller writes only a "
             . 'theme or layout that no site serves, or that only its own domains serve'
-            . ( @mine ? ' (' . join( ', ', @mine ) . ')' : '' ) . ". $how",
+            . ( @mine ? ' (' . join( ', ', @mine ) . ')' : '' ) . ".$prim $how",
         'served-artifact-refused',
         "$what is served by a site outside the caller's domains",
         defined $theme ? 'copy it, edit the copy, then activate the copy with host'
@@ -895,7 +948,9 @@ sub caller_may_reach_path {
     my @scopes = exists $by{scopes}
         ? grep { defined && length } @{ $by{scopes} || [] }
         : @REQUEST_SCOPES;
-    return 1 unless @scopes;
+    # SM1332: unbound, or granted the primary.
+    return 1 if scopes_reach_docroot( \@scopes );
+
     # Asked of the path as the caller sent it, which the action resolves later:
     # a `..` segment could leave the scope after this check passed, so it is
     # inside none.
@@ -1159,7 +1214,7 @@ sub page_form {
 # reaches a form only when every page binding it lies inside its scope - one
 # page outside is another site's visitors posting to it - and a form no page
 # binds counts as the primary's, reached as caller_may_reach_domain reaches the
-# primary (an unbound grant does, a scoped one does not). Unconfined callers are
+# primary (an unbound grant does, and one granted its row, SM1332). Unconfined callers are
 # not asked. Takes the predicate's `scopes => [...]` override, and `bindings`
 # (form_bindings' map) so a listing walks the site once rather than per form.
 sub caller_may_reach_form {

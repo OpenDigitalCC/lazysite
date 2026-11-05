@@ -179,9 +179,9 @@ sub _domain_reachable {
     return ( 1, $d ) unless @scopes;    # unbound: every domain
     my $cr = $d->{content_root} // '';
     require Lazysite::Manager::Common;
+    # SM1332: the one domain rule, so the primary's row grants it here too.
     return ( 0, "'$host' is outside the account's confinement" )
-        if !length $cr
-        || Lazysite::Manager::Common::outside_all_scopes( \@scopes, $cr );
+        unless Lazysite::Manager::Common::caller_may_reach_domain( scopes => \@scopes, root => $cr );
     return ( 1, $d );
 }
 

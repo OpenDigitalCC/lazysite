@@ -64,14 +64,17 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   names a `host` - `domain_set`, `preview_domain`, `read_nav`, `set_nav`, the
   `host` form of `activate_theme` and `activate_layout` - and `list_domains`
   shows only the domains the grant reaches. A domain added or repointed must
-  have its content inside the scope; a grant with a scope does not reach the
-  primary site. Nor does it change anything the whole instance reads:
+  have its content inside the scope. Grants add: a grant with a scope reaches
+  the primary site only when the primary's own row, `(default)`, names its group
+  too (`dav_scopes` then holds `/`, the primary); otherwise it does not reach the
+  primary, nor change anything the whole instance reads:
   `activate_theme` and `activate_layout` without a `host`, `install_layout`,
   `delete_layout`, the handler and schedule tools, `create_theme` with
   `activate`, and on the control API the site configuration, extensions,
   connectors and instance backups are refused to it; it changes its own
-  domains through the `host` forms. A grant with no scope keeps them: it
-  reaches the primary, whose settings they are. A theme or layout a site
+  domains through the `host` forms. A grant with no scope keeps them, and so
+  does one granted the primary's row: it reaches the primary, whose settings
+  they are. A theme or layout a site
   serves is that site's: a confined grant writes one only when no site serves
   it or only its own domains do (copy it, edit the copy, bind the copy with
   `host`). A form is reached through the pages that bind it (`form: NAME`),

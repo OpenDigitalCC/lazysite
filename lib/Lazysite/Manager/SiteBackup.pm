@@ -68,8 +68,8 @@ our $LAZYSITE_DIR;    # set by the script
 # session, so a manager confined to one domain built, downloaded and deleted
 # another domain's package; the operator and an unbound cookie manager are still
 # unconfined there, and a scoped one is held to its scope. A package of the
-# primary (no content root) is reached by no token: a token naming no scope is
-# refused here first, and a scoped one does not reach the primary.
+# primary (no content root) is reached by no token naming no scope (refused here
+# first), and by a scoped one only when its grant names the primary's row (SM1332).
 sub _root_outside_grant {
     my ($croot) = @_;
     return 1 if _no_scope_refusal();    # a token naming no scope reaches nothing

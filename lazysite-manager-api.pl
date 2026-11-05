@@ -1419,7 +1419,8 @@ my $result;
 if ( $action eq 'list' ) {
     # SM1308 (ruling 47): a confined caller naming no folder is shown its scope
     # roots, as MCP list_files is - one function for both doors.
-    $result = ( @REQUEST_SCOPES && !_list_names_a_folder() )
+    # SM1332: one granted the primary's row is shown the docroot, as an unbound one is.
+    $result = ( !Lazysite::Manager::Common::scopes_reach_docroot( \@REQUEST_SCOPES ) && !_list_names_a_folder() )
         ? Lazysite::Manager::Files::action_list_scope_roots( \@REQUEST_SCOPES )
         : action_list($path);
 }

@@ -1746,8 +1746,10 @@ function restoreVersion(btn) {
 // SM157: every content root the user is scoped to. One entry => single-domain
 // editor (rooted there, no switcher). Several => multi-domain editor: the file
 // browser roots at the ACTIVE one and offers a switcher. Empty => operator.
+// SM1332: '/' is the primary, granted on its own row; it stays in the list as
+// the whole site, where the strip below would have dropped it.
 var SCOPES = (window.LAZYSITE_DAV_SCOPES || '').split(',')
-  .map(function(s) { return s.replace(/^\/+|\/+$/g, ''); }).filter(Boolean);
+  .map(function(s) { return /^\/+$/.test(s) ? '/' : s.replace(/^\/+|\/+$/g, ''); }).filter(Boolean);
 var activeScope = null;
 (function initActiveScope() {
   if (!SCOPES.length) return;                 // operator - unconfined, no switcher
@@ -1761,6 +1763,7 @@ var activeScope = null;
 // this just gives them a coherent starting view rooted at their own domain.
 // SM157: for a multi-domain editor the root follows the switcher's activeScope.
 function scopeRoot() {
+  if (activeScope === '/') return '/';
   if (activeScope) return '/' + activeScope + '/';
   var s = (window.LAZYSITE_SCOPE_ROOT || '').replace(/^\/+|\/+$/g, '');
   return s ? ('/' + s + '/') : '/';
@@ -1773,7 +1776,8 @@ function renderScopeSwitcher() {
   if (!el) return;
   if (SCOPES.length < 2) { el.style.display = 'none'; return; }
   var opts = SCOPES.map(function (s) {
-    return '<option value="' + escHtml(s) + '"' + (s === activeScope ? ' selected' : '') + '>' + escHtml(s) + '</option>';
+    return '<option value="' + escHtml(s) + '"' + (s === activeScope ? ' selected' : '') + '>'
+      + escHtml(s === '/' ? 'the primary site' : s) + '</option>';
   }).join('');
   el.innerHTML = '<label class="mg-muted" style="font-size:0.9em;">Domain: '
     + '<select class="mg-inp" style="max-width:18rem" onchange="switchScope(this.value)">' + opts + '</select></label>'
