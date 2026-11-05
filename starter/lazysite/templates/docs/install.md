@@ -188,8 +188,8 @@ lazysite-apache-vhost add example.com --docroot /var/www/example.com/public_html
 to the `cgi-bin` beside the docroot; name it when the site's cgi-bin is
 elsewhere.
 
-`provision` puts the CGIs in `--cgibin` and the engine's modules, plugins
-and tools beside the docroot, at `{docroot}/../lib`, `../plugins` and
+`provision` puts the CGIs in `--cgibin` and the engine's modules, extensions
+and tools beside the docroot, at `{docroot}/../lib`, `../extensions` and
 `../tools`. The cgi-bin may be anywhere: the CGIs find the modules beside
 themselves first and then at the docroot's `../lib` (SM1078). Copying
 `lazysite-processor.pl` into a cgi-bin by hand is not a supported install -
@@ -375,8 +375,8 @@ before removing anything if you intend to move it elsewhere.
       cgi-bin/
         lazysite-processor.pl
         lazysite-auth.pl
-        plugins/form-handler.pl
-        plugins/form-smtp.pl
+        extensions/form-handler.pl
+        extensions/form-smtp.pl
         lazysite-manager-api.pl
       404.md
       index.md

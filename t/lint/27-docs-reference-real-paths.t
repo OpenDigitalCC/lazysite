@@ -36,6 +36,10 @@ File::Find::find(
         wanted   => sub {
             return unless /\.md\z/;
             return if $File::Find::name =~ m{/feature-requests/};
+            # SM1142: so are the reviews - each is a reading of the tree as it
+            # stood that day, and names the files it read. The rename moved
+            # three of them; rewriting the record to follow would falsify it.
+            return if $File::Find::name =~ m{/docs/review/};
             # SM946: the changelog archive is the CHANGELOG's history, exempt for
             # the reason given below.
             return if $File::Find::name =~ m{/docs/releases/CHANGELOG-archive\.md\z};

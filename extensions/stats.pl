@@ -559,7 +559,7 @@ sub _classifier_file { return _lz($DOCROOT) . "/stats/classifiers.json" }
 # site is untouched and stays readable as the thing it tests.
 #
 # The first design routed every match through a _rule('name') lookup, and it
-# broke a testing surface: t/unit/plugins/05 extracts `my $ASSET_RE = ...`
+# broke a testing surface: t/unit/extensions/05 extracts `my $ASSET_RE = ...`
 # together with `sub _is_asset` and evaluates the pair in its own package, so a
 # pure path test can run without the extension. A lookup helper does not exist in
 # that package, and the extracted sub died.

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM738: the three faults the 0.11.11 field pass found in the composed PDF.
 #
-# WHY THE GATE MISSED ALL THREE. t/unit/plugins/41 composes from parts that
+# WHY THE GATE MISSED ALL THREE. t/unit/extensions/41 composes from parts that
 # carry no front matter, so the concatenation fault could not appear; and it
 # passes no `resolve`, so the private-store fault could not either. The fixtures
 # described a shape the feature is not for - "compose a document out of pages

@@ -174,7 +174,7 @@ removed; or if the saved reader list in step 2 did not match what you chose.
 
 # Task 5 - a table, from nothing to a spreadsheet and back
 
-You need the **Data tables** plugin switched on (Extensions), and your
+You need the **Data tables** extension switched on (Extensions), and your
 account in a group that holds **Data**.
 
 **This task has two halves, and they are walked by different people.** Steps
@@ -190,8 +190,8 @@ the register row records whose half was walked.
 1. In your manager window, go to **Data tables**.
 
    *You should see:* a list of tables, or the words *No tables are declared
-   yet*. If instead you see *The data plugin is disabled*, switch it on and
-   come back - that message is the plugin doing its job.
+   yet*. If instead you see *The data extension is disabled*, switch it on and
+   come back - that message is the extension doing its job.
 
 2. Declare a small table through the API or an agent - `describe_data_table`'s
    own text shows the shape. Three fields is enough: a text key, an integer

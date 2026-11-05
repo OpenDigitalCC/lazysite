@@ -76,7 +76,7 @@ SLOW='t/tools/60-coverage-cannot-report-what-it-did-not-measure.t
 t/smoke/01-all-starter-pages.t
 t/tools/01-build-manifest.t
 t/tools/03-install-pl.t
-t/unit/plugins/41-a-composed-document-is-refused-not-quietly-shortened.t
+t/unit/extensions/41-a-composed-document-is-refused-not-quietly-shortened.t
 t/tools/36-check-verifies-install-dirs.t
 t/tools/35-install-dirs-declared.t
 t/tools/31-webserver-glue.t

@@ -65,6 +65,17 @@ Archive
   settle capability. Docs only; nothing is signed.
 
 - SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
+- SM1142 (PENDING) **A site from before the rename upgrades in place and behaves the same, and
+  the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
+  and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has
+  the entry, with the hand-made references the upgrade cannot see (a crontab running
+  `extensions/stats.pl`, a pipe to `extensions/form-smtp.pl`, a bookmark, a script on the old
+  action spelling). The tests moved with the code (`t/unit/extensions/` and every test whose
+  name said the old word). A journey test (t/journey/06) upgrades a pre-rename site and asks
+  each deciding reader - the sign-in CGI's rate limiter, the data gate, the runtime's start
+  gate, the notifier and the render path's registry and manager nav - what it sees: the same as
+  before. History keeps its words (CHANGELOG, filings, reviews, FEATURES.md's timeline).
+
 - SM1142 (PENDING) **On Hestia the root-run scripts make `extensions/`, and clear the old
   directory.** Slice S3 (R4: no separate installer release ahead - the root-run deploy runs
   before the user-run install anyway). The domain root is mode 0551, so the site user cannot

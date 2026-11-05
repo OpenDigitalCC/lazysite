@@ -2,7 +2,7 @@
 # SM732: the PDF render is reachable.
 #
 # SM706 built convert() - the composed-document refusal, the per-part may_read
-# check, the cache - and shipped it with NO CALLER. t/unit/plugins/41 passed
+# check, the cache - and shipped it with NO CALLER. t/unit/extensions/41 passed
 # throughout: eleven sabotages of a function nothing invoked. Two field rounds
 # reported the positive path "not proved" for environmental reasons, and the
 # deferral hid the gap.

@@ -747,7 +747,7 @@ whichever minted it first).
 
 ## Installation
 
-The installer places both extensions under `{docroot}/../plugins/`
+The installer places both extensions under `{docroot}/../extensions/`
 and symlinks `form-handler.pl` into `cgi-bin/` so Apache can route
 `/cgi-bin/form-handler.pl` at it. `form-smtp.pl` does not need
 `cgi-bin/` presence - it is invoked as a subprocess by
@@ -756,10 +756,10 @@ and symlinks `form-handler.pl` into `cgi-bin/` so Apache can route
 For manual installation:
 
 ```bash
-mkdir -p /path/to/plugins
-cp plugins/form-handler.pl plugins/form-smtp.pl /path/to/plugins/
-chmod 755 /path/to/plugins/form-handler.pl /path/to/plugins/form-smtp.pl
-ln -s /path/to/plugins/form-handler.pl /path/to/cgi-bin/form-handler.pl
+mkdir -p /path/to/extensions
+cp extensions/form-handler.pl extensions/form-smtp.pl /path/to/extensions/
+chmod 755 /path/to/extensions/form-handler.pl /path/to/extensions/form-smtp.pl
+ln -s /path/to/extensions/form-handler.pl /path/to/cgi-bin/form-handler.pl
 ```
 
 ## Further reading

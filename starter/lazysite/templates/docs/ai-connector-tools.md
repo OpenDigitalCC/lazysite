@@ -259,13 +259,13 @@ list_layout_catalogue
   theme, themes), annotated with what is already installed - discover what
   `install_layout` can pull without downloading anything. Needs `manage_layouts`.
 
-### Version history (needs the site's Content history plugin)
+### Version history (needs the site's Content history extension)
 
-When the operator has enabled the **Content history** plugin, every save
+When the operator has enabled the **Content history** extension, every save
 (manager, WebDAV, or this connector) is recorded as a version, and these tools
 let you inspect and undo content changes. If `list_versions` returns
 `enabled: false`, versions are not being recorded - ask the operator to enable
-the plugin; do not try to build your own history. All three need
+the extension; do not try to build your own history. All three need
 `manage_content`.
 
 list_versions `{ path, limit }`
@@ -284,7 +284,7 @@ restore_version `{ path, version }`
   with the offset) and the file is left as it is.
 
 Remote sync of the history (push/pull to a git host) is **operator-only** by
-design - it is configured and driven from the manager UI (Remote sync plugin)
+design - it is configured and driven from the manager UI (Remote sync extension)
 and is not exposed over the connector or the control API.
 
 ### Writing and editing (writes - audited)
@@ -381,7 +381,7 @@ invalidate_cache `{ path }`
 
 A **site package** is a portable snapshot of ONE domain's site: its content, its
 navigation, the theme and layout it uses, and its presentation settings. It
-deliberately excludes plugins, instance settings and any secrets, so it is safe
+deliberately excludes extensions, instance settings and any secrets, so it is safe
 to hand to another instance. Use it to turn an agency demo into a client's live
 site, or to copy a site to another domain. Both tools need `manage_domains` and
 access to the domain.

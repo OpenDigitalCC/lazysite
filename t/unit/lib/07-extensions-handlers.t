@@ -64,7 +64,7 @@ is( resolve_extension_script('extensions/log.pl'), "$base/extensions/log.pl",
 ok( !defined resolve_extension_script('does-not-exist.pl'),
     'an unregistered name resolves to undef' );
 # A script placed beside the docroot is NOT a registry key -> no longer resolves
-# (this was the RCE: arbitrary path resolution). See 27-plugin-registry-rce.t.
+# (this was the RCE: arbitrary path resolution). See 27-extension-registry-rce.t.
 open my $p, '>', "$base/sample-extension.pl" or die $!;
 print {$p} "1;\n"; close $p;
 ok( !defined resolve_extension_script('sample-extension.pl'),

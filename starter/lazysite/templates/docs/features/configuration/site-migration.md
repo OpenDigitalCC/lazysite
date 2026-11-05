@@ -13,7 +13,7 @@ A package contains just that one site:
 - the theme and layout it uses (self-contained, so it works on any instance),
 - its presentation settings (title, site address, etc.).
 
-It deliberately leaves out plugins, instance settings and anything secret, so a
+It deliberately leaves out extensions, instance settings and anything secret, so a
 package is safe to send to another instance and carries nobody else's data.
 
 ## Who can do it

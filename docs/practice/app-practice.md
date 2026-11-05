@@ -132,20 +132,20 @@ Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
 by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
 blocked path.
 
-**A PLUGIN'S OWN ACTIONS COME FROM `extension-list`, and nowhere else** (SM809).
+**AN EXTENSION'S OWN ACTIONS COME FROM `extension-list`, and nowhere else** (SM809).
 `describe-capabilities` names `extension-action` but cannot name what any
-particular plugin offers, because that is the plugin's own declaration.
-`extension-list` returns each plugin's `id`, its `script`, its `config_file` and
+particular extension offers, because that is the extension's own declaration.
+`extension-list` returns each extension's `id`, its `script`, its `config_file` and
 an `actions` array - `[{"id":"status","label":"Status"}]` and the like - and
 that array is the contract. Call it as:
 
-    ?action=extension-action&plugin=<id>
+    ?action=extension-action&extension=<id>
     body {"action_id": "<id from the actions array>", "params": {...}}
 
-**Is the persistent runtime running?** That is the daemon, and its plugin id is
+**Is the persistent runtime running?** That is the daemon, and its extension id is
 `daemon`: `extension-action` with `action_id: "status"` answers with each
 scheduled job, its actor, its outcome and a detail. It is cookie-only, like
-every plugin action, so it is a manager-session call rather than a token one -
+every extension action, so it is a manager-session call rather than a token one -
 which is why no amount of reading `actions-list` will find it.
 
 **Make one call of the action the design depends on, before the design depends
@@ -163,8 +163,8 @@ a partner token cannot take:
 - **`manage_data` may be absent** - and the partner brief is a stale snapshot
   (it advertised six capabilities where the server granted fourteen). Trust
   `describe-capabilities` / `whoami`, never the brief.
-- **The data plugin ships disabled** and can only be enabled from the manager
-  UI - so an account holding `manage_config` still cannot switch on the plugin
+- **The data extension ships disabled** and can only be enabled from the manager
+  UI - so an account holding `manage_config` still cannot switch on the extension
   it was provisioned for.
 
 Provision a build with all three settled, or say up front that an operator step

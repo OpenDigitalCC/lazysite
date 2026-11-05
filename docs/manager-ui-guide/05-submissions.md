@@ -62,7 +62,7 @@ Negative
 ## The old address
 
 Where
-: `/manager/plugin-config?submissions=<store>`, a bookmark from before SM957
+: `/manager/extension-config?submissions=<store>`, a bookmark from before SM957
 
 Do
 : Open it.

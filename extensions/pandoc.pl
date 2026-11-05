@@ -69,7 +69,7 @@ BEGIN {
 # process several times slower and the release gate runs the whole suite
 # under it at -j4; a pandoc + XeLaTeX render that takes 8 s plain took
 # longer than 20 s there, the conversion was refused as a timeout, and the
-# 0.13.4 coverage stage failed on t/unit/plugins/41 - a test that passes
+# 0.13.4 coverage stage failed on t/unit/extensions/41 - a test that passes
 # alone and passed on the 0.13.3 run by the luck of the load. The same rule
 # Manager::Extensions applies to its --describe budget: measurement must not
 # alter behaviour, so the instrumented process gets a proportionate ceiling
@@ -77,7 +77,7 @@ BEGIN {
 # n355: `our`, so a test that asserts a render SUCCEEDS can widen it. Under a
 # host load of about 17-23 on eight cores (the release gate beside other work)
 # a render that takes 9 s alone took over 20 s, the alarm killed it (exit 15),
-# and t/unit/plugins/40 and 41 failed on "a page converts" while passing alone.
+# and t/unit/extensions/40 and 41 failed on "a page converts" while passing alone.
 # What those subtests assert is the render, not this ceiling; 40 asserts the
 # ceiling separately, with a stand-in converter that never finishes. Nothing
 # from a request reaches this value.

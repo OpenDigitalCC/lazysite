@@ -117,7 +117,7 @@ convention above makes new citations unambiguous as they are written.
 - **`sanitise_next()`** rejects protocol-relative URLs (`//host`),
   triple-slash, backslash, absolute URLs with scheme,
   `javascript:` scheme, traversal, empty, undef.
-- **Process safety:** `lazysite-manager-api.pl`'s `plugin-list`
+- **Process safety:** `lazysite-manager-api.pl`'s `extension-list`
   action spawns at most one subprocess per candidate script and
   times them out at 2s; the shared auth-secret file does not
   proliferate under concurrent first-requests.
@@ -302,7 +302,7 @@ run-to-run under subprocess instrumentation - see the floor file).
 Tests that rebuild `%ENV` from scratch for a CGI child must splice in
 `TestHelper::env_passthrough()`, or the child never loads Devel::Cover and the
 CGI reports "not measured" - this was why `lazysite-auth.pl` (and the
-`Manager::Plugins`/`Upload` handlers) looked uncovered for weeks while being
+`Manager::Extensions`/`Upload` handlers) looked uncovered for weeks while being
 tested all along.
 
 ### Coverage fits around the other work (SM1230)
@@ -340,15 +340,15 @@ review hardening), statement / branch:
 | `Lazysite::Audit` | 100% | 70% | in-process |
 | `Lazysite::Manager::Files` | 96% | 72% | |
 | `Lazysite::Auth::Settings` | 96% | 69% | in-process |
-| `plugins/stats.pl` | 94% | 68% | |
+| `extensions/stats.pl` | 94% | 68% | |
 | `Lazysite::Manager::Common` | 88% | 76% | in-process |
 | `Lazysite::Manager::Upload` | 82% | 69% | handlers now measured (was 37/29) |
 | `Lazysite::Manager::Themes` | 76% | 52% | |
 | `Lazysite::Manager::Layouts` | 75% | 54% | |
 | `Lazysite::Manager::Backups` | 70% | 56% | |
-| `Lazysite::Manager::Plugins` | 66% | 43% | handlers now measured (was 21/11) |
+| `Lazysite::Manager::Extensions` | 66% | 43% | handlers now measured (was 21/11) |
 
-The old "under-measured modules" caveat is resolved: `Plugins`/`Upload` showed
+The old "under-measured modules" caveat is resolved: `Extensions`/`Upload` showed
 21%/37% because %ENV-rebuilding tests dropped `PERL5OPT`, so their subprocess
 children were never instrumented - a measurement artifact fixed by
 `env_passthrough()`, not a test gap. `install.pl` remains outside the gate
@@ -356,7 +356,7 @@ children were never instrumented - a measurement artifact fixed by
 upward as coverage improves, never down.
 
 **The under-measured modules are a test-style artifact, not a gap.**
-`Manager::Plugins` and `Manager::Upload`'s `action_*` handlers show ~0 because
+`Manager::Extensions` and `Manager::Upload`'s `action_*` handlers show ~0 because
 they are exercised only by **subprocess** integration tests, whose coverage does
 not aggregate into `cover_db` - whereas `Themes`' handlers, hit by **in-process
 `LOAD_ONLY`** tests, measure fine. The handlers are tested (the suite is green);

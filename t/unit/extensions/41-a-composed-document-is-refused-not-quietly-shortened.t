@@ -34,7 +34,7 @@ require $plug;
 # THE RENDER IS ASSERTED HERE, NOT THE PRODUCTION CEILING (n355). Under a host
 # load of about 17 or more a composed render outlasted the extension's 20 s, was
 # killed, and "the document converts" failed while this file passed alone.
-# t/unit/plugins/40 asserts the ceiling itself.
+# t/unit/extensions/40 asserts the ceiling itself.
 {
     no warnings 'once';
     $main::TIMEOUT_SECONDS = 300;

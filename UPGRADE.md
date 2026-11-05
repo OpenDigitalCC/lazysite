@@ -68,6 +68,40 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Plugins become extensions, on disk and in lazysite.conf (SM1142)
+
+The upgrade to 0.16.4 moves each site in place, once, and the result is in its
+summary under `Extensions:`:
+
+- the files left in `{docroot}/../plugins/` move to `{docroot}/../extensions/`.
+  A copy of a shipped file the site edited is replaced by the release's, as an
+  edited code file always is, and the edit is kept beside it as
+  `extensions/<file>.pl.from-plugins`; a file the site added itself moves as it
+  is. The emptied `plugins/` is removed (on HestiaCP by the root-run deploy);
+- `lazysite.conf`'s `plugins:` list becomes `extensions:` and each
+  `- plugins/<file>.pl` entry `- extensions/<file>.pl`, so every extension that
+  was on stays on - the login rate limiter among them;
+- a cgi-bin link into `plugins/` is pointed at the moved file, and an account
+  whose start page was the Extensions page keeps it at its new address.
+
+Nothing reads the old names afterwards. `lazysite check` names a `plugins:` list
+or a `- plugins/...` entry written back by hand, by line.
+
+**What you check yourself** - references the upgrade cannot see, made by hand
+from older docs:
+
+- a crontab or script running `perl .../plugins/stats.pl --classify` or
+  `--export`: it is `extensions/stats.pl` now;
+- a pipe to `perl .../plugins/form-smtp.pl --pipe`: `extensions/form-smtp.pl`;
+- a `cgi-bin` link you made yourself outside the site's cgi-bin;
+- a bookmark to `/manager/plugins` or `/manager/plugin-config`: the pages are
+  `/manager/extensions` and `/manager/extension-config`, and the old addresses
+  are not kept;
+- a script calling the manager or control API as `plugin-list`, `plugin-read`,
+  `plugin-save`, `plugin-action`, `plugin-enable` or `plugin-disable`, or passing
+  `?plugin=`: those are refused now, naming the `extension-*` action and the
+  `extension` parameter to use. `extension-list` answers under `extensions`.
+
 ## Starter pages are opt-in for new sites (SM1285, SM1286)
 
 Nothing changes on an existing site. Its starter pages are kept: the demos, the

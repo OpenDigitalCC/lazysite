@@ -35,18 +35,18 @@ cache files.
 
 ### Extensions kept outside the tree
 
-Run from the tree, the server finds extensions in the `plugins/` directory beside
+Run from the tree, the server finds extensions in the `extensions/` directory beside
 the docroot. An extension kept elsewhere (an app's own, in its own repository)
 is named with `--extensions`, once for each directory:
 
     perl tools/lazysite-server.pl --docroot /path/to/public_html \
         --extensions /work/crm/extensions --extensions /work/shop/extensions
 
-- The directories are searched in the order given, then the docroot's `plugins/`.
+- The directories are searched in the order given, then the docroot's `extensions/`.
   A name found in two of them is served from the first, and the startup lines say
   so (`shared.pl is in A and B: A wins`).
 - Each must be a real directory: one that is itself a symlink stops the server
-  with a message. A symlinked script inside is skipped, as in `plugins/`, and
+  with a message. A symlinked script inside is skipped, as in `extensions/`, and
   named at startup.
 - The option exists in the dev server only. An installed engine finds extensions
   where it always did; nothing set in its environment widens that. The server
@@ -124,14 +124,14 @@ plain web server.
 
 ## Link audit
 
-`plugins/audit.pl` scans the docroot and reports orphaned pages
+`extensions/audit.pl` scans the docroot and reports orphaned pages
 (source files with no inbound links) and broken links:
 
-    perl plugins/audit.pl /home/username/web/example.com/public_html
+    perl extensions/audit.pl /home/username/web/example.com/public_html
 
 Pass `--exclude` to omit specific pages from the orphan report:
 
-    perl plugins/audit.pl --exclude changelog,contributing /path/to/docroot
+    perl extensions/audit.pl --exclude changelog,contributing /path/to/docroot
 
 ## Cache management
 

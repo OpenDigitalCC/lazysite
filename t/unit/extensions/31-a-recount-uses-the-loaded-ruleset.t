@@ -5,7 +5,7 @@
 # in-process, so the repair tool undid the operator's classification and
 # reported changed=1 for the damage.
 #
-# (t/unit/plugins/11 pins the export path loading the ruleset; this pins the
+# (t/unit/extensions/11 pins the export path loading the ruleset; this pins the
 # recount path.)
 use strict;
 use warnings;

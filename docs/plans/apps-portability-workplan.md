@@ -26,7 +26,7 @@ releases after its predecessor still lands into a plan somebody can read.
 | 1 | SM715 | The manifest: `owns`, `requests`, ancestry, reserved seed columns, and the inert slots | - |
 | 2 | SM716 | The namespace register: admission, entries, tombstones | 1 |
 | 3 | SM717 | Seeding: reference vs example, stable keys, dry-run, bulk files | 1, 2 |
-| 4 | SM718 | The install flow: roles onto groups, path grants, connector bindings, plugin state | 1, 2 |
+| 4 | SM718 | The install flow: roles onto groups, path grants, connector bindings, extension state | 1, 2 |
 | 5 | SM719 | Updates: add-only, and a refusal naming what is blocked | 1, 2, 3 |
 | 6 | SM720 | Declarative migrations: a fixed vocabulary | 5 |
 | 7 | SM721 | Uninstall, reinstall reattachment, fork migration | 1, 2 |
@@ -106,10 +106,10 @@ An app installs at a reserved path
 
 App installation state is file-based
 : The namespace register is a file in the reserved tree, **not** a table under
-  the data plugin. A plugin-held register is unreadable exactly when a dormant
-  plugin makes install need it (SM675), and an install system that fails on a
+  the data extension. An extension-held register is unreadable exactly when a dormant
+  extension makes install need it (SM675), and an install system that fails on a
   fresh instance fails in the case it exists for. App **tables** remain the data
-  plugin's; the record of what exists is readable without it.
+  extension's; the record of what exists is readable without it.
 
 An app has no server-side code
 : It reaches the server only through `lazysite-data.pl`, the control API and the
@@ -134,9 +134,9 @@ rather than a related item. Its general remedy runs through SM662's derivation
 work.
 
 **SM675** (a dormant capability refuses before it reads grants) is shipped and is
-why SM718 checks plugin state. It also bears on SM716's open storage decision: a
-register held in a data-plugin table would be unreadable exactly when a dormant
-plugin made install need it.
+why SM718 checks extension state. It also bears on SM716's open storage decision: a
+register held in a data-extension table would be unreadable exactly when a dormant
+extension made install need it.
 
 **SM682** (mapping roles onto groups requires `manage_users`) is shipped and is
 SM718's gate.
@@ -147,7 +147,7 @@ for an existing operator-facing import before writing a seed loader.
 ## The horizon these slots are held open for
 
 **SM221** (realtime proxy daemon) and **SM666** (the persistent runtime is the
-product, transports are plugins). The manifest's trigger, timer and realtime
+product, transports are extensions). The manifest's trigger, timer and realtime
 slots exist from SM715 and are consumed by nothing until these land.
 
 This is the plan's least intuitive instruction and the one to defend: **the slots

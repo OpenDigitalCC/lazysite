@@ -402,7 +402,7 @@ it only consumes the header contract.
   The credential *holder* sets their own secret - the operator never sees it.
 - **MFA (TOTP).** Optional RFC 6238 second factor (self-contained, no CPAN) plus
   recovery codes, with a replay-aware verification window.
-- **Forgot-password.** Emails a setup link (gated on the SMTP plugin), always
+- **Forgot-password.** Emails a setup link (gated on the SMTP extension), always
   returning a generic response - no account/email enumeration.
 - **Sub-user delegation.** A partner holding `create_sub_users` can mint scoped
   sub-accounts; onward delegation requires holding the capability itself (no
@@ -467,7 +467,7 @@ effective set.
 | `manage_forms` | Form configs and bindings |
 | `manage_themes` | Theme activation and authoring under `lazysite/layouts/**` |
 | `manage_layouts` | Layout activation and structure authoring |
-| `manage_config` | `config-set`; site configuration + plugin registry |
+| `manage_config` | `config-set`; site configuration + extension registry |
 | `manage_domains` | The multi-domain admin and portable site packages (split out of `manage_config`, SM160) |
 | `manage_users` | User/group administration only - not the operator (SM991: the operator is a member of the operator group, the group carrying the `manager` flag) |
 | `analytics` | Visitor-stats analysis (`analyse_visitors`) |
@@ -650,7 +650,7 @@ Application diagnostics are forwarded to syslog **at WARN and above by default**
 log is the web server's decision rather than the engine's - on some FastCGI
 arrangements it reaches nothing. `forward_diagnostics` takes a level (blank =
 WARN and above, `off`, a level name, or `on` for every level). The **Logging &
-forwarding** plugin manages that key and `syslog_facility`, and can separately
+forwarding** extension manages that key and `syslog_facility`, and can separately
 forward each audit entry (`forward_audit`, a plain on/off, default **off**).
 All forwarding is best-effort, never blocking, with the on-disk log as the record.
 
@@ -684,12 +684,12 @@ capability granted through a group (SM138: the legacy `manager_groups` conf key
 is retired - migrated groups received their capabilities explicitly). The pages:
 
 - **Config** - schema-driven site settings (driven by the processor's own
-  `--describe` descriptor), active layout/theme dropdowns, a plugin registry
-  (tick to enable/disable discovered plugins), and - since 0.9.0 - a **Services**
+  `--describe` descriptor), active layout/theme dropdowns, an extension registry
+  (tick to enable/disable discovered extensions), and - since 0.9.0 - a **Services**
   section whose toggles enable the remote surfaces (MCP / OAuth / control API /
   token exchange), each **off by default** (see Part III). The whole page now loads
   through `config-read` and saves each key through the audited, per-key `config-set`
-  (SM042), retiring the legacy pseudo-plugin save path that silently dropped keys
+  (SM042), retiring the legacy pseudo-extension save path that silently dropped keys
   outside its schema - a parity guarantee test fails the build if the page's keys
   ever drift from the API's read/write sets.
 - **Files** - a browser over the docroot with per-row metadata, create/upload/delete,
@@ -702,7 +702,7 @@ is retired - migrated groups received their capabilities explicitly). The pages:
   detection**.
 - **Nav editor** - drag-and-drop reorder, indent/outdent nesting, link-vs-heading
   toggle; saving rebuilds the all-pages cache (nav is on every page).
-- **Plugins** - per-plugin config forms (password fields never returned), action
+- **Extensions** - per-extension config forms (password fields never returned), action
   buttons, and the form submissions viewer.
 - **Handlers** (0.13.13) - the named functions a form or the schedule calls, which
   forms call which, and what the timer calls, in one page; each handler's fields
@@ -759,7 +759,7 @@ capability gating; and a per-token rate limit (token-bucket, burst 200 / refill
 20·s⁻¹, HTTP 429 + `Retry-After`). The verbs cover file CRUD + lock/preview/upload/
 download/zip, ACL get/set/remove, cache list/invalidate, allow-listed `config-set`,
 the full theme/layout management set, artifact manifest/validate, users/principals
-(proxied to the users tool), plugins/handlers/form-targets, nav read/save, backups,
+(proxied to the users tool), extensions/handlers/form-targets, nav read/save, backups,
 SM071 preview grant/clear, `whoami`, `version`, `audit`, the session controls
 (`sessions-list` / `session-revoke` / `user-revoke`, `manage_users`-gated and
 not reachable by token clients), and `rotate-auth-secret` (the mass-logout
@@ -940,16 +940,16 @@ a locked design decision:
 A **`build-from-figma`** recipe is registered in `describe_capabilities`, so the
 method is discoverable from the connector itself.
 
-## Plugins and form handlers
+## Extensions and form handlers
 
-Plugins are discovered by probing scripts that answer `--describe` (a JSON
+Extensions are discovered by probing scripts that answer `--describe` (a JSON
 descriptor of config schema, actions, and provided capabilities), enabled via the
-`plugins:` config block, configured through generated forms (password fields never
+`extensions:` config block, configured through generated forms (password fields never
 returned on read), and invoked via action buttons.
 
 **Handlers** (`handlers.conf`, SM842) are named functions a form or the schedule
 calls - `smtp` (envelope here, connection in `smtp.conf`, delivered by
-`plugins/form-smtp.pl`), `file`, `table` (a row in a declared data table, with an
+`extensions/form-smtp.pl`), `file`, `table` (a row in a declared data table, with an
 optional submissions copy) or `connector` (the only *handler* that sends over
 HTTP; the engine's other outbound reads - `url:` bindings, remote `.url` pages,
 oEmbed - go through `Lazysite::Fetch`'s guarded GET) - and a
@@ -964,7 +964,7 @@ handler on an interval with fixed fields, as the daemon's job account.
 
 ## The Odoo extension (SM747)
 
-`plugins/odoo.pl`, a contract extension (installed disabled), runs **named
+`extensions/odoo.pl`, a contract extension (installed disabled), runs **named
 operations** against one Odoo instance. The operations come from OOM operation
 packs (`libodoo-oom-perl`, 0.03 or newer, module `Odoo::Ops`); lazysite names
 an operation, binds its parameters, hands back its report and presents a plan
@@ -1023,7 +1023,7 @@ per-user path's own page and security entries. Page: `/docs/odoo`.
 
 Operator notifications (SM136) ride a shared write path (`Lazysite::Notify`):
 every notice is appended to the manager bell store and - when the **notify-xmpp**
-plugin is enabled - also delivered over **XMPP**, with one client config per site
+extension is enabled - also delivered over **XMPP**, with one client config per site
 like SMTP (sender JID + password + a recipient JID, an individual or a group-chat
 room; best-effort and time-boxed, so delivery can never block or fail the
 triggering action). The endpoint comes from the account domain's **SRV record**
@@ -1303,7 +1303,7 @@ pre-existing `index.md`.
 The Backups page is organised into typed sections: **Content** (create / list /
 in-app restore / download) and **Full-system**; its intro distinguishes the roles -
 backups are disaster recovery (the full-system kind includes secrets), while
-day-to-day content versioning lives in the Content history plugin, and theme/layout
+day-to-day content versioning lives in the Content history extension, and theme/layout
 version snapshots are managed on the Appearance page. A **full-system** backup captures the whole
 site *including* the `lazysite/` infra (config, auth, forms, nav, themes/layouts) -
 only the backups dir and regenerable caches are excluded. Because it carries the
@@ -1358,11 +1358,11 @@ for every domain (SM177).
 ## Content history (git, SM085)
 
 Opt-in per-file version history for the site content. ONE switch enables it:
-ticking the **Content history plugin** on Plugin Manager runs its `on_enable`
+ticking the **Content history extension** on Extension Manager runs its `on_enable`
 hook (conf key `git_history: enabled` + the initial snapshot), and unticking
 runs `on_disable` (recording paused, every version kept). The `git-init`
-control-API action (gated on `manage_config`) and the plugin's Status /
-Enable / Pause actions on Plugin Config drive the same `Lazysite::Git`
+control-API action (gated on `manage_config`) and the extension's Status /
+Enable / Pause actions on Extension Config drive the same `Lazysite::Git`
 machinery - the config page is the inspection/recovery surface, not a second
 required step. Enabling puts the docroot under git: the
 repository lives at `lazysite/git/` (inside the never-served infra tree - no `.git`
@@ -1380,7 +1380,7 @@ What is versioned: the content tree plus the two operator-authored config files
 `GIT_DIR/info/exclude` at init): `lazysite/auth/`, `lazysite/forms/`,
 `notify-xmpp.conf`, cache/logs/backups/locks, the repo itself, generated `*.html`
 and `lazysite-assets/` mirrors - the exclude list is the security boundary that
-makes the history safe to sync to a private remote later (the git-sync plugin
+makes the history safe to sync to a private remote later (the git-sync extension
 follow-up builds on the same `Lazysite::Git` core). `lazysite-check` probes the
 repo permissions and FAILs if `lazysite/auth` is not excluded.
 
@@ -1394,7 +1394,7 @@ breaks the save, failure is made visible instead of silent: the engine touches
 `lazysite/git/COMMIT_FAILED` on any commit failure (an add failing for an
 *existing* path counts - that is repo trouble, not the tolerated
 unmatched-pathspec case) and removes it on the next successful commit. Three
-surfaces read the state: the content-history plugin's **status** action says
+surfaces read the state: the content-history extension's **status** action says
 "recording is failing", the Files page's empty history panel suspects a failure
 instead of pretending the file is new, and `lazysite-check` FAILs on any repo
 path the CGI cannot use ("new file versions are silently not recorded"), WARNs
@@ -1421,7 +1421,7 @@ working history from one that is silently not recording.
 
 **File list + revision statistics** (SM199). Beyond a single file's panel, a
 **git-history-summary** action (and a `list_content_history` MCP tool) drive a
-**History overview**, on the content-history plugin's row on the Plugin Config
+**History overview**, on the content-history extension's row on the Extension Config
 page (SM664; it was on the Files page until 0.11.4): per-file **revision
 count**, **first/last commit dates**, **last author**, and site totals across
 the tracked tree - a who-changed-what-and-how-often view of the whole site.
@@ -1429,12 +1429,12 @@ Reading it needs **manage_content OR manage_config**, so an auditor reaches it
 without being given the Files app. It is rename-aware and
 leak-safe by the same rules as the per-file history.
 
-**Remote sync (the git-sync plugin, opt-in).** With content history enabled, the
-`git-sync` plugin syncs it with a private remote repository (a Forgejo/Gitea/etc.
+**Remote sync (the git-sync extension, opt-in).** With content history enabled, the
+`git-sync` extension syncs it with a private remote repository (a Forgejo/Gitea/etc.
 project): configure the remote address (`https://host/path`, `git@host:path` or
 `ssh://` - nothing else is accepted), branch and access token (password-typed, so
 `lazysite/git-sync.conf` is 0660 and itself excluded from the versioned set) on
-Plugin Config, then use the on-demand actions - **Test connection** (ls-remote:
+Extension Config, then use the on-demand actions - **Test connection** (ls-remote:
 reachable / signed-in / content-present in plain language), **Push** ("Pushed N
 new changes"; refuses cleanly when the remote is ahead - never forces) and
 **Pull** (a fast-forward just applies; when both sides changed, the operator sees
@@ -1442,7 +1442,7 @@ new changes"; refuses cleanly when the remote is ahead - never forces) and
 theirs**, `merge -X ours/theirs` under the hood). Every apply is preceded by a
 prerestore safety snapshot, invalidates the render caches (sibling `.html` +
 host copies, wholesale - a pulled change can affect every page) and reindexes
-aliases for the changed pages; outcomes are audited as `plugin-action git-sync
+aliases for the changed pages; outcomes are audited as `extension-action git-sync
 (push|pull ...)`. The https token is fed to git through a transient 0700
 `GIT_ASKPASS` helper reading an environment variable - it never appears on a
 command line, in the stored remote URL, in git config or in the helper file.
@@ -1569,7 +1569,7 @@ enhancement: with no JavaScript every step shows and the form still submits.
 
 **Submissions viewer** (SM182, v2 SM187). Stored `file`-handler submissions live at
 `lazysite/forms/submissions/<form>.jsonl` in the reserved `lazysite/` tree the file
-editor refuses to open, so the data was unreachable from the UI. The plugin-config
+editor refuses to open, so the data was unreachable from the UI. The extension-config
 **View submissions** button now opens the store in a scrollable **modal** table. A
 `form-submissions` read action parses the store server-side (docroot-confined,
 `.jsonl` only, no traversal), unions keys into columns, caps at the most-recent 500
@@ -1729,7 +1729,7 @@ always overwritten**, but **seed files are preserved if the operator edited them
 **a backup is taken before any change** (with configurable retention). `--dry-run`
 previews the plan with zero filesystem changes; `--restore` rolls back to a backup
 and invalidates the cache; runtime state (auth, logs, locks) is never touched.
-Imperative post-steps create cgi-bin symlinks for plugin endpoints, mirror the
+Imperative post-steps create cgi-bin symlinks for extension endpoints, mirror the
 manager CSS, and seed fresh installs. Run as root, the installer also repairs
 ownership - scoped to **root-owned files only**, aligned to the docroot owner and
 the web-server group; it never re-owns CGI runtime files or operator content
@@ -3130,7 +3130,7 @@ Newest first; releases are git tags.
 **Actionable now:**
 
 - **SM085 - Git backend / changesets** - phase 1 SHIPPED (content history + the
-  git-sync remote plugin, see Part V). What remains is phase 2: the transactional
+  git-sync remote extension, see Part V). What remains is phase 2: the transactional
   agent-changeset workflow (begin -> diff -> commit -> rollback) on the same core.
 - **SM084-restore** - the in-manager "restore this snapshot" action (list/create/
   download already ship).

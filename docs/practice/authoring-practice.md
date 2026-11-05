@@ -196,7 +196,7 @@ indented markup is not mangled by the Markdown processor - monolith, not fragmen
 ## Briefs: stop writing sidecars from 0.10.29
 
 **SM245 retires the `.brief` sidecar.** The record survives, in an engine-owned
-store at `lazysite/briefs/<content-path>`, owned by a contract plugin that ships
+store at `lazysite/briefs/<content-path>`, owned by a contract extension that ships
 **disabled** - the operator enables it per site and runs its Migrate action,
 which imports every existing sidecar idempotently and never removes one it could
 not import.
@@ -240,7 +240,7 @@ round trip, so it is the weaker half and is not built.
 change. It just writes an inert file - nothing lists it, nothing carries it, and
 nothing imports it after the one-shot migration. There is no error to tell you.
 So the rule is not "prefer the tool", it is **stop authoring sidecars** on any
-site running 0.10.29 with the plugin enabled.
+site running 0.10.29 with the extension enabled.
 
 The denies are unchanged: a stray `.brief` still 404s and never indexes, so
 nothing leaks during the transition.
@@ -257,7 +257,7 @@ and goes on delete - over WebDAV as well as through the tools - a copy starts
 unbriefed, and `list_briefs` / `delete_brief` make strays visible and clearable.
 `list_briefs` returns path, size, mtime and an `orphan` flag; `read_page` reports
 `has_brief` from the store. **Check which of these a site has before assuming
-either behaviour**, the same way you check whether the plugin answers at all.
+either behaviour**, the same way you check whether the extension answers at all.
 
 Two things worth knowing about the store once you can list it:
 
@@ -275,7 +275,7 @@ sidecars indefinitely and must keep working. So **a half-migrated estate is the
 normal state for a long time**, and arriving at a site you cannot assume either
 condition.
 
-**Check before you write a brief.** The plugin is off until an operator enables
+**Check before you write a brief.** The extension is off until an operator enables
 it, and the tools do not answer until they do:
 
 - tools answer -> use `append_brief` / `brief-append`
@@ -283,7 +283,7 @@ it, and the tools do not answer until they do:
   the operator's Migrate will import it when they get to it
 
 Filed 2026-08-24 (operator's instruction): a `.brief` write **should be refused**
-once the plugin is enabled, rather than silently landing an inert file. Until
+once the extension is enabled, rather than silently landing an inert file. Until
 that ships, the check above is the only thing standing between you and a record
 nobody reads.
 

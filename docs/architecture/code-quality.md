@@ -9,7 +9,7 @@
 - **`use strict; use warnings;`** in every script.
 - **Shared `lib/Lazysite/` module tree** (SM079 modular refactor): common
   logic lives once in `Util`, `Audit`, `Auth::{Acl,Credential,OAuth,Session,
-  Settings}` and `Manager::{Artifact,Backups,Common,Files,Layouts,Plugins,
+  Settings}` and `Manager::{Artifact,Backups,Common,Files,Layouts,Extensions,
   Themes,Upload}`; the CGIs import from it, finding the tree by one rule (SM1078,
   t/lint/263): beside the script's real directory, its parent or its
   grandparent, then the docroot's `../lib`, where the installer puts it. The **one deliberate exception is the processor's render
@@ -30,12 +30,12 @@ lazysite-manager-api.pl     Manager web UI API + token control API
 lazysite-dav.pl             WebDAV (class 1+2) publishing endpoint
 lazysite-mcp.pl             MCP server (connector tools + OAuth)
 lazysite-oauth.pl           OAuth endpoints for the MCP connector
-plugins/form-handler.pl     Form submission dispatcher
-plugins/form-smtp.pl        SMTP delivery handler
-plugins/payment-demo.pl     x402 payment demo handler
-plugins/log.pl              Plugin descriptor for logging
-plugins/audit.pl            Link audit tool
-plugins/stats.pl            Visitor statistics plugin
+extensions/form-handler.pl     Form submission dispatcher
+extensions/form-smtp.pl        SMTP delivery handler
+extensions/payment-demo.pl     x402 payment demo handler
+extensions/log.pl              Extension descriptor for logging
+extensions/audit.pl            Link audit tool
+extensions/stats.pl            Visitor statistics extension
 tools/lazysite-server.pl    Development HTTP server
 tools/lazysite-users.pl     User management CLI / JSON API
 tools/lazysite-check.pl     Install health / permissions doctor
@@ -140,10 +140,10 @@ file operation. Applied consistently at:
   action (`action_list`, `action_read`, `action_save`, `action_delete`,
   theme operations).
 
-**Plugin protocol.** Any CGI script may advertise capabilities by
+**Extension protocol.** Any CGI script may advertise capabilities by
 responding to `--describe` with a JSON descriptor containing an `id`,
 `name`, `description`, `config_schema`, `config_keys`, and optional
-`actions`. The manager's Plugins page (and the implicit Configuration
+`actions`. The manager's Extensions page (and the implicit Configuration
 page) uses this for auto-discovery and configuration UI generation.
 Scripts without `--describe` are ignored.
 

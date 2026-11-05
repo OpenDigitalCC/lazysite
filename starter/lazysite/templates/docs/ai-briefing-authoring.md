@@ -505,7 +505,7 @@ TTL expires (default 4 hours).
 6. Record the page's intent with `append_brief` (MCP) or `brief-append`
    (API): purpose, sections, tone, image/content sources, and a "To change
    this page…" line. Never write a `<file>.brief` sidecar - on a site with
-   the briefs plugin enabled that write is refused, naming the replacement.
+   the briefs extension enabled that write is refused, naming the replacement.
    The brief is the source of intent, the `.md` is the build: when the owner
    appends a change request, refactor the page to match it. See *Document
    your intent: briefs* in [AI briefing - publishing](/docs/ai-briefing-publishing)

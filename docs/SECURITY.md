@@ -212,7 +212,7 @@ controls
 : credential file WebDAV-denied and web-denied; password never shown back;
   TLS on by default with peer verification (`XML::Stream` 1.24); delivery
   lazy-loaded, best-effort, time-boxed (`alarm 15`); CR/LF stripped from
-  notices. Batch-1 fix (bdb4c86): password-carrying plugin configs are now
+  notices. Batch-1 fix (bdb4c86): password-carrying extension configs are now
   chmod 0660 on save, and `notify-xmpp.conf` + `forms/smtp.conf` joined the
   `lazysite-check` secrets probe (world-access FAIL, `--fix` repairs).
 
@@ -397,7 +397,7 @@ what changed
   attacker-influenced arguments (paths, commit messages, usernames) on
   every write; historic content exposure through the new `git-history` /
   `git-show` / `git-restore` actions; and a repository whose future remote
-  sync (the git-sync plugin follow-up) must never carry a secret.
+  sync (the git-sync extension follow-up) must never carry a secret.
 
 threat delta
 : Elevation of privilege / Tampering (command construction on the write
@@ -429,7 +429,7 @@ residual risk
 : the repo doubles content at rest under `lazysite/git/` (0770, probed);
   a manage_content token may read any non-ACL-restricted file's history,
   which mirrors its live read grant; remote-sync risk is deferred to the
-  git-sync plugin's own assessment.
+  git-sync extension's own assessment.
 
 verdict
 : accepted.
@@ -437,7 +437,7 @@ verdict
 ### 2026-07-10 - SM085 phase 1 (sync half): git-sync - egress to an operator-configured remote (unreleased, on main)
 
 what changed
-: the `git-sync` plugin (opt-in) pushes/pulls the content history to a
+: the `git-sync` extension (opt-in) pushes/pulls the content history to a
   remote the OPERATOR configures, with a stored credential. New surface:
   outbound network connections from the site host to an
   operator-controlled address (git-over-https/ssh egress); a long-lived
@@ -467,11 +467,11 @@ controls
   SECURITY FAIL), so the pushed history cannot carry it - and the phase-1
   exclude list already keeps every other secret out of what egresses. The
   choice parameter is validated against the descriptor's declared ids in
-  the manager AND re-validated in the plugin; all git execution stays
+  the manager AND re-validated in the extension; all git execution stays
   list-form via `Lazysite::Git::run_git`. Pull applies only fast-forwards
   or explicit `-X ours/theirs` merges, each behind a prerestore safety
   snapshot; a failed merge is aborted (worktree unchanged). Push never
-  forces. Outcomes are audited (`plugin-action git-sync (push|pull
+  forces. Outcomes are audited (`extension-action git-sync (push|pull
   choice)`) and logged; raw git stderr goes to the server log, never to
   the operator response.
 
@@ -946,7 +946,7 @@ what changed
   (`tools/lazysited.pl`, `lazysited@.service`) and under it a scheduler that
   runs engine maintenance on a clock - the statistics rollup and the expired
   session sweep in 0.13.1 - as a lazysite ACCOUNT, with no request behind it.
-  It ships as an ADR 0009 plugin, born disabled, where disabled means the
+  It ships as an ADR 0009 extension, born disabled, where disabled means the
   process never starts. **SM755**, from the 0.13.1 eight-dimension review
   (`docs/review/0.13.1-daemon/`), corrected the supervisor's restart path
   before the service reached a host.
@@ -976,7 +976,7 @@ controls
   pool's, verbatim, with a check that both real and effective uid left 0, and
   root without `--user` is refused. SM755: exits counted with backoff and a
   ceiling (FAILED, once, with a state file), the enabled gate re-read every
-  10 s so disabling the plugin stops the runtime, one supervisor per docroot
+  10 s so disabling the extension stops the runtime, one supervisor per docroot
   by advisory lock, an orphan adopted only with pid AND kernel start-time
   proof, a 30 s stop deadline then KILL, a torn run record logged. The unit
   carries the SEC-2026-07 sandbox set (`NoNewPrivileges`, `ProtectSystem=full`,
@@ -991,7 +991,7 @@ residual risk
   (`docs/review/0.13.1-daemon/dimension-5`, F5.8). `daemon_job_user` lets a
   `manage_config` holder point the scheduler at any existing `run_jobs`
   account, including a person's; the consequences are bounded by the closed
-  job set, and the plugin's config note says a purpose account is preferred
+  job set, and the extension's config note says a purpose account is preferred
   and why. Memory at rest is ~10 MB PSS per instance, two processes; a
   300-site host pays ~3 GB.
 
@@ -1147,7 +1147,7 @@ verdict
 Assessment drafted by the developer agent; the release manager confirms.
 
 what changed
-: `plugins/odoo.pl` (born disabled) and the page endpoint `lazysite-odoo.pl`. A
+: `extensions/odoo.pl` (born disabled) and the page endpoint `lazysite-odoo.pl`. A
   connection user (a site Odoo account, its key stored like a connector secret) runs
   named operations for pages, MCP and backend work; a public or scheduled binding may
   apply a write unattended when it declares `apply: immediate` (ruled Q1, 2026-10-12;

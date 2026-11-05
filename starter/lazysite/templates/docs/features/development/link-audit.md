@@ -13,7 +13,7 @@ links (links pointing to pages that do not exist).
 
 ### Invocation
 
-    perl plugins/audit.pl [options] [docroot]
+    perl extensions/audit.pl [options] [docroot]
 
 The docroot defaults to the current directory.
 

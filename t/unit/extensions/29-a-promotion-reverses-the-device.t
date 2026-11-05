@@ -5,7 +5,7 @@
 # while the original hit went to devices{desktop} - and a term they had pushed
 # over the floor stayed counted. Devices and terms drifted on every promotion.
 #
-# Driven through the extension as it runs (t/unit/plugins/25's rig): a first
+# Driven through the extension as it runs (t/unit/extensions/25's rig): a first
 # export counts the visit, a second export sees the sweep and promotes.
 use strict;
 use warnings;

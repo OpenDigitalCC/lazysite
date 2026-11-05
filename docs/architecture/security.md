@@ -16,7 +16,7 @@ above it.
    session cookie, sets `HTTP_X_REMOTE_USER` and
    `HTTP_X_REMOTE_GROUPS` from the cookie payload, sets the
    `LAZYSITE_AUTH_TRUSTED=1` sentinel, and `exec`s the target CGI
-   script (processor, manager-api, or another plugin). The wrapper
+   script (processor, manager-api, or another extension). The wrapper
    is the single point where a browser's auth cookie becomes
    lazysite's notion of "who is logged in".
 3. **Per-page access control.** Each Markdown page may declare
@@ -311,7 +311,7 @@ processor looks for `HTTP_X_PAYMENT_VERIFIED=1` as the signal that
 an upstream payment proxy has validated the payment. If absent, the
 processor emits a 402 response with an `X-Payment-Response` header
 in the x402 shape. Demo mode is handled by
-`plugins/payment-demo.pl`.
+`extensions/payment-demo.pl`.
 
 Payment bypass via group membership is supported:
 `auth_groups: [members]` on a `payment:` page allows authenticated
@@ -492,7 +492,7 @@ server accepts the current hour and the previous hour so token
 freshness does not race the rollover.
 
 GET requests (read-only actions: `list`, `read`, `cache-list`,
-`theme-list`, `plugin-list`, `nav-read`, `handler-list`,
+`theme-list`, `extension-list`, `nav-read`, `handler-list`,
 `form-targets-read`, `csrf-token` itself) pass without a token.
 
 The manager view template installs a `window.fetch` wrapper in
@@ -974,7 +974,7 @@ grant and never widens it.
 
 ## The Odoo extension (SM747, 0.15.5; SM1160, 0.15.10)
 
-The Odoo extension (`plugins/odoo.pl`, born disabled) lets a lazysite page use an
+The Odoo extension (`extensions/odoo.pl`, born disabled) lets a lazysite page use an
 Odoo as a connection user or as the signed-in person. The Odoo URL is the
 operator's, so the SSRF guard that governs content-chosen URLs is not the rule that
 applies; SM579's invocation-mode policy is (ruled X4, 2026-09-28).

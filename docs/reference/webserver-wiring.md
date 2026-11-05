@@ -298,7 +298,7 @@ example.com {
 
 Limitation, stated honestly: Caddy has no CGI engine in core, so the
 CGI path (`/manager` login sessions, `/cgi-bin/*`, `/dav`) needs a
-plugin (e.g. the third-party `caddy-cgi` module) wired per contract
+extension (e.g. the third-party `caddy-cgi` module) wired per contract
 item 3, or those endpoints proxied to a small Apache/nginx listener.
 Without it you have a fast anonymous site but no manager UI - fine for
 a published-from-elsewhere site, not for interactive editing.

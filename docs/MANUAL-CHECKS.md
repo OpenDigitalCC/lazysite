@@ -51,7 +51,7 @@ Two things in particular cannot be seen from the suite:
 ## The pass
 
 Walk `docs/manager-ui-guide/45-data-tables.md` end to end - every *Do* and
-*Expect* - on a deployed build with the data plugin enabled. The walkthrough
+*Expect* - on a deployed build with the data extension enabled. The walkthrough
 below is the same pass written for somebody who has never seen the page.
 Record the result in `docs/manual-check-register.md` as a row against the
 version walked.
@@ -526,7 +526,7 @@ HSTS only over TLS, and the CSP only on HTML, in the mode `lazysite.conf` sets -
 That default is the thing to check by hand, because the suite cannot: a CSP
 hash covers a `<script>` **block** and NOT an inline event-handler attribute,
 and the manager's own pages use `onclick=`. So under `csp: enforce` the
-manager's cache, audit, sessions and plugins controls may silently stop firing -
+manager's cache, audit, sessions and extensions controls may silently stop firing -
 in the browser, with nothing in the response to say so. **Walk the manager with
 the console open before setting a site to enforce**, and confirm zero CSP
 violations.

@@ -2,7 +2,7 @@
 # SM944 S29, the established fail-closed pattern (ruled 2026-10-10, "(a) load
 # in main"): page-pdf renders a page for an account. Inside a request the
 # dispatcher has refused an empty $auth_user and required `manage_content`
-# before it runs, so its answer there is unchanged (t/unit/plugins/42 and
+# before it runs, so its answer there is unchanged (t/unit/extensions/42 and
 # t/integration/122, 123 drive it through requests). Reached outside one - the
 # request context as its reset leaves it, nobody - action_page_pdf loaded the
 # pandoc extension and converted a public page (tmp/sm944-s29-s30-refusal-probe.out).

@@ -145,7 +145,7 @@
   <!-- shared core libs bar (y 662 h 44) -->
   <rect x="67" y="662" width="1146" height="46" rx="10" fill="#FFFFFF" stroke="#EAD6A8"/>
   <text x="88" y="690" font-weight="700" font-size="11.5px" letter-spacing="1px" fill="#8A5A12">SHARED CORE LIBS</text>
-  <text class="mono" x="238" y="690" font-size="12.5px" fill="#5B6770">Auth&#160;·&#160;Capabilities&#160;·&#160;Manager::{Files · Domains · Themes · Layouts · Plugins · …}&#160;·&#160;Audit&#160;·&#160;Util</text>
+  <text class="mono" x="238" y="690" font-size="12.5px" fill="#5B6770">Auth&#160;·&#160;Capabilities&#160;·&#160;Manager::{Files · Domains · Themes · Layouts · Extensions · …}&#160;·&#160;Audit&#160;·&#160;Util</text>
 
   <text class="foot" x="64" y="738" fill="#8A5A12">Each is a distinct entrypoint. They share the libraries and write to files — <tspan font-weight="700">none of them runs in the render path.</tspan></text>
 

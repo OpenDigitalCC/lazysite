@@ -39,21 +39,21 @@ Add to `lazysite/lazysite.conf`:
   toggles, WebDAV path scope, and one-time credential generation
 - Cache manager: view and invalidate cached pages
 
-### Plugin system
+### Extension system
 
 Components such as the form SMTP handler and link audit tool
-integrate with the manager via a self-describing plugin interface.
+integrate with the manager via a self-describing extension interface.
 Each script supports a `--describe` flag that returns its
 configuration schema as JSON. The manager renders a generic config
 form from this schema.
 
-Enable plugins in `lazysite/lazysite.conf`:
+Enable extensions in `lazysite/lazysite.conf`:
 
-    plugins:
-      - plugins/audit.pl
-      - plugins/form-smtp.pl
+    extensions:
+      - extensions/audit.pl
+      - extensions/form-smtp.pl
 
-Then access via Manager > Plugins.
+Then access via Manager > Extensions.
 
 ### Notes
 

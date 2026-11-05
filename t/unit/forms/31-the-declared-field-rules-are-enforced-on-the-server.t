@@ -11,7 +11,7 @@
 # THE SIDECAR IN THIS TEST COMES FROM A REAL RENDER, and that is the point of the
 # file's shape. A hand-written rules file would let the enforcement half pass
 # against a spec the engine does not actually produce - which is the fixture
-# fault this project keeps meeting (t/unit/plugins/08 and friends fed an empty
+# fault this project keeps meeting (t/unit/extensions/08 and friends fed an empty
 # user-agent to the classifier for a year because the fixture's key was `u` and
 # the reader's was `ua`). So part 1 renders a page with a `:::form` block through
 # the processor and asserts what was WRITTEN; part 2 enforces against that same

@@ -9,9 +9,9 @@ register:
      engine-version: 0.16.3
      imported: 2026-11-06
      agent: the lazysite site agent (Claude Code)
-     source: docs/practice/authoring-practice.md sha256=b519875859b5ed7681abbdc511c5cf5da3ebff747b11a0fd7178140a8ac87377 modified=2026-10-01
-     source: docs/practice/app-practice.md sha256=f2b13dde1d3ff242c6dcdf4804e385d91b04b6309a7a548eb3f8f8a6b9f81c52 modified=2026-10-20
-     body-sha256: cac0031b1ae7efdd50ac414bf6b361fb115f24b490fa7fe89aa938b6e74c8ebd
+     source: docs/practice/authoring-practice.md sha256=24d4158eb67fcee6b6a4dc70dc672726dfb84a16f1d3a9cf8a7740743197dead modified=2026-10-01
+     source: docs/practice/app-practice.md sha256=b037eabc5f3315f25114f192b5484d92e294cf6d6a8a283ad1bf3c1abddfa031 modified=2026-10-20
+     body-sha256: 0ab4a5785240bb19968c90d1f10d0efb5a51988e8d1e8f5b1aa7711a01a2c45c
 -->
 
 ## What this is, and what it is not
@@ -220,7 +220,7 @@ indented markup is not mangled by the Markdown processor - monolith, not fragmen
 *Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
 
 **SM245 retires the `.brief` sidecar.** The record survives, in an engine-owned
-store at `lazysite/briefs/<content-path>`, owned by a contract plugin that ships
+store at `lazysite/briefs/<content-path>`, owned by a contract extension that ships
 **disabled** - the operator enables it per site and runs its Migrate action,
 which imports every existing sidecar idempotently and never removes one it could
 not import.
@@ -264,7 +264,7 @@ round trip, so it is the weaker half and is not built.
 change. It just writes an inert file - nothing lists it, nothing carries it, and
 nothing imports it after the one-shot migration. There is no error to tell you.
 So the rule is not "prefer the tool", it is **stop authoring sidecars** on any
-site running 0.10.29 with the plugin enabled.
+site running 0.10.29 with the extension enabled.
 
 The denies are unchanged: a stray `.brief` still 404s and never indexes, so
 nothing leaks during the transition.
@@ -281,7 +281,7 @@ and goes on delete - over WebDAV as well as through the tools - a copy starts
 unbriefed, and `list_briefs` / `delete_brief` make strays visible and clearable.
 `list_briefs` returns path, size, mtime and an `orphan` flag; `read_page` reports
 `has_brief` from the store. **Check which of these a site has before assuming
-either behaviour**, the same way you check whether the plugin answers at all.
+either behaviour**, the same way you check whether the extension answers at all.
 
 Two things worth knowing about the store once you can list it:
 
@@ -299,7 +299,7 @@ sidecars indefinitely and must keep working. So **a half-migrated estate is the
 normal state for a long time**, and arriving at a site you cannot assume either
 condition.
 
-**Check before you write a brief.** The plugin is off until an operator enables
+**Check before you write a brief.** The extension is off until an operator enables
 it, and the tools do not answer until they do:
 
 - tools answer -> use `append_brief` / `brief-append`
@@ -307,7 +307,7 @@ it, and the tools do not answer until they do:
   the operator's Migrate will import it when they get to it
 
 Filed 2026-08-24 (operator's instruction): a `.brief` write **should be refused**
-once the plugin is enabled, rather than silently landing an inert file. Until
+once the extension is enabled, rather than silently landing an inert file. Until
 that ships, the check above is the only thing standing between you and a record
 nobody reads.
 
@@ -734,20 +734,20 @@ Confirmed manager-UI-only on 0.10.32: `form-targets-*`, the `handler-*` family,
 by `config-set` as not settable. `acl-set` refuses `lazysite/db/tables` as a
 blocked path.
 
-**A PLUGIN'S OWN ACTIONS COME FROM `extension-list`, and nowhere else** (SM809).
+**AN EXTENSION'S OWN ACTIONS COME FROM `extension-list`, and nowhere else** (SM809).
 `describe-capabilities` names `extension-action` but cannot name what any
-particular plugin offers, because that is the plugin's own declaration.
-`extension-list` returns each plugin's `id`, its `script`, its `config_file` and
+particular extension offers, because that is the extension's own declaration.
+`extension-list` returns each extension's `id`, its `script`, its `config_file` and
 an `actions` array - `[{"id":"status","label":"Status"}]` and the like - and
 that array is the contract. Call it as:
 
-    ?action=extension-action&plugin=<id>
+    ?action=extension-action&extension=<id>
     body {"action_id": "<id from the actions array>", "params": {...}}
 
-**Is the persistent runtime running?** That is the daemon, and its plugin id is
+**Is the persistent runtime running?** That is the daemon, and its extension id is
 `daemon`: `extension-action` with `action_id: "status"` answers with each
 scheduled job, its actor, its outcome and a detail. It is cookie-only, like
-every plugin action, so it is a manager-session call rather than a token one -
+every extension action, so it is a manager-session call rather than a token one -
 which is why no amount of reading `actions-list` will find it.
 
 **Make one call of the action the design depends on, before the design depends
@@ -765,8 +765,8 @@ a partner token cannot take:
 - **`manage_data` may be absent** - and the partner brief is a stale snapshot
   (it advertised six capabilities where the server granted fourteen). Trust
   `describe-capabilities` / `whoami`, never the brief.
-- **The data plugin ships disabled** and can only be enabled from the manager
-  UI - so an account holding `manage_config` still cannot switch on the plugin
+- **The data extension ships disabled** and can only be enabled from the manager
+  UI - so an account holding `manage_config` still cannot switch on the extension
   it was provisioned for.
 
 Provision a build with all three settled, or say up front that an operator step

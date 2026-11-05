@@ -28,7 +28,7 @@ print {$cf} "site_url: https://d.example.io\n";
 close $cf;
 
 # The day comes from the records, 90 minutes back and clear of UTC midnight
-# (the same care as t/unit/plugins/16: a fixture that straddles midnight asks
+# (the same care as t/unit/extensions/16: a fixture that straddles midnight asks
 # for the wrong day).
 my $now   = time();
 my $spill = ( $now - 5400 + 600 ) % 86400;

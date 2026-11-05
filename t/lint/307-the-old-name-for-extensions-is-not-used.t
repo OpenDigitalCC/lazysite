@@ -15,10 +15,12 @@
 #
 #   - HISTORY, which records what was true when it was written: the CHANGELOG,
 #     the release archive, debian/changelog, the filings, the reviews, the ADRs,
-#     the decision register, the security register, UPGRADE.md's entries and
-#     reported-issues.md. A filing's NAME is history too, so a reference to one
-#     (`SM640-plugins-should-be-...`) is allowed wherever it appears, and so is a
-#     path into docs/feature-requests/ or docs/adr/.
+#     the decision register, the security register, UPGRADE.md's entries,
+#     reported-issues.md, FEATURES.md's version timeline and the doc index
+#     (generated from the titles of the documents it lists, history among
+#     them). A filing's NAME is history too, so a reference to one
+#     (`SM640-plugins-should-be-...`) is allowed wherever it appears, and so is
+#     a path into docs/feature-requests/ or docs/adr/.
 #   - THIRD-PARTY NAMES: Template::Plugin::JSON::Escape and its Debian package,
 #     and the website's comparison pages, which are about other products'
 #     plugins.
@@ -51,7 +53,13 @@ my @HISTORY = (
     qr{\Awebsite/},
     qr{\Adownload/},
     qr{\At/vendor/},
+    # Generated from the titles of the documents it lists, history among them.
+    qr{\Adocs/INDEX\.md\z},
 );
+
+# History inside a living file: FEATURES.md's version timeline (Part XIV), from
+# its heading to the next part's.
+my %HISTORY_PART = ( 'docs/FEATURES.md' => qr{\A# Part XIV - Version history} );
 
 # The files that may carry an old-name region, and how many each carries.
 my %REGIONS = (
@@ -64,6 +72,7 @@ my %REGIONS = (
     't/lint/125-the-registry-has-one-meaning.t'                 => 1,
     't/unit/manager/198-enabling-an-extension-does-not-write-a-second-list.t' => 1,
     't/unit/manager/168-the-old-action-spelling-is-refused-by-name.t'         => 1,
+    't/journey/06-a-site-from-before-the-rename-upgrades-in-place.t'  => 1,
 );
 
 # Tokens that may contain the word wherever they appear.
@@ -76,29 +85,26 @@ my @ALLOWED = (
     qr{t/lint/307-the-old-name-for-extensions-is-not-used\.t},
 );
 
-# SM1142 S2: what the slice still to land in this stack renames - S4 the docs,
-# the starter docs and the test files' names. S4 deletes these lines.
-my @PENDING = (
-    qr{\Adocs/}, qr{\AREADME\.md\z}, qr{\Askills/}, qr{\Astarter/lazysite/templates/docs/},
-    qr{\Astarter/index\.md\z},                                                     # S4
-);
-push @ALLOWED, qr{t/unit/plugins\b[\w/.-]*}, qr{\b\d+[a-z]?-[\w-]*[Pp]lugin[\w-]*\.t\b};    # S4
-
 my @files = grep { length } split /\n/, `git -C \Q$root\E ls-files`;
 # This file states the rule, so it names the word; it is the one exemption by name.
 @files = grep { $_ ne 't/lint/307-the-old-name-for-extensions-is-not-used.t' } @files;
 
 my ( @bad, @stray, %regions, $scanned );
 FILE: for my $rel (@files) {
-    for my $h ( @HISTORY, @PENDING ) { next FILE if $rel =~ $h }
+    for my $h (@HISTORY) { next FILE if $rel =~ $h }
     my $f = "$root/$rel";
     next unless -f $f && !-l $f && -T $f;
     $scanned++;
-    push @bad, "$rel: the file's name" if $rel =~ /plugin/i && $rel !~ m{\At/};    # S4: t/
+    push @bad, "$rel: the file's name" if $rel =~ /plugin/i;
     open my $fh, '<:raw', $f or do { push @bad, "$rel: unreadable"; next };
-    my ( $n, $in ) = ( 0, 0 );
+    my ( $n, $in, $part ) = ( 0, 0, 0 );
     while ( my $l = <$fh> ) {
         $n++;
+        if ( my $h = $HISTORY_PART{$rel} ) {
+            $part = 1 if $l =~ $h;
+            $part = 0 if $part && $l =~ /\A# Part / && $l !~ $h;
+            next if $part;
+        }
         if ( $l =~ /^\s*# old-name: begin \(SM\d+/ ) {
             $regions{$rel}++;
             push @stray, "$rel:$n" unless $REGIONS{$rel};

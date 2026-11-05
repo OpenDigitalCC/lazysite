@@ -120,7 +120,7 @@ The manager, page by page, as an operator meets it.
 | [`10-files.md`](10-files.md) - Files | Governing capability: manage_content. |
 | [`20-navigation.md`](20-navigation.md) - Navigation | Governing capability: manage_nav, to save. |
 | [`30-appearance.md`](30-appearance.md) - Appearance | Governing capabilities: manage_themes or manage_layouts - either opens the page, and the controls inside are gated separately. |
-| [`40-plugin-manager.md`](40-plugin-manager.md) - Extensions | One menu entry, two pages with a deliberate split (SM957 made them one entry): the Extensions page decides what runs, and its Configure page (/manager... |
+| [`40-extension-manager.md`](40-extension-manager.md) - Extensions | One menu entry, two pages with a deliberate split (SM957 made them one entry): the Extensions page decides what runs, and its Configure page (/manager... |
 | [`45-data-tables.md`](45-data-tables.md) - Data tables | A table holds site data -- a product list, an events calendar, a directory. |
 | [`47-handlers.md`](47-handlers.md) - Handlers | A handler is a named function a form or the schedule calls: it sends email, keeps each submission in a file, stores a row in a data table, or sends th... |
 | [`50-users.md`](50-users.md) - Users | Governing capability: manage_users. |

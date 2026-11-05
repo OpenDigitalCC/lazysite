@@ -4,11 +4,11 @@ title: "SM1142: plugin becomes extension everywhere, in one release"
 subtitle: "The directory, the key a site's lazysite.conf stores, the code's own names and the wire's old spelling all say extension; the upgrade fixes each site up in place, and the word plugin is free for later."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-10-17
 raised-by: release manager, 2026-10-17 ("plan rename of plugins/ to extensions/")
 area: release
-status-note: "CANDIDATE, planned and ruled 2026-10-17: one release, fix up on upgrade, full rename (R3, R5); R1, R2, R4 as recorded below. Built as slices S1-S4."
+status-note: "SHIPPED (PENDING) on n741, slices S1-S4 as planned (ruled 2026-10-17: R1-R5). S1 the directory, the key and install.pl's extensions-rename (t/tools/306, t/lint/306, t/lint/200); S2 the code's names and the old wire spelling refused by name (t/unit/manager/168, the invariant t/lint/307); S3 the Hestia root-run scripts (t/tools/307); S4 docs, starter docs, test names and the journey (t/journey/06)."
 ---
 
 # The request and the rulings
@@ -161,3 +161,41 @@ the release manager may overrule any of them before S1 starts.
 L in all: S1 (M) first, because it is the risk; S2 (L, mechanical) and S3
 (S) on S1; S4 (M) last with the journey test. Built as one stack and one
 integration, in one edge release, with a test plan row for an upgraded site.
+
+# As built (n741, 2026-11-05)
+
+Re-measured on d629f6989 before the build: 482 tracked files and 1,058 lines
+named `plugins/`; the word appeared 4,469 times in 549 tracked files outside the
+CHANGELOG, the filings, the reviews and the release archive. The loader no
+longer accepted `extensions/` beside the old directory (SM1222 had replaced that
+with the dev server's `--extensions`), so S1 had no dual lookup to remove.
+
+Where the build differs from the plan, and why:
+
+- **The manager pages moved in S1, not S2.** Their URL is built from the same
+  word as the directory, and S1's path rewrite already reached the menu's links;
+  moving the pages with them kept S1 a working tree. The start-page id moved
+  with them, so the upgrade step also rewrites a start page stored as the old
+  Extensions page (a stored preference the plan did not list).
+- **The deb's payload line and classification.json moved in S1**, with the
+  directory they name; S3 is the Hestia root-run scripts and the packaging prose.
+- **The wire went further than the action names.** Under R5 the request
+  parameters (`?extension=` on read, save and action; whoami's `extensions`
+  switch) and the response keys (`extensions` on extension-list and whoami,
+  `capability_extension` on groups-read) moved too. The old parameter names are
+  refused by name like the old actions; a response key cannot answer back, so it
+  is in the CHANGELOG and UPGRADE.md.
+- **SM831's spelling flag went with the spelling.** The audit recorded which
+  spelling a call used so the old one could be retired on evidence; there is
+  nothing left to record. t/unit/manager/167 (the normaliser) and t/lint/266 (no
+  shipped caller of the old spelling, which t/lint/307 now covers) were removed.
+- **The cgi-bin links**: the two the installer makes were already re-made on
+  every upgrade from the new directory; the step re-points a hand-made one.
+- **History kept its words**: FEATURES.md's version timeline (Part XIV), the
+  generated doc index (it carries history documents' titles), UPGRADE.md's older
+  entries and the ADRs are exempt in t/lint/307 with the rest of the history.
+- **Left as found**: the notifier's and the processor nav's readers match an
+  entry by its file name, so they would read a hand-written `- plugins/x.pl`
+  under `extensions:` as on where the manager reads it as off. That predates the
+  rename and is not widened by it; `lazysite check` names such a line. A stale
+  `lazysite/cache/plugin-list.cache` is left in a site's cache, unread.

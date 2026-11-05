@@ -21,11 +21,11 @@ configuration work, see the other briefings:
 lazysite/
   lazysite-processor.pl        # main processor (CGI)
   lazysite-auth.pl             # built-in auth wrapper
-  plugins/form-handler.pl     # form submission dispatch
-  plugins/form-smtp.pl        # SMTP helper
+  extensions/form-handler.pl     # form submission dispatch
+  extensions/form-smtp.pl        # SMTP helper
   lazysite-manager-api.pl      # manager JSON API
-  plugins/payment-demo.pl     # x402 payment demo helper
-  plugins/log.pl              # shared log helper (optional)
+  extensions/payment-demo.pl     # x402 payment demo helper
+  extensions/log.pl              # shared log helper (optional)
   install.sh                   # signpost to the `lazysite` verbs; installs nothing
   tools/
     lazysite-server.pl         # dev server
@@ -83,20 +83,20 @@ lazysite/
 : Wraps requests when built-in auth is enabled. Reads the session cookie,
   populates `X-Remote-*` headers, and hands off to the processor.
 
-`plugins/form-handler.pl`
+`extensions/form-handler.pl`
 : Receives form POSTs, validates (honeypot, HMAC timestamp, rate limit),
   and hands each submission to the handlers its form names, through
   `Lazysite::Handlers` - the same delivery the schedule calls.
 
-`plugins/form-smtp.pl`
+`extensions/form-smtp.pl`
 : SMTP helper. Called via pipe from the form handler. Sends email using
   sendmail or Net::SMTP.
 
 `lazysite-manager-api.pl`
-: JSON API backing the manager UI pages. Handles file CRUD, plugin
+: JSON API backing the manager UI pages. Handles file CRUD, extension
   enable/disable, theme install, user management.
 
-`plugins/payment-demo.pl`
+`extensions/payment-demo.pl`
 : x402 payment flow helper.
 
 `tools/lazysite-server.pl`
@@ -106,12 +106,12 @@ lazysite/
 `tools/lazysite-users.pl`
 : CLI for user and group management.
 
-`plugins/audit.pl`
+`extensions/audit.pl`
 : Link audit - finds orphaned pages and broken internal links.
 
-## Plugin --describe protocol
+## Extension --describe protocol
 
-CGI scripts and tools that want to appear in the manager Plugins page
+CGI scripts and tools that want to appear in the manager Extensions page
 must support `--describe`. When invoked with that flag, they print a
 JSON object to stdout and exit 0.
 

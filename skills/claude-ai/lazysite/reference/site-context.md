@@ -95,7 +95,7 @@ rest of the conf is unread, and some of it reaches the page:
 | `lang` | the site language: `<html lang>` and the layout's chrome strings (`[% t %]`), default `en` |
 | `nav_file` | which nav file is read - covered by writing `nav.conf` (C4) |
 | `alias_hosts`, `alias.<host>.<key>`, `content_root` | per-domain overrides on a multi-domain site; locally there is one host, so you render the primary's view |
-| `extensions` (or `plugins`) | which extensions are enabled, which a layout can branch on (`enabled_plugins`) |
+| `extensions` | which extensions are enabled, which a layout can branch on (`enabled_extensions`) |
 | `meta_generator` | whether the generator `<meta>` tag is emitted |
 | `scan_limit`, `search_default`, `feed_items` | the size of `scan:` lists, search inclusion, feed length |
 | any other `key: value` | **every conf line is a template variable**: a layout or page that uses `[% key %]` gets the site's value there and nothing here. Values that are directives (`url:`, `json:`, `scan:`, `db:`) are resolved at render |

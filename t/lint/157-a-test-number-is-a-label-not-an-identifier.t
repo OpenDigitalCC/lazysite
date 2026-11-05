@@ -180,9 +180,9 @@ t/unit/mcp/2
 t/unit/mcp/12
 t/unit/mcp/16
 t/unit/mcp/17
-t/unit/plugins/1
-t/unit/plugins/5
-t/unit/plugins/41
+t/unit/extensions/1
+t/unit/extensions/5
+t/unit/extensions/41
 t/unit/processor/17
 t/unit/processor/18
 t/unit/processor/47

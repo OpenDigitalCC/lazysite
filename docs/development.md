@@ -407,7 +407,7 @@ A few steps can't be captured declaratively in the manifest:
 
 - `cgi-bin` symlinks for `form-handler.pl` and
   `payment-demo.pl` (Apache routes `/cgi-bin/<name>.pl` at
-  the plugin files under `../plugins/`).
+  the extension files under `../extensions/`).
 - Duplicating the manager CSS to a web-accessible path.
 - Seeding `auth/users`, `auth/groups`, `nav.conf`, and
   `lazysite.conf` from their `.example` copies on fresh

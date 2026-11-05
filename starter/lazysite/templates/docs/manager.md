@@ -86,7 +86,7 @@ submission notices, from the bell's own read state. Opening the page marks
 nothing read; following a notice, or a row's Open, marks that notice read, and
 the bell's Dismiss all marks every notice read, takes them out of the panel and
 clears the count. The address the viewer used to live
-at, `/manager/plugin-config?submissions=<store>`, redirects here.
+at, `/manager/extension-config?submissions=<store>`, redirects here.
 
 ### Site settings
 
@@ -102,7 +102,7 @@ identity and review the extension registry.
   manager style, and the update channel. The active layout and theme are
   **not** shown on this page - they live on **Appearance**, reached from the
   sidebar. Saves to `lazysite/lazysite.conf`.
-- **Extensions** (`/manager/plugins`, under Setup) - enable and disable the
+- **Extensions** (`/manager/extensions`, under Setup) - enable and disable the
   extensions; their configuration is its **Configure** page (see below).
 
 ### Files
@@ -158,9 +158,9 @@ unsaved changes.
 
 ### Extensions
 
-One menu entry, **Extensions**, over two pages: `/manager/plugins` lists every
-discovered extension (each `plugins/*.pl` that answers `--describe`) to enable
-or disable, and its **Configure** page (`/manager/plugin-config`) configures the
+One menu entry, **Extensions**, over two pages: `/manager/extensions` lists every
+discovered extension (each `extensions/*.pl` that answers `--describe`) to enable
+or disable, and its **Configure** page (`/manager/extension-config`) configures the
 enabled ones. Each links to the other, and both to **Handlers**.
 
 On Configure, each enabled extension appears with a form generated from its

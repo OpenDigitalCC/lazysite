@@ -101,14 +101,14 @@ PROPFIND /dav/  Depth: 0  Authorization: Basic base64(PARTNER:lzs_...)
 -> 207 = authenticated; 401 = wrong username or token.
 ```
 
-For your **full grant** - capabilities, groups, scope, and the plugins,
+For your **full grant** - capabilities, groups, scope, and the extensions,
 layouts, and themes the site offers (with active flags) - introspect over the
 control API rather than assuming from the bootstrap:
 
 ```
 GET /cgi-bin/lazysite-manager-api.pl?action=whoami
 Authorization: Basic base64(PARTNER:lzs_...)
--> { partner, capabilities, groups, scope, layouts, themes, plugins, site_capabilities }
+-> { partner, capabilities, groups, scope, layouts, themes, extensions, site_capabilities }
 ```
 
 ## Endpoints
@@ -224,7 +224,7 @@ found nothing - so check the key before concluding a feature is broken.
 
 `whoami` (GET)
 : No parameters. Returns your partner identity, capabilities, groups, effective
-  scope, and the plugins/layouts/themes the site offers - confirm your grant
+  scope, and the extensions/layouts/themes the site offers - confirm your grant
   from the server rather than the brief alone.
 
 `theme-activate` / `layout-activate` (POST)
@@ -285,7 +285,7 @@ anything both hold and moves the public one aside to `lazysite/displaced/`.
 : `key=<name>` and `value=<…>` (query string or JSON body). Sets one
   allowlisted site-config key in `lazysite.conf` - currently `site_name`,
   `site_url`, `search_default`. Privilege-relevant keys (manager groups,
-  plugins, auth) and ones with their own action (layout/theme - use
+  extensions, auth) and ones with their own action (layout/theme - use
   `layout-activate`/`theme-activate`) are refused. Needs `manage_config`.
 
 ## Path mapping
@@ -314,7 +314,7 @@ and a form's dispatch config `lazysite/forms/<name>.conf` (the last two with
 server rejects writes to them:
 
 `/cgi-bin/`
-: Executable scripts (processor, auth CGI, manager API, plugins). Never writable.
+: Executable scripts (processor, auth CGI, manager API, extensions). Never writable.
 
 `/lazysite/lazysite.conf`
 : Site configuration. Config keys are set through the control API with an
@@ -407,7 +407,7 @@ How to work with briefs:
   `orphan` flag for briefs whose content path no longer answers - and
   `brief-delete` clears one, so you can clean up anything you orphan.
 - **Never write a `<file>.brief` file.** On a site where the briefs
-  plugin is enabled, that write is **refused on every channel**, and the
+  extension is enabled, that write is **refused on every channel**, and the
   refusal names the replacement. On a site not yet migrated a sidecar
   still writes, but the store is the standard: the operator imports
   existing sidecars from the Extensions page's *Migrate sidecars*, and
@@ -568,7 +568,7 @@ See [API and raw mode](/docs/api) for the reasoning and the alternatives.
 
 When a form is submitted, the site raises a notification of its own accord: into
 the manager's notification bell, and - where the operator has configured the
-`notify-xmpp` plugin - as a chat message to them. It names the form and the time
+`notify-xmpp` extension - as a chat message to them. It names the form and the time
 and carries none of the submitted content.
 
 So there is no need to build a polling loop to discover that a questionnaire has

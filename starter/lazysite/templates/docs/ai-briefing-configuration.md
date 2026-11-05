@@ -31,7 +31,7 @@ DOCROOT/
       handlers.conf       # the handlers a form or the schedule calls
       schedule.conf       # what the timer calls
       smtp.conf           # SMTP connection settings
-    cache/                # HTML cache, plugin cache
+    cache/                # HTML cache, extension cache
     logs/
     templates/
       registries/         # registry templates (.tt)
@@ -67,10 +67,10 @@ log_format: text
 manager: enabled
 manager_path: /manager
 auth_default: none
-plugins:
+extensions:
   - cgi-bin/lazysite-auth.pl
-  - plugins/form-handler.pl
-  - plugins/audit.pl
+  - extensions/form-handler.pl
+  - extensions/audit.pl
 ```
 
 ### Value types
@@ -258,20 +258,20 @@ What an agent can and cannot do:
   `languages` from the engine and renders them; authoring your own would
   duplicate and drift.
 
-## Plugins
+## Extensions
 
-Plugins are CGI scripts and tools that register themselves with the
+Extensions are CGI scripts and tools that register themselves with the
 manager through a `--describe` JSON protocol. Auto-discovery scans
 `cgi-bin/` and `tools/` for scripts supporting `--describe`.
 
-Enable or disable from the manager Plugins page, or pre-enable in
+Enable or disable from the manager Extensions page, or pre-enable in
 `lazysite.conf`:
 
 ```yaml
-plugins:
+extensions:
   - cgi-bin/lazysite-auth.pl
-  - plugins/form-handler.pl
-  - plugins/audit.pl
+  - extensions/form-handler.pl
+  - extensions/audit.pl
 ```
 
 ## Logging

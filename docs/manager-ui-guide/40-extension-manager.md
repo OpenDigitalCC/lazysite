@@ -7,7 +7,7 @@ brand: plain
 
 One menu entry, two pages with a deliberate split (SM957 made them one entry):
 the Extensions page decides what runs, and its **Configure** page
-(`/manager/plugin-config`) decides how it behaves. They are separate pages because
+(`/manager/extension-config`) decides how it behaves. They are separate pages because
 enabling something and configuring it are separate authorities; each links to the
 other, and both to **Handlers**, which left the menu.
 

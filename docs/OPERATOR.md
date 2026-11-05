@@ -12,7 +12,7 @@ day-to-day runbook.
 <cgibin>/                       the CGI scripts (provision's --cgibin; the
                                 docroot's sibling cgi-bin unless named)
 <docroot>/../lib/               the engine's modules (Lazysite::)
-<docroot>/../plugins/           plugins (form-handler linked into <cgibin>)
+<docroot>/../extensions/           extensions (form-handler linked into <cgibin>)
 <docroot>/../tools/             the site's tools
 <docroot>/lazysite/             state - not web-served
   auth/      users, groups, user-settings.json, .secret, locks (2770)
@@ -293,15 +293,15 @@ This was found on the first real run: every job refused as "does not hold
 group settings and the panel user could no longer open them.
 
 **Two switches, both needed.** The unit and its timer are yours (or the
-deploy's); the `daemon` plugin is the site's, enabled by its sysop on the Plugin
+deploy's); the `daemon` extension is the site's, enabled by its sysop on the Extension
 Manager page and born disabled (ADR 0009). The manager has no root, so enabling
-the plugin cannot start the service - the **timer** does, within five minutes:
+the extension cannot start the service - the **timer** does, within five minutes:
 while the service is not running it is started every five minutes, reads the
-plugin, and either runs or exits at once (one short-lived process per five
+extension, and either runs or exits at once (one short-lived process per five
 minutes per disabled site; nothing while one runs). Pressing Enable runs the
 Status check and shows beside the toggle whether the host has provisioned the
 runtime and whether the job account is set and holds what the jobs need.
-Disabling the plugin while the runtime is running stops it within ten seconds,
+Disabling the extension while the runtime is running stops it within ten seconds,
 and the toggle line says whether it did ("the runtime is stopped", or "still
 stopping (pid N)").
 What it says about itself:
@@ -311,7 +311,7 @@ lazysited --docroot <docroot> --status      # desired / verdict / remedy per ser
 ```
 
 **Jobs run as an account, never as root or `system`.** The sysop names a
-`daemon_job_user` in the plugin's config and gives that account the `run_jobs`
+`daemon_job_user` in the extension's config and gives that account the `run_jobs`
 capability plus whatever the job needs (`analytics` for the rollup,
 `manage_users` for the sweep) - a purpose account, not a person's. No account,
 or one lacking a capability, means the job is refused with the reason in the
@@ -355,7 +355,7 @@ systemctl restart lazysited@<domain>
   received it - or that this account cannot read the log to tell.
 - Optional syslog forwarding of the audit trail as well: `forward_audit`, a plain
   on/off, default **off**. Both keys and `syslog_facility` are managed by the
-  **Logging & forwarding** plugin.
+  **Logging & forwarding** extension.
 - Apache logs: the vhost's usual access/error logs.
 - **Where a request's time went** (SM1144). Every surface answers with a
   `Server-Timing` header naming the phases it spent time in (`config`, `identity`,

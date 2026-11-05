@@ -12,7 +12,7 @@ This site is built with [lazysite](https://lazysite.io).
 
 ## Manager
 
-[Open the lazysite Manager](/manager) to manage content, themes, plugins, and users via the web interface.
+[Open the lazysite Manager](/manager) to manage content, themes, extensions, and users via the web interface.
 
 Sign in as `manager` - no password required when accessing from localhost.
 

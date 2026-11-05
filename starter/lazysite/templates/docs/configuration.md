@@ -106,10 +106,11 @@ works on staging and production.
 : `text` (default) or `json`.
 
 `extensions`
-: List of extension script paths to pre-enable without using the manager
-  UI. `plugins` is the older spelling of this key and still opens the
-  same list - a site keeps whichever it has, and carrying both gives one
-  list rather than two that could disagree.
+: The extensions this site has switched on, one `- extensions/<file>.pl` per
+  line - the list the manager's Extensions page writes, and the way to
+  pre-enable one without it. A site from before 0.16.4 kept this list under
+  an older header; its upgrade rewrote it, and `lazysite check` names a list
+  written back under the old one, which nothing reads.
 
 `auth_default`
 : Site-wide default for the `auth:` front matter key. `required`,
@@ -240,7 +241,7 @@ manager: enabled
 manager_path: /manager
 extensions:
   - lazysite-auth.pl
-  - plugins/form-handler.pl
+  - extensions/form-handler.pl
 ```
 
 ### Allowlisted environment variables
@@ -504,8 +505,8 @@ To pre-enable without the manager, list scripts in `lazysite.conf`:
 
     extensions:
       - lazysite-auth.pl
-      - plugins/form-handler.pl
-      - plugins/audit.pl
+      - extensions/form-handler.pl
+      - extensions/audit.pl
 
 ## URL remapper
 

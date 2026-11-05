@@ -26,7 +26,7 @@ Layouts and themes
 
 Manager
 - Browser-based admin at `/manager`
-- Config, Files, Nav, Plugins, Themes, Users, Cache, Audit, and Backups pages
+- Config, Files, Nav, Extensions, Themes, Users, Cache, Audit, and Backups pages
 - Recent-change markers on the Files and Users pages
 - Typed backups (content + full-system) with cross-domain migration
 - Admin bar on site pages for manager users
@@ -51,7 +51,7 @@ Forms
 Payment
 - x402 payment flow support via `payment:` front matter
 
-Plugins
+Extensions
 - Auto-discovery of CGI scripts and tools via `--describe` JSON
 - Enable, disable, and configure from the manager
 
@@ -152,7 +152,7 @@ Browse locally via the dev server, or read the Markdown directly:
 
 - `starter/lazysite/templates/docs/install.md` - installation
 - `starter/lazysite/templates/docs/authoring.md` - writing content
-- `starter/lazysite/templates/docs/configuration.md` - lazysite.conf, nav, plugins
+- `starter/lazysite/templates/docs/configuration.md` - lazysite.conf, nav, extensions
 - `starter/lazysite/templates/docs/layouts.md` - layouts and themes
 - `starter/lazysite/templates/docs/manager.md` - the manager UI
 - `starter/lazysite/templates/docs/auth.md` - authentication

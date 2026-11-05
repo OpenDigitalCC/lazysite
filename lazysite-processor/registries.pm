@@ -641,7 +641,7 @@ sub resolve_scan {
 #
 # The two further copies on the serve path (_serve_registry and the re-check
 # under the lock in _regenerate_registries_once) are LEFT INLINE deliberately:
-# t/unit/plugins/16 and t/unit/processor/46 lift those two subs out of this file
+# t/unit/extensions/16 and t/unit/processor/46 lift those two subs out of this file
 # by regex and run them standalone against stubs, so a call to a helper defined
 # elsewhere in the file would be an undefined subroutine in their harnesses.
 sub _registry_stale {
