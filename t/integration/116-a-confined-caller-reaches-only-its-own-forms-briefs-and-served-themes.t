@@ -6,6 +6,10 @@
 #    if no site serves it, or only domains inside its scope do - on the file
 #    choke point (cookie save, MCP write_file), the multipart upload and WebDAV.
 #    The upload also asks SM749's active-theme rule now, which it never did.
+#    Ruling 109 (SM1339): a domain's active theme is read-only for every caller,
+#    as the primary's - so the theme a domain serves is refused to all, in
+#    the active-theme rule's words, before F1's reach is asked; F1 still
+#    decides a theme no site serves and the layouts.
 # F2 "Confine both": form verbs reach only forms bound on pages inside the
 #    caller's scope (a form no page binds is the primary's); brief verbs only the
 #    briefs of pages inside it, or of rows of tables that pass the data rule.
@@ -204,9 +208,9 @@ my $T = 'lazysite/layouts/base/themes';
 
 subtest 'F1: a theme or layout another site serves is that site\'s' => sub {
     run_cells( 'op cku cks',
-        [ 'save into the theme other.example.org serves', 'YYN',
+        [ 'save into the theme other.example.org serves', 'NNN',
             sub { api( $_[0], 'save', { content => "/* $_[0] */\n" }, "action=save&path=$T/spare/p.css" ) } ],
-        [ 'save into the theme mine.example.org serves', 'YYY',
+        [ 'save into the theme mine.example.org serves', 'NNN',
             sub { api( $_[0], 'save', { content => "/* $_[0] */\n" }, "action=save&path=$T/mytheme/p.css" ) } ],
         [ 'save into a theme no site serves', 'YYY',
             sub { api( $_[0], 'save', { content => "/* $_[0] */\n" }, "action=save&path=$T/loose/p.css" ) } ],
@@ -214,14 +218,14 @@ subtest 'F1: a theme or layout another site serves is that site\'s' => sub {
             sub { api( $_[0], 'save', { content => "/* $_[0] */\n" }, "action=save&path=lazysite/layouts/gone/p.css" ) } ],
     );
     run_cells( 'op cku cks',
-        [ 'upload into the theme other.example.org serves', 'YYN', sub { upload( $_[0], "$T/spare" ) } ],
-        [ 'upload into the theme mine.example.org serves', 'YYY', sub { upload( $_[0], "$T/mytheme" ) } ],
+        [ 'upload into the theme other.example.org serves', 'NNN', sub { upload( $_[0], "$T/spare" ) } ],
+        [ 'upload into the theme mine.example.org serves', 'NNN', sub { upload( $_[0], "$T/mytheme" ) } ],
         [ 'upload into the instance\'s active theme (SM749, never asked before)', 'NNN', sub { upload( $_[0], "$T/one" ) } ],
     );
     run_cells( 'mcu mcs',
         [ 'write_file into the theme other.example.org serves', 'NN',
             sub { mcp( $_[0], 'write_file', { path => "$T/spare/m.css", content => "/* m */\n" } ) } ],
-        [ 'write_file into the theme mine.example.org serves', 'NY',
+        [ 'write_file into the theme mine.example.org serves', 'NN',
             sub { mcp( $_[0], 'write_file', { path => "$T/mytheme/m.css", content => "/* m */\n" } ) } ],
         [ 'write_file into a theme no site serves', 'YY',
             sub { mcp( $_[0], 'write_file', { path => "$T/loose/m.css", content => "/* m */\n" } ) } ],
@@ -230,14 +234,15 @@ subtest 'F1: a theme or layout another site serves is that site\'s' => sub {
     );
     run_cells( 'dvu dvs',
         [ 'PUT into the theme other.example.org serves', 'NN', sub { dav_put( $_[0], "$T/spare/w.css" ) } ],
-        [ 'PUT into the theme mine.example.org serves', 'NY', sub { dav_put( $_[0], "$T/mytheme/w.css" ) } ],
+        [ 'PUT into the theme mine.example.org serves', 'NN', sub { dav_put( $_[0], "$T/mytheme/w.css" ) } ],
         [ 'PUT into a theme no site serves', 'YY', sub { dav_put( $_[0], "$T/loose/w.css" ) } ],
     );
     ok( -f "$d/$T/spare/theme.json", 'the theme other.example.org serves kept its theme.json' );
-    unlike( slurp("$d/$T/spare/p.css"), qr/cks/, 'and cks wrote nothing into it' );
+    ok( !-e "$d/$T/spare/p.css" && !-e "$d/$T/mytheme/p.css", 'and nobody wrote into a domain\'s theme' );
     my $r = api( 'cks', 'save', { content => "x\n" }, "action=save&path=$T/spare/p.css" );
-    like( $r->{error} // '', qr/served by a site you do not reach.*copy it/s, 'the refusal names the rule and the way to work' );
-    is( $s->last_status, 403, '...as 403 Forbidden' );
+    like( $r->{error} // '', qr/active theme of other\.example\.org.*copy it.*with host/s,
+        'the refusal names the domain and the way to work' );
+    is( $r->{kind}, 'active-artifact-refused', '...in the active-theme rule\'s kind, as the primary\'s' );
 };
 
 subtest 'F2: a form is reached through the pages that bind it' => sub {
