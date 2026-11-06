@@ -31,7 +31,6 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use JSON::PP   qw(decode_json encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -47,10 +46,12 @@ my $INSTALL  = "$ROOT/install.pl";
 sub spit  { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub slurp { my ($p) = @_; open my $fh, '<', $p or return undef; local $/; my $t = <$fh>; close $fh; return $t }
 
+# The docroot one level down, its cgi-bin beside it (t/lint/118).
 sub new_site {
-    my $dir = tempdir( 'lazysite-1345-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
-    make_path( "$dir/site", "$dir/cgi-bin" );
-    return ( "$dir/site", "$dir/cgi-bin" );
+    my $docroot = TestHelper::site_tempdir();
+    ( my $cgibin = $docroot ) =~ s{/[^/]+\z}{/cgi-bin};
+    make_path($cgibin);
+    return ( $docroot, $cgibin );
 }
 
 # As t/tools/03 runs it: no lib on @INC (SM767), the mode declared, the fixture's

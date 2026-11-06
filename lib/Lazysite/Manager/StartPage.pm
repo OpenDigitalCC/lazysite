@@ -64,15 +64,15 @@ our %PAGES = (
     'appearance' => { label => 'Appearance', caps => [ 'manage_themes', 'manage_layouts' ] },
     # SM957: ONE entry, "Extensions"; its configuration is a tab of the same
     # page (/manager/extension-config), so it is not a start page of its own.
-    'extensions'    => { label => 'Extensions',      caps => [] },
-    'users'         => { label => 'Users',           caps => [] },
-    'groups'        => { label => 'Groups',          caps => [] },
+    'extensions'       => { label => 'Extensions',       caps => [] },
+    'users'            => { label => 'Users',            caps => [] },
+    'groups'           => { label => 'Groups',           caps => [] },
     'address-profiles' => { label => 'Address profiles', caps => [] },    # SM1138, SM1343
-    'sessions'      => { label => 'Sessions & keys', caps => [] },
-    'domains'       => { label => 'Domains',         caps => ['manage_domains'] },
-    'cache'         => { label => 'Cache',           caps => [] },
-    'backups'       => { label => 'Backups',         caps => [] },
-    'audit'         => { label => 'Audit log',       caps => ['audit'] },
+    'sessions'         => { label => 'Sessions & keys',  caps => [] },
+    'domains'          => { label => 'Domains',          caps => ['manage_domains'] },
+    'cache'            => { label => 'Cache',            caps => [] },
+    'backups'          => { label => 'Backups',          caps => [] },
+    'audit'            => { label => 'Audit log',        caps => ['audit'] },
     # SM579 phase 2: the operator's page for the destinations this site may
     # send to. manage_connectors, the capability that already gates every
     # connector action - writing a destination IS the authority here.
