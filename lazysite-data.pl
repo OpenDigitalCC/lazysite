@@ -435,6 +435,32 @@ sub main {
     # would otherwise inject a second parameter into the grammar - `order_by`
     # arriving as `name,limit=99999` is not a hypothetical, it is what a query
     # string is for.
+    #
+    # SM1377 (ruling 131): AN UNKNOWN PARAMETER IS REFUSED, before any value is
+    # read. SM606 named it and still answered every row, on the argument that a
+    # refusal would break a caller passing a harmless extra; that was a
+    # behaviour change deserving its own decision, and ruling 131 is the
+    # decision. A reply naming `chunk` as ignored was still a 200 carrying every
+    # row, and a script that never read `ignored` displayed them as the subset
+    # it asked for. A bad VALUE was already a 400; an unknown NAME now is too.
+    #
+    # `_` is the one exception, and the reason it exists: the ordinary
+    # cache-buster (`?table=t&_=1700000000`) changes nothing a reply holds, so
+    # refusing it would break callers for no gain. It is accepted and unread.
+    my %READS   = map       { $_ => 1 } qw(table order_by order limit offset csrf _);
+    my @unknown = sort grep { !$READS{$_} } keys %q;
+    if (@unknown) {
+        return reply( 400,
+            { ok => 0, kind => 'unknown-parameter',
+                parameters => \@unknown,
+                error      => 'unknown parameter'
+                    . ( @unknown == 1 ? '' : 's' ) . ': '
+                    . join( ', ', @unknown )
+                    . ' - this endpoint reads table, order_by, order, limit and '
+                    . 'offset (and ignores _, a cache-buster). Filter on the '
+                    . 'page binding, or in your own script.' } );
+    }
+
     my @args;
     if ( defined $q{order_by} && length $q{order_by} ) {
         return reply( 400, { ok => 0, error => 'order_by must be a field name' } )
@@ -449,23 +475,6 @@ sub main {
         push @args, "$n=$q{$n}";
     }
     my $binding = $table . ( @args ? '(' . join( ',', @args ) . ')' : '' );
-
-    # SM606: say what was IGNORED, rather than refusing it or staying silent.
-    #
-    # This endpoint assembles its binding from order_by, order, limit and offset
-    # and reads nothing else, so `?table=t&chunk=AAA` returned every row - in a
-    # reply shaped EXACTLY like a filtered one. A bad VALUE is a 400; an unknown
-    # PARAMETER was silence, and the caller could not tell the two apart. The
-    # site agent had written it up as a hazard to work around, which is the
-    # right instinct and the wrong resting place.
-    #
-    # REFUSING would have been the obvious fix and is the wrong one: any caller
-    # passing a harmless extra - a cache-buster is the ordinary case - would
-    # break, and that is a behaviour change deserving its own decision rather
-    # than arriving inside a defect fix. Naming them costs nothing, breaks
-    # nobody, and closes the silence, which was the whole complaint.
-    my %READS   = map       { $_ => 1 } qw(table order_by order limit offset csrf);
-    my @ignored = sort grep { !$READS{$_} } keys %q;
 
     # THE VISITOR (SM476), with no sysop bypass. This endpoint is the page's
     # data source, so it must answer exactly what the page's own binding would
@@ -502,25 +511,10 @@ sub main {
             # any clamp warning said rather than swallowed.
             ( defined $r->{total} ? ( total => 0 + $r->{total} ) : () ),
 
-            # SM606: both, deliberately. `ignored` is the machine-readable
-            # answer; the warning rides the EXISTING channel so a client that
-            # already surfaces warnings shows this one without being changed -
-            # and the caller who needs to see it most is the one who wrote
-            # `chunk=` expecting it to filter and got every row back.
-            ( @ignored ? ( ignored => \@ignored ) : () ),
-            ( ( $r->{warnings} || @ignored )
-                ? ( warnings => [
-                        @{ $r->{warnings} || [] },
-                        ( @ignored
-                            ? ( 'ignored parameter'
-                                    . ( @ignored == 1 ? '' : 's' ) . ': '
-                                    . join( ', ', @ignored )
-                                    . ' - this endpoint reads table, order_by, '
-                                    . 'order, limit and offset' )
-                            : () ),
-                ] )
-                : ()
-            ),
+            # SM1377: an unknown parameter is refused above, so the SM606
+            # `ignored` list and its warning line are gone: a reply that
+            # reaches here read every parameter it was sent.
+            ( $r->{warnings}       ? ( warnings       => $r->{warnings} ) : () ),
             ( $r->{pending_schema} ? ( pending_schema => JSON::PP::true ) : () ),
         } );
 }

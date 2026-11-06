@@ -74,7 +74,12 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     camera-unreadable
     permission-unreadable permission-unknown permission-above-site-ceiling
     odoo-binding-is-a-download
+    unknown-parameter
 );
+
+# SM1377: `unknown-parameter` is GROUP 2 like `anonymous` and `csrf` - passed to
+# `reply(400, ...)` in lazysite-data.pl, which sets its own status: a query
+# parameter the endpoint does not read is a malformed request.
 
 # SM980: `access-key-unreadable` is GROUP 2 - a Lazysite::Validate issue about a
 # page's auth / auth_groups / payment value, reported to whoever asked. The gate's

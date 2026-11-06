@@ -496,11 +496,12 @@ and that address is reached directly -- it inherits nothing from any page.
 Putting a table behind a gated page gates **the page**, not the table.
 
 **The endpoint reads four query parameters and no others:** `order_by`,
-`order`, `limit`, `offset`. Anything else is **ignored, not refused** - so
-`?table=t&chunk=AAA` returns *every* row, in a reply shaped exactly like a
-filtered one. Filter on the page binding (`db:t(chunk=AAA)`), which does
-support conditions, or filter the rows in your own script after reading them.
-Never read an unfiltered result as a filtered one (SM606).
+`order`, `limit`, `offset`. Anything else is **refused** - `?table=t&chunk=AAA`
+answers 400 with `kind: unknown-parameter`, naming `chunk` and the four it reads,
+rather than every row (SM1377; before 0.16.6 it was ignored, SM606). The one
+exception is `_`, the usual cache-buster, which is accepted and left unread.
+Filter on the page binding (`db:t(chunk=AAA)`), which does support conditions,
+or filter the rows in your own script after reading them.
 
 So publication is declared on the table itself:
 

@@ -447,11 +447,13 @@ tone: medium
 ---
 `db:t(col=v,order=x,limit=n)` in front matter | conditions AND-combine; `.count(col=v)` and `.field(col,key=x)` too
 `db:t(mine)` in front matter | the signed-in viewer's own rows; none when signed out; needs `timestamps: true`; the page is never cached
-`/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - anything else is IGNORED, and the reply looks exactly like a filtered one
+`/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - any other parameter is REFUSED (400, `kind: unknown-parameter`, naming it), except `_`, a cache-buster, which is accepted and unread (SM1377, 0.16.6; before that it was ignored and every row came back)
 ```
 
-`data-rows&table=t&chunk=AAA` returns every row including the ones where
-`chunk` is not `AAA`. **Never read an unfiltered result as a filtered one.**
+`/cgi-bin/lazysite-data.pl?table=t&chunk=AAA` is a 400 that names `chunk`. The
+control API's `data-rows&table=t&chunk=AAA` still returns every row including
+the ones where `chunk` is not `AAA`. **Never read an unfiltered result as a
+filtered one.**
 
 So a script that needs a subset reads the whole table and indexes it in memory,
 paging at the 500-row ceiling until a page comes back short. At a couple of

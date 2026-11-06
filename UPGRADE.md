@@ -135,6 +135,19 @@ nothing had: to keep the primary as well, name the group on the primary's row
 too (the bare `allowed_groups: <group>` line; the Domains page row
 `(default)`).
 
+**The data endpoint refuses a parameter it does not read (SM1377).** A page's own script that reads `/cgi-bin/lazysite-data.pl` with a query
+parameter other than `table`, `order_by`, `order`, `limit`, `offset`, `csrf` or
+`_` now gets a 400, `{ ok: 0, kind: "unknown-parameter" }`, naming the
+parameter. Until now the parameter was ignored and every row came back. The
+shipped `lazysite-data.js` sends none, so a page using `data-ls-db` is
+unaffected.
+
+**Who is affected.** A custom script that adds its own parameter: a filter such
+as `chunk=AAA` (which never filtered), or a cache-buster under another name.
+Before upgrading, search the site's scripts for `lazysite-data.pl?`. Filter on
+the page binding (`db:t(chunk=AAA)`) or in the script after reading the rows,
+and name a cache-buster `_`.
+
 ## Address lists become address profiles, and the rest of 0.16.5
 
 **Address profiles (SM1343-SM1345).** Address lists are now address profiles. The

@@ -1677,9 +1677,10 @@ is the decision; the mode is not, today.
 | A `table` handler | a visitor, through a form; or the schedule | made by a `manage_data` holder, its mapping decides every column |
 
 The endpoint reads `order_by`, `order`, `limit` and `offset` **and no other
-query parameter** - anything else is ignored rather than refused, so a filter
-sent that way returns every row in a reply shaped like a filtered one. Filter
-on the binding, or filter in your own script.
+query parameter** - anything else is refused, 400 with `kind: unknown-parameter`
+naming it and the four it reads, so a filter sent that way is never answered
+with every row (SM1377). `_`, a cache-buster, is the one name accepted and left
+unread. Filter on the binding, or filter in your own script.
 
 Every door applies the same type checks, `required`, `unique` and
 `writable_by`. There is one implementation of what a value means.
