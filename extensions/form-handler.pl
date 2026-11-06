@@ -398,6 +398,17 @@ eval {
         # bell - the sysop finds it under the Submissions Quarantine filter.
     _notify_submission( $name, $conf->{notify_mode}, \%form, $stored )
         unless $form{_quarantined};    # SM113 badge
+
+    # SM1362 (ruling 123): the form's own acknowledgement, when its conf asks for
+    # one. Best-effort: the submission is kept whatever becomes of this, so the
+    # visitor's answer does not change, and the reason goes to the log.
+    if ( $conf->{acknowledge} ) {
+        my $ack_why = Lazysite::Handlers::acknowledge_form( $conf->{acknowledge}, { _visible_fields( \%form ) },
+            quarantined => $form{_quarantined} );
+        log_event( ( length $ack_why ? 'WARN' : 'INFO' ), $name,
+            ( length $ack_why ? 'the submitter was not acknowledged' : 'the submitter was acknowledged' ),
+            ( length $ack_why ? ( why => $ack_why )                  : () ) );
+    }
     _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
         # SM952: stored, so it spends the allowance - quarantined included, since the
         # form kept it. A member's post was waived above and spends nothing.
@@ -556,6 +567,7 @@ sub load_form_conf {
         spam_own_domain    => ( defined $od ? $od     : 'off' ),    # SM930
         rate_limit         => $rate_limit,    # SM401; undef = default
         timestamp_window   => $ts_window,     # SM501; undef = default, 0 = off
+        acknowledge        => Lazysite::Handlers::form_acknowledgement($text),    # SM1362
     };
 }
 

@@ -504,6 +504,44 @@ the `file` and `id` in the notice's url.
 Quarantined submissions do not notify. A submission held back by the spam
 controls is recorded but does not raise a notice, so a spam run cannot flood you.
 
+### Telling the site's owner by email
+
+The site's owner need not be its operator. Name them in `lazysite/notify.conf`:
+
+```yaml
+owner_contact: owner@example.com
+```
+
+and each form's notice is also emailed to that one address: the same notice,
+with its link to the submission, and the submitted fields only for a form set to
+`notify: full`. It needs the site's mail set up - the Form SMTP extension
+enabled, with its settings saved - and it follows the notice: nothing for a form
+set to `notify: off`, nothing for a quarantined submission. These mails share the
+site's hourly bound on notice mail (`mail.per_hour` in `notify.conf`, 60 unless
+set). When one is not sent, the log says why (the extension off, the bound
+reached, a value that is not exactly one address).
+
+### Answering the person who filled it in
+
+A form can send the person who submitted it a short acknowledgement, in its own
+words, whatever it delivers to. In the form's conf:
+
+```yaml
+acknowledge_field: email
+acknowledge_subject: Thank you for your message
+acknowledge_message: We have your message and will reply within two days.\nThe Example team
+```
+
+`acknowledge_field` names the field holding the address; `\n` in the message is a
+line break. The message is the form's text alone and never repeats what was
+typed, so the form cannot be used to send a stranger a message of somebody
+else's choosing. The submission is kept and the visitor thanked whether or not
+the acknowledgement goes. It is not sent for a quarantined submission, or to a
+value that is not exactly one address, and it is bounded per address (3 an hour)
+and per site (60 an hour), counted together with any email handler's
+acknowledgements; `submitter_per_destination_hour` and `submitter_per_site_hour`
+in the form's conf change them. It needs the Form SMTP extension's settings.
+
 **What the spam controls look at.** Quarantine is **on unless you turn it off**
 (`quarantine: off` in the form's conf) and is content-based - no puzzle for the
 visitor, no tracker, nothing sent anywhere. It holds a submission back when:

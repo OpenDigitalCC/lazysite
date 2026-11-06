@@ -89,6 +89,17 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1362 (PENDING) **A form tells the site's owner by email, and can answer the submitter.**
+  Ruling 123 re-scoped the filing: a bare form already saves (the shipped local-storage
+  handler). `owner_contact:` in `lazysite/notify.conf` names one address, and each form's
+  notice is also mailed there through the existing notice mail (the Form SMTP extension,
+  `mail.per_hour`); it follows the notice (not on `notify: off`, not for a quarantined
+  submission, the fields only on `notify: full`). A form's conf can opt in to an
+  acknowledgement with `acknowledge_field` and `acknowledge_message` (and
+  `acknowledge_subject`): the form's own words, never the visitor's text, mailed to the
+  address in that field under the email handler's caps (3 an hour per address, 60 per
+  site, counted together). Register entry drafted.
+
 - SM1366 (PENDING) **An Odoo call's record names the signed-in account.** A call made under a
   person's Odoo session was recorded, and written to the audit log, as `session:<hash>`
   alone, so an operator could not tell who acted. Where the request is signed in to the site

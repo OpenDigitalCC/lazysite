@@ -2340,6 +2340,80 @@ sub _acknowledge_submitter {
     return '';
 }
 
+# --- SM1362: a form's own acknowledgement --------------------------------------
+#
+# Ruling 123 (sites evidence T-51: three sites wrote their acknowledgements by
+# hand). A form whose conf opts in is answered by mail, in the FORM'S OWN WORDING,
+# whatever handlers it delivers to (the shipped local-storage one included):
+#
+#   acknowledge_field:   email                        the field holding the address
+#   acknowledge_subject: Thank you for your message   optional
+#   acknowledge_message: We have your message and will reply within two days.
+#
+# `\n` in the message is a line break. The message is the form's text and NOTHING
+# OF THE SUBMISSION: a contact form whose answer echoes what was typed is how a
+# form becomes a way to mail a chosen stranger a chosen text, and a fixed text
+# takes that away. It is SM877's acknowledgement in every other respect - one
+# address from the named field (SM1017), refused for a quarantined submission
+# (SM913), and the same two caps counted from the same record
+# (submitter-mail.jsonl, per recipient 3 and per site 60 an hour, the form's
+# `submitter_per_destination_hour` / `submitter_per_site_hour` to change them), so
+# a form and an smtp handler cannot be two buckets round one bound. Sent through
+# the Form SMTP extension, the site's one transport. Returns '' when it went, or
+# the reason it did not; the caller logs it and the visitor's answer does not
+# change.
+our $FORM_ACK_SUBJECT = 'Thank you - we have your message';
+
+sub form_acknowledgement {
+    my ($text) = @_;
+    my %a;
+    for my $k ( qw(acknowledge_field acknowledge_subject acknowledge_message
+        submitter_per_destination_hour submitter_per_site_hour) )
+    {
+        $a{$k} = $1 if ( $text // '' ) =~ /^\s*\Q$k\E\h*:\h*(.*?)\h*$/m && length $1;
+    }
+    return length( $a{acknowledge_field} // '' ) ? \%a : undef;
+}
+
+sub acknowledge_form {
+    my ( $ack, $fields, %ctx ) = @_;
+    return '' unless ref $ack eq 'HASH' && length( $ack->{acknowledge_field} // '' );
+    return 'the submission is held in quarantine, so no acknowledgement was sent - '
+        . 'answering a suspect submission writes to an address somebody else chose'
+        if $ctx{quarantined};
+    my $words = $ack->{acknowledge_message} // '';
+    return "the form names acknowledge_field but no acknowledge_message, so there is "
+        . 'nothing of its own to say - nothing was sent to the submitter'
+        unless $words =~ /\S/;
+
+    my ( $addr, $why ) = _submitter_address( { mail_the_submitter_field => $ack->{acknowledge_field} }, $fields );
+    return $why unless defined $addr;
+    my $key = _submitter_key($addr);
+    my ( $dest, $site ) = _submitter_counts($key);
+    require Lazysite::Egress;
+    my ( $ok, $refusal ) = Lazysite::Egress::within_caps(
+        what => 'form',
+        axes => [
+            { name => 'per-recipient', limit => _submitter_cap( $ack, 'submitter_per_destination_hour', 3 ),
+                used => $dest, window => 'hour', setting => 'submitter_per_destination_hour' },
+            { name => 'per-site', limit => _submitter_cap( $ack, 'submitter_per_site_hour', 60 ),
+                used => $site, window => 'hour', setting => 'submitter_per_site_hour' },
+        ],
+    );
+    return $refusal unless $ok;
+
+    my $script = _find_script('form-smtp.pl')
+        or return 'the Form SMTP extension\'s script was not found, so no acknowledgement was sent';
+    $words =~ s/\\n/\n/g;
+    my $subject = $ack->{acknowledge_subject};
+    $subject = $FORM_ACK_SUBJECT unless defined $subject && $subject =~ /\S/;
+    my $r = _run_smtp_script( $script,
+        { config => { to => $addr }, form => {}, message => { subject => $subject, text => "$words\n" } } );
+    return 'the acknowledgement was not sent: ' . ( $r->{error} // 'no answer' ) unless $r->{ok};
+    _record_submitter_send($key);
+    return '';
+}
+
 # SM1020: the two, published for Lazysite::Outbox, which sends through the same
 # extension script the same way.
 sub find_script     { return _find_script(@_) }

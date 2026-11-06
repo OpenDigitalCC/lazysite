@@ -2750,3 +2750,65 @@ residual risk
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
   because what the audit trail names moved.
+
+### 2026-11-06 - SM1362 (0.16.6): a form mails its owner, and can answer the submitter
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: Ruling 123. (1) `lazysite/notify.conf` `owner_contact:` names one address, and each
+  form submission's notice is also mailed there through SM485's `send_mail` (the Form
+  SMTP extension, the per-site `mail.per_hour` bound, `logs/notice-mail.jsonl`).
+  (2) A form's conf may opt in to an acknowledgement: `acknowledge_field` (the field
+  holding the address), `acknowledge_subject`, `acknowledge_message`; after the
+  submission is stored, the form's own text is mailed to the one address in that field,
+  under SM877's per-recipient (3/hour) and per-site (60/hour) caps, counted with the
+  smtp handler's acknowledgements in `logs/submitter-mail.jsonl`.
+
+threat delta
+: The question is (2): the site sends an email to an address a visitor typed. That is
+  abuse of the site as a mailer (Denial of service against a third party's inbox, and
+  the site's own sending reputation; Spoofing, by mail that comes from the site), and
+  it is the open-relay shape SM877's caps were built for. Three things bound it. The
+  message is the form's fixed text with no part of the submission in it (not a field,
+  not the name), so an attacker chooses only the recipient, never the words: the form
+  cannot carry their content to a stranger. The rate: per recipient, 3 an hour, so one
+  inbox cannot be flooded; per site, 60 an hour across every form and every smtp
+  handler's acknowledgements (one shared record, so a second door is not a second
+  bucket); the form's own limit per source address (SM401, 5 submissions an hour, waived for a signed-in member) and the
+  render timestamp and honeypot apply before any of it. And a quarantined submission
+  (links, shorteners, a repeated value, the site's keywords) is never answered (SM913).
+  An unreadable cap record refuses rather than counts as zero (within_caps). (1) sends
+  to an address the site's configuration names, never one a request carries; its
+  abuse case is volume, bounded by `mail.per_hour` and by the notice's own rules (no
+  notice on `notify: off` or for a quarantined submission). Information disclosure:
+  the owner mail carries the submitted fields only for a form set to `notify: full`,
+  as the chat notice does; otherwise a line and a link that needs a sign-in.
+  ADR 0007: no new interface (keys in existing configuration files, the existing form
+  CGI), no new authentication method, no new dependency (the Form SMTP extension is
+  the existing transport). New processing of restricted data: no new data is kept
+  (the address is not written to either cap record, only a hash for the
+  per-recipient count, as SM877), but personal data now leaves the site to a second
+  party, the owner, for a `notify: full` form - the same disclosure an smtp handler
+  makes, chosen by the operator; recorded here for the release manager to assess
+  whether the trigger fires.
+
+controls
+: t/unit/forms/68 through the real form CGI and Form SMTP with a mock sendmail: the
+  acknowledgement carries the form's words and none of the visitor's text and never the
+  owner's address; nothing is sent without the opt-ins; a quarantined submission tells
+  nobody; the per-address cap, the form's per-site cap, `mail.per_hour` and the bucket
+  shared with the smtp handler each hold; two addresses in `owner_contact` mail nobody.
+  The address is checked by `Lazysite::Mail::one_address` (SM1017) on both paths.
+
+residual risk
+: A visitor can still make the site send its fixed acknowledgement to an address they
+  name, three times an hour per address and up to the site's 60; the owner should
+  word it so that receiving it unasked is harmless. The acknowledgement does not ask
+  whether the Form SMTP extension is enabled (as SM877's does not): its settings file
+  is what sends it.
+
+verdict
+: accepted (drafted; for the release manager's confirmation, including whether the
+  new-processing-of-restricted-data trigger fires for a `notify: full` form's owner
+  mail).
