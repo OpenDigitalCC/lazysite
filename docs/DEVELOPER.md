@@ -233,6 +233,29 @@ as **subprocesses** (`open3`/`open2`) with CGI env, or in-process via a
 `LOAD_ONLY` hook. `t/lib/TestHelper.pm` has the fixtures (`setup_dav_site`,
 `run_processor`, …). `tools/bench.pl --check` is the performance gate.
 
+## Extension hooks (SM1369, ruling 55)
+
+Core names no extension: what an extension needs from core is a hook its descriptor
+declares, never a line in core that knows it by name. `t/lint/321` fails a new such line;
+the files that have them today are an allow-list in that file that may only shrink, so
+when a hook slice removes some, lower the counts there.
+
+- **Declaring.** `owns.hooks` is a mapping of hook kind to declaration, and
+  `owns.requires` lists the ids of the extensions this one builds on. The kinds are
+  `%Lazysite::Extensions::Hooks::KINDS`. A kind is refused until the slice that builds
+  its consumer marks it `live`, with its shape (`form`, `functions`, `fields`,
+  `required`); make it live in the same change that adds the code calling it. A
+  function is named in full, `Module::Name::function`.
+- **The payload.** The extension's code sits beside its descriptor:
+  `extensions/<stem>.pl` and `extensions/<stem>/lib/`. A hook module must be a file
+  there and must not exist anywhere else on `@INC`.
+- **The index.** `lazysite/extensions.index.json`, built by
+  `Lazysite::Manager::Extensions::rebuild_hook_index` on enable, disable and save, and
+  by `install.pl` on upgrade. A site with no hooks has none.
+- **Calling.** `Lazysite::Extensions::Hooks::call_hook( $docroot, $id, $function, @args )`
+  returns `( 1, @result )` or `( 0, $why )`. The caller decides the safe answer for a
+  failure: signed out, an empty value, a failed delivery, not wanted.
+
 ## The Odoo extension's tests and OOM (SM1081)
 
 The Odoo extension uses OOM (`libodoo-oom-perl`), which is another project and changes on its

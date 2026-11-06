@@ -25,7 +25,7 @@ use warnings;
 use Exporter 'import';
 use Lazysite::Paths ();
 
-our @EXPORT_OK = qw(locate extensions_dir registry_key);
+our @EXPORT_OK = qw(locate extensions_dir registry_key payload_lib add_payload_lib);
 
 # The directory's name under an install root, and the package's copy. The
 # registry key a site's lazysite.conf lists is the same name and the file:
@@ -67,6 +67,37 @@ sub locate {
     }
     my $p = "$PACKAGED/$file";
     return -f $p ? $p : undef;
+}
+
+# SM1369 X1: AN EXTENSION'S PAYLOAD sits beside its descriptor, in a directory
+# named for it: extensions/odoo.pl and extensions/odoo/ (lib/, assets/,
+# templates/, docs/, t/, tools/). The descriptor keeps its place, so the
+# registry key a site's lazysite.conf lists does not change.
+#
+# The payload's lib, or undef: a real directory at each step, never a link, so
+# a link planted beside a descriptor cannot point the loader at code elsewhere.
+sub payload_lib {
+    my ($descriptor) = @_;
+    return undef unless defined $descriptor && $descriptor =~ m{\A(.+)/([A-Za-z0-9_-][A-Za-z0-9_-]*)\.pl\z};
+    my $payload = "$1/$2";
+    return undef if -l $payload || !-d $payload;
+    my $lib = "$payload/lib";
+    return undef if -l $lib || !-d $lib;
+    return $lib;
+}
+
+# THE ONE RULE that puts an extension's payload lib on @INC, as t/lint/263 holds
+# one rule for finding the engine's. APPENDED, never prepended: core's lib and
+# the system's modules resolve first, so a payload cannot replace a module that
+# already exists elsewhere, and Lazysite::Extensions::Hooks refuses a hook
+# module found anywhere but the payload. The caller has checked the extension is
+# enabled (Hooks::call_hook). Returns the lib, or undef when there is none.
+sub add_payload_lib {
+    my ($descriptor) = @_;
+    my $lib = payload_lib($descriptor);
+    return undef unless defined $lib;
+    push @INC, $lib unless grep { !ref && $_ eq $lib } @INC;
+    return $lib;
 }
 
 1;

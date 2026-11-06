@@ -56,6 +56,20 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1369 (PENDING) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
+  and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
+  names an extension (its script name, or Odoo's own names); the 59 files that do today are an
+  allow-list that may only shrink. X1: an extension's `owns` may declare `hooks` and
+  `requires`, validated by the new `Lazysite::Extensions::Hooks` before anything is indexed. The
+  manager writes `lazysite/extensions.index.json` from the enabled extensions on enable,
+  disable and save, and the upgrade rebuilds it. `Hooks::call_hook` runs an indexed function
+  from the extension's own payload lib (`extensions/<stem>/lib`), only while the extension and
+  what it requires are on. Enabling an extension whose `requires` names one that is off is
+  refused by name. No hook kind is live yet: a declaration of one is refused, naming the slice
+  that builds it (X2 to X8 are to come). A site whose extensions declare no hooks has no index
+  and behaves as before.
+
+- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
   four register entries the branches wrote are walked, and two of them (SM1324's protected
   history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data

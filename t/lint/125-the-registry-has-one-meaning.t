@@ -6,6 +6,10 @@
 # and a marked copy in lazysite-processor.pl for the render path, which is
 # deliberately module-free under ADR 0001 and cannot call the first one.
 #
+# SM1369 X1 adds a third: Lazysite::Extensions::Hooks::enabled_keys, which a hook
+# call reads fresh to check the extension is still on (it cannot load the
+# manager tree on the request path). It is run here beside the other two.
+#
 # ADR 0001 sets the convention for a copy like this - it is allowed, it is
 # marked, and it is pinned by something that fails when the copies drift. That
 # pin is this file. Without it the render path could quietly start disagreeing
@@ -32,6 +36,7 @@ load_processor($docroot);
 
 eval { require Lazysite::Manager::Extensions; 1 }
     or plan skip_all => "cannot load Lazysite::Manager::Extensions: $@";
+require Lazysite::Extensions::Hooks;
 
 my $conf = "$docroot/lazysite/lazysite.conf";
 
@@ -100,16 +105,19 @@ for my $c (@CASES) {
     main::_reset_units();
     local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
 
-    my ( @proc, @mgr, @want );
+    my ( @proc, @mgr, @hook, @want );
+    my $hook_on = Lazysite::Extensions::Hooks::enabled_keys("$docroot/lazysite");
     for my $e (@UNIVERSE) {
         push @want, "$e=" . ( $expect{$e}       ? 1 : 0 );
         push @proc, "$e=" . ( main::_unit_enabled($e) ? 1 : 0 );
         push @mgr,
             "$e=" . ( Lazysite::Manager::Extensions::extension_enabled($e) ? 1 : 0 );
+        push @hook, "$e=" . ( $hook_on->{$e} ? 1 : 0 );
     }
 
     is( "@proc", "@want", "render path reads '$name' correctly" );
     is( "@mgr",  "@want", "manager tree reads '$name' correctly" );
+    is( "@hook", "@want", "the hook call's check reads '$name' correctly" );
     is( "@proc", "@mgr",  "...and the two readers agree on '$name'" );
 }
 

@@ -998,6 +998,20 @@ sub cmd_install {
         push @once, 'address-profiles-converted' if $done && !@$twarn;
     }
 
+    # ---- the extension hook index (SM1369 X1) ----
+    #
+    # On every upgrade or reinstall, after the steps above have settled which
+    # extensions are on: the new release's descriptors may declare hooks, or stop
+    # declaring them, so the index is rebuilt from them. The INSTALLED code does
+    # it, as a separate process, for the reason the handler conversion gives. A
+    # site whose extensions declare no hooks gets no index and nothing is printed.
+    if ( $mode ne 'fresh' ) {
+        my ( $ok, $why ) = run_hook_index_build( $o->{docroot}, \%subs );
+        push @$warnings, 'HOOKS: the extension hook index was not rebuilt (' . $why . ') - '
+            . 'the previous one stands; enable or save an extension in the manager to rebuild it'
+            unless $ok;
+    }
+
     # ---- write new state ----
     write_state( $state_path, $manifest->{version}, $state_files, \@once );
 
@@ -1056,6 +1070,33 @@ sub run_handler_conversion {
     my $rc = $? >> 8;
     return ( 1, '' ) if $rc == 0;
     return ( 0, $rc == 1 ? 'something was left unconverted' : "the tool exited $rc" );
+}
+
+# SM1369 X1: rebuild the extension hook index with the installed lib, as the
+# site's owner when run as root (as run_handler_conversion). Its lines (an
+# extension indexed or refused) are passed through. Returns ( $ok, $why ).
+sub run_hook_index_build {
+    my ( $docroot, $subs ) = @_;
+    my $lib = resolve_placeholders( '{DOCROOT}/../lib', $subs );
+    return ( 1, 'no lib in this payload' ) unless -f "$lib/Lazysite/Extensions/Hooks.pm";
+    my $pid = fork;
+    return ( 0, "cannot fork: $!" ) unless defined $pid;
+    if ( !$pid ) {
+        if ( $> == 0 ) {
+            my @st = stat $docroot;
+            if ( @st && $st[4] != 0 ) {
+                POSIX::setgid( $st[5] );
+                POSIX::setuid( $st[4] );
+            }
+        }
+        exec( $^X, "-I$lib", '-MLazysite::Manager::Extensions', '-e',
+            'exit Lazysite::Manager::Extensions::rebuild_hook_index_main(@ARGV)', $docroot )
+            or POSIX::_exit(127);
+    }
+    waitpid $pid, 0;
+    my $rc = $? >> 8;
+    return ( 1, '' ) if $rc == 0;
+    return ( 0, $rc == 1 ? 'the index could not be written' : "the build exited $rc" );
 }
 
 # old-address-name: begin (SM1343, the upgrade converts the store by its old name)

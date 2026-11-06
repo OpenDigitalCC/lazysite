@@ -50,7 +50,14 @@ sub parse_dep {
 # ignored: an extension author writing `capability` for `capabilities` would
 # otherwise get silence and a capability that never appears, which reads as the
 # platform being broken.
-my @KEYS = qw(config_keys storage endpoints capabilities deps bins);
+#
+# SM1369 X1: `hooks` (a mapping) and `requires` (the extension ids this one
+# builds on) join them. Their rules are Lazysite::Extensions::Hooks', read here
+# so a declaration is checked in one place whichever of its keys is wrong.
+my @KEYS = qw(config_keys storage endpoints capabilities deps bins requires hooks);
+
+# The keys whose value is a list; `hooks` is a mapping.
+my %MAP_KEY = ( hooks => 1 );
 
 sub owns_keys { my @k = @KEYS; return @k }
 
@@ -81,10 +88,22 @@ sub validate_owns {
 
     for my $k (@KEYS) {
         next unless exists $owns->{$k};
+        if ( $MAP_KEY{$k} ) {
+            push @bad, _err( $id, $k, "$k must be a mapping" ) unless ref $owns->{$k} eq 'HASH';
+            next;
+        }
         push @bad, _err( $id, $k, "$k must be a list" )
             unless ref $owns->{$k} eq 'ARRAY';
     }
     return @bad if @bad;
+
+    if ( exists $owns->{hooks} || exists $owns->{requires} ) {
+        require Lazysite::Extensions::Hooks;
+        push @bad, Lazysite::Extensions::Hooks::validate_hooks( $id, $owns->{hooks} )
+            if exists $owns->{hooks};
+        push @bad, Lazysite::Extensions::Hooks::validate_requires( $id, $owns->{requires} )
+            if exists $owns->{requires};
+    }
 
     for my $p ( @{ $owns->{storage} || [] } ) {
         # Explicit blocks rather than `push ... and next if ...`: perlcritic

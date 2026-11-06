@@ -2435,3 +2435,80 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired;
   recorded because a guard's exemption, the sign-in page's check, a page's public status
   and what a refusal names moved, as the 0.16.3 entry of 2026-11-05 recorded its own.
+
+### 2026-11-06 - SM1369 X0, X1 (0.16.6): an extension's own code can be loaded into a core process
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+Ruling 55; the design is the extension-hooks proposal, whose security model (G-1 to
+G-10, and what an extension can never do) these slices begin to build.
+
+what changed
+: X0. `t/lint/321` fails a new core line that names an extension (its script name, or
+  Odoo's own names); the lines there today are an allow-list that may only shrink. No
+  behaviour changes.
+: X1. An extension's `owns` may declare `hooks` (a mapping) and `requires` (extension
+  ids). `Lazysite::Extensions::Hooks` validates both. The manager writes
+  `lazysite/extensions.index.json` from the enabled extensions' descriptors on enable,
+  disable and save, and `install.pl` does it on every upgrade and reinstall, as the
+  site user. `Hooks::call_hook` loads an indexed function from the extension's payload
+  lib (`extensions/<stem>/lib`, put on `@INC` by `Lazysite::Extensions::add_payload_lib`)
+  and calls it in the calling process. Enabling an extension whose `requires` names one
+  that is off is refused by name. In this release no hook kind is live: every
+  declaration of one is refused, naming the slice that builds it, and no core code calls
+  `call_hook`.
+
+threat delta
+: ADR 0007's new-external-interface trigger fires. Until now an extension ran only as
+  a separate process (`--describe`, its declared actions); X1 builds an interface
+  through which an extension's own Perl runs inside a core process - the manager, and
+  from later slices the request path - with that process's rights, its open handles and
+  its memory. Nothing reaches it in 0.16.6 (no live kind, no caller), but the interface
+  is built here, and each later slice adds only a caller, so the assessment is recorded
+  now rather than at the first caller. The other three triggers do not fire: no sign-in
+  method (H-1 is X4), no new dependency (Cwd, JSON::PP and Time::HiRes are core and
+  declared), no restricted data. The questions are these. Elevation of privilege and
+  Tampering: an extension's code running as core, or code that is not the extension's
+  (core's, a system module's, a planted file's) run under its name. Denial of service:
+  a hook that dies or hangs in a core process. Spoofing: a disabled extension's index
+  entry, or a dependency switched off, still being honoured. Tampering: the index file
+  itself, between the write and the read.
+
+controls
+: The declaration is validated before anything is indexed: unknown hooks and hooks not
+  yet built are refused by name, a function is a fully qualified name never in
+  `main::`, `CORE::` or `UNIVERSAL::` and never `import`, `DESTROY` or a phase block.
+  Only the extension's own code runs: each module a declaration names must be a regular
+  file in its payload lib, which is a real directory at each step (a link is refused),
+  and must not resolve anywhere else on `@INC`, checked at the build and again at the
+  call, with a module already loaded from elsewhere refused; the payload lib is appended
+  to `@INC`, never prepended, so it cannot replace core's modules. Only what the index
+  lists runs: `call_hook` refuses a function the indexed declaration does not name. Off
+  means off (G-1): the extension and every extension it requires must be in
+  `lazysite.conf` at the call, read fresh, never cached; the payload lib must be the one
+  the index was built from, so an edited index runs nothing. A hook that dies is a
+  failure with its reason, never an exception into core (G-9). The index is written
+  atomically by the manager, and the build runs extension code only as `--describe`,
+  out of process, as before (G-10). t/unit/extensions/70 (the validator),
+  t/unit/extensions/71 (the build and the loader, including a stale index after a
+  disable, a shadowing module, a linked payload, a dying hook and an unmet `requires`),
+  t/tools/330 (the upgrade step), t/lint/125 (the call's enabled-list reader), t/lint/321.
+
+residual risk
+: In process the hooks are a contract, not a sandbox (the proposal's "What the model
+  does not claim"): an extension is Perl running as the site user and, once a caller
+  exists, could do in core's process anything core can. Trust comes from what is
+  installed, and ADR 0009 keeps third-party extensions out of tree aside until a signing
+  story exists; that boundary is unchanged and is what holds this. A hook that loops is
+  not bounded by `call_hook`; each slice that adds a caller decides that caller's
+  budget. A long-lived process (a pool worker, from later slices) keeps a payload lib on
+  `@INC` and a module loaded once it has run a hook, and two extensions cannot ship a
+  module of the same name (the second is refused as found elsewhere). Whoever can write
+  `lazysite/` can write the index, as they can already write `lazysite.conf` and
+  `handlers.conf`; the call-time checks bound what an edited index can name to an
+  enabled extension's own payload.
+
+verdict
+: drafted as accepted for the release manager's confirmation: the trigger fires and the
+  change is contained for 0.16.6, because no hook kind is live and nothing calls the
+  loader. The first slice that makes a kind live (X2) adds a caller to this interface
+  and should be assessed against this entry, in its own.

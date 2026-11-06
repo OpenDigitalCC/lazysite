@@ -68,6 +68,18 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased (0.16.6)
+
+**The extension hook index (SM1369).** Every upgrade and reinstall now rebuilds
+`lazysite/extensions.index.json` from the descriptors of the site's enabled
+extensions, as the site user, after the other steps. A site whose extensions
+declare no hooks, which is every site today, gets no index and the summary says
+nothing about it. An enabled extension that declares a hook this release does not
+build is named in the summary as `hooks refused: <id> (...)`, with the slice that
+builds it, and runs nothing. If the rebuild cannot write the index, the summary
+warns under `HOOKS:` and the previous index stands. Enabling or saving an extension
+in the manager rebuilds it. Nothing to do for an operator.
+
 ## Address lists become address profiles, and the rest of 0.16.5
 
 **Address profiles (SM1343-SM1345).** Address lists are now address profiles. The
