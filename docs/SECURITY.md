@@ -2831,7 +2831,9 @@ what changed
   brief rules), by the MCP path gate and its docroot walks (`list_pages`, `search_files`
   and the other `_each_page` walks), and by WebDAV's `authorise`. Kept: the unconfined
   operator (the manager's cookie operator, whose scopes are never resolved; on WebDAV
-  an account holding `manage_users`), and any root the account is granted on its own.
+  a member of the operator group, SM991), and any root the account is granted on its own.
+  A manager holding `manage_users` outside the operator group is not the operator and is
+  held to it, as are tokens, MCP grants and WebDAV accounts.
 
 threat delta
 : Elevation of privilege and Information disclosure, reduced: an account given the
@@ -2848,7 +2850,7 @@ controls
 : t/unit/manager/446 (the rule; the token, primary-granted token and unbound cookie
   manager refused another domain's page; a granted domain kept; the operator kept) and
   t/unit/dav/39 (WebDAV, with the real resolver: GET and PUT refused for unbound and
-  primary-granted accounts, nothing written; a granted domain and `manage_users` kept).
+  primary-granted accounts, nothing written; a granted domain and the operator group kept).
   Each fails with the change reverted.
 
 residual risk
@@ -2857,8 +2859,8 @@ residual risk
   manager's file browser still roots such an account at the docroot; opening, reading
   or writing inside one is refused. A content root that is not a folder of its own
   (a secondary domain with no `content_root`) serves the primary's content and is the
-  primary's. The WebDAV operator test is the capability (`manage_users`), as the
-  manager's cookie operator is decided; an operator's token is never an operator.
+  primary's. The WebDAV operator test is `account_is_operator` (the operator group), as the
+  manager's cookie operator is decided (SM991); a token is never an operator.
 
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded

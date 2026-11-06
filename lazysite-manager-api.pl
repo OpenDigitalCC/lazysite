@@ -639,7 +639,13 @@ sub _confine_scope {
     my ( $scopes, $origin ) = @_;
     # SM1372 (ruling 126): an EMPTY scope is asked too - it reaches the primary's
     # content, which leaves out the other domains' roots (Common::foreign_root_of).
-    return unless $SCOPED_ACTION{$action} && ref $scopes eq 'ARRAY';
+    $scopes = [] unless ref $scopes eq 'ARRAY';    # resolved to nothing: unbound
+    return       unless $SCOPED_ACTION{$action};
+    # Called for the confined callers only (a cookie manager, a token), before the
+    # request's own flag is set below the call.
+    # (Common's own variable: `local` on the imported alias would localise this
+    # package's symbol and leave the one Common reads alone.)
+    local $Lazysite::Manager::Common::REQUEST_CONFINED = 1;
     # SM1308 (ruling 47): `list` naming no folder is answered its scope roots at
     # dispatch, so the '/' an absent path defaults to is not a path it named.
     my $named = ( $action eq 'list' && !_list_names_a_folder() ) ? undef : $path;
@@ -653,7 +659,7 @@ sub _confine_scope {
         _refuse(
             { ok => 0, kind => 'forbidden',
                 error => defined $foreign
-                ? Lazysite::Manager::Common::foreign_root_refusal( $p, $foreign )
+                ? Lazysite::Manager::Common::foreign_root_sentence( $p, $foreign )
                 : "Path '$p' is outside your assigned scope ($names)." },
             $origin, 'denied: outside dav_scope', $p );
     }

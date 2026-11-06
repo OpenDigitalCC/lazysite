@@ -7,7 +7,7 @@
 # the whole docroot as their content, and by path that held every other domain's
 # folder (sites/...): SM1332's recorded residual risk. Now neither reaches a
 # domain's root it is not granted; one granted that domain keeps it, and so does
-# the operator (manage_users).
+# the operator (a member of the operator group, SM991).
 use strict;
 use warnings;
 use Test::More;
@@ -63,8 +63,8 @@ subtest 'granted the primary and alpha: alpha too, still not beta' => sub {
 };
 
 subtest 'the operator keeps the whole docroot' => sub {
-    my $s = site( caps => [qw(webdav manage_content manage_users)] );
-    isnt( req( $s, 'PUT', '/sites/beta/new.md' )->{code}, 403, 'manage_users reaches another domain\'s folder' );
+    my $s = site( caps => [qw(webdav manage_content manager)] );    # the operator group (SM991)
+    isnt( req( $s, 'PUT', '/sites/beta/new.md' )->{code}, 403, 'an operator-group member reaches another domain\'s folder' );
 };
 
 done_testing();

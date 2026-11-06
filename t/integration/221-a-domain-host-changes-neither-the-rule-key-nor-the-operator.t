@@ -34,7 +34,7 @@ my $root = repo_root();
 plan skip_all => 'manager api missing' unless -f "$root/lazysite-manager-api.pl";
 
 my $HOST = 'tprf.example.org';
-my @ALL  = qw(ui api mcp webdav manage_users manage_content manage_config);
+my @ALL  = qw(manager ui api mcp webdav manage_users manage_content manage_config);    # SM1372
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub slurp { my ($p) = @_; open my $fh, '<', $p or return undef; local $/; my $t = <$fh>; close $fh; return $t }
@@ -43,7 +43,10 @@ sub site {
     my (%o) = @_;
     my $s = new_site( root => $root,
         conf => "control_api_enabled: true\nmcp_enabled: true\nwebdav_enabled: true\nmanager: enabled\n"
-            . "alias_hosts: $HOST\nalias.$HOST.content_root: sites/tprf\n" );
+            . "alias_hosts: $HOST\nalias.$HOST.content_root: sites/tprf\n"
+            # SM1372 (ruling 126): the domain's writers are granted it, and the
+            # primary, so the rule keyed on its paths is what decides
+            . "alias.$HOST.allowed_groups: staff, agents, davs\nallowed_groups: staff, agents, davs\n" );
     my $d = $s->docroot;
     make_path( "$d/sites/tprf/post", "$d/sites/tprf/private" );
     spit( "$d/index.md",                "# primary\n" );
@@ -67,7 +70,7 @@ sub on_host {
 
 # --- reading 1: the operator is the instance's, whatever the host ------------
 {
-    my ( $s, $d ) = site( users => [ [ 'sysop', 'sysops', [qw(ui manage_users manage_content manage_config)] ],
+    my ( $s, $d ) = site( users => [ [ 'sysop', 'sysops', [qw(manager ui manage_users manage_content manage_config)] ],
             [ 'viewer', 'viewers', ['ui'] ] ] );
     for my $host ( $HOST, undef ) {
         my $on = defined $host ? "on $host" : 'on the primary';
@@ -92,7 +95,7 @@ sub on_host {
 
 # --- reading 2: the rule key is the content-root path, on every door ---------
 my ( $s, $d ) = site( users => [
-        [ 'sysop',  'sysops', [qw(ui manage_users manage_content manage_config)] ],
+        [ 'sysop',  'sysops', [qw(manager ui manage_users manage_content manage_config)] ],
         [ 'editor', 'staff',  [qw(ui manage_content)] ],
         [ 'agent',  'agents', [qw(mcp manage_content)] ],
         [ 'davvy',  'davs',   [qw(webdav manage_content)] ],

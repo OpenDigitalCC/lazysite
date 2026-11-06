@@ -113,7 +113,10 @@ subtest 'unchanged: the canonical shapes' => sub {
     is_deeply( $b2->{theirs}, ['sites/other/theirs.md'], 'a quoted one too' );
     is( reaches('plain'),  'reaches', 'the caller reaches its own' );
     is( reaches('theirs'), 'refused', 'and not the other domain\'s' );
-    ok( caller_may_reach_form( 'contact', scopes => [] ), 'an unbound grant reaches every form (R3)' );
+    # SM1372 (ruling 126): the primary's content leaves out the other domains'
+    # folders, so an unbound grant does not reach a form bound in them
+    ok( !caller_may_reach_form( 'contact', scopes => [] ), 'an unbound grant does not reach a form bound in other domains (SM1372)' );
+    ok( caller_may_reach_form( 'unbound-anywhere', scopes => [] ), 'and reaches one no other domain binds (R3)' );
 };
 
 subtest 'V1: the validator reads the form the page renders' => sub {

@@ -113,11 +113,12 @@ API and the manager's Files. From this release it does not (ruling 126): the
 primary's content is the document root less the other domains' content roots.
 What it is refused says which folder and how to grant it.
 
-Unchanged: the operator (an account holding `manage_users`, signed in to the
-manager, or over WebDAV) still reaches every folder, and an account already
+Unchanged: the operator (a member of the operator group, the group `setup-sysop`
+makes, in the manager or over WebDAV) still reaches every folder, and an account already
 granted a secondary domain keeps that domain.
 
-**Who loses something.** An account (often an agent's token or WebDAV login)
+**Who loses something.** Any other account - a manager holding `manage_users` but
+not in the operator group included, and often an agent's token or WebDAV login -
 that edited a secondary domain's pages through the primary, without being
 granted that domain. Before upgrading, find them: any non-operator account that
 writes under `sites/` and whose group is named in no

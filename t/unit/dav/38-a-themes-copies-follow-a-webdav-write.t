@@ -39,7 +39,11 @@ alias_hosts: two.example
 alias.two.example.content_root: sites/two
 alias.two.example.layout: site2
 alias.two.example.theme: own
+allowed_groups: role-deploy
+alias.two.example.allowed_groups: role-deploy
 CONF
+# SM1372 (ruling 126): the account is granted the primary and two.example, since
+# the primary's content no longer holds another domain's folder.
 my $d = $s->{docroot};
 # gallery/clarity is no host's: the pages that pin it (SM120) are what serve it,
 # and the secondary domain has its copy all the same (SM734) - the 04/11 and

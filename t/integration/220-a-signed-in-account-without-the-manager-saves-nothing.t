@@ -44,7 +44,9 @@ sub slurp { my ($p) = @_; open my $fh, '<', $p or return undef; local $/; my $t 
 
 my $s = new_site( root => $root,
     conf => "control_api_enabled: true\nmanager: enabled\n"
-        . "alias_hosts: $HOST\nalias.$HOST.content_root: sites/tprf\n" );
+        . "alias_hosts: $HOST\nalias.$HOST.content_root: sites/tprf\n"
+        # SM1372 (ruling 126): the author is granted the domain it edits, and the primary
+        . "alias.$HOST.allowed_groups: authors\nallowed_groups: authors\n" );
 my $d = $s->docroot;
 make_path("$d/sites/tprf/post");
 spit( "$d/index.md",             "# primary\n" );
@@ -56,7 +58,7 @@ spit( "$d/sites/tprf/post/p.md", "# a post\n" );
 # The sysop secures the site (a group grants manager access); the author owns the
 # post; `member` is in no group at all.
 $s->add_user( 'sysop', 'pw-sysop-0123456789' );
-$s->grant( 'sysop', 'sysops', [qw(ui manage_users manage_content manage_config)], \@ALL );
+$s->grant( 'sysop', 'sysops', [qw(manager ui manage_users manage_content manage_config)], [ 'manager', @ALL ] );    # SM1372: the operator group (SM991)
 $s->add_user( 'author', 'pw-author-0123456789' );
 $s->grant( 'author', 'authors', [qw(ui manage_content)], \@ALL );
 $s->add_user( 'member', 'pw-member-0123456789' );

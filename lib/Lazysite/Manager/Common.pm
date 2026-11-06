@@ -620,25 +620,18 @@ sub outside_all_scopes {
 # manager's cookie operator, whose scopes are never resolved: $REQUEST_CONFINED
 # is 0) is never asked; every other caller is, the token, MCP and WebDAV doors and
 # a cookie manager alike. The rule is Lazysite::Auth::DomainAccess::foreign_root_of.
-my %FOREIGN_DOMAINS;    # conf path => [ mtime, domains ]
-
 sub foreign_root_of {
     my ( $scopes, $path ) = @_;
     return undef unless $REQUEST_CONFINED;
     return undef unless scopes_reach_docroot($scopes);
     return undef unless defined $DOCROOT && length $DOCROOT;
-    my $conf = _lz() . '/lazysite.conf';
-    my $mt   = ( stat $conf )[9] // -1;
-    my $c    = $FOREIGN_DOMAINS{$conf};
-    unless ( $c && $c->[0] == $mt ) {
-        require Lazysite::Auth::DomainAccess;
-        $c = $FOREIGN_DOMAINS{$conf} = [ $mt, Lazysite::Auth::DomainAccess::read_domains($conf) ];
-    }
-    return Lazysite::Auth::DomainAccess::foreign_root_of( $c->[1], $scopes, $path );
+    require Lazysite::Auth::DomainAccess;
+    my $dom = Lazysite::Auth::DomainAccess::read_domains( _lz() . '/lazysite.conf' );
+    return Lazysite::Auth::DomainAccess::foreign_root_of( $dom, $scopes, $path );
 }
 
-# The refusal's sentence for a path in another domain's content.
-sub foreign_root_refusal {
+# The sentence a refusal of a path in another domain's content says.
+sub foreign_root_sentence {
     my ( $p, $root ) = @_;
     return "Path '$p' is in another domain's content ($root/). This account reaches the "
         . "primary site, whose content leaves out the other domains' folders; an operator "
@@ -904,6 +897,14 @@ sub _who { my (%a) = @_; return exists $a{scopes} ? ( scopes => $a{scopes} ) : (
 # passed as `scopes` is; on the manager request, a token always and a cookie
 # manager with a scope.
 sub _confined_who { my (%who) = @_; return exists $who{scopes} ? 1 : request_domain_confined() }
+
+# SM1372 (ruling 126): who the page-reached rules (forms, briefs) ask. A caller
+# confined to domains, as before; and now a caller whose scopes were resolved and
+# came out empty - a cookie manager granted nothing - since the primary's content
+# it reaches leaves out the other domains' folders. Only the operator ($REQUEST_CONFINED
+# 0) is not asked.
+sub _confined_for_content { my (%who) = @_; return ( _confined_who(%who) || $REQUEST_CONFINED ) ? 1 : 0 }
+
 
 # SM976 F1 (ruled 2026-10-09, "Yes, any served artifact"): A THEME OR LAYOUT A
 # SITE SERVES IS THAT SITE'S. A domain-confined caller writes a theme or layout
@@ -1295,7 +1296,7 @@ sub page_form {
 sub caller_may_reach_form {
     my ( $name, %who ) = @_;
     my %by = _who(%who);
-    return 1 unless _confined_who(%by);
+    return 1 unless _confined_for_content(%by);
     my @pages = ref $who{bindings} eq 'HASH'
         ? @{ $who{bindings}{ lc( $name // '' ) } || [] }
         : form_pages($name);
@@ -1386,7 +1387,7 @@ sub form_bind_refusal {
     ( my $r = $rel ) =~ s{^/+}{};
     return unless $r =~ /\.md\z/;
     my %by = _who(%who);
-    return unless _confined_who(%by);
+    return unless _confined_for_content(%by);
     my @names = page_form_names( $text, $r );
     return unless @names;
     my %had = map { $_ => 1 } page_form_names( _current_page_text($r), $r );
@@ -1415,7 +1416,7 @@ sub form_bind_tree_refusal {
     my ( $src_abs, $dst_rel, %who ) = @_;
     return unless defined $src_abs && defined $dst_rel && -e $src_abs;
     my %by = _who(%who);
-    return unless _confined_who(%by);
+    return unless _confined_for_content(%by);
     ( my $dst = $dst_rel ) =~ s{^/+|/+$}{}g;
     my @pairs;
     if ( -d $src_abs ) {
@@ -1478,7 +1479,7 @@ sub caller_may_reach_table {
 sub caller_may_reach_brief {
     my ( $path, %o ) = @_;
     my %by = _who(%o);
-    return 1 unless _confined_who(%by);
+    return 1 unless _confined_for_content(%by);
     my $table;
     if ( ( $o{type} // '' ) eq 'row' ) { $table = $o{table} }
     else {

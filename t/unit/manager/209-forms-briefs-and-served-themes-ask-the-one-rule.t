@@ -81,7 +81,8 @@ subtest 'F2: caller_may_reach_path' => sub {
     ok( !caller_may_reach_path( 'sites/alpha/../beta/x.md', @$alpha ), 'a .. out of it' );
     ok( !caller_may_reach_path( 'lazysite/nav.conf', @$alpha ), 'the engine tree is inside no scope' );
     ok( !caller_may_reach_path( '',                  @$alpha ), 'nor is the site root' );
-    ok( caller_may_reach_path( 'sites/beta/x.md', scopes => [] ), 'a grant naming no scope reaches the content namespace (R3)' );
+    ok( caller_may_reach_path( 'x.md', scopes => [] ), 'a grant naming no scope reaches the primary\'s content (R3)' );
+    ok( !caller_may_reach_path( 'sites/beta/x.md', scopes => [] ), '...which leaves out another domain\'s folder (SM1372, ruling 126)' );
 };
 
 subtest 'F2: caller_may_reach_form' => sub {
@@ -90,7 +91,7 @@ subtest 'F2: caller_may_reach_form' => sub {
     #                                         fa fb fp fab fx
     my %want = (
         'a grant scoped to alpha'          => 'YNNNN',
-        'a grant naming no scope'          => 'YYYYY',
+        'a grant naming no scope'          => 'NNYNY',    # SM1372: not a form bound only on other domains' pages
         'a grant scoped to alpha and beta' => 'YYNYN',
     );
     for my $who ( sort keys %want ) {

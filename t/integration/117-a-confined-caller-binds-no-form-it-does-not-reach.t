@@ -18,6 +18,9 @@
 # sites/other/contact.md, prim_form on contact.md (the primary) and on
 # sites/mine/shared.md (a page in mine that already binds it), leads on no page.
 # A scoped caller reaches mine_form only; an unbound one reaches every form.
+# SM1372 (ruling 126): but the unbound callers (cku, mcu, dvu) no longer reach
+# sites/mine at all - another domain's folder - so their writes there are refused;
+# op is the operator group (SM991), which keeps the whole docroot.
 use strict;
 use warnings;
 use Test::More;
@@ -57,7 +60,7 @@ for my $f ( sort keys %FORM ) {
 }
 
 $s->add_user('op');
-$s->grant( 'op', 'g-op', [ qw(ui manage_users manage_config), @WORK ], \@ALL );
+$s->grant( 'op', 'g-op', [ qw(manager ui manage_users manage_config), @WORK ], [ 'manager', @ALL ] );    # SM1372: the operator group (SM991)
 for my $u ( sort keys %CHAN ) {
     $s->add_user( $u, "pw-$u-0123456789" );
     $s->grant( $u, "g-$u", [ $CHAN{$u}, @WORK ], \@ALL );
@@ -161,7 +164,7 @@ sub run_cells {
             if ( $w[$i] eq 'Y' ) { ok( $r->{ok}, "$who[$i]: served: $label" ) or diag( $r->{error} // $r->{_raw} // '' ) }
             else {
                 ok( !$r->{ok}, "$who[$i]: refused: $label" );
-                like( ( $r->{error} // '' ) . ' ' . ( $r->{kind} // '' ), qr/form-bind-refused|binds no form it does not reach/,
+                like( ( $r->{error} // '' ) . ' ' . ( $r->{kind} // '' ), qr/form-bind-refused|binds no form it does not reach|another domain's content/,    # SM1372: or the domain-folder rule
                     '...by the form-binding rule' ) or diag( $r->{error} // '' );
             }
         }
@@ -189,15 +192,15 @@ subtest 'the Q15d hijack probe, refused now' => sub {
 
 subtest 'the control API: the cookie file save' => sub {
     run_cells( 'op cku cks',
-        [ 'a new page in mine binding prim_form', 'YYN',
+        [ 'a new page in mine binding prim_form', 'YNN',
             sub { api( $_[0], 'save', { content => page('prim_form') }, "action=save&path=sites/mine/new-$_[0].md" ) } ],
-        [ 'a new page in mine binding other_form', 'YYN',
+        [ 'a new page in mine binding other_form', 'YNN',
             sub { api( $_[0], 'save', { content => page('other_form') }, "action=save&path=sites/mine/oth-$_[0].md" ) } ],
-        [ 'a new page in mine binding mine_form', 'YYY',
+        [ 'a new page in mine binding mine_form', 'YNY',
             sub { api( $_[0], 'save', { content => page('mine_form') }, "action=save&path=sites/mine/own-$_[0].md" ) } ],
-        [ 'a new page in mine binding a form that exists nowhere (it creates it)', 'YYY',
+        [ 'a new page in mine binding a form that exists nowhere (it creates it)', 'YNY',
             sub { api( $_[0], 'save', { content => page("fresh_$_[0]") }, "action=save&path=sites/mine/fresh-$_[0].md" ) } ],
-        [ 'the page already binding prim_form, edited', 'YYY',
+        [ 'the page already binding prim_form, edited', 'YNY',
             sub { api( $_[0], 'save', { content => page( 'prim_form', "$_[0]\n" ) }, 'action=save&path=sites/mine/shared.md' ) } ],
     );
 };
@@ -213,9 +216,9 @@ subtest 'the control API: move, copy, upload' => sub {
     );
     ok( -e "$d/sites/mine/shared.md", 'the page stayed where it was' );
     run_cells( 'op cku',
-        [ 'copy of the page binding prim_form', 'YY',
+        [ 'copy of the page binding prim_form', 'YN',
             sub { api( $_[0], 'copy', {}, "action=copy&path=sites/mine/shared.md&to=sites/mine/cp-$_[0].md" ) } ],
-        [ 'upload of a page binding prim_form', 'YY', sub { upload( $_[0], 'sites/mine', "up-$_[0].md", page('prim_form') ) } ],
+        [ 'upload of a page binding prim_form', 'YN', sub { upload( $_[0], 'sites/mine', "up-$_[0].md", page('prim_form') ) } ],
     );
     ok( api( 'cks', 'move', {}, 'action=move&path=sites/mine/contact.md&to=sites/mine/contact-us.md' )->{ok},
         'cks still renames its own form\'s page' );
@@ -234,7 +237,7 @@ subtest 'content history: git-restore and restore_version' => sub {
             sub { api( $_[0], 'git-restore', {}, "action=git-restore&path=sites/mine/hist.md&sha=$old" ) } ] );
     run_cells( 'mcs', [ 'restore_version of it', 'N', sub { mcp( $_[0], 'restore_version', { path => 'sites/mine/hist.md', version => $old } ) } ] );
     unlike( slurp("$d/sites/mine/hist.md"), qr/form:/, 'the page still binds nothing' );
-    run_cells( 'mcu', [ 'restore_version of it', 'Y', sub { mcp( $_[0], 'restore_version', { path => 'sites/mine/hist.md', version => $old } ) } ] );
+    run_cells( 'mcu', [ 'restore_version of it', 'N', sub { mcp( $_[0], 'restore_version', { path => 'sites/mine/hist.md', version => $old } ) } ] );
 };
 
 subtest 'MCP' => sub {
@@ -242,13 +245,13 @@ subtest 'MCP' => sub {
     # them for rename_page), so the text is shaped as a path inside the scope.
     spit( "$d/sites/mine/plain.md", "---\ntitle: Plain\nsee: sites/mine/a\n---\nhello\n" );
     run_cells( 'mcu mcs',
-        [ 'write_file of a new page binding prim_form', 'YN',
+        [ 'write_file of a new page binding prim_form', 'NN',
             sub { mcp( $_[0], 'write_file', { path => "sites/mine/w-$_[0].md", content => page('prim_form') } ) } ],
-        [ 'write_file of the page already binding it', 'YY',
+        [ 'write_file of the page already binding it', 'NY',
             sub { mcp( $_[0], 'write_file', { path => 'sites/mine/shared.md', content => page( 'prim_form', "$_[0]\n" ) } ) } ],
-        [ 'upload_file of a page binding prim_form', 'YN',
+        [ 'upload_file of a page binding prim_form', 'NN',
             sub { mcp( $_[0], 'upload_file', { path => "sites/mine/u-$_[0].md", content_base64 => encode_base64( page('prim_form'), '' ) } ) } ],
-        [ 'copy_file of the page binding prim_form', 'YN',
+        [ 'copy_file of the page binding prim_form', 'NN',
             sub { mcp( $_[0], 'copy_file', { from => 'sites/mine/shared.md', to => "sites/mine/c-$_[0].md" } ) } ],
     );
     run_cells( 'mcs',
@@ -269,9 +272,9 @@ subtest 'MCP' => sub {
 
 subtest 'WebDAV' => sub {
     run_cells( 'dvu dvs',
-        [ 'PUT of a new page binding prim_form', 'YN', sub { dav( $_[0], 'PUT', "sites/mine/d-$_[0].md", body => page('prim_form') ) } ],
-        [ 'PUT of the page already binding it', 'YY', sub { dav( $_[0], 'PUT', 'sites/mine/shared.md', body => page( 'prim_form', "$_[0]\n" ) ) } ],
-        [ 'COPY of the page binding prim_form', 'YN', sub { dav( $_[0], 'COPY', 'sites/mine/shared.md', to => "sites/mine/dc-$_[0].md" ) } ],
+        [ 'PUT of a new page binding prim_form', 'NN', sub { dav( $_[0], 'PUT', "sites/mine/d-$_[0].md", body => page('prim_form') ) } ],
+        [ 'PUT of the page already binding it', 'NY', sub { dav( $_[0], 'PUT', 'sites/mine/shared.md', body => page( 'prim_form', "$_[0]\n" ) ) } ],
+        [ 'COPY of the page binding prim_form', 'NN', sub { dav( $_[0], 'COPY', 'sites/mine/shared.md', to => "sites/mine/dc-$_[0].md" ) } ],
     );
     my $mv = dav( 'dvs', 'MOVE', 'sites/mine/shared.md', to => 'sites/mine/dm.md' );
     ok( !$mv->{ok}, 'dvs: refused: MOVE of the page binding prim_form' );

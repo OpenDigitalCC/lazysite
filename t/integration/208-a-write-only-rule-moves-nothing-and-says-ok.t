@@ -37,8 +37,8 @@ spit( "$d/sites/blog/index.md",         "# Blog\n" );
 spit( "$d/sites/blog/members/index.md", "# Members\n" );
 spit( "$d/sites/plain/index.md",        "# Plain\n" );
 $s->add_user('op');
-$s->grant( 'op', 'g-op', [qw(ui manage_users manage_domains manage_content)],
-    [qw(ui manage_users manage_domains manage_content)] );
+$s->grant( 'op', 'g-op', [qw(manager ui manage_users manage_domains manage_content)],
+    [qw(manager ui manage_users manage_domains manage_content)] );    # SM1372: the operator group
 sub op { my ( $a, $b, $q ) = @_; return $s->call( 'op', $a, ( defined $b ? ( body => $b ) : () ), query => $q ) }
 ok( op( 'domain-add', { host => 'blog.example.test', content_root => 'sites/blog' }, 'action=domain-add' )->{ok},
     'set up: a domain at sites/blog' );

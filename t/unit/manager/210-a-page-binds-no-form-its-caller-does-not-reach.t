@@ -91,7 +91,7 @@ subtest 'form_bind_refusal: a new page naming each form' => sub {
     #                                         fa fb fp fab fr fs fm fnew
     my %want = (
         'a grant scoped to alpha'          => 'YNNNNNNY',
-        'a grant naming no scope'          => 'YYYYYYYY',
+        'a grant naming no scope'          => 'NNNNYYYY',    # SM1372: not a form bound on another domain's page
         'a grant scoped to alpha and beta' => 'YYNYNNNY',
     );
     my @f = qw(fa fb fp fab fr fs fm fnew);
@@ -152,7 +152,8 @@ subtest 'form_bind_tree_refusal: a page carried somewhere binds there' => sub {
     spit( "$d/sites/alpha/sec/sub/two.md", page('fp') );
     my ($err) = form_bind_tree_refusal( "$d/sites/alpha/sec", 'sites/alpha/sec2', @$alpha );
     like( $err // '', qr/'sites\/alpha\/sec2\/sub\/two\.md' would bind the form 'fp'/, 'a folder: each page at its new path' );
-    ok( !form_bind_tree_refusal( "$d/sites/alpha/sec", 'sites/alpha/sec2', scopes => [] ), 'an unbound grant reaches every form' );
+    ok( form_bind_tree_refusal( "$d/sites/alpha/sec", 'sites/alpha/sec2', scopes => [] ),
+        'an unbound grant does not reach another domain\'s folder or its forms (SM1372)' );
     spit( "$d/sites/alpha/locked/x.md", page('fa') );
     chmod 0, "$d/sites/alpha/locked/x.md";
 SKIP: {
@@ -199,8 +200,8 @@ subtest 'the choke point asks it, with the grant\'s scopes' => sub {
     }
 
     local $Lazysite::Manager::Files::CALLER_SCOPES = [];
-    ok( Lazysite::Manager::Files::action_save( 'sites/alpha/hook.md', 'alice', page('fp'), undef )->{ok},
-        'a grant naming no scope saves it' );
+    ok( !Lazysite::Manager::Files::action_save( 'sites/alpha/hook.md', 'alice', page('fp'), undef )->{ok},
+        'a grant naming no scope does not save into another domain\'s folder (SM1372, ruling 126)' );
 };
 
 done_testing();

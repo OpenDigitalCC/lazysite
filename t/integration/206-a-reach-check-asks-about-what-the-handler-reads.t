@@ -44,7 +44,7 @@ for my $f (qw(mine other)) {
     spit( "$d/lazysite/forms/submissions/${f}_form.jsonl", encode_json( { name => "SECRET-OF-$f" } ) . "\n" );
 }
 $s->add_user('op');
-$s->grant( 'op', 'g-op', [ 'ui', 'manage_users', 'manage_domains', @WORK ], \@ALL );
+$s->grant( 'op', 'g-op', [ 'manager', 'ui', 'manage_users', 'manage_domains', @WORK ], [ 'manager', @ALL ] );    # SM1372: the operator group
 $s->add_user( 'cks', 'pw-cks-0123456789' );
 $s->grant( 'cks', 'g-cks', [ 'ui', @WORK ], \@ALL );
 sub as {

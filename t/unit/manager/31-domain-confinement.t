@@ -87,7 +87,7 @@ open my $b, '>', "$d/content/clientB/secret.md" or die $!; print $b "B\n"; close
 # groups match no domain allow-list => unconfined. client is in role-client,
 # which clienta.com allows => confined to content/clientA.
 uapi( $d, { action => 'add', username => 'op', password => 'x-long-enough' } );
-grant_caps( $d, 'op', 'manage_users', 'manage_content', 'ui' ); # SM1057: uses the manager
+grant_caps( $d, 'op', 'manager', 'manage_users', 'manage_content', 'ui' ); # SM1057: uses the manager; SM1372: the operator group (SM991)
 uapi( $d, { action => 'add', username => 'client', password => 'y-long-enough' } );
 grant_caps( $d, 'client', 'manage_content', 'ui' );    # SM1057: a manager-UI client
 

@@ -26,9 +26,9 @@ plan skip_all => 'DBI / DBD::SQLite / YAML::PP not available'
     unless eval { require DBI; require DBD::SQLite; require YAML::PP; 1 };
 local $ENV{LAZYSITE_PROCESSOR} = "$root/lazysite-processor.pl";
 
-my @ALL  = qw(ui api manage_users manage_domains manage_content manage_data);
+my @ALL  = qw(manager ui api manage_users manage_domains manage_content manage_data);
 my %CAPS = (
-    op  => [qw(ui manage_users manage_domains manage_content manage_data)],
+    op  => [qw(manager ui manage_users manage_domains manage_content manage_data)],    # SM1372: the operator group
     tks => [qw(api manage_content)],
     ed  => [qw(ui manage_data)],
     wr  => [qw(ui manage_data)],

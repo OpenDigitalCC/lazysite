@@ -83,7 +83,7 @@ for my $f ( sort keys %FORM ) {
 }
 
 $s->add_user('op');
-$s->grant( 'op', 'g-op', [ 'ui', 'manage_users', 'manage_domains', @WORK ], \@ALL );
+$s->grant( 'op', 'g-op', [ 'manager', 'ui', 'manage_users', 'manage_domains', @WORK ], [ 'manager', @ALL ] );    # SM1372: the operator group (SM991)
 for my $u ( sort keys %CHAN ) {
     $s->add_user( $u, "pw-$u-0123456789" );
     $s->grant( $u, "g-$u", [ $CHAN{$u}, @WORK ], \@ALL );
@@ -255,7 +255,8 @@ subtest 'F2: a form is reached through the pages that bind it' => sub {
         [ 'form-submissions by store', sub {
                 api( $_[0], 'form-submissions', undef, "action=form-submissions&file=lazysite/forms/submissions/$_[1].jsonl" ) } ],
     );
-    my %want = ( mine_form => 'YYYYY', other_form => 'YYNYN', prim_form => 'YYNYN', loose_form => 'YYNYN' );
+    # SM1372 (ruling 126): the unbound cku and tku do not reach a form bound in a domain's folder
+    my %want = ( mine_form => 'YNYNY', other_form => 'YNNNN', prim_form => 'YYNYN', loose_form => 'YYNYN' );
     for my $f ( sort keys %want ) {
         run_cells( 'op cku cks tku tks', map { my $v = $_; [ "$v->[0] $f", $want{$f}, sub { $v->[1]->( $_[0], $f ) } ] } @verbs );
     }
@@ -272,31 +273,31 @@ subtest 'F2: a form is reached through the pages that bind it' => sub {
     is( $listed{cks}, 'mine_form', 'form-list: cks sees its own form only' );
     is( $listed{tks}, 'mine_form', '...and so does tks' );
     is( $listed{op}, 'loose_form,mine_form,other_form,prim_form', '...the operator every form' );
-    is( $listed{tku}, $listed{op}, '...and an unbound token every form (R3: its scope is the whole content)' );
+    is( $listed{tku}, 'loose_form,prim_form', '...and an unbound token the forms of the primary\'s content (R3, SM1372)' );
 
     run_cells( 'mcu mcs',
-        [ 'bind_form other_form', 'YN', sub { mcp( $_[0], 'bind_form', { form => 'other_form', handlers => [] } ) } ],
-        [ 'set_form_notify mine_form', 'YY', sub { mcp( $_[0], 'set_form_notify', { form => 'mine_form', notify => 'off' } ) } ],
+        [ 'bind_form other_form', 'NN', sub { mcp( $_[0], 'bind_form', { form => 'other_form', handlers => [] } ) } ],
+        [ 'set_form_notify mine_form', 'NY', sub { mcp( $_[0], 'set_form_notify', { form => 'mine_form', notify => 'off' } ) } ],
         [ 'set_form_uploads loose_form', 'YN', sub { mcp( $_[0], 'set_form_uploads', { form => 'loose_form', uploads => JSON::PP::false } ) } ],
         [ 'read_form_submissions prim_form', 'YN', sub { mcp( $_[0], 'read_form_submissions', { form => 'prim_form' } ) } ],
-        [ 'create_form on its page, joining other_form', 'YN',
+        [ 'create_form on its page, joining other_form', 'NN',
             sub { mcp( $_[0], 'create_form', { path => "sites/mine/join-$_[0].md", name => 'other_form' } ) } ],
-        [ 'create_form on its page, a new name', 'YY',
+        [ 'create_form on its page, a new name', 'NY',
             sub { mcp( $_[0], 'create_form', { path => "sites/mine/new-$_[0].md", name => "fresh_$_[0]" } ) } ],
     );
     is( join( ',', sort map { $_->{name} } @{ mcp( 'mcs', 'form_list', {} )->{forms} || [] } ), 'mine_form',
         'form_list: mcs sees the forms bound on its pages only (a new form is listed once it is bound)' );
     run_cells( 'dvu dvs',
-        [ 'PUT lazysite/forms/mine_form.conf', 'YY', sub { dav_put( $_[0], 'lazysite/forms/mine_form.conf' ) } ],
-        [ 'PUT lazysite/forms/other_form.conf', 'YN', sub { dav_put( $_[0], 'lazysite/forms/other_form.conf' ) } ],
+        [ 'PUT lazysite/forms/mine_form.conf', 'NY', sub { dav_put( $_[0], 'lazysite/forms/mine_form.conf' ) } ],
+        [ 'PUT lazysite/forms/other_form.conf', 'NN', sub { dav_put( $_[0], 'lazysite/forms/other_form.conf' ) } ],
         [ 'PUT lazysite/forms/loose_form.conf', 'YN', sub { dav_put( $_[0], 'lazysite/forms/loose_form.conf' ) } ],
     );
 };
 
 subtest 'F2: a brief is its page\'s, or its row\'s table\'s' => sub {
     run_cells( 'op cku cks tku tks',
-        [ 'brief-read of a page in sites/mine', 'YYYYY', sub { api( $_[0], 'brief-read', undef, 'action=brief-read&path=sites/mine/index.md' ) } ],
-        [ 'brief-append of a page in sites/other', 'YYNYN',
+        [ 'brief-read of a page in sites/mine', 'YNYNY', sub { api( $_[0], 'brief-read', undef, 'action=brief-read&path=sites/mine/index.md' ) } ],
+        [ 'brief-append of a page in sites/other', 'YNNNN',
             sub { api( $_[0], 'brief-append', { entry => $_[0] }, 'action=brief-append&path=sites/other/index.md' ) } ],
         [ 'brief-read of the primary\'s page', 'YYNYN', sub { api( $_[0], 'brief-read', undef, 'action=brief-read&path=index.md' ) } ],
         [ 'brief-append of a row of other.example.org\'s table', 'YYNNN',

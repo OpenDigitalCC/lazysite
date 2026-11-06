@@ -64,7 +64,7 @@ my $stub = "$d/users-stub.pl";
 put( 'users-stub.pl', <<'STUB' );
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json);
-print encode_json({ ok => 1, settings => { mcp => 1, manage_content => 1, manage_themes => 1 } });
+print encode_json({ ok => 1, settings => { mcp => 1, manage_content => 1, manage_themes => 1, dav_scopes => [ '/', 'sites/harmony2050.org' ] } });
 STUB
 chmod 0755, $stub;
 

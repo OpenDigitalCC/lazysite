@@ -4979,7 +4979,7 @@ elsif ( $method eq 'tools/call' ) {
                 'fail', 'mcp', 'denied: outside dav_scope' );
             my $foreign = Lazysite::Manager::Common::foreign_root_of( $scopes, $p );
             rpc_error( $id, -32002,
-                Lazysite::Manager::Common::foreign_root_refusal( $p, $foreign ) . ' Do not retry.' )
+                Lazysite::Manager::Common::foreign_root_sentence( $p, $foreign ) . ' Do not retry.' )
                 if defined $foreign;
             my $names = join ', ',
                 map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;

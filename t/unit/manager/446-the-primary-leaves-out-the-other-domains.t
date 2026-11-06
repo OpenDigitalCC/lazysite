@@ -74,7 +74,7 @@ subtest 'the doors: unbound and primary-granted callers, a granted domain, the o
 };
 
 subtest 'the refusal names the folder and how to grant it' => sub {
-    my $m = Lazysite::Manager::Common::foreign_root_refusal( "$beta/x.md", $beta );
+    my $m = Lazysite::Manager::Common::foreign_root_sentence( "$beta/x.md", $beta );
     like( $m, qr/another domain's content \(\Q$beta\E\/\)/, 'the folder' );
     like( $m, qr/allowed_groups/,                           'and the grant' );
 };

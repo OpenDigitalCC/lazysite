@@ -2039,8 +2039,9 @@ sub authorise {
 
     # SM1372 (ruling 126): an account that reaches the primary's content (no scope,
     # or the primary's grant) does not reach another domain's content root through
-    # it, unless granted that domain. The operator (manage_users) keeps the whole.
-    if ( !_caps_for($user)->{manage_users} ) {
+    # it, unless granted that domain. The operator (a member of the operator group,
+    # SM991 - not a holder of manage_users) keeps the whole.
+    if ( !Lazysite::Auth::Settings::account_is_operator($user) ) {
         require Lazysite::Auth::DomainAccess;
         my $dom = Lazysite::Auth::DomainAccess::read_domains( Lazysite::Paths::lazysite_dir($DOCROOT) . '/lazysite.conf' );
         if ( defined( my $f = Lazysite::Auth::DomainAccess::foreign_root_of( $dom, $scope, $rel ) ) ) {

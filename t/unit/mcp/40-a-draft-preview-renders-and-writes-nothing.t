@@ -77,7 +77,7 @@ use strict; use warnings; use JSON::PP qw(encode_json decode_json);
 my $in = do { local $/; <STDIN> };
 my $r  = eval { decode_json($in) } || {};
 my %s  = ( mcp => 1, manage_content => 1, manage_forms => 1 );
-$s{dav_scopes} = ['sites/mine'] if ( $r->{username} // '' ) eq 'scoped';
+$s{dav_scopes} = ( $r->{username} // '' ) eq 'scoped' ? ['sites/mine'] : [ '/', 'sites/mine' ];    # SM1372: op is granted both
 print encode_json( { ok => 1, settings => \%s } );
 STUB
 chmod 0755, "$d/users-stub.pl";

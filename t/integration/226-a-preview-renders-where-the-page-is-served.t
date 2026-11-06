@@ -58,7 +58,7 @@ spit( "$d/sites/mine/about.md",              "---\ntitle: Mine about\n---\nMINE-
 spit( "$d/users-stub.pl",                    <<'STUB' );
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json);
-print encode_json( { ok => 1, settings => { mcp => 1, manage_content => 1, manage_domains => 1, dav_scopes => [] } } );
+print encode_json( { ok => 1, settings => { mcp => 1, manage_content => 1, manage_domains => 1, dav_scopes => [ '/', 'sites/mine' ] } } );    # SM1372: granted the primary and mine.test
 STUB
 chmod 0755, "$d/users-stub.pl";
 
