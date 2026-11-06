@@ -2063,10 +2063,44 @@ sub _finish {
             $res->{unknown} = $u + 0;
             $res->{error}   = said(@UNKNOWN_ANSWER);
         }
-        else { $res->{error} = 'the plan did not apply completely - see the counts' }
+        else { $res->{error} = _incomplete_said($res) }
         $res->{kind} = 'apply-incomplete';
+        _log_incomplete( $rec, $res );
     }
     return $res;
+}
+
+# SM1374 (T-62): WHAT THE VISITOR IS TOLD OF A PLAN ODOO DID NOT TAKE. The answer
+# said "the plan did not apply completely - see the counts", an operator's
+# sentence, and Odoo's reason was only in the changes. Now: the first failed change
+# Odoo refused as VALIDATION (ValidationError, UserError - the data was refused,
+# in words written for the person who sent it) is the answer, its message as
+# _add_failures prepared it; any other failure is a plain sentence, because an
+# access, missing or unclassified fault's text can carry a model, a group or a
+# path. The counts are in the journal, in `result`, and in the log line below.
+our $INCOMPLETE_PLAIN = q{The change was not saved. Try again, or tell the site's operator.};
+
+sub _incomplete_said {
+    my ($res) = @_;
+    my $changes = ref $res->{result} eq 'HASH' ? $res->{result}{changes} : undef;
+    for my $c ( ref $changes eq 'ARRAY' ? @$changes : () ) {
+        next unless ref $c eq 'HASH' && ( $c->{outcome} // '' ) eq 'failed' && $c->{validation};
+        return $c->{message} if defined $c->{message} && length $c->{message};
+    }
+    return $INCOMPLETE_PLAIN;
+}
+
+# The operator's line for an apply that did not complete: the binding, the plan
+# and the counts. Never a change's text: that is the journal's.
+sub _log_incomplete {
+    my ( $rec, $res ) = @_;
+    my $r = ref $res->{result} eq 'HASH' ? $res->{result} : {};
+    my $n = ref $r->{counts} eq 'HASH'   ? $r->{counts}   : {};
+    log_event( 'WARN', 'odoo', 'an Odoo plan did not apply completely',
+        binding => $rec->{binding} // '', operation => $rec->{operation} // '',
+        counts  => join( ' ', map { "$_=$n->{$_}" } sort keys %$n ),
+        ( defined $res->{plan} ? ( plan => $res->{plan} ) : () ) );
+    return;
 }
 
 # What a page is shown of a plan: the buckets and how many changes sit in each.
@@ -2092,8 +2126,9 @@ sub _result_summary {
     my ($r) = @_;
     my $h   = $r->to_hash;
     my %out = map { ( $_ => $h->{$_} ) } qw(total counts by_bucket verified stopped_by created written);
-    $out{changes} = _applied_changes( $h->{journal} );
-    _add_failures( $out{changes}, $h->{failed_changes} );
+    my %why;
+    $out{changes} = _applied_changes( $h->{journal}, \%why );
+    _add_failures( $out{changes}, $h->{failed_changes}, \%why );
     _add_unknown( $out{changes}, $h->{unknown_changes} );
 
     # SM1347 (ruling 103): OOM's count of the done changes no read-back confirmed
@@ -2111,11 +2146,33 @@ sub _result_summary {
 # trace or a secret's name withholds it whole). A withheld message is replaced by a
 # plain sentence and `withheld => 1`, so a page can tell. A failure whose journal
 # could not be read still gets its entry.
+#
+# SM1374 (T-62): ONLY VALIDATION TEXT IS ODOO'S TO SHOW. Shown above was every
+# failure's message that passed the filter; but an access fault names a model and
+# the groups that may reach it, a missing record its id, an unclassified fault
+# whatever Odoo's server said - internals the filter's patterns cannot all catch.
+# The journal's `error` carries OOM's category for each failed change ($why, by
+# seq, from _applied_changes): a `validation` fault's message is shown, without
+# the "Odoo Server Error:" that OOM's transport puts before Odoo's own text, and
+# the change says `validation => 1`; a refusal the operation itself raised (kind
+# `refused`, its own sentence, SM1198) is shown as before; anything else, or a
+# failure whose journal could not be read, is withheld.
 my @WITHHELD = ( '{name} refused this change; its reason is kept for the operator',
     'this change was refused; its reason is kept for the operator' );
 
+sub _shown_failure_text {
+    my ( $f, $why ) = @_;
+    my $w = ref $why eq 'HASH' && defined $f->{seq} ? $why->{ $f->{seq} } : undef;
+    return ( undef, 0 ) unless ref $w eq 'HASH';
+    my $is_validation = ( $w->{category} // '' ) eq 'validation';
+    return ( undef, 0 ) unless $is_validation || ( $w->{kind} // '' ) eq 'refused';
+    my $t = $f->{message};
+    $t =~ s/\A\s*Odoo Server Error\s*:\s*//i if defined $t && !ref $t;
+    return ( _usage_text($t), $is_validation );
+}
+
 sub _add_failures {
-    my ( $changes, $failed ) = @_;
+    my ( $changes, $failed, $why ) = @_;
     return unless ref $failed eq 'ARRAY' && ref $changes eq 'ARRAY';
     for my $f (@$failed) {
         next unless ref $f eq 'HASH';
@@ -2127,9 +2184,10 @@ sub _add_failures {
         }
         $c->{key}  = $f->{key}  if defined $f->{key}  && !ref $f->{key};
         $c->{code} = $f->{code} if defined $f->{code} && !ref $f->{code};
-        my $m = _usage_text( $f->{message} );
-        $c->{message}  = defined $m ? $m : said(@WITHHELD);
-        $c->{withheld} = 1 unless defined $m;
+        my ( $m, $is_validation ) = _shown_failure_text( $f, $why );
+        $c->{message}    = defined $m ? $m : said(@WITHHELD);
+        $c->{withheld}   = 1 unless defined $m;
+        $c->{validation} = 1 if defined $m && $is_validation;
     }
     return;
 }
@@ -2197,13 +2255,19 @@ sub _capped {
 # its vals, before-image and handler stay in the journal for the operator. A
 # journal that cannot be read answers no list; the counts still stand.
 sub _applied_changes {
-    my ($path) = @_;
+    my ( $path, $why ) = @_;
     return [] unless defined $path && length $path;
     my $rows = eval { require Odoo::Ops::Journal; ( Odoo::Ops::Journal->read($path) )[1] };
     return [] unless ref $rows eq 'ARRAY';
     my @out;
     for my $e (@$rows) {
         my %c = map { ( $_ => $e->{$_} ) } grep { defined $e->{$_} } qw(seq bucket action model id outcome);
+
+        # SM1374: the failure's kind and category, for _add_failures to decide
+        # whether its text is shown - kept here, never put on the change
+        if ( ref $why eq 'HASH' && ref $e->{error} eq 'HASH' && defined $e->{seq} ) {
+            $why->{ $e->{seq} } = { map { ( $_ => $e->{error}{$_} ) } grep { defined $e->{error}{$_} && !ref $e->{error}{$_} } qw(kind category) };
+        }
         $c{reason} = $e->{reason} if defined $e->{reason} && ( $e->{outcome} // '' ) =~ /\A(?:held|skipped)\z/;
         _add_not_kept( \%c, $e->{not_held} );
         $c{returned} = _capped( _journal_value( $path, $e->{returned} ) )

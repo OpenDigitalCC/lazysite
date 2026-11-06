@@ -57,7 +57,12 @@ subtest 'an immediate apply Odoo refuses says which change and why' => sub {
     is( $c->{key}, 'refuse:7', 'key' );
     is( $c->{model}, 'purchase.order', 'model' );
     is( $c->{action}, 'custom', 'action' );
-    is( $c->{message}, 'The period is closed', "Odoo's message" );
+    # SM1374: test.fail raises a fault with no class (category `other`), whose text
+    # may be anything Odoo's server says - withheld; only validation text is shown
+    # (t/unit/odoo/125 has a validation fault through the same summary).
+    ok( $c->{withheld}, 'an unclassified fault\'s text is withheld' ) or diag explain $c;
+    unlike( $c->{message}, qr/period is closed/, '  and is not in the change' );
+    unlike( $r->{error},   qr/period is closed/, '  nor in the answer' );
 };
 
 subtest 'a confirm says the same' => sub {
@@ -66,7 +71,8 @@ subtest 'a confirm says the same' => sub {
     my ( undef, $c ) = quiet( sub { Lazysite::Odoo::confirm( $p->{plan}, %WHO ) } );
     is( Lazysite::Odoo::last_via(), 'daemon', 'through the daemon' );
     is( $c->{kind}, 'apply-incomplete', 'apply-incomplete' ) or diag explain $c;
-    is( the_change($c)->{message}, 'Closed for the year', "Odoo's message" );
+    ok( the_change($c)->{withheld}, 'the unclassified fault is withheld here too (SM1374)' );
+    unlike( $c->{error}, qr/Closed for the year/, '  and is not the answer' );
 };
 
 subtest 'a message with a path is withheld through the daemon too' => sub {

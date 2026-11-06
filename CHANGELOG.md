@@ -89,6 +89,16 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1374 (PENDING) **A plan Odoo refused tells the visitor why, in Odoo's words or plainly.** An
+  Odoo plan that failed at Odoo answered "the plan did not apply completely - see the
+  counts", an operator's sentence. When Odoo refused the data (a validation or user error)
+  the answer's `error` is now Odoo's own message, without the "Odoo Server Error:" prefix,
+  and the change says `validation: 1`; any other failure answers "The change was not saved.
+  Try again, or tell the site's operator." and its text is withheld from the change too,
+  since an access error or a missing record names models, groups and ids. A refusal the
+  operation itself raises keeps its sentence. The counts stay in the result, the journal
+  and a log line for the operator. A change whose answer never came is unchanged.
+
 - SM1373 (PENDING) **An extension's settings read answers only its own keys.** `extension-read`
   for an extension kept in `lazysite.conf` (bad-url-blocker, log) answered every key in the
   site's main config, and one with its own file any key its schema does not name; only its

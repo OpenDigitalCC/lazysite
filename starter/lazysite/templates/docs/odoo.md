@@ -335,12 +335,20 @@ says what a request may set and who may cause it:
   on each change in `preview.changes`, so a page can warn before the confirm.
 
   A change that failed (apply ends `apply-incomplete`) also carries `key`
-  (the plan's name for the change), `message` (Odoo's own words, such as "You
-  can not enter an attendance in a submitted timesheet") and, from OOM 0.36,
-  `code`. The message is cleaned and capped at 300 characters; one that holds a
-  host path, a traceback or the name of a secret is withheld whole, and the
-  entry then says `withheld: 1` with a plain sentence in its place. The changes
-  that did apply beside it stay `done`.
+  (the plan's name for the change), `message` and, from OOM 0.36, `code`. Odoo's
+  own words are the message only when Odoo refused the data (a validation or
+  user error, such as "You can not enter an attendance in a submitted
+  timesheet"); the entry then says `validation: 1`, and the answer's `error` is
+  that message, so a page can show the visitor why. A refusal the operation
+  itself raised keeps its own sentence. Any other failure (an access error, a
+  record gone, anything Odoo's server says) is withheld, since its text can name
+  models, groups or internals: the entry says `withheld: 1` with a plain sentence
+  in its place, and `error` reads "The change was not saved. Try again, or tell
+  the site's operator." A shown message is cleaned and capped at 300 characters,
+  and one that holds a host path, a traceback or the name of a secret is
+  withheld too. The counts are in `result.counts`, in the journal and in the
+  engine's log line for the call. The changes that did apply beside it stay
+  `done`.
 
   A change whose request was sent and whose answer never came (a read timeout, a
   connection closed after sending) is **not known**, which is not the same as

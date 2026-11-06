@@ -2663,3 +2663,45 @@ residual risk
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
   because what a settings read discloses moved.
+
+### 2026-11-06 - SM1374 (0.16.6): a plan Odoo refused shows the visitor only validation text
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: An Odoo plan that failed at Odoo answered `apply-incomplete` with "the plan did not
+  apply completely - see the counts", and each failed change carried Odoo's message
+  through SM1186's filter (`_usage_text`: control characters, a cap, a path, a trace or a
+  secret's name withholds it), whatever kind of fault it was. Now the message is shown
+  only for a change whose journal entry's OOM category is `validation` (ValidationError,
+  UserError), without the "Odoo Server Error:" prefix, and that message is the answer's
+  `error`; a refusal raised by the operation itself (kind `refused`, SM1198) keeps its
+  sentence; every other failure, and one whose journal cannot be read, is withheld, and
+  `error` is a plain sentence for the visitor. The counts stay in `result`, the journal
+  and a WARN log line (binding, operation, plan, counts; never a change's text).
+
+threat delta
+: Information disclosure, narrowed. An access fault's text names a model and the groups
+  that may reach it, a missing record's its id, an unclassified fault anything Odoo's
+  server says (a table or column name); the filter's patterns did not catch those, and
+  a public binding's visitor received them. No trigger of ADR 0007's four fires: no
+  interface, method, dependency or data is added; the change removes output.
+
+controls
+: The category is OOM's (`Odoo::Error::fault_category`, from the server's exception
+  class), read from the journal OOM kept of the apply, by change; a change with no
+  readable category is withheld (fail closed). A shown message still passes the filter.
+  t/unit/odoo/125 drives UserError and ValidationError (shown, prefix gone), and
+  AccessError, MissingError and an unclassified fault (the plain sentence, and none of
+  the text anywhere in the answer), with the shop fixture's fake transport; t/unit/odoo/77
+  holds the same through the real oomd.
+
+residual risk
+: A validation message is Odoo's text, written for the person who sent the data; one a
+  module writes with internals in it reaches the visitor unless the filter catches it.
+  A change whose answer never came (`unknown`, SM1218) still carries the transport's
+  message through the filter, as before.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because what a refusal tells a visitor moved.
