@@ -2443,9 +2443,9 @@ Ruling 55; the design is the extension-hooks proposal, whose security model (G-1
 G-10, and what an extension can never do) these slices begin to build.
 
 what changed
-: X0. `t/lint/321` fails a new core line that names an extension (its script name, or
-  Odoo's own names); the lines there today are an allow-list that may only shrink. No
-  behaviour changes.
+: X0. `t/lint/321` fails a new core line that names Odoo (`odoo`, `OOM`, `oomd`; ruling
+  136 counts Odoo's names only, not every extension's script name); the lines there today
+  are an allow-list that may only shrink. No behaviour changes.
 : X1. An extension's `owns` may declare `hooks` (a mapping) and `requires` (extension
   ids). `Lazysite::Extensions::Hooks` validates both. The manager writes
   `lazysite/extensions.index.json` from the enabled extensions' descriptors on enable,

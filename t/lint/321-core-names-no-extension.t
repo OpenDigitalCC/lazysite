@@ -18,16 +18,13 @@
 # the files %OWN names (an extension's payload, which leaves with it in X7),
 # the shipped docs (H-10 moves those) and the tests.
 #
-# NAMING AN EXTENSION, each a class rather than a list of today's offenders:
-#
-#   * an extension's script name - `extensions/data.pl`, `odoo.pl` - for every
-#     descriptor in extensions/, read from the directory, so a new extension is
-#     covered the day it lands;
-#   * an extension's own name, where it is distinctive enough for a pattern to
-#     tell it from prose (%NAMED). Odoo's are odoo, OOM and oomd, the measure
-#     the proposal's inventory used (M-2). An id that is an ordinary word -
-#     data, log, stats - cannot be told from prose by a pattern, and is covered
-#     by its script name alone.
+# NAMING AN EXTENSION is naming it by its own name (%NAMED): Odoo's are odoo,
+# OOM and oomd, the measure the proposal's inventory used (M-2), and they cover
+# its script name (`extensions/odoo.pl`) too. Ruling 136 (2026-11-06): the lint
+# counts Odoo's names only, not every extension's script name, so that X7, which
+# moves Odoo out, empties the allow-list. The other extensions (data, stats,
+# briefs, remap and the rest) are not counted; they are an ordinary word a
+# pattern cannot tell from prose, and a ruling of their own decides them.
 #
 # Comments, POD and HTML or template comments are left out, as lint 240 leaves
 # them out: prose may name the boundary it describes, code may not.
@@ -66,51 +63,38 @@ my %OWN = (
 # (OdooEndpoint), which names it.
 my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 
-# The allow-list: each core file's count of lines naming an extension, measured
-# on 2026-11-06 at b7f178856. It may only shrink.
+# The allow-list: each core file's count of lines naming Odoo, measured on
+# 2026-11-06 at b7f178856 and recounted for ruling 136 (Odoo's names only): 43
+# files. It may only shrink.
 my %ALLOWED = (
-    'install.pl'                                 => 1,
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
     'installers/hestia/lazysite-fcgi.tpl'        => 1,
     'installers/nginx/vhost-fcgi.conf.example'   => 1,
-    'lazysite-auth.pl'                           => 2,
+    'lazysite-auth.pl'                           => 1,
     'lazysite-manager-api.pl'                    => 26,
-    'lazysite-mcp.pl'                            => 39,
+    'lazysite-mcp.pl'                            => 38,
     'lazysite-processor.pl'                      => 8,
     'lazysite-processor/app.pm'                  => 1,
     'lazysite-processor/auth.pm'                 => 1,
     'lazysite-processor/components.pm'           => 1,
-    'lazysite-processor/forms.pm'                => 1,
     'lazysite-processor/front-door.pm'           => 15,
     'lazysite-processor/layout.pm'               => 7,
     'lazysite-processor/pipeline.pm'             => 1,
-    'lazysite-processor/remap.pm'                => 1,
     'lazysite-processor/render.pm'               => 15,
-    'lazysite-processor/sources.pm'              => 37,
+    'lazysite-processor/sources.pm'              => 36,
     'lib/Lazysite/Auth/AddressRefs.pm'           => 2,
     'lib/Lazysite/Auth/Identity.pm'              => 1,
-    'lib/Lazysite/Auth/LoginRate.pm'             => 1,
     'lib/Lazysite/Auth/Session.pm'               => 33,
     'lib/Lazysite/Auth/Settings.pm'              => 1,
     'lib/Lazysite/Capabilities.pm'               => 9,
     'lib/Lazysite/ControlApi/Actions.pm'         => 20,
-    'lib/Lazysite/Daemon/Jobs.pm'                => 1,
     'lib/Lazysite/Daemon/Service/Oomd.pm'        => 51,
-    'lib/Lazysite/Daemon/Supervisor.pm'          => 23,
-    'lib/Lazysite/Handlers.pm'                   => 49,
+    'lib/Lazysite/Daemon/Supervisor.pm'          => 22,
+    'lib/Lazysite/Handlers.pm'                   => 47,
     'lib/Lazysite/Maintenance.pm'                => 1,
-    'lib/Lazysite/Manager/Briefs.pm'             => 1,
-    'lib/Lazysite/Manager/Common.pm'             => 5,
+    'lib/Lazysite/Manager/Common.pm'             => 4,
     'lib/Lazysite/Manager/Config.pm'             => 1,
-    'lib/Lazysite/Manager/Data.pm'               => 1,
-    'lib/Lazysite/Manager/PagePdf.pm'            => 1,
-    'lib/Lazysite/Manager/Remap.pm'              => 1,
-    'lib/Lazysite/Manager/Services.pm'           => 1,
-    'lib/Lazysite/Manager/StartPage.pm'          => 2,
-    'lib/Lazysite/Notify.pm'                     => 3,
-    'lib/Lazysite/Outbox.pm'                     => 1,
-    'lib/Lazysite/Stores.pm'                     => 1,
     'lib/Lazysite/Validate.pm'                   => 9,
     'lib/Lazysite/WarmFork.pm'                   => 9,
     'lib/Lazysite/WarmFork/Wire.pm'              => 1,
@@ -120,10 +104,9 @@ my %ALLOWED = (
     'starter/manager/groups.md'                  => 1,
     'starter/manager/users.md'                   => 1,
     'tools/bench-surfaces.pl'                    => 69,
-    'tools/bench.pl'                             => 1,
     'tools/coverage-groups.pl'                   => 1,
     'tools/ext-compat.sh'                        => 18,
-    'tools/lazysite-check.pl'                    => 60,
+    'tools/lazysite-check.pl'                    => 58,
     'tools/lazysite-server.pl'                   => 1,
     'tools/precheck-areas.pl'                    => 4,
     'tools/vendor-oom.sh'                        => 20,
@@ -146,12 +129,15 @@ for my $s (@stems) {
 }
 ok( $own_file{'lazysite-data.pl'}, "a declared endpoint is the extension's own (lazysite-data.pl)" );
 
-my $SCRIPT = do {
-    my $alt = join '|', map { quotemeta } @stems;
-    qr{(?<![\w.-])(?:$alt)\.pl\b};
-};
-my @RULES = ( [ "an extension's script", $SCRIPT ],
-    map { [ "the $_ extension by name", $NAMED{$_} ] } sort keys %NAMED );
+my @RULES = map { [ "the $_ extension by name", $NAMED{$_} ] } sort keys %NAMED;
+
+# Ruling 136: Odoo's names are counted, its script name with them; another
+# extension's script name is not.
+ok( ( grep { "my \$x = 'extensions/odoo.pl';" =~ $_->[1] } @RULES ), "Odoo's script name is counted" );
+for my $s ( grep { $_ ne 'odoo' } @stems ) {
+    my $line = "my \$x = 'extensions/$s.pl';";
+    ok( !( grep { $line =~ $_->[1] } @RULES ), "another extension's script name is not counted ($s)" );
+}
 
 # ---- the core files ----
 my @files;

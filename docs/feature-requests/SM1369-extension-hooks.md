@@ -35,15 +35,15 @@ Core
   not core.
 
 Naming an extension
-: An extension's script name (`extensions/data.pl`, `odoo.pl`), for every
-  descriptor in `extensions/`. And an extension's own name where a pattern can
-  tell it from prose: Odoo's `odoo`, `OOM` and `oomd`, the measure the
-  proposal's inventory used.
+: Naming Odoo by its own names, `odoo`, `OOM` and `oomd`, the measure the
+  proposal's inventory used; its script name `extensions/odoo.pl` is one of
+  them. Ruling 136 (2026-11-06): the lint counts Odoo's names only, not every
+  extension's script name, so that X7 empties the list.
 
 The allow-list
-: 59 files, measured at b7f178856. A file over its count, or a file not listed,
-  fails. A file under its count fails too, until the count is lowered, so the
-  list only shrinks.
+: 43 files, measured at b7f178856 and recounted for ruling 136. A file over its
+  count, or a file not listed, fails. A file under its count fails too, until
+  the count is lowered, so the list only shrinks.
 
 # X1: the index and the loader
 
@@ -109,7 +109,7 @@ columns: Ref | Choice | Taken | The other option
 widths: 1cm | 4cm | X | X
 text: 3
 ---
-C-1 | What X0 counts | Every extension's script name, plus Odoo's own names. 59 files today, Odoo's and the others' | Odoo's names only, so that X7 empties the list. As taken, the rows naming other extensions (data, stats, briefs, remap, the login rate limiter, form-smtp, notify-xmpp, pandoc, form-handler) stay after X7 until they have hooks of their own or a ruling
+C-1 | What X0 counts | Ruled (136, 2026-11-06): Odoo's names only (`odoo`, `OOM`, `oomd`), so that X7 empties the list. 43 files | Every extension's script name as well, as first built: 58 files, the other extensions' rows (data, stats, briefs, remap, the login rate limiter, form-smtp, notify-xmpp, pandoc, form-handler) staying after X7
 C-2 | A hook kind whose consumer is not built | Refused at validation, naming its slice; every kind is not live in X1 | Accepted and indexed now, run once its slice lands: a declaration nothing calls in the meantime
 C-3 | Where a hook's module may live | Only the extension's payload lib, and found nowhere else on `@INC`. X2 to X6 declare Odoo's hooks while its modules are still in core's `lib/` (they move in X7), so X2 needs the modules it names moved first, or a ruling that allows the extension's namespace in core's lib until X7 | Any module on `@INC` in the extension's namespace
 C-4 | `requires` | Inside `owns`, beside `deps` and `bins` | A top-level descriptor key

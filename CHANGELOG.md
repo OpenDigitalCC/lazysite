@@ -55,8 +55,8 @@ Archive
 
 - SM1369 (PENDING) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
   and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
-  names an extension (its script name, or Odoo's own names); the 59 files that do today are an
-  allow-list that may only shrink. X1: an extension's `owns` may declare `hooks` and
+  names Odoo (odoo, OOM, oomd; ruling 136 counts Odoo's names only); the 43 files that do today
+  are an allow-list that may only shrink, and X7 empties it. X1: an extension's `owns` may declare `hooks` and
   `requires`, validated by the new `Lazysite::Extensions::Hooks` before anything is indexed. The
   manager writes `lazysite/extensions.index.json` from the enabled extensions on enable,
   disable and save, and the upgrade rebuilds it. `Hooks::call_hook` runs an indexed function
