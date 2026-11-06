@@ -1980,7 +1980,7 @@ verdict
 
 ### 2026-11-06 - SM1142 (0.16.4): one name for extensions, on disk, in lazysite.conf and on the wire
 
-Assessment drafted by the developer agent at the 0.16.4 compliance walk, for the release manager's confirmation. 0.16.4 is SM1142 alone (ruling 63), cut as an edge release, not marked security-critical. Ruling 95: the response keys move with the rest of the wire (`extensions` on extension-list and whoami, `capability_extension` on groups-read), a breaking change for an external reader, recorded in the CHANGELOG and UPGRADE.md.
+Assessment drafted by the developer agent at the 0.16.4 compliance walk; confirmed by the release manager on 2026-11-06 (ruling 127). 0.16.4 is SM1142 alone (ruling 63), cut as an edge release, not marked security-critical. Ruling 95: the response keys move with the rest of the wire (`extensions` on extension-list and whoami, `capability_extension` on groups-read), a breaking change for an external reader, recorded in the CHANGELOG and UPGRADE.md.
 
 what changed
 : On disk. The engine's extensions ship in `extensions/` beside the docroot (deb:
@@ -2056,14 +2056,14 @@ residual risk
   leaves its files in the old directory, run by nothing, until the next upgrade.
 
 verdict
-: proposed: accepted, pending the release manager's confirmation. No trigger fired;
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired;
   recorded because the upgrade moves files and links in every site's tree (on HestiaCP
   after a root-run step), decides which extensions stay on, the login rate limiter among
   them, and changes what an external reader and the audit trail see (ruling 95).
 
 ### 2026-11-05 - SM1324 (0.16.5): a protected folder keeps a history, by choice
 
-Assessment drafted by the developer agent for the release manager's confirmation. Ruling
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 127). Ruling
 50 (T-16) made history for a protected folder an opt-in. It creates a second copy of
 protected content, so it is recorded here.
 
@@ -2098,7 +2098,8 @@ residual risk
   `lazysite check`.
 
 verdict
-: proposed: accepted, pending the release manager's confirmation.
+: accepted, confirmed by the release manager on 2026-11-06 (ruling 125): the
+  new-processing-of-restricted-data trigger the walk records below is contained.
 
 walked
 : At the 0.16.5 compliance walk (2026-11-06), against the code on the stack's tip: the
@@ -2114,7 +2115,7 @@ walked
 
 ### 2026-11-05 - SM1325 (0.16.5): a site can audit the AI reads of its content
 
-Assessment drafted by the developer agent for the release manager's confirmation. Ruling
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 127). Ruling
 50 (T-17) made an audit of successful AI reads a per-site opt-in. It adds personal data to
 the trail, so it is recorded here.
 
@@ -2142,7 +2143,8 @@ residual risk
   not push a change off the change view.
 
 verdict
-: proposed: accepted, pending the release manager's confirmation. Added at the 0.16.5
+: accepted, confirmed by the release manager on 2026-11-06 (ruling 125): the trigger
+  the walk records below is contained. Added at the 0.16.5
   compliance walk: the entry as filed carried no verdict.
 
 walked
@@ -2159,7 +2161,7 @@ walked
 
 ### 2026-11-05 - SM1332-SM1334 (0.16.5): a domain grant adds, the primary can be granted, and a group can pin
 
-Assessment drafted by the developer agent; for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 127).
 
 what changed
 : Ruling 78. The primary site is a grantable row in the domain list (the bare
@@ -2203,20 +2205,21 @@ residual risk
 : An account granted the primary reaches the primary's content as an unbound account
   does, and by path that holds the other domains' folders (sites/...). This is today's
   unbound reach, carried over; whether the primary's content should exclude the other
-  domains' roots is a question put to the release manager with this branch.
+  domains' roots was put to the release manager: ruling 126 (2026-11-06), it will, for
+  granted and unbound accounts alike, in 0.16.6.
 
 verdict
-: proposed: accepted, pending the release manager's confirmation.
+: accepted, confirmed by the release manager on 2026-11-06.
 
 walked
 : At the 0.16.5 compliance walk (2026-11-06): no trigger fires, as the entry finds. The
   question in the residual risk (whether the primary's content should exclude the other
-  domains' roots) has no ruling on record in the filings and is carried to the 0.16.5
-  "what a person must confirm" list in OBLIGATIONS.md.
+  domains' roots) was carried to the 0.16.5 "what a person must confirm" list in
+  OBLIGATIONS.md and ruled there (126).
 
 ### 2026-11-05 - SM1343-SM1345 (0.16.5): an address rule's allow or deny moves from the list to the use
 
-Assessment drafted by the developer agent; proposed, not yet confirmed.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 127).
 
 what changed
 : The release manager's request of 24 October 2026 (rulings 56-58, 105-108). SM1134's
@@ -2263,7 +2266,7 @@ residual risk
   warning is acted on. The template rewrite edits files outside content history.
 
 verdict
-: proposed: accepted, pending the release manager's confirmation. Recorded because the
+: accepted, confirmed by the release manager on 2026-11-06. Recorded because the
   meaning of an access control's stored value changes (the kind moves from the profile to
   the use), and the upgrade can widen a hand-edited rule; the check names each, and every
   fault on the way fails closed.
@@ -2280,7 +2283,7 @@ walked
 
 ### 2026-11-06 - SM1335, SM1336, SM1339 (0.16.5): a theme's served copies follow its source, and are not written
 
-Assessment drafted by the developer agent at the 0.16.5 compliance walk, for the release manager's confirmation (ruling 81; rulings 109-112, 120).
+Assessment drafted by the developer agent at the 0.16.5 compliance walk; confirmed by the release manager on 2026-11-06 (ruling 127; ruling 81; rulings 109-112, 120).
 
 what changed
 : SM1335. A write to a theme's source, on any surface (the manager's save, upload,
@@ -2335,13 +2338,13 @@ residual risk
   operator removes it (SM1304; OBLIGATIONS.md).
 
 verdict
-: proposed: accepted, pending the release manager's confirmation. No trigger fired;
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired;
   recorded because the path into the served asset mirror (SM1303's) now runs on every
   theme write, and a served copy is refused to the operator.
 
 ### 2026-11-06 - SM1321, SM1322, SM1327, SM1328, SM1340, SM1341, SM1347, SM1365 (0.16.5): access, sign-in, serving and Odoo changes with no trigger
 
-Assessment drafted by the developer agent at the 0.16.5 compliance walk, for the release manager's confirmation. The rest of 0.16.5 moves no control: SM1330 and SM1346 are the test harness and the pinned OOM snapshot in `t/vendor/oom` (0.42 to 0.44, never installed; lazysite's code is unchanged by it, ruling 82), and SM1342 is the manual's anchors. The other changes of 0.16.5 have their own entries: SM1324 and SM1325 (2026-11-05, each firing new-processing-of-restricted-data, recorded at this walk), SM1332-SM1334 and SM1343-SM1345 (2026-11-05), SM1335, SM1336 and SM1339 (2026-11-06).
+Assessment drafted by the developer agent at the 0.16.5 compliance walk; confirmed by the release manager on 2026-11-06 (ruling 127). The rest of 0.16.5 moves no control: SM1330 and SM1346 are the test harness and the pinned OOM snapshot in `t/vendor/oom` (0.42 to 0.44, never installed; lazysite's code is unchanged by it, ruling 82), and SM1342 is the manual's anchors. The other changes of 0.16.5 have their own entries: SM1324 and SM1325 (2026-11-05, each firing new-processing-of-restricted-data, recorded at this walk), SM1332-SM1334 and SM1343-SM1345 (2026-11-05), SM1335, SM1336 and SM1339 (2026-11-06).
 
 what changed
 : SM1321, the bad-URL blocker (rulings 48, 83, 84). A path that resolves to a regular file
@@ -2429,6 +2432,6 @@ residual risk
   more request a page makes while the marker is set.
 
 verdict
-: proposed: accepted, pending the release manager's confirmation. No trigger fired;
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired;
   recorded because a guard's exemption, the sign-in page's check, a page's public status
   and what a refusal names moved, as the 0.16.3 entry of 2026-11-05 recorded its own.

@@ -97,20 +97,22 @@ was read against the CHANGELOG's `## Unreleased` section and `git log
 SM1328, SM1330, SM1332-SM1336, SM1339-SM1347, SM1365). The rows below hold what only a
 person can close. The 0.16.4 walk's items are carried where they still stand.
 
-- Six register entries in `docs/SECURITY.md` cover 0.16.5, each a draft with its verdict
-  stated as proposed. Four were written on their branches (dated 2026-11-05: SM1324,
-  SM1325, SM1332-SM1334, SM1343-SM1345) and walked here, each gaining a "walked" note;
-  two were written at this walk (dated 2026-11-06: SM1335, SM1336, SM1339, and the rest
-  of 0.16.5).
+- Six register entries in `docs/SECURITY.md` cover 0.16.5, drafted with their verdicts and
+  confirmed by the release manager on 2026-11-06 (ruling 127). Four were written on their
+  branches (dated 2026-11-05: SM1324, SM1325, SM1332-SM1334, SM1343-SM1345) and walked
+  here, each gaining a "walked" note; two were written at this walk (dated 2026-11-06:
+  SM1335, SM1336, SM1339, and the rest of 0.16.5).
 - A fired trigger, found at this walk: SM1324 (a second copy of protected content) and
   SM1325 (agents' accounts, paths and addresses in a log) each fire ADR 0007's
   new-processing-of-restricted-data, as SM286 and SM1219 fired it. Neither entry said so
   as filed; each now does, and is that trigger's assessment (contained, both off by
-  default). The waiver holds on the release manager's confirmation of the two. The SM1325
-  entry had no verdict; a proposed one is added.
+  default). The release manager confirmed both as contained on 2026-11-06 (ruling 125), so
+  the waiver holds. The SM1325 entry had no verdict; one is added.
 - The question SM1332's entry puts to the release manager - whether an account granted
   the primary should reach the other domains' folders under it, as an unbound account
-  does today - has no ruling on record in the filings.
+  does today - is ruled (126): the primary's content will leave out the other domains'
+  roots, for granted and unbound accounts alike, in 0.16.6. 0.16.5 ships today's reach as
+  recorded residual risk.
 - 0.16.5 is cut edge and not security-critical: no change in the range fixes a
   vulnerability (the vulnerability-handling row).
 - The operate-side rows for SM1343-SM1345 (review each rule the check names after the
@@ -118,7 +120,8 @@ person can close. The 0.16.4 walk's items are carried where they still stand.
   audit where a site turns them on), added at this walk.
 - The threat model rows in `docs/SECURITY.md` and `docs/architecture/security.md`: read
   from the filings and the code they name, not from a fresh review of the code.
-- The 2026-11-06 entry in `docs/SECURITY.md` for 0.16.4 (SM1142) is still a draft.
+- The 2026-11-06 entry in `docs/SECURITY.md` for 0.16.4 (SM1142): confirmed by the release
+  manager on 2026-11-06 (ruling 127).
 - The operate-side rows for SM1142 (references the upgrade cannot see), added at the
   0.16.4 walk, SM1313 (review each rule wider than its enclosing rule), added at the
   0.16.3 walk, SM1304 (remove a planted link, rotate the secret), added at the 0.16.2
