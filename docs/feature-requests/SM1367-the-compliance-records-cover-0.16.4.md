@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "the compliance check run alone for 0.16.4 (tmp/n755-compliance-check.sh): two blocking findings, as the 0.16.2 and 0.16.3 gates had (SM1306, SM1337)"
 area: release
-status-note: "SHIPPED (PENDING) on n755: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.4; a drafted register entry and STRIDE row for SM1142; architecture notes; a new operate-side row. content_sha is left for the release manager to stamp at sign-off."
+status-note: "SHIPPED (0.16.4) on n755: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.4; a drafted register entry and STRIDE row for SM1142; architecture notes; a new operate-side row. content_sha is left for the release manager to stamp at sign-off."
 ---
 
 # What was asked

@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.3"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.4"
 brand: plain
 ---
 
@@ -2033,6 +2033,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.4** (2026-11-06, edge) - **Plugins become extensions, on disk, in
+  lazysite.conf, in the manager and on the wire.** the extensions directory
+  beside the docroot is extensions/, and a site's lazysite.conf lists the
+  enabled ones under extensions: as extensions/<file>.pl; the upgrade moves
+  each site in place once (extensions-rename) and says what it did; the manager
+  pages are /manager/extensions and /manager/extension-config; the old action
+  spelling and parameters are refused naming the new ones, and the response
+  keys are extensions and capability_extension (SM1142, ruling 95)
 - **0.16.3** (2026-11-06, edge) - **A confined agent stays in its scope, a rule
   inside another cannot widen it, and the /docs manual is the engine's.** a
   confined MCP grant lists, searches and audits only its scope (SM1308, SM1311,

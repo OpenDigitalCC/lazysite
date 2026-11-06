@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-17
 raised-by: release manager, 2026-10-17 ("plan rename of plugins/ to extensions/")
 area: release
-status-note: "SHIPPED (PENDING) on n741, slices S1-S4 as planned (ruled 2026-10-17: R1-R5). S1 the directory, the key and install.pl's extensions-rename (t/tools/306, t/lint/306, t/lint/200); S2 the code's names and the old wire spelling refused by name (t/unit/manager/168, the invariant t/lint/307); S3 the Hestia root-run scripts (t/tools/307); S4 docs, starter docs, test names and the journey (t/journey/06)."
+status-note: "SHIPPED (0.16.4) on n741, slices S1-S4 as planned (ruled 2026-10-17: R1-R5). S1 the directory, the key and install.pl's extensions-rename (t/tools/306, t/lint/306, t/lint/200); S2 the code's names and the old wire spelling refused by name (t/unit/manager/168, the invariant t/lint/307); S3 the Hestia root-run scripts (t/tools/307); S4 docs, starter docs, test names and the journey (t/journey/06)."
 ---
 
 # The request and the rulings

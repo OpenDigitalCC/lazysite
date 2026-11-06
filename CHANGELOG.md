@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1367 (PENDING) **docs: the compliance records cover 0.16.4.** OBLIGATIONS.md and
+## 0.16.4 - EDGE: plugins become extensions, on disk, in lazysite.conf, in the manager and on the wire (2026-11-06)
+
+- SM1367 (7db1a9a5) **docs: the compliance records cover 0.16.4.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against SM1142, the release's one change, and stamped 0.16.4.
   The register has a drafted entry for the rename, for the release manager's confirmation:
   the upgrade step that moves a site to `extensions/` and converts which extensions are on,
@@ -62,7 +64,7 @@ Archive
   upgrade cannot see, among them an audit filter on the old action names: the audit records
   the extension actions as `extension-*` from 0.16.4. Docs only; nothing is signed.
 
-- SM1142 (PENDING) **A site from before the rename upgrades in place and behaves the same, and
+- SM1142 (95f3ab81) **A site from before the rename upgrades in place and behaves the same, and
   the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
   and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has
   the entry, with the hand-made references the upgrade cannot see (a crontab running
@@ -73,7 +75,7 @@ Archive
   gate, the notifier and the render path's registry and manager nav - what it sees: the same as
   before. History keeps its words (CHANGELOG, filings, reviews, FEATURES.md's timeline).
 
-- SM1142 (PENDING) **On Hestia the root-run scripts make `extensions/`, and clear the old
+- SM1142 (4b35348f) **On Hestia the root-run scripts make `extensions/`, and clear the old
   directory.** Slice S3 (R4: no separate installer release ahead - the root-run deploy runs
   before the user-run install anyway). The domain root is mode 0551, so the site user cannot
   create a sibling of the docroot: the deploy now makes `extensions/` and hands it to the site
@@ -82,7 +84,7 @@ Archive
   `lazysite-hestia-domain.pl` make `extensions/` for a new site. The deb ships
   `/usr/share/lazysite/extensions`; the installers' and packaging's words follow.
 
-- SM1142 (PENDING) **The code says extension, and the old action spelling is answered with the
+- SM1142 (739f693e) **The code says extension, and the old action spelling is answered with the
   new one.** Slice S2 (R5: "so that the namespace of plugin is fully free"). The modules are
   `Lazysite::Manager::Extensions` and `Lazysite::Extensions::Owns`, and the functions, the
   template variable (`enabled_extensions`), the manager's own scripts and styles and the
@@ -97,7 +99,7 @@ Archive
   places that must name the old spelling to convert or refuse it. ON UPGRADE: a script calling
   the old spelling must move to `extension-*` (SM1125's note); the sites agent has been told.
 
-- SM1142 (PENDING) **The upgrade moves a site to `extensions/`, and nothing reads the old name
+- SM1142 (f2f0749a) **The upgrade moves a site to `extensions/`, and nothing reads the old name
   after it.** Slice S1 of the rename (ruled 2026-10-17, R1 and R3: "fixup on upgrade, then its
   done"). The engine's extensions ship in `extensions/` (deb: `/usr/share/lazysite/extensions`)
   and a site's lazysite.conf lists them as `extensions/<file>.pl` under `extensions:`, the one
