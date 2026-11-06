@@ -25,7 +25,7 @@ permissions, and watching and revoking it.
 
 [Connect an AI assistant](/docs/ai-connector-setup)
 : Adding the site to Claude.ai, ChatGPT, Claude Desktop, Claude Code or another
-MCP client, step by step.
+MCP client, step by step, and how a client connects and authenticates.
 
 ### Installing and configuring
 
@@ -108,9 +108,12 @@ surface alone will not. The operator's pages above are the reference behind them
 
 ### Connecting
 
+[Connect an AI assistant](/docs/ai-connector-setup)
+: Endpoints, connection modes and authentication: how a client reaches the site,
+exchanges its pairing key and presents its token.
+
 [AI connector - tools reference](/docs/ai-connector-tools)
-: Endpoints, connection modes, authentication, capabilities and denied paths,
-and every tool the connector exposes.
+: Capabilities and denied paths, and every tool the connector exposes.
 
 [AI briefing - publishing](/docs/ai-briefing-publishing)
 : The onboarding brief, the path mapping, WebDAV, the control API actions,

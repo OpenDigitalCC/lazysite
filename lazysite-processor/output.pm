@@ -555,7 +555,8 @@ sub _ai_partner_doc {
             map { "$base/$_" } qw(
                 docs/ai-briefing-building-sites docs/ai-briefing-publishing
                 docs/reference docs/ai-briefing-authoring docs/ai-briefing-configuration
-                docs/ai-briefing-layouts docs/ai-briefing-stats docs/ai-connector-tools llms.txt
+                docs/ai-briefing-layouts docs/ai-briefing-stats docs/ai-connector-tools
+                docs/ai-connector-setup llms.txt
             )
         ],
     };

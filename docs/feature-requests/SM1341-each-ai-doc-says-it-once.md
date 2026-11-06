@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the lazysite.io site agent (inbox 2026-11-05, the AI docs say the setup three times; review REVIEW-ai-docs-2026-11-05); ruling 80"
 area: docs
-status-note: "SHIPPED (PENDING) on n749: docs only. t/lint/311 pins the one homes; t/lint/274 D-4 reads the connect code's life from its new home."
+status-note: "SHIPPED (PENDING) on n749: docs only. Connecting and authenticating live in ai-connector-setup, now public; the grant model and the tools in the signed-in ai-connector-tools (rulings 113, 115). t/lint/311 pins the one homes and the public page's placeholders; t/lint/274 D-4 reads the connect code's life from its new home."
 ---
 
 # What was asked
@@ -93,7 +93,7 @@ pointers. (Counts include SM1340's line and SM1342's anchor fixes.)
 
 - **t/lint/311** (new): the client menus (`Add custom connector`, `Developer mode`,
   `CIMD`) are on ai-connector-setup only, and Onboard links it; `action=exchange` is in
-  the tools reference only (and the onboarding-brief template, which is the brief);
+  the tools reference only (and the onboarding-brief template, which is the brief; now the setup page, below);
   Connection modes has one home; the publishing briefing has none of the five sections
   and links each in the tools reference; the layouts pages link each other and there is
   one minimum `layout.tt`; the index has the three reader sections and lists
@@ -105,11 +105,41 @@ two client menus on two pages and Onboard naming them, eleven on where authentic
 endpoints and connection modes live, the two cross-links, the index's readers and
 Figma, and the five pages without the opening.
 
-# Open
+# Ruled: the connection material is public (rulings 113, 115)
 
-- `ai-connector-tools` is `auth: required` (SM993, ruled 2026-10-12), and
-  `ai-briefing-publishing` is public. The pairing-key exchange and the rest now live
-  on the signed-in page. The onboarding brief still carries the exchange and rotate
-  calls, so an agent is not left without them, but a reader who is not signed in sees
-  the publishing briefing's pointers and not their target. To rule: make the tools
-  reference public, or keep it signed-in.
+The first cut left this open: `ai-connector-tools` is `auth: required` (SM993, ruled
+2026-10-12) and `ai-briefing-publishing` is public, so the pairing-key exchange had
+moved to a page a reader who is not signed in cannot open, behind the publishing
+briefing's pointers. Ruled 2026-11-06: authentication and connection material lives
+once, in `ai-connector-setup`, which becomes public; `ai-connector-tools` stays
+signed-in.
+
+- `ai-connector-setup` drops `auth: required`. It gains Endpoints, Connection modes
+  and Authentication (with the pairing key and access token, and checking access and
+  the grant), moved verbatim from the tools reference after the client steps and
+  troubleshooting; its in-page links point at them. Every address on it is
+  `YOUR-SITE`, every credential a prefix or `...` placeholder, the partner id
+  `claude-example`/`PARTNER`: nothing secret or site-specific.
+- `ai-connector-tools` keeps the supervision box, Capabilities, Scope and denied
+  paths, the tools, the error model and the edit loop, and its opening links the
+  setup page's three sections.
+- The publishing briefing's "Connecting, authenticating and what your grant reaches"
+  links Endpoints, Connection modes and Authentication in the setup page and
+  Capabilities and Scope in the tools reference; its Connecting task links the setup
+  page's Authentication.
+- The docs index lists the setup page under the agent's Connecting too, and the
+  descriptions say which page holds what; `docs/INDEX.md` is regenerated from the
+  subtitles.
+- `.well-known/ai-partner` lists `docs/ai-connector-setup` among its docs, beside the
+  tools reference, since that is where the exchange it advertises is explained.
+
+Word counts after the move: ai-connector-setup 1,915, ai-connector-tools 3,872,
+ai-briefing-publishing 3,975.
+
+Tests: t/lint/311's second subtest now holds the exchange, Endpoints, Connection
+modes and the connector's Authentication to ai-connector-setup, Capabilities and Scope
+to the tools reference, and the briefing's and the tools reference's links to each
+home; a new subtest holds the setup page to no `auth:` key, the tools reference to
+`auth: required`, every address on the setup page to `YOUR-SITE` and no `lzs_`/`lzp_`
+value. Putting `auth: required` back on the setup page fails the new subtest; pointing
+the briefing's Authentication back at the tools reference fails the second.

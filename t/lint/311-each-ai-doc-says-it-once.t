@@ -10,10 +10,12 @@
 # only while nobody writes the steps back into a second page - so:
 #
 #   - the connect steps (the client's own menus) are in ai-connector-setup only;
-#   - the pairing-key exchange is explained in ai-connector-tools only (the
-#     onboarding-brief template is the brief itself, which carries it);
+#   - endpoints, connection modes and authentication, the pairing-key exchange
+#     with them, are in ai-connector-setup only (the onboarding-brief template is
+#     the brief itself, which carries the exchange); capabilities and denied paths
+#     are in ai-connector-tools (rulings 113, 115);
 #   - the publishing briefing has no Authentication, Endpoints, Connection modes
-#     or Scope section of its own, and points at each one in the tools reference;
+#     or Scope section of its own, and points at each one's home;
 #   - the two layouts pages link each other;
 #   - the index is by reader, and lists the Figma integration;
 #   - every page of the set opens with "Who this is for".
@@ -64,18 +66,44 @@ subtest 'the connect steps are on one page' => sub {
     unlike( $onboard, qr/Settings\s*→/, 'and names no client menu itself' );
 };
 
-subtest 'authentication, endpoints and the grant model are in the tools reference' => sub {
-    is_deeply( pages_saying(qr/action=exchange/), [ 'ai-connector-tools.md', 'onboarding-brief-template.md' ],
-        'the pairing-key exchange is explained in the tools reference (and carried by the brief)' );
-    is_deeply( pages_saying(qr/^## Connection modes$/m), ['ai-connector-tools.md'], 'Connection modes has one home' );
+# Rulings 113 + 115: connecting and authenticating live in ai-connector-setup, which
+# is public so a client can read it before it holds a credential; the grant model and
+# the tools stay in the signed-in tools reference.
+subtest 'connecting is in the setup page, the grant model in the tools reference' => sub {
+    is_deeply( pages_saying(qr/action=exchange/), [ 'ai-connector-setup.md', 'onboarding-brief-template.md' ],
+        'the pairing-key exchange is explained in the setup page (and carried by the brief)' );
+    for my $h ( 'Endpoints', 'Connection modes' ) {
+        is_deeply( pages_saying(qr/^## \Q$h\E$/m), ['ai-connector-setup.md'], "$h has one home, the setup page" );
+    }
+    # "## Authentication" also heads the site sign-in material (configuration,
+    # auth, SMTP); the connector's is the one beside the pairing key.
+    is_deeply( pages_saying(qr/^## Authentication\n.*^### The pairing key/ms), ['ai-connector-setup.md'],
+        'the connector\'s Authentication has one home, the setup page' );
     my $tools = slurp('ai-connector-tools.md');
-    like( $tools, qr/^## $_$/m, "the tools reference has $_" ) for ( 'Endpoints', 'Authentication', 'Capabilities',
-        'Scope and denied paths' );
+    like( $tools, qr/^## $_$/m, "the tools reference has $_" ) for ( 'Capabilities', 'Scope and denied paths' );
+    like( $tools, qr{\(/docs/ai-connector-setup#$_\)}, "and points at the setup page's #$_" )
+        for qw(endpoints connectionmodes authentication);
     my $pub = slurp('ai-briefing-publishing.md');
     unlike( $pub, qr/^## $_$/m, "the publishing briefing has no $_ section" ) for ( 'Endpoints', 'Authentication',
         'Connection modes', 'Scope and denied paths' );
-    like( $pub, qr{\(/docs/ai-connector-tools#$_\)}, "and points at the tools reference's #$_" )
-        for qw(endpoints connectionmodes authentication capabilities scopeanddeniedpaths);
+    like( $pub, qr{\(/docs/ai-connector-setup#$_\)}, "and points at the setup page's #$_" )
+        for qw(endpoints connectionmodes authentication);
+    like( $pub, qr{\(/docs/ai-connector-tools#$_\)}, "and at the tools reference's #$_" )
+        for qw(capabilities scopeanddeniedpaths);
+};
+
+subtest 'the setup page is public and carries placeholders only' => sub {
+    my ($fm) = slurp('ai-connector-setup.md') =~ /\A---\n(.*?)^---\n/ms;
+    unlike( $fm // '', qr/^auth\s*:/m, 'ai-connector-setup sets no auth: it is public' );
+    my ($tfm) = slurp('ai-connector-tools.md') =~ /\A---\n(.*?)^---\n/ms;
+    like( $tfm // '', qr/^auth:\s*required\s*$/m, 'ai-connector-tools stays signed-in' );
+
+    my $setup = slurp('ai-connector-setup.md');
+    my @hosts = $setup =~ m{https?://([^/\s)`"]+)}g;
+    cmp_ok( scalar @hosts, '>', 4, 'the endpoint addresses were read' );
+    is_deeply( [ grep { $_ ne 'YOUR-SITE' } @hosts ], [], 'every address on it is YOUR-SITE' );
+    my @creds = $setup =~ /\b(lz[sp]_[A-Za-z0-9]+)/g;
+    is_deeply( \@creds, [], 'and no lzs_ / lzp_ value, only the prefixes' );
 };
 
 subtest 'the two layouts pages link each other' => sub {

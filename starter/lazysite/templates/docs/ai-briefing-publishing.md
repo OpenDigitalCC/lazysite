@@ -58,16 +58,17 @@ right thing.
 
 ## Connecting, authenticating and what your grant reaches
 
-These have one home, the
-[AI connector - tools reference](/docs/ai-connector-tools), and it holds for
-WebDAV and the control API as much as for MCP. Read it before your first
-authenticated request:
+Connecting and authenticating have one home,
+[Connect an AI assistant](/docs/ai-connector-setup), and what your grant reaches
+has one, the [AI connector - tools reference](/docs/ai-connector-tools). Both
+hold for WebDAV and the control API as much as for MCP. Read them before your
+first authenticated request:
 
-- [Endpoints](/docs/ai-connector-tools#endpoints) - WebDAV, exchange and
+- [Endpoints](/docs/ai-connector-setup#endpoints) - WebDAV, exchange and
   rotate, the control API, MCP.
-- [Connection modes](/docs/ai-connector-tools#connectionmodes) - API mode or
+- [Connection modes](/docs/ai-connector-setup#connectionmodes) - API mode or
   MCP mode, and which to use by client.
-- [Authentication](/docs/ai-connector-tools#authentication) - exchanging the
+- [Authentication](/docs/ai-connector-setup#authentication) - exchanging the
   pairing key, presenting the token as Basic auth, rotating it, recovering
   from a `401`, and checking your access and your grant.
 - [Capabilities](/docs/ai-connector-tools#capabilities) and
@@ -453,7 +454,7 @@ To read what was submitted, use `read_form_submissions` (MCP) or
 
 1. Parse the machine-readable block from the onboarding brief.
 2. `POST` the pairing key to the exchange endpoint; store the token + expiry
-   (see [Authentication](/docs/ai-connector-tools#authentication)).
+   (see [Authentication](/docs/ai-connector-setup#authentication)).
 3. `PROPFIND /dav/` to confirm, and `whoami` to read your real grant.
 4. Fetch the briefings and [Reference](/docs/reference) for the content,
    layout, and configuration rules.
