@@ -104,6 +104,33 @@ WebDAV. The file's targets must name existing handlers. `smtp.conf`,
 `handlers.conf` and `schedule.conf` stay closed to every grant. If an account
 holds `manage_forms` it should not, this is the release to check.
 
+**The primary site's content leaves out the other domains' folders (SM1372).** On an instance serving more than one domain, each secondary domain's content
+lives in its own folder under the document root (`sites/<host>/` as a rule).
+Until now an account that reaches the primary site - one granted nothing (no
+domain names its group), or one whose group is on the primary's row - reached
+those folders too, through the primary's content: over WebDAV, MCP, the control
+API and the manager's Files. From this release it does not (ruling 126): the
+primary's content is the document root less the other domains' content roots.
+What it is refused says which folder and how to grant it.
+
+Unchanged: the operator (an account holding `manage_users`, signed in to the
+manager, or over WebDAV) still reaches every folder, and an account already
+granted a secondary domain keeps that domain.
+
+**Who loses something.** An account (often an agent's token or WebDAV login)
+that edited a secondary domain's pages through the primary, without being
+granted that domain. Before upgrading, find them: any non-operator account that
+writes under `sites/` and whose group is named in no
+`alias.<host>.allowed_groups` line for that host.
+
+**How to give it back.** Grant the domain: name the account's group in that
+domain's `allowed_groups` (the Domains page, or `domain-set` with the access
+keys, or `alias.<host>.allowed_groups: <group>` in `lazysite.conf`). Grants
+add, but naming a secondary takes away the primary that an account granted
+nothing had: to keep the primary as well, name the group on the primary's row
+too (the bare `allowed_groups: <group>` line; the Domains page row
+`(default)`).
+
 ## Address lists become address profiles, and the rest of 0.16.5
 
 **Address profiles (SM1343-SM1345).** Address lists are now address profiles. The

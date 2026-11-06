@@ -637,7 +637,9 @@ sub _list_names_a_folder { return length( $params{path} // '' ) ? 1 : 0 }
 # set confines nothing (an unbound account).
 sub _confine_scope {
     my ( $scopes, $origin ) = @_;
-    return unless $SCOPED_ACTION{$action} && ref $scopes eq 'ARRAY' && @$scopes;
+    # SM1372 (ruling 126): an EMPTY scope is asked too - it reaches the primary's
+    # content, which leaves out the other domains' roots (Common::foreign_root_of).
+    return unless $SCOPED_ACTION{$action} && ref $scopes eq 'ARRAY';
     # SM1308 (ruling 47): `list` naming no folder is answered its scope roots at
     # dispatch, so the '/' an absent path defaults to is not a path it named.
     my $named = ( $action eq 'list' && !_list_names_a_folder() ) ? undef : $path;
@@ -645,11 +647,14 @@ sub _confine_scope {
         next if $p =~ m{^/?lazysite/};
         next
             unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
-        my $names = join ', ',
+        my $foreign = Lazysite::Manager::Common::foreign_root_of( $scopes, $p );
+        my $names   = join ', ',
             map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;
         _refuse(
             { ok => 0, kind => 'forbidden',
-                error => "Path '$p' is outside your assigned scope ($names)." },
+                error => defined $foreign
+                ? Lazysite::Manager::Common::foreign_root_refusal( $p, $foreign )
+                : "Path '$p' is outside your assigned scope ($names)." },
             $origin, 'denied: outside dav_scope', $p );
     }
 }

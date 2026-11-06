@@ -2812,3 +2812,54 @@ verdict
 : accepted (drafted; for the release manager's confirmation, including whether the
   new-processing-of-restricted-data trigger fires for a `notify: full` form's owner
   mail).
+
+### 2026-11-06 - SM1372 (0.16.6): the primary's content leaves out the other domains' roots
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: Ruling 126, closing the residual risk SM1332-SM1334's entry (2026-11-05) recorded. An
+  account whose scopes reach the primary's content - an unbound account (an empty scope
+  list) or one granted the primary's row (`PRIMARY_SCOPE`) - read the whole docroot as
+  its content, and by path the docroot holds every secondary domain's content root
+  (`sites/...`). Now the primary's content is the docroot less those roots: one rule,
+  `Lazysite::Auth::DomainAccess::foreign_root_of` (the root a path lies in, for a list
+  that reaches the docroot and names no scope covering it), asked by
+  `Lazysite::Manager::Common::outside_all_scopes` and `caller_may_reach_path` (so the
+  manager API's dispatch gate `_confine_scope`, now asked for an empty list too, the
+  file actions, the zip download, the sections listing, PDF parts and the form and
+  brief rules), by the MCP path gate and its docroot walks (`list_pages`, `search_files`
+  and the other `_each_page` walks), and by WebDAV's `authorise`. Kept: the unconfined
+  operator (the manager's cookie operator, whose scopes are never resolved; on WebDAV
+  an account holding `manage_users`), and any root the account is granted on its own.
+
+threat delta
+: Elevation of privilege and Information disclosure, reduced: an account given the
+  primary, or nothing, no longer reads or writes another domain's pages through it. Who
+  can lose access: a non-operator account that worked on a secondary domain's folder
+  without a grant on it (UPGRADE.md says how to find and grant it). No trigger of ADR
+  0007's four fires: no interface, method, dependency or data is added; the change
+  narrows an existing content-path rule. The domain rule (`caller_may_reach_domain`) and
+  the scope resolver (`effective_scopes`, and the processor's copy held to it by
+  t/unit/processor/175) are unchanged, so who is confined, who may write instance-wide
+  settings and the sub-user ceiling do not move.
+
+controls
+: t/unit/manager/446 (the rule; the token, primary-granted token and unbound cookie
+  manager refused another domain's page; a granted domain kept; the operator kept) and
+  t/unit/dav/39 (WebDAV, with the real resolver: GET and PUT refused for unbound and
+  primary-granted accounts, nothing written; a granted domain and `manage_users` kept).
+  Each fails with the change reverted.
+
+residual risk
+: The folder NAMES stay visible: a listing of `sites/` (manager Files, WebDAV
+  PROPFIND, MCP `list_files` at the docroot) shows the other domains' folders, and the
+  manager's file browser still roots such an account at the docroot; opening, reading
+  or writing inside one is refused. A content root that is not a folder of its own
+  (a secondary domain with no `content_root`) serves the primary's content and is the
+  primary's. The WebDAV operator test is the capability (`manage_users`), as the
+  manager's cookie operator is decided; an operator's token is never an operator.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because a content boundary moved and closes a recorded residual risk.

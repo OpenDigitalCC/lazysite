@@ -2568,6 +2568,11 @@ my %TOOLS = (
 # cursor would mean inventing a stable index this traversal does not have - the
 # stack is a LIFO, so it is deterministic for an unchanged tree and is an order,
 # not an index. Said plainly in the schema rather than papered over.
+# SM1372 (ruling 126): the calling grant's scopes, set for the tool call, so a
+# walk that starts at the docroot (an unbound grant, or one granted the primary)
+# leaves out the other domains' content roots it is not granted.
+our $CALL_SCOPES;
+
 our $SEARCH_FILE_BUDGET = 2000;
 our $SEARCH_LIMIT_MAX   = 500;
 our $SEARCH_LIMIT_DEF   = 200;
@@ -2629,6 +2634,7 @@ sub _mcp_search {
             ( my $key = $full ) =~ s{^\Q$DOCROOT\E/?}{};
             next if Lazysite::Manager::Common::is_blocked_path($key);
             next if $roots && Lazysite::Manager::Common::outside_all_scopes( $roots, $key );
+            next if !$roots && defined Lazysite::Manager::Common::foreign_root_of( $CALL_SCOPES, $key ); # SM1372
             if ( ++$files > $SEARCH_FILE_BUDGET ) {
                 $truncated = 1;
                 $reason    = 'file_budget';
@@ -3229,7 +3235,8 @@ sub _each_page {
                 ( my $drel = $full ) =~ s{^\Q$DOCROOT\E/+}{};
                 push @stack, $full
                     unless $ENGINE_DIRS{$drel}
-                    || Lazysite::Manager::Common::path_is_reserved($drel);
+                    || Lazysite::Manager::Common::path_is_reserved($drel)
+                    || ( !$roots && defined Lazysite::Manager::Common::foreign_root_of( $CALL_SCOPES, $drel ) );
                 next;
             }
             next unless -f $full && $e =~ /\.md$/;
@@ -4951,8 +4958,12 @@ elsif ( $method eq 'tools/call' ) {
     # subtree(s) over WebDAV and must be here as well. Applies to every content
     # path argument (path/to/from); the lazysite/ theme-authoring namespace is out
     # of scope's remit (governed by manage_themes/layouts).
-    my $scopes = $caps->{dav_scopes};
-    if ( ref $scopes eq 'ARRAY' && @$scopes ) {
+    # SM1372 (ruling 126): a grant with no scope is asked too - it reaches the
+    # primary's content, which leaves out the other domains' roots - and the walks
+    # that start at the docroot leave those roots out ($CALL_SCOPES, _each_page).
+    my $scopes = ref $caps->{dav_scopes} eq 'ARRAY' ? $caps->{dav_scopes} : [];
+    local $CALL_SCOPES = $scopes;
+    {
         my $a = $params->{arguments} || {};
         # SM661, SM976 Q15f: the same declaration. A grant scoped to one domain
         # created a page in another through create_page, because `slug` was not
@@ -4966,6 +4977,10 @@ elsif ( $method eq 'tools/call' ) {
                 unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
             audit_log( $user, $name, $p, _request_ip(),
                 'fail', 'mcp', 'denied: outside dav_scope' );
+            my $foreign = Lazysite::Manager::Common::foreign_root_of( $scopes, $p );
+            rpc_error( $id, -32002,
+                Lazysite::Manager::Common::foreign_root_refusal( $p, $foreign ) . ' Do not retry.' )
+                if defined $foreign;
             my $names = join ', ',
                 map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;
             rpc_error( $id, -32002,

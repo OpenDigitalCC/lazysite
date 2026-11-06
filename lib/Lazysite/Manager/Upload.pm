@@ -616,8 +616,7 @@ sub action_file_zip_download {
                 path => $rel, user => $auth_user );
             next;
         }
-        if ( ref $scopes eq 'ARRAY'
-            && @$scopes
+        if ( ref $scopes eq 'ARRAY'    # SM1372: an empty scope is asked too
             && outside_all_scopes( $scopes, $vr->{rel} ) )
         {
             log_event( 'WARN', 'file-zip-download', 'skipped (outside dav_scope)',

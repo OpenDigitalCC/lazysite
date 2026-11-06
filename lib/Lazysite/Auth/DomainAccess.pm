@@ -14,7 +14,7 @@ use Exporter 'import';
 use Lazysite::Util qw(cannot_read);
 
 our @EXPORT_OK = qw(read_domains effective_scopes effective_home_domain
-    intersect_scopes DENY_ALL_SCOPE PRIMARY_SCOPE is_primary_scope);
+    intersect_scopes DENY_ALL_SCOPE PRIMARY_SCOPE is_primary_scope foreign_root_of);
 
 # A scope string no real content path can match, so a LOCKED user whose lock
 # excludes every domain they may manage is confined to NOTHING (deny-all) -
@@ -36,6 +36,41 @@ sub is_primary_scope {
     return 0 unless defined $s && length $s;
     ( my $x = $s ) =~ s{^/+|/+$}{}g;
     return length $x ? 0 : 1;
+}
+
+# SM1372 (ruling 126): THE PRIMARY'S CONTENT LEAVES OUT THE OTHER DOMAINS' ROOTS.
+#
+# An unbound account's empty scope list, and the primary's grant (PRIMARY_SCOPE),
+# each read as the whole docroot, and by path the docroot holds every secondary
+# domain's content root (sites/...), so an account given the primary - or given
+# nothing - reached every other domain's pages through it (SM1332's recorded
+# residual risk). The primary's content is now the docroot LESS those roots. A
+# root the account is granted on its own (a scope naming it, or one it lies in)
+# stays reachable; so does everything for the unconfined operator, whom the
+# callers do not ask.
+#
+# foreign_root_of( \%domains, \@scopes, $path ) -> the other domain's content root
+# (no slashes) that $path lies in, when \@scopes reaches the docroot (empty, or
+# holding PRIMARY_SCOPE) and none of its own scopes covers the path; else undef.
+# A list that does not reach the docroot is confined by its own roots already.
+sub foreign_root_of {
+    my ( $dom, $scopes, $path ) = @_;
+    return undef unless ref $dom eq 'HASH';
+    my @s = grep { defined && length } @{ $scopes || [] };
+    return undef if @s && !grep { is_primary_scope($_) } @s;
+    my @own = map { ( my $x = $_ ) =~ s{^/+|/+$}{}g; $x } grep { !is_primary_scope($_) } @s;
+    ( my $p = $path // '' ) =~ s{^/+|/+$}{}g;
+    return undef unless length $p;
+    ( my $prim = $dom->{''}{content_root} // '' ) =~ s{^/+|/+$}{}g;
+    for my $host ( sort keys %$dom ) {
+        next if $host eq '';
+        ( my $r = $dom->{$host}{content_root} // '' ) =~ s{^/+|/+$}{}g;
+        next unless length $r && $r ne $prim;
+        next unless $p eq $r || index( $p, "$r/" ) == 0;
+        next if grep { $p eq $_ || index( $p, "$_/" ) == 0 } @own;
+        return $r;
+    }
+    return undef;
 }
 
 sub _trim { my $v = shift // ''; $v =~ s/^\s+|\s+$//g; return $v }

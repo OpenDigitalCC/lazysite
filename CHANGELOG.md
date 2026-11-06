@@ -89,6 +89,14 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1372 (PENDING) **The primary site's content leaves out the other domains' folders.** Ruling
+  126: an account given nothing, or granted the primary's row, read the whole document root
+  as its content, and so reached every secondary domain's folder (`sites/...`) through it.
+  Now the primary's content is the document root less the other domains' content roots, on
+  WebDAV, MCP, the control API and the manager's Files, and the refusal names the folder and
+  how to grant it. The operator (`manage_users`) and an account granted a domain keep that
+  reach. UPGRADE.md says how to give an account the domain it relied on. Register entry drafted.
+
 - SM1362 (PENDING) **A form tells the site's owner by email, and can answer the submitter.**
   Ruling 123 re-scoped the filing: a bare form already saves (the shipped local-storage
   handler). `owner_contact:` in `lazysite/notify.conf` names one address, and each form's

@@ -599,13 +599,51 @@ sub path_out_of_scope {
 # path lies outside EVERY scope (i.e. deny); an empty set confines nothing
 # (unconfined). Reuses path_out_of_scope per scope, so the lazysite/ carve-out
 # and boundary-safe matching are identical to the single-scope path.
+#
+# SM1372 (ruling 126): a list that reaches the docroot (empty, or the primary's
+# grant) reaches the PRIMARY'S content, which leaves out the other domains'
+# content roots - see foreign_root_of. So an empty set confines nothing EXCEPT
+# those roots, for every caller but the unconfined operator.
 sub outside_all_scopes {
     my ( $scopes, $path ) = @_;
+    return 1 if defined foreign_root_of( $scopes, $path );
     return 0 unless ref $scopes eq 'ARRAY' && @$scopes;
     for my $s (@$scopes) {
         return 0 unless path_out_of_scope( $s, $path );    # inside one => allowed
     }
     return 1;
+}
+
+# SM1372 (ruling 126): the other domain's content root a path lies in, for a
+# caller whose scopes reach the primary's content (unbound, or granted the
+# primary) and do not name that domain - or undef. The unconfined operator (the
+# manager's cookie operator, whose scopes are never resolved: $REQUEST_CONFINED
+# is 0) is never asked; every other caller is, the token, MCP and WebDAV doors and
+# a cookie manager alike. The rule is Lazysite::Auth::DomainAccess::foreign_root_of.
+my %FOREIGN_DOMAINS;    # conf path => [ mtime, domains ]
+
+sub foreign_root_of {
+    my ( $scopes, $path ) = @_;
+    return undef unless $REQUEST_CONFINED;
+    return undef unless scopes_reach_docroot($scopes);
+    return undef unless defined $DOCROOT && length $DOCROOT;
+    my $conf = _lz() . '/lazysite.conf';
+    my $mt   = ( stat $conf )[9] // -1;
+    my $c    = $FOREIGN_DOMAINS{$conf};
+    unless ( $c && $c->[0] == $mt ) {
+        require Lazysite::Auth::DomainAccess;
+        $c = $FOREIGN_DOMAINS{$conf} = [ $mt, Lazysite::Auth::DomainAccess::read_domains($conf) ];
+    }
+    return Lazysite::Auth::DomainAccess::foreign_root_of( $c->[1], $scopes, $path );
+}
+
+# The refusal's sentence for a path in another domain's content.
+sub foreign_root_refusal {
+    my ( $p, $root ) = @_;
+    return "Path '$p' is in another domain's content ($root/). This account reaches the "
+        . "primary site, whose content leaves out the other domains' folders; an operator "
+        . "grants a domain by naming the account's group in that domain's allowed_groups "
+        . '(Domains page).';
 }
 
 # SM975: the refusal a TOKEN naming no scope gets from a domain write. Empty is
@@ -977,10 +1015,14 @@ sub served_artifact_refusal {
 sub caller_may_reach_path {
     my ( $rel, %who ) = @_;
     my %by = _who(%who);
-    return 1 unless _confined_who(%by);
     my @scopes = exists $by{scopes}
         ? grep { defined && length } @{ $by{scopes} || [] }
         : @REQUEST_SCOPES;
+    # SM1372: unbound (a cookie manager granted nothing included), or granted the
+    # primary - less the other domains' content roots it is not granted. The
+    # operator is not asked (foreign_root_of).
+    return 0 if defined foreign_root_of( \@scopes, $rel );
+    return 1 unless _confined_who(%by);
     # SM1332: unbound, or granted the primary.
     return 1 if scopes_reach_docroot( \@scopes );
 

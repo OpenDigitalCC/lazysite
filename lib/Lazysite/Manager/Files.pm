@@ -3470,9 +3470,9 @@ sub action_protected_sections {
         # section they cannot reach would disclose the existence of content the
         # scope exists to keep from them - the same reasoning that makes a draft
         # section 404 rather than 403.
+        # SM1372: an empty scope is asked too (another domain's root is left out).
         next
             if ref $scopes eq 'ARRAY'
-            && @$scopes
             && outside_all_scopes( $scopes, $key );
 
         my ( $pages, $assets ) = ( 0, 0 );
