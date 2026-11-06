@@ -49,7 +49,7 @@ The costs: many small upgrades, which need a script; and the service team needs 
 | SM1361 | Instance per site: shared engine and catalogue, create from a brief, move to a domain, paging | - |
 | SM1362 | A bare form saves to file storage and notifies the owner | sites evidence (inbox request, 2026-11-06) |
 | SM1363 | Notices by more than email: web push, webhook, text message by extension | SM1358 |
-| SM1364 | Reading data from another system's API, one way, with a record of which system owns each fact | data tables |
+| SM1364 | Reading data from another system's API, with a record of which system owns each fact; writing back to it is SM1376 (ruling 129) | data tables |
 
 # Order
 
