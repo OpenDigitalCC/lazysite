@@ -160,7 +160,7 @@ Archive
   answers 400 with `kind: unknown-parameter`, naming the parameter and the four it reads
   (`order_by`, `order`, `limit`, `offset`). `_`, a cache-buster, is accepted and unread;
   `table` and `csrf` are unchanged. The `ignored` field is gone. Supersedes SM606 in part.
-  UPGRADE.md says who is affected.
+  UPGRADE.md says who is affected. Register entry drafted.
 
 - SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The

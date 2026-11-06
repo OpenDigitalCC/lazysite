@@ -2909,3 +2909,35 @@ residual risk
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
   because what a public form's quarantine reads moved.
+
+### 2026-11-06 - SM1377 (0.16.6): the data endpoint refuses a query parameter it does not read
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: `/cgi-bin/lazysite-data.pl` answered a read carrying a query parameter outside
+  `table`, `order_by`, `order`, `limit`, `offset` and `csrf` with 200 and every row the
+  caller may read, naming the parameter in `ignored` (SM606). It now answers 400,
+  `kind: unknown-parameter`, before any value is read or any row resolved. `_` (a
+  cache-buster) is accepted and unread.
+
+threat delta
+: None to access. The endpoint still resolves as the visitor with no operator bypass
+  (SM476), so what a caller may read is unchanged; what changes is that a script asking
+  for a subset by an unsupported filter is refused instead of handed the whole readable
+  table as if filtered, which an app scoping rows by a column displayed. The refusal
+  names only the caller's own parameter names and the four the endpoint reads. No
+  trigger of ADR 0007's four fires: no interface, authentication method, dependency or
+  data processing is added; an existing endpoint refuses more.
+
+controls
+: The read set is one declared list in lazysite-data.pl; t/integration/355 asserts the
+  refusal, `_`, and the four parameters, and fails with the change reverted.
+
+residual risk
+: The control API's `data-rows` action still ignores an unknown parameter; it is reached
+  only with `manage_data`, which reads every row of the table regardless.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because what a public endpoint answers moved.
