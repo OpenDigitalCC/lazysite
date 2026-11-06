@@ -73,6 +73,42 @@ subtest 'the doors: unbound and primary-granted callers, a granted domain, the o
     ok( caller_may_reach_path("$beta/x.md"), '  and caller_may_reach_path agrees' );
 };
 
+# Ruling 137: the manager's file browser (action_list, which MCP list_files also
+# answers through) leaves out the domains' folders a caller is refused, where
+# ruling 126 left their names showing. The operator and a granted domain see them.
+subtest 'the file browser leaves out the folders the caller is refused (ruling 137)' => sub {
+    require Lazysite::Manager::Files;
+    local $Lazysite::Manager::Files::DOCROOT = $s->{docroot};
+    ( my $parent = $beta ) =~ s{/[^/]+\z}{};
+    ( my $bname  = $beta ) =~ s{\A.*/}{};
+    ( my $aname  = $alpha ) =~ s{\A.*/}{};
+    ok( length $parent && $parent ne $beta && $alpha =~ m{\A\Q$parent\E/}, "both roots sit in $parent/" ) or return;
+    my $names = sub {
+        my $l = Lazysite::Manager::Files::action_list( "/$parent", @_ );
+        return ref $l eq 'HASH' && $l->{ok} ? { map { $_->{name} => 1 } @{ $l->{entries} || [] } } : {};
+    };
+    for my $c (
+        [ 'a token naming no scope',         { token => 1, confined => 1 } ],
+        [ 'a token granted the primary row', { token => 1, confined => 1, scopes => [$P] } ],
+        [ 'a cookie manager granted nothing', { confined => 1 } ],
+        )
+    {
+        my ( $label, $who ) = @$c;
+        as(%$who);
+        my $n = $names->();
+        ok( !$n->{$bname} && !$n->{$aname}, "$label: neither domain's folder is listed" );
+    }
+    as( token => 1, confined => 1, scopes => [ $P, $alpha ] );
+    my $n = $names->();
+    ok( $n->{$aname} && !$n->{$bname}, 'granted alpha too: alpha is listed, beta is not' );
+    as( token => 1, confined => 1 );
+    $n = $names->( scopes => [ $P, $beta ] );
+    ok( $n->{$bname} && !$n->{$aname}, 'a door naming the scopes is answered by them (MCP list_files)' );
+    as( confined => 0 );
+    $n = $names->();
+    ok( $n->{$aname} && $n->{$bname}, 'the cookie operator sees both' );
+};
+
 subtest 'the refusal names the folder and how to grant it' => sub {
     my $m = Lazysite::Manager::Common::foreign_root_sentence( "$beta/x.md", $beta );
     like( $m, qr/another domain's content \(\Q$beta\E\/\)/, 'the folder' );

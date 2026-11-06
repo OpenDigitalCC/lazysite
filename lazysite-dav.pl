@@ -476,8 +476,13 @@ sub do_propfind {
             # a leftover from a failed upload must not be listed as a file.
             my @kids = sort grep { $_ ne '.' && $_ ne '..' && !/\.tmp\.\d+\z/ } readdir $dh;
             closedir $dh;
+            # SM1372 (ruling 137): another domain's content root this account is
+            # refused is left out of the listing too; the operator and an account
+            # granted the domain still see it.
+            my $foreign = _foreign_root_test( $a{user}, $a{scope} );
             for my $kid (@kids) {
                 my $krel = length $a{rel} ? "$a{rel}/$kid" : $kid;
+                next if $foreign && defined $foreign->($krel);
                 push @blocks, prop_response( $krel, "$r->{abs}/$kid", $want_sha );
             }
         }
@@ -1905,6 +1910,19 @@ sub acl_allows {
 # code; the dispatcher reads $DENY_REASON into the body + X-Lazysite-Deny-Reason.
 sub _deny { ( $DENY_REASON, $DENY_DETAIL ) = ( $_[1], $_[2] ); return $_[0]; }
 
+# SM1372 (rulings 126, 137): the test for another domain's content root, for an
+# account that is not the operator (the operator group, SM991): a code ref that
+# answers the root a path lies in, or undef. undef for the operator, who keeps
+# the whole. authorise refuses such a path; a PROPFIND leaves it out of a listing.
+# The domains are read once per call, never kept (a pooled worker keeps nothing).
+sub _foreign_root_test {
+    my ( $user, $scope ) = @_;
+    return undef if Lazysite::Auth::Settings::account_is_operator($user);
+    require Lazysite::Auth::DomainAccess;
+    my $dom = Lazysite::Auth::DomainAccess::read_domains( Lazysite::Paths::lazysite_dir($DOCROOT) . '/lazysite.conf' );
+    return sub { Lazysite::Auth::DomainAccess::foreign_root_of( $dom, $scope, $_[0] ) };
+}
+
 # SM976: a nav file is a domain's, and dav_scope - a content-path rule - never
 # reached it: these paths return before the scope check. So an account confined
 # to one domain read and replaced another domain's navigation, and the
@@ -2041,10 +2059,8 @@ sub authorise {
     # or the primary's grant) does not reach another domain's content root through
     # it, unless granted that domain. The operator (a member of the operator group,
     # SM991 - not a holder of manage_users) keeps the whole.
-    if ( !Lazysite::Auth::Settings::account_is_operator($user) ) {
-        require Lazysite::Auth::DomainAccess;
-        my $dom = Lazysite::Auth::DomainAccess::read_domains( Lazysite::Paths::lazysite_dir($DOCROOT) . '/lazysite.conf' );
-        if ( defined( my $f = Lazysite::Auth::DomainAccess::foreign_root_of( $dom, $scope, $rel ) ) ) {
+    if ( my $foreign = _foreign_root_test( $user, $scope ) ) {
+        if ( defined( my $f = $foreign->($rel) ) ) {
             return _deny( 403, "in another domain's content ($f/): this account reaches the primary site, "
                     . "which leaves out the other domains' folders - an operator grants the domain on the Domains page" );
         }

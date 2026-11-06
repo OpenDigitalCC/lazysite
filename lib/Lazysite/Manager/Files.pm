@@ -202,7 +202,10 @@ sub action_list_scope_roots {
 }
 
 sub action_list {
-    my ($dir_path) = @_;
+    my ( $dir_path, %opt ) = @_;
+    # SM1372 (ruling 137): the caller's scopes, for leaving out the other
+    # domains' content roots below; the request's own unless a door names them.
+    my $list_scopes = exists $opt{scopes} ? $opt{scopes} : \@Lazysite::Manager::Common::REQUEST_SCOPES;
     $dir_path //= '/';
     $dir_path =~ s{[^a-zA-Z0-9/_.-]}{}g;
     # SM019c: collapse a trailing slash so child paths are assembled
@@ -376,6 +379,11 @@ sub action_list {
             $hidden++;
             next;
         }
+        # SM1372 (ruling 137): a caller who reaches the primary's content is not
+        # shown another domain's content root it is not granted - its folder is
+        # left out of the listing, as opening it is refused. The operator, and an
+        # account granted the domain, still see it (Common::foreign_root_of).
+        next if defined Lazysite::Manager::Common::foreign_root_of( $list_scopes, $entry_key );
         my @st     = stat($full);
         my $is_dir = -d $full ? 1 : 0;
         my $entry  = {

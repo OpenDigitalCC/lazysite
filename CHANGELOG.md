@@ -58,7 +58,8 @@ Archive
   as its content, and so reached every secondary domain's folder (`sites/...`) through it.
   Now the primary's content is the document root less the other domains' content roots, on
   WebDAV, MCP, the control API and the manager's Files, and the refusal names the folder and
-  how to grant it. The operator (a member of the operator group) and an account granted a domain keep that
+  how to grant it. Ruling 137: a listing (the manager's Files, MCP `list_files`, WebDAV
+  PROPFIND) leaves those folders out too, for a caller refused them. The operator (a member of the operator group) and an account granted a domain keep that
   reach. UPGRADE.md says how to give an account the domain it relied on. Register entry drafted.
 
 - SM1362 (PENDING) **A form tells the site's owner by email, and can answer the submitter.**

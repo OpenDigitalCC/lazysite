@@ -111,7 +111,10 @@ domain names its group), or one whose group is on the primary's row - reached
 those folders too, through the primary's content: over WebDAV, MCP, the control
 API and the manager's Files. From this release it does not (ruling 126): the
 primary's content is the document root less the other domains' content roots.
-What it is refused says which folder and how to grant it.
+What it is refused says which folder and how to grant it. Nor does it see them
+listed (ruling 137): the manager's Files, MCP `list_files` and a WebDAV PROPFIND
+of `sites/` leave out each other domain's folder the account is refused, so a
+client that synced the whole tree over WebDAV no longer finds them there.
 
 Unchanged: the operator (a member of the operator group, the group `setup-sysop`
 makes, in the manager or over WebDAV) still reaches every folder, and an account already

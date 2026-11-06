@@ -22,7 +22,7 @@ my $DOMAINS = "webdav_enabled: true\nalias_hosts: alpha.test, beta.test\n"
 sub site {
     my (%o) = @_;
     my $s = setup_dav_site( conf => $DOMAINS, ( $o{caps} ? ( caps => $o{caps} ) : () ) );
-    make_path( "$s->{docroot}/sites/alpha", "$s->{docroot}/sites/beta" );
+    make_path( "$s->{docroot}/sites/alpha", "$s->{docroot}/sites/beta", "$s->{docroot}/sites/shared" );
     open my $ap, '>>', "$s->{docroot}/lazysite/lazysite.conf" or die "conf: $!";
     print {$ap} "allowed_groups: role-$s->{user}\n"                  if $o{primary};
     print {$ap} "alias.alpha.test.allowed_groups: role-$s->{user}\n" if $o{alpha};
@@ -65,6 +65,24 @@ subtest 'granted the primary and alpha: alpha too, still not beta' => sub {
 subtest 'the operator keeps the whole docroot' => sub {
     my $s = site( caps => [qw(webdav manage_content manager)] );    # the operator group (SM991)
     isnt( req( $s, 'PUT', '/sites/beta/new.md' )->{code}, 403, 'an operator-group member reaches another domain\'s folder' );
+};
+
+# Ruling 137: a PROPFIND of sites/ leaves out the domains' folders a caller is
+# refused, as the manager's Files and MCP list_files do; the operator and an
+# account granted the domain still see them. sites/shared is the primary's own.
+sub listed {
+    my ($s) = @_;
+    my $r = run_dav( $s->{docroot}, 'PROPFIND', '/sites/', HTTP_AUTHORIZATION => $s->{auth}, HTTP_DEPTH => '1' );
+    return "status $r->{code}" unless ( $r->{code} // 0 ) == 207;
+    my %n = map { $_ => 1 } $r->{body} =~ m{<D:href>[^<]*/sites/([^/<]+)/?</D:href>}g;
+    return join ' ', sort keys %n;
+}
+
+subtest 'a PROPFIND of sites/ leaves out the folders the caller is refused (ruling 137)' => sub {
+    is( listed( site() ),                       'shared',            'granted nothing: only the primary\'s own folder' );
+    is( listed( site( primary => 1 ) ),         'shared',            'granted the primary row: the same' );
+    is( listed( site( primary => 1, alpha => 1 ) ), 'alpha shared',  'granted alpha as well: alpha is listed, beta is not' );
+    is( listed( site( caps => [qw(webdav manage_content manager)] ) ), 'alpha beta shared', 'the operator group sees them all' );
 };
 
 done_testing();

@@ -2854,10 +2854,15 @@ controls
   Each fails with the change reverted.
 
 residual risk
-: The folder NAMES stay visible: a listing of `sites/` (manager Files, WebDAV
-  PROPFIND, MCP `list_files` at the docroot) shows the other domains' folders, and the
-  manager's file browser still roots such an account at the docroot; opening, reading
-  or writing inside one is refused. A content root that is not a folder of its own
+: Ruling 137 (2026-11-06) closes what this entry first left: the folder names. A listing
+  (the manager's Files, `Manager::Files::action_list`; MCP `list_files`, which answers
+  through it with the grant's scopes; WebDAV PROPFIND) leaves out another domain's
+  content root for a caller refused it, so a listing of `sites/` no longer names them.
+  The operator (the operator group, SM991, confirmed as intended) and an account granted
+  the domain still see them. t/unit/manager/446, t/unit/dav/39 and t/unit/mcp/74 each
+  fail with the listing's filter reverted. What stays: the manager's file browser roots
+  such an account at the docroot, and a folder holding only other domains' roots lists
+  as present (its `empty` flag counts them). A content root that is not a folder of its own
   (a secondary domain with no `content_root`) serves the primary's content and is the
   primary's. The WebDAV operator test is `account_is_operator` (the operator group), as the
   manager's cookie operator is decided (SM991); a token is never an operator.

@@ -971,8 +971,12 @@ my %TOOLS = (
             # grant, never the docroot - the scope pass skips an argument that is
             # not given, so '/' was listed to a grant the pass refuses '/' to.
             my $p = $_[0]->{path};
-            return action_list( defined $p && length $p ? $p : '/' ) unless _walk_roots( $_[2] );
-            return action_list($p) if defined $p && length $p;
+            # SM1372 (ruling 137): the grant's scopes, so a listing of the docroot
+            # (or of sites/) leaves out the other domains' roots it is not granted.
+            my $gs = ref $_[2] eq 'HASH' ? $_[2]{dav_scopes} : undef;
+            my @sc = ( scopes => ( ref $gs eq 'ARRAY' ? $gs : [] ) );
+            return action_list( ( defined $p && length $p ? $p : '/' ), @sc ) unless _walk_roots( $_[2] );
+            return action_list( $p, @sc ) if defined $p && length $p;
             return Lazysite::Manager::Files::action_list_scope_roots( $_[2]{dav_scopes} );
         },
     },
