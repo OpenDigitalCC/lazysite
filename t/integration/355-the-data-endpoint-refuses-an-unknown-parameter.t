@@ -12,7 +12,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use JSON::PP;
 use FindBin;
@@ -22,11 +21,11 @@ BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
         or plan skip_all => 'DBI/DBD::SQLite/YAML::PP not available';
 }
-use TestHelper             qw(repo_root env_passthrough);
+use TestHelper             qw(repo_root env_passthrough site_tempdir);
 use Lazysite::Data::Tables qw(apply_schema insert_row);
 
 my $root    = repo_root();
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir( extensions => 1 );
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/auth" );
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\nextensions:\n  - extensions/data.pl\n";

@@ -10,8 +10,8 @@ register:
      imported: 2026-11-06
      agent: the lazysite site agent (Claude Code)
      source: docs/practice/authoring-practice.md sha256=24d4158eb67fcee6b6a4dc70dc672726dfb84a16f1d3a9cf8a7740743197dead modified=2026-11-05
-     source: docs/practice/app-practice.md sha256=b037eabc5f3315f25114f192b5484d92e294cf6d6a8a283ad1bf3c1abddfa031 modified=2026-11-05
-     body-sha256: 7fd30a0268f057c9a4ba86ea57e89a1aa2aa84db7aee414e5f9d764e78022a26
+     source: docs/practice/app-practice.md sha256=bd755f0e768ace6899f87581e6d11bc557536bb9e4f29c76f55d8fee2b10df71 modified=2026-11-06
+     body-sha256: b3055db4daa23133a54ff11cc7817237aa8a0072d89a69495b11eccd2bc9f046
 -->
 
 ## What this is, and what it is not
@@ -991,6 +991,8 @@ Know these before designing a schema, because each one becomes hand-work:
 
 ## Reading it back
 
+*Version-dated - this describes behaviour that **differs by engine version**. The before/after columns below are kept on purpose. Check which engine the site runs before acting on it, and compare it with the version this copy was generated for, at the top.*
+
 ```
 tt_page_var:
   items: db:homework sort=due asc limit=50
@@ -1657,7 +1659,7 @@ Imported on **2026-11-06** by `tools/import-field-practice.pl`, for the engine v
 | Source | Covers | Last changed |
 | --- | --- | --- |
 | `docs/practice/authoring-practice.md` | sites and content | 2026-11-05 |
-| `docs/practice/app-practice.md` | apps and data | 2026-11-05 |
+| `docs/practice/app-practice.md` | apps and data | 2026-11-06 |
 
 Those paths are in the lazysite source repository and are **not** installed with this engine. **Updates come from re-running the import**, which happens when a release is cut; a sysop can also run it between releases. Nothing you edit on this page survives the next import, and the engine's own test suite fails the build if this copy stops matching its sources - so a correction belongs in the source files, not here.
 
