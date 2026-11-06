@@ -696,8 +696,12 @@ A call, once signed in:
   signed in to Odoo may have no account on this site);
 - a write with `apply: confirm` makes a plan owned by that session, and only that
   session can confirm it, within the hour;
-- the call record's actor is `session:` and a hash, and the rate caps count per
-  session;
+- the call record names the session by `session:` and a hash, never by its id.
+  When the request is also signed in to the site (a local account, or
+  `odoo:<login>` where the Odoo sign-in is the site sign-in), the record's actor
+  and the audit line name that account, with the hash beside it (`session`, and
+  `session=` on the audit row), so a run of calls in one session still groups;
+  with no site identity the hash is the actor. The rate caps count per session;
 - when Odoo says the session has ended, both cookies are cleared, the call is
   refused `signin-required` (`401`) and nothing is run in its place. The browser
   helper then asks the person to sign in and sends the call once more.

@@ -2705,3 +2705,48 @@ residual risk
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
   because what a refusal tells a visitor moved.
+
+### 2026-11-06 - SM1366 (0.16.6): an Odoo call's record names the signed-in account
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: Ruling 124. An Odoo call made under a person's Odoo session was recorded (the call
+  record and the audit line) with `actor` `session:<hash>` alone (design B: the session
+  id is a credential). Where the request is also signed in to the site, the Odoo endpoint
+  names that identity (`$Lazysite::Odoo::SIGNED_IN`, local to the request) and the
+  record's `actor` is it, with the hash kept in a new `session` field and as
+  `session=<hash>` on the audit row.
+
+threat delta
+: Repudiation, reduced: the row says who acted, as the processor's line for the same
+  request already did. Information disclosure is the question: the audit log and the
+  call record now carry an account name (`odoo:<login>` is an e-mail-shaped login) beside
+  the session hash. The audit log already carries it (a site sign-in's audit row is
+  `odoo:<login> | login`; the processor's ACL line writes `user=odoo:<login>`), and the
+  call record already names the account of a call that is not a session binding's; both
+  are read by the same readers as before: the audit trail by a holder of `audit` (a
+  `create_sub_users` holder sees its own sub-users' rows only, SM173) and the call record
+  through `odoo-calls`, which needs `manage_connectors`. The
+  session id is still never written, a refused sign-in keeps `signin:<hash>` (a typed
+  login is not an account), and the identity named is the one the session cookie
+  verified, never a header. No trigger of ADR 0007's four fires: no interface, method or
+  dependency is added, and no new kind of data is kept (the account name is in the same
+  log already).
+
+controls
+: The rewrite is in `record_call`, the one writer, and applies only to an actor of the
+  exact `session:<16 hex>` shape while an identity is set; the context's actor, which
+  owns a session binding's plans and decides who may confirm, withdraw or resume them,
+  is untouched (t/unit/odoo/126). The record's fixed field list gains `session` and still
+  refuses any other (t/unit/odoo/03). The endpoint's wiring is held through the real
+  endpoint (t/unit/odoo/63).
+
+residual risk
+: A person signed in to the site as one local account who signs in to Odoo as another
+  person is recorded under the site account: the row names who was at the site, with the
+  Odoo session's hash beside it to tell them apart.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because what the audit trail names moved.

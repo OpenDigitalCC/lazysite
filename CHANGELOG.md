@@ -89,6 +89,14 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1366 (PENDING) **An Odoo call's record names the signed-in account.** A call made under a
+  person's Odoo session was recorded, and written to the audit log, as `session:<hash>`
+  alone, so an operator could not tell who acted. Where the request is signed in to the site
+  (a local account, or `odoo:<login>`), the record's `actor` and the audit line name that
+  account, and the hash is kept beside it (`session` on the record, `session=` on the audit
+  row). With no site identity the hash is the actor, as before. Who owns a plan is unchanged,
+  a refused sign-in keeps its login hash, and no session id or typed login is written.
+
 - SM1374 (PENDING) **A plan Odoo refused tells the visitor why, in Odoo's words or plainly.** An
   Odoo plan that failed at Odoo answered "the plan did not apply completely - see the
   counts", an operator's sentence. When Odoo refused the data (a validation or user error)

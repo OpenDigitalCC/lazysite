@@ -199,6 +199,12 @@ sub main {
    # the ?csrf=1 refresh below asks Odoo - but it is remembered, to be renewed or ended.
     local $SITE_SESSION = ( ref $session eq 'HASH' && $session->{odoo} ) ? $session : undef;
     $user = '' if $SITE_SESSION && $SITE_SESSION->{stale};
+
+    # SM1366: a call record made under a person's Odoo session names this account,
+    # with the session's hash beside it (Lazysite::Odoo::$SIGNED_IN)
+    no warnings 'once';
+    local $Lazysite::Odoo::SIGNED_IN = $user;
+    use warnings 'once';
     my @groups;
     my $caps = {};
     if ( length $user ) {

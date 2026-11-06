@@ -4,11 +4,11 @@ title: "SM1366: an Odoo call's audit row names the signed-in account"
 subtitle: "The audit log records a signed-in visitor's Odoo call as session:<hash>. An operator reading the log cannot tell who made the call without matching hashes by hand. A call made under a signed-in account should name that account, and keep the session hash beside it."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-11-06
 raised-by: "release manager, from an operator reading the audit log"
 area: odoo
-status-note: "Filed 2026-11-06. Not scheduled; proposed for 0.16.6."
+status-note: "SHIPPED (PENDING) on n759, ruling 124: lazysite-odoo.pl sets Lazysite::Odoo::$SIGNED_IN per request; record_call names that account as actor and keeps the session hash in the new `session` field (session= on the audit row). No identity: the hash stays the actor. t/unit/odoo/126, 63."
 ---
 
 # What happens
@@ -33,3 +33,28 @@ An Odoo call made by a signed-in visitor appears in the audit log as:
 
 - The session id is never written.
 - The visitor id (`visitor`) for anonymous calls is unchanged.
+
+# What shipped
+
+Ruling 124: built as filed.
+
+- `lazysite-odoo.pl` sets `$Lazysite::Odoo::SIGNED_IN`, `local` to the request, to the
+  identity its session cookie verified (a local account, or `odoo:<login>`; empty when
+  there is none or a site session has lapsed unrefreshed).
+- `record_call` is the one place a record is written, so every phase is covered (run,
+  plan, apply, confirm, withdraw, resume, sign-in): a record whose `actor` is a session
+  hash, made while an identity is set, names the identity as `actor` and moves the hash
+  to the new `session` field. The audit line's detail carries `session=<hash>`.
+- The context's actor is untouched: a session binding's plan is still owned by the
+  session hash, so who may confirm, withdraw or resume it does not change.
+- A refused sign-in keeps `signin:<hash>`; no login or session id is written in clear.
+
+# Tests
+
+- t/unit/odoo/126: a call and a confirm under a signed-in account record the account
+  with the hash beside it (and on the audit row); with no identity the hash stays the
+  actor and there is no `session` field; the plan's owner is the hash; a refused
+  sign-in records its login hash and nothing in clear.
+- t/unit/odoo/63: through the real endpoint, a person whose Odoo sign-in is the site
+  sign-in has their session binding's call recorded as `odoo:<login>`.
+- t/unit/odoo/03: the fixed field list gains `session`.

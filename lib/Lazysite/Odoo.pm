@@ -489,12 +489,40 @@ sub outcome_of {
 # SM1275: `run` is the run a resume or a dismissal acts on (its handle, never a
 # path), `decision` what was decided: check (read back only), assume-done:N
 # assume-not-done:M (how many, never which keys), or dismiss.
-our @CALL_FIELDS = qw(at call_id actor visitor ip login binding operation mode phase
+# SM1366 (ruling 124): `session` is the person's Odoo session BY ITS HASH, kept
+# beside the account that `actor` then names - see $SIGNED_IN below.
+our @CALL_FIELDS = qw(at call_id actor session visitor ip login binding operation mode phase
     outcome kind ms via decl idem repeat run decision);
 my %CALL_FIELD = map { $_ => 1 } @CALL_FIELDS;
 
+# SM1366 (ruling 124): THE ACCOUNT THE REQUEST IS SIGNED IN AS. A call made under a
+# person's Odoo session was recorded as `session:<hash>` alone (design B: the id is
+# a credential, so a record names it by hash), and an operator reading the audit
+# log could not tell who acted - though the processor's line for the same request
+# already named `odoo:<login>`. The Odoo endpoint sets this, `local`, per request,
+# to the lazysite identity its session cookie verified (a local account or
+# `odoo:<login>`; '' when there is none, or it has lapsed unrefreshed). A record
+# whose actor is a session hash then names that identity as `actor` and moves the
+# hash to `session`, so a run of calls in one session still groups. With no
+# identity the hash stays the actor. Only the RECORD changes: the context's actor,
+# which owns a session binding's plans, is untouched. A refused sign-in's
+# `signin:<hash>` is a typed login, not an account, and is never replaced.
+# Declared without a value, so loading the engine inside the endpoint's `local`
+# does not reset it.
+our $SIGNED_IN;
+
+sub _name_the_account {
+    my ($rec) = @_;
+    return unless defined $SIGNED_IN && !ref $SIGNED_IN && length $SIGNED_IN;
+    return unless ( $rec->{actor} // '' ) =~ /\Asession:[0-9a-f]{16}\z/;
+    $rec->{session} = $rec->{actor};
+    $rec->{actor}   = $SIGNED_IN;
+    return;
+}
+
 sub record_call {
     my (%rec) = @_;
+    _name_the_account( \%rec );
     my @stray = grep { !$CALL_FIELD{$_} } sort keys %rec;
     if (@stray) {
         log_event( 'ERROR', 'odoo', 'a call record carried a field it may not',
@@ -557,7 +585,8 @@ sub _audit_line {
             ( $r->{binding} // '' ) . ' -> ' . ( $r->{operation} // '' ),
             $r->{ip} // '', $r->{outcome} // '', $r->{mode} // '',
             join( ' ', grep { length } $r->{kind} // '', ( defined $r->{run} ? "run=$r->{run}" : () ),
-                ( defined $r->{decision} ? "decision=$r->{decision}" : () ) ) );
+                ( defined $r->{decision} ? "decision=$r->{decision}" : () ),
+                ( defined $r->{session}  ? "session=$r->{session}"   : () ) ) );  # SM1366
         1;
     };
     return;

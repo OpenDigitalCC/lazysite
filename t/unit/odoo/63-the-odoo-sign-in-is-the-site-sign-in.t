@@ -614,4 +614,19 @@ subtest 'a forged, mis-signed, record-less or foreign credential is no identity'
     }
 };
 
+# SM1366 (ruling 124): through the real endpoint, a session binding's call made by a
+# person signed in to the site is recorded under the account, the session's hash
+# beside it; the engine's side is t/unit/odoo/126.
+subtest 'a call through the endpoint names the signed-in account' => sub {
+    conf_on();
+    %JAR = ();
+    my ($st) = sign_in();
+    is( $st, 200, 'Jane signs in, which is the site sign-in' );
+    my ( $cst, undef, $j ) = request( 'GET', 'binding=mine', undef, HTTP_COOKIE => jar() );
+    is( $cst, 200, 'her session binding answers' ) or diag explain $j;
+    my ($rec) = grep { ( $_->{binding} // '' ) eq 'mine' } @{ Lazysite::Odoo::read_calls() };
+    is( $rec->{actor}, 'odoo:jane@example.com', 'the record names her account' );
+    like( $rec->{session} // '', qr/\Asession:[0-9a-f]{16}\z/, '  and keeps her session by its hash' );
+};
+
 done_testing;
