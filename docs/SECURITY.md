@@ -2878,7 +2878,7 @@ verdict
 
 ### 2026-11-06 - SM1379 (0.16.6): the quarantine reads email fields for probes and leaves them out of the repetition rule
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : The form handler's quarantine (`extensions/form-handler.pl`, `_spam_assessment`) gains
@@ -2912,12 +2912,12 @@ residual risk
   `type: email` refuses a non-address there first (SM934).
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a public form's quarantine reads moved.
 
 ### 2026-11-06 - SM1377 (0.16.6): the data endpoint refuses a query parameter it does not read
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : `/cgi-bin/lazysite-data.pl` answered a read carrying a query parameter outside
@@ -2947,5 +2947,5 @@ residual risk
   `csrf_token` accepted and unread; t/integration/355 fails with it reverted.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a public endpoint answers moved.

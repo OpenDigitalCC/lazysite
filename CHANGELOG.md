@@ -59,7 +59,7 @@ Archive
   holding only an address) are now left out. An email field holding quotes, an
   SQL comment or SQL-shaped text quarantines the submission, the reason naming the field;
   one apostrophe in an address's local part (`o'brien@example.org`) passes (ruling 138).
-  Quarantined, never refused. Register entry drafted.
+  Quarantined, never refused. Register entry confirmed (ruling 140).
 
 - SM1378 (PENDING) **A layout says the engine it needs, and installing or activating it on an
   older one warns.** Ruling 133: `requires.lazysite` in `layout.json`, which the layouts
@@ -76,7 +76,7 @@ Archive
   `table` and `csrf` are unchanged. The `ignored` field is gone. Supersedes SM606 in part.
   Ruling 139: the control API's `data-rows` refuses an unknown parameter the same way
   (it reads `table`, `order_by`, `order`, `limit`, `offset`; `_` and `csrf_token` are
-  accepted). UPGRADE.md says who is affected. Register entry drafted.
+  accepted). UPGRADE.md says who is affected. Register entry confirmed (ruling 140).
 
 - SM1372 (PENDING) **The primary site's content leaves out the other domains' folders.** Ruling
   126: an account given nothing, or granted the primary's row, read the whole document root
