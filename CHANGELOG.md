@@ -89,6 +89,13 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1375 (PENDING) **The 403 page lists the groups a page needs.** The shipped `403.md` named
+  them as "- reviewers" lines run into one paragraph, on a front-matter group gate and on an
+  ACL read-list refusal alike: Markdown reads the page before Template Toolkit fills it, and
+  the loop's directive line kept the list from starting. The template writes the list as
+  HTML, so the groups render as a list. A site with its own `403.md` is unchanged.
+
+- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
   four register entries the branches wrote are walked, and two of them (SM1324's protected
   history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data
