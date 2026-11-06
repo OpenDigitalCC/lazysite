@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "the compliance check run alone for 0.16.6 (tmp/n761-compliance-check.sh): two blocking findings, as the 0.16.2 to 0.16.5 gates had (SM1306, SM1337, SM1367, SM1368)"
 area: release
-status-note: "SHIPPED (PENDING) on n761: docs only. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.6; ten confirmed entries walked; SM1375/SM1378 entry, boundary 15 and three STRIDE rows drafted; four operate-side rows; the 403 page's unescaped group names found; filings SM1373-SM1375; UPGRADE.md's 0.16.6 section."
+status-note: "SHIPPED (PENDING) on n761. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.6; ten confirmed entries walked; SM1375/SM1378 entry, boundary 15 and three STRIDE rows drafted; four operate-side rows; the 403 page's unescaped group names found; filings SM1373-SM1375; UPGRADE.md's 0.16.6 section; install.pl names an unreadable directory (t/tools/331)."
 ---
 
 # What was asked
@@ -82,8 +82,31 @@ the support period.
   security-critical.
 - No register entry was missing for a security-relevant change other than SM1375 and
   SM1378; SM1376 is a filing and SM1350's commit a row in its umbrella.
+- **The upgrade's template-call rename said nothing about a directory it could not
+  read.** The 0.16.5 edge deploy printed raw Perl warnings, "Can't
+  opendir(<docroot>-lazysite-private/sites): Permission denied" and the same for another
+  folder of the private store. `install.pl`'s `rewrite_template_calls` (SM1345) walks
+  the docroot, the lazysite directory and the private store with a plain
+  `File::Find::find`, so an unreadable directory printed that warning and its old
+  `visitor.in_list` / `visitor.in_any` calls were silently left unrenamed (false at
+  render) with nothing in the summary. Fixed at the walk: the walk's "Can't opendir",
+  "Can't stat" and "Can't cd to" warnings are collected, as `lazysite-check.pl`'s
+  `find_noting` does (Q16g), and become one ADDRESS PROFILES warning naming each
+  unread directory and its error, saying any old call below it was not renamed, and to
+  run the upgrade again as root or the site's owner, then `lazysite check`. The step is
+  then not recorded, so the next upgrade tries again. install.pl's other File::Find walk
+  (`invalidate_rendered_html`) walks only `lazysite/cache`, which the private store is
+  not under, and is left as it is. No register entry: the fix adds a warning and changes
+  no access.
 
 # Tests
+
+t/tools/331 builds a site, makes a private-store folder holding an old call mode 000
+(skipped as root), and runs the real upgrade: no raw File::Find line on STDERR, the
+summary names the folder, a readable file is still renamed, the step is not recorded,
+and a second upgrade with the folder readable renames what was left. It fails with the
+change reverted.
+
 
 The compliance check run alone on the branch (tmp/n761-compliance-check.sh): with the
 records at 0.16.5 it refuses on the two rows above, and passes with them at 0.16.6. The

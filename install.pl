@@ -1195,7 +1195,26 @@ sub rewrite_template_calls {
     my $lz   = lazysite_dir_for($d);
     my $priv = dirname($d) . '/' . basename($d) . '-lazysite-private';
     my %skip = map { ( "$lz/$_" => 1 ) } qw(backups cache logs auth forms sessions tmp);
-    my ( %seen, @files );
+    my ( %seen, @files, %unread );
+
+    # SM1380: A DIRECTORY THE WALK CANNOT READ IS SAID ONCE, IN THE SUMMARY. File::Find
+    # warns "Can't opendir(DIR): Permission denied" and carries on, so an upgrade run as
+    # a user that cannot read part of the private store (<private>/sites on the 0.16.5
+    # edge deploy) printed raw Perl warnings and left that directory's old calls
+    # unrenamed with nothing in the summary. The walk's warnings are collected, as
+    # lazysite-check.pl's find_noting does (Q16g), and become one ADDRESS PROFILES
+    # warning; the step is then not recorded, so the next upgrade tries again.
+    local $SIG{__WARN__} = sub {
+        my ($m) = @_;
+        if ( $m =~ /\ACan't opendir\((.*?)\): ([^\n]*)/
+            || $m =~ /\ACan't stat (.*?): ([^\n]*)/
+            || $m =~ /\ACan't cd to (.*?): ([^\n]*)/ )
+        {
+            $unread{$1} //= $2;
+            return;
+        }
+        print STDERR $m;
+    };
     for my $root ( grep { -d $_ } $d, $lz, $priv ) {
         File::Find::find(
             { no_chdir => 1,
@@ -1239,6 +1258,19 @@ sub rewrite_template_calls {
         push @warn, "ADDRESS PROFILES: could not rewrite the address test calls in $f ($!) - "
             . 'rename visitor.in_list to visitor.in_profile and visitor.in_any to visitor.in_any_profile '
             . 'by hand; until then they are false (SM1345)';
+    }
+    if (%unread) {
+        my @dirs = sort keys %unread;
+        my @show = map { "$_ ($unread{$_})" } @dirs;
+        my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
+        splice @show, 8 if @show > 8;
+        my $who = getpwuid($>) // "uid $>";
+        push @warn, 'ADDRESS PROFILES: could not read ' . scalar(@dirs)
+            . ' director' . ( @dirs == 1 ? 'y' : 'ies' ) . " as $who: " . join( ', ', @show ) . $more
+            . ' - any visitor.in_list or visitor.in_any call below '
+            . ( @dirs == 1 ? 'it' : 'them' )
+            . ' was not renamed and is false until it is; run the upgrade again as root or as the '
+            . 'user that owns the site, then `lazysite check` to confirm none is left (SM1345, SM1380)';
     }
     return ( \@changed, \@warn );
 }

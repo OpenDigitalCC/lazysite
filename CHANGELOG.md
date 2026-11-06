@@ -62,7 +62,15 @@ Archive
   SM1378, trust boundary 15 (an extension's code in a core process) and three STRIDE rows,
   with four operate-side rows. 0.16.6 is edge, not security-critical (ruling 142). Found at the walk: the 403 page's group names were not escaped by the
   stash; escaped in 0.16.6 under SM1375 (ruling 141). SM1373, SM1374 and SM1375 gain their filings;
-  UPGRADE.md's 0.16.6 notes are one section. Docs only; nothing is signed.
+  UPGRADE.md's 0.16.6 notes are one section. Nothing is signed. One fix found at the walk,
+  from the 0.16.5 edge deploy: the upgrade's template-call rename (SM1345) walked the private
+  store with a plain File::Find, so a directory it could not read printed a raw "Can't
+  opendir(...): Permission denied" and its old `visitor.in_list` / `visitor.in_any` calls
+  were left unrenamed with nothing in the summary. `install.pl` now collects the walk's
+  warnings, as `lazysite check` does (Q16g), and says once, under ADDRESS PROFILES, which
+  directories it could not read, that any old call below them was not renamed, and to run the
+  upgrade again as root or the site's owner; the step is then not recorded, so the next
+  upgrade tries again.
 
 - SM1379 (PENDING) **A form's quarantine leaves email fields out of the repetition rule and
   quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
