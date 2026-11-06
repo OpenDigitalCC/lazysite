@@ -1289,6 +1289,58 @@ only over TLS. No Odoo is in it.
   connects and authenticates carries placeholders only (t/lint/311); the tools
   reference, with the capabilities and denied paths, stays signed-in.
 
+## Extension hooks, agent roles and the primary's reach (0.16.6)
+
+- **An extension's code can be loaded into a core process** (SM1369 X0, X1; trust
+  boundary 15). An extension's `owns` may declare `hooks` and `requires`;
+  `Lazysite::Extensions::Hooks` validates them, the manager writes
+  `lazysite/extensions.index.json` from the enabled extensions on enable, disable and
+  save, and the upgrade rebuilds it as the site user. `call_hook` runs only a function the
+  index names, from a module that is a regular file in the extension's own payload lib
+  (`extensions/<stem>/lib`, a real directory, appended to `@INC`, never prepended) and
+  found nowhere else on `@INC`, while the extension and every extension it requires are
+  on in `lazysite.conf`, read at the call. A hook that dies is a failure, never an
+  exception into core. In 0.16.6 nothing calls the loader and every hook kind is refused,
+  naming the slice that builds it. In process a hook is a contract, not a sandbox: trust
+  is what is installed (ADR 0009). `t/lint/321` holds core's lines that name Odoo to an
+  allow-list that only shrinks.
+- **A token's grant is its account's at each request** (SM1370). Every token door
+  resolves capabilities through `caps_for` per request (WebDAV once per CGI process), so
+  a grant removed at the account is refused on every token at once, and nothing is fixed
+  into a credential; both whoamis say so in a `grant` block.
+- **Agent roles and a form's config** (SM1371). Four assignable groups ship with no
+  members (`content-agent`, `data-agent`, `forms-reader`, `analytics-agent`), each one
+  job over MCP and none carrying `ui`, `api`, `webdav`, design, settings, people, audit
+  or purge; an existing site adopts them once. `manage_forms` reads and writes
+  `lazysite/forms/<name>.conf` over MCP and the manager's editor, as over WebDAV, under
+  WebDAV's binding rules; `smtp.conf`, `handlers.conf` and `schedule.conf` stay closed.
+  Ticking a grant whose extension is off offers the enable as a separate, audited
+  `extension-enable`, which needs `manage_config`.
+- **The primary's content leaves out the other domains' roots** (SM1372, rulings 126 and
+  137). An account that reaches the primary - granted nothing, or granted its row - is
+  refused every secondary domain's content root under the docroot, and does not see it
+  listed, on the manager API, MCP and WebDAV
+  (`Lazysite::Auth::DomainAccess::foreign_root_of`). The operator group and an account
+  granted the domain keep it.
+- **A form's owner mail and acknowledgement** (SM1362). `owner_contact` in
+  `lazysite/notify.conf` mails each form's notice to one configured address, the fields
+  only on `notify: full`. A form that opts in sends its own fixed words, never the
+  visitor's, to the address in its `acknowledge_field`, within 3 an hour per address and
+  60 per site shared with the smtp handler.
+- **What is answered, narrowed** (SM1373, SM1374, SM1377). `extension-read`, a cookie
+  action needing `manage_config`, answers only the keys the extension declares, never
+  the rest of `lazysite.conf`. An Odoo plan's failure shows the visitor Odoo's text only
+  for a validation or user error, and a plain sentence otherwise. The data endpoint and
+  `data-rows` refuse a query parameter they do not read (400, `unknown-parameter`)
+  instead of answering every row.
+- **Who acted, on an Odoo call** (SM1366). A call under a person's Odoo session is
+  recorded under the site account the request is signed in as, with the session's hash
+  beside it; the session id is never written.
+- **The 403 page lists groups as HTML** (SM1375). The group names come from a page's
+  front matter or a read list and are not escaped by the stash (SM709 escapes
+  `auth_groups`, not `auth_required_groups`); they are written by accounts that can
+  already write a page's markup (the 2026-11-06 SM1375, SM1378 register entry).
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

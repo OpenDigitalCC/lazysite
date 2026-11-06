@@ -68,93 +68,105 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.16.6)
+## The primary's content leaves out the other domains, and the rest of 0.16.6
 
-**The extension hook index (SM1369).** Every upgrade and reinstall now rebuilds
-`lazysite/extensions.index.json` from the descriptors of the site's enabled
-extensions, as the site user, after the other steps. A site whose extensions
-declare no hooks, which is every site today, gets no index and the summary says
-nothing about it. An enabled extension that declares a hook this release does not
-build is named in the summary as `hooks refused: <id> (...)`, with the slice that
-builds it, and runs nothing. If the rebuild cannot write the index, the summary
-warns under `HOOKS:` and the previous index stands. Enabling or saving an extension
-in the manager rebuilds it. Nothing to do for an operator.
-
-**Existing tokens (SM1370).** A token's capabilities are its account's grant at each
-request: a grant added at the account reaches every existing token on its next
-request, and a grant removed is refused on every token at once, with no re-pairing.
-This is how every token door already resolved a grant (measured on 0.16.5), so no
-existing token gains or loses anything at the upgrade; what is new is that `whoami`
-says so in a `grant` block. An agent whose client shows an old tool list after a
-grant lists its tools again, or reconnects the connector; it needs no new pairing
-key, and rotating a token changes nothing about its grant.
-
-**Four agent roles appear (SM1371).** The first use of the users tool after the
-upgrade (any Users or Groups page load) adds `content-agent`, `data-agent`,
-`forms-reader` and `analytics-agent` to a site that has the shipped roles and lacks
-them. They have no members, so nobody's access changes; delete any you do not want
-and it stays deleted. To move an agent onto a role, put it in the role on the Groups
-or Users page and take the matching capabilities off its own `role-<account>` group;
-the Users page shows what an account holds beyond its roles.
-
-**manage_forms reaches a form's config on more doors (SM1371).** An account holding
-`manage_forms` can now read and write `lazysite/forms/<name>.conf` through MCP
-`read_file`/`write_file` and the manager's file editor, as it already could over
-WebDAV. The file's targets must name existing handlers. `smtp.conf`,
-`handlers.conf` and `schedule.conf` stay closed to every grant. If an account
-holds `manage_forms` it should not, this is the release to check.
-
-**The primary site's content leaves out the other domains' folders (SM1372).** On an instance serving more than one domain, each secondary domain's content
-lives in its own folder under the document root (`sites/<host>/` as a rule).
-Until now an account that reaches the primary site - one granted nothing (no
-domain names its group), or one whose group is on the primary's row - reached
-those folders too, through the primary's content: over WebDAV, MCP, the control
-API and the manager's Files. From this release it does not (ruling 126): the
-primary's content is the document root less the other domains' content roots.
-What it is refused says which folder and how to grant it. Nor does it see them
-listed (ruling 137): the manager's Files, MCP `list_files` and a WebDAV PROPFIND
-of `sites/` leave out each other domain's folder the account is refused, so a
+**The primary site's content leaves out the other domains' folders (SM1372).** On an
+instance serving more than one domain, each secondary domain's content lives in its own
+folder under the document root (`sites/<host>/` as a rule). Until now an account that
+reaches the primary site - one granted nothing (no domain names its group), or one whose
+group is on the primary's row - reached those folders too, through the primary's
+content: over WebDAV, MCP, the control API and the manager's Files. From this release it
+does not (ruling 126): the primary's content is the document root less the other
+domains' content roots. What it is refused says which folder and how to grant it. Nor
+does it see them listed (ruling 137): the manager's Files, MCP `list_files` and a WebDAV
+PROPFIND of `sites/` leave out each other domain's folder the account is refused, so a
 client that synced the whole tree over WebDAV no longer finds them there.
 
-Unchanged: the operator (a member of the operator group, the group `setup-sysop`
-makes, in the manager or over WebDAV) still reaches every folder, and an account already
+Unchanged: the operator (a member of the operator group, the group `setup-sysop` makes,
+in the manager or over WebDAV) still reaches every folder, and an account already
 granted a secondary domain keeps that domain.
 
-**Who loses something.** Any other account - a manager holding `manage_users` but
-not in the operator group included, and often an agent's token or WebDAV login -
-that edited a secondary domain's pages through the primary, without being
-granted that domain. Before upgrading, find them: any non-operator account that
-writes under `sites/` and whose group is named in no
-`alias.<host>.allowed_groups` line for that host.
+Who loses something: any other account - a manager holding `manage_users` but not in
+the operator group included, and often an agent's token or WebDAV login - that edited a
+secondary domain's pages through the primary, without being granted that domain. Before
+upgrading, find them: any non-operator account that writes under `sites/` and whose
+group is named in no `alias.<host>.allowed_groups` line for that host.
 
-**How to give it back.** Grant the domain: name the account's group in that
-domain's `allowed_groups` (the Domains page, or `domain-set` with the access
-keys, or `alias.<host>.allowed_groups: <group>` in `lazysite.conf`). Grants
-add, but naming a secondary takes away the primary that an account granted
-nothing had: to keep the primary as well, name the group on the primary's row
-too (the bare `allowed_groups: <group>` line; the Domains page row
-`(default)`).
+How to give it back: grant the domain. Name the account's group in that domain's
+`allowed_groups` (the Domains page, or `domain-set` with the access keys, or
+`alias.<host>.allowed_groups: <group>` in `lazysite.conf`). Grants add, but naming a
+secondary takes away the primary that an account granted nothing had: to keep the
+primary as well, name the group on the primary's row too (the bare
+`allowed_groups: <group>` line; the Domains page row `(default)`).
 
-**The data endpoint refuses a parameter it does not read (SM1377).** A page's own script that reads `/cgi-bin/lazysite-data.pl` with a query
-parameter other than `table`, `order_by`, `order`, `limit`, `offset`, `csrf` or
-`_` now gets a 400, `{ ok: 0, kind: "unknown-parameter" }`, naming the
-parameter. Until now the parameter was ignored and every row came back. The
-shipped `lazysite-data.js` sends none, so a page using `data-ls-db` is
-unaffected.
+**The data endpoint, and the control API's `data-rows`, refuse a parameter they do not
+read (SM1377, rulings 131 and 139).** A page's own script that reads
+`/cgi-bin/lazysite-data.pl` with a query parameter other than `table`, `order_by`,
+`order`, `limit`, `offset`, `csrf` or `_` now gets a 400,
+`{ ok: 0, kind: "unknown-parameter" }`, naming the parameter, where the parameter was
+ignored and every row came back. A call to `action=data-rows` with a query parameter
+other than those it reads (`table`, `order_by`, `order`, `limit`, `offset`) or `_` and
+`csrf_token` gets the same refusal. The shipped `lazysite-data.js`, a page using
+`data-ls-db`, the manager's Data page and MCP `read_data_rows` are unaffected.
 
-**Who is affected.** A custom script that adds its own parameter: a filter such
-as `chunk=AAA` (which never filtered), or a cache-buster under another name.
-Before upgrading, search the site's scripts for `lazysite-data.pl?`. Filter on
-the page binding (`db:t(chunk=AAA)`) or in the script after reading the rows,
-and name a cache-buster `_`.
+Who is affected: a custom script or a token client that adds its own parameter, such as
+a filter (`chunk=AAA`, which never filtered) or a cache-buster under another name.
+Before upgrading, search the site's scripts for `lazysite-data.pl?` and token scripts for
+`data-rows`. Filter on the page binding (`db:t(chunk=AAA)`) or in the script after
+reading the rows, and name a cache-buster `_`.
 
-**The control API's data-rows does the same (SM1377, ruling 139).** A call to
-`action=data-rows` with a query parameter other than `table`, `order_by`,
-`order`, `limit`, `offset`, `_` or `csrf_token` is now a 400 with the same
-`kind: "unknown-parameter"`, naming it, where it used to return every row. The
-manager's Data page and MCP `read_data_rows` are unaffected. A token client or
-operator script that sends its own filter to `data-rows` should drop it and
-filter the rows it reads; search those scripts for `data-rows` before upgrading.
+**`manage_forms` reaches a form's config on more doors, and four agent roles appear
+(SM1371, ruling 122).** An account holding `manage_forms` can now read and write
+`lazysite/forms/<name>.conf` through MCP `read_file`/`write_file` and the manager's file
+editor, as it already could over WebDAV. The file's targets must name existing handlers.
+`smtp.conf`, `handlers.conf` and `schedule.conf` stay closed to every grant. If an
+account holds `manage_forms` it should not, this is the release to check. The first use
+of the users tool after the upgrade (any Users or Groups page load) adds
+`content-agent`, `data-agent`, `forms-reader` and `analytics-agent` to a site that has
+the shipped roles and lacks them. They have no members, so nobody's access changes;
+delete any you do not want and it stays deleted. To move an agent onto a role, put it in
+the role on the Groups or Users page and take the matching capabilities off its own
+`role-<account>` group; the Users page shows what an account holds beyond its roles.
+
+**A script that reads the audit trail's actor for an Odoo call (SM1366).** A call made
+under a person's Odoo session, on a request also signed in to the site, is recorded and
+audited under that site account (a local account, or `odoo:<login>`), with the session's
+hash beside it (`session` on the call record, `session=` on the audit row), where the
+actor was `session:<hash>`. A filter or report that keyed on `session:` for those rows
+reads the account instead. With no site identity the hash is the actor, as before.
+
+**Smaller changes, nothing to do.**
+
+- The extension hook index (SM1369). Every upgrade and reinstall rebuilds
+  `lazysite/extensions.index.json` from the enabled extensions' descriptors, as the site
+  user, after the other steps. A site whose extensions declare no hooks, which is every
+  site today, gets no index and the summary says nothing about it. An enabled extension
+  that declares a hook this release does not build is named in the summary as
+  `hooks refused: <id> (...)`, with the slice that builds it, and runs nothing. If the
+  rebuild cannot write the index, the summary warns under `HOOKS:` and the previous index
+  stands. Enabling or saving an extension in the manager rebuilds it.
+- Existing tokens (SM1370). A token's capabilities are its account's grant at each
+  request, as every token door already resolved them (measured on 0.16.5), so no
+  existing token gains or loses anything at the upgrade; `whoami` now says so in a
+  `grant` block. An agent whose client shows an old tool list after a grant lists its
+  tools again, or reconnects the connector; it needs no new pairing key, and rotating a
+  token changes nothing about its grant.
+- A form can tell its owner by email, and answer the submitter (SM1362). Both are off
+  until set: `owner_contact:` in `lazysite/notify.conf`, and a form's
+  `acknowledge_field` and `acknowledge_message`. Both send through the Form SMTP
+  extension's settings. A site that sets `owner_contact` for a `notify: full` form mails
+  the submission's fields to that address, and accounts for it (OBLIGATIONS.md).
+- An extension's settings read (`extension-read`) answers only the keys that extension
+  declares, never the rest of `lazysite.conf` (SM1373).
+- A plan Odoo refused tells the visitor Odoo's own words for a validation error, and a
+  plain sentence otherwise (SM1374); the counts stay in the journal and the log.
+- The shipped 403 page lists the groups a page needs as a list (SM1375). A site with its
+  own `403.md` is unchanged.
+- Installing, activating or binding a layout whose `layout.json` says it needs a newer
+  engine answers with a warning naming both versions, and goes ahead (SM1378).
+- A form's quarantine leaves email fields out of the "same value in every field" rule,
+  and quarantines an email field holding quotes or SQL-shaped text (SM1379); one
+  apostrophe in an address's local part passes.
 
 ## Address lists become address profiles, and the rest of 0.16.5
 

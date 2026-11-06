@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1380 (PENDING) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.6 stack and stamped 0.16.6. The ten register
+  entries the branches wrote, each confirmed by the release manager (rulings 134, 140), are
+  walked against the code; SM1369's new-external-interface and SM1362's
+  new-processing-of-restricted-data are their triggers' assessments, contained. Drafted at
+  the walk, for the release manager's confirmation: an entry for SM1375 and SM1378, trust
+  boundary 15 (an extension's code in a core process), three STRIDE rows and four
+  operate-side rows. Found at the walk: the 403 page's group names are not escaped by the
+  stash, which the entry records for a ruling. SM1373, SM1374 and SM1375 gain their filings;
+  UPGRADE.md's 0.16.6 notes are one section. Docs only; nothing is signed.
+
 - SM1379 (PENDING) **A form's quarantine leaves email fields out of the repetition rule and
   quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
   counted the email field, so a random address defeated it; email fields (named so, or

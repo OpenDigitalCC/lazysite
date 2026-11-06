@@ -80,6 +80,14 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     lazysited as the request-path user, listening on a 0600 socket in the site's 0700
     `lazysite/run/`. The one-rule pool hands it the endpoint's requests; it holds
     compiled code and nothing else, and forks a fresh child per request.
+15. **An extension's code in a core process** (SM1369 X1, 0.16.6) -> the hook loader,
+    `Lazysite::Extensions::Hooks::call_hook`, runs a function an enabled extension
+    declares from its own payload lib (`extensions/<stem>/lib`) inside the calling
+    process, with that process's rights, once a slice gives it a caller. In 0.16.6 it has
+    none and no hook kind is accepted. What crosses is the extension's declaration, the
+    index the manager writes from it (`lazysite/extensions.index.json`) and the module
+    files it names; each is checked at the build and again at the call. See
+    `architecture/security.md` - "Extension hooks, agent roles and the primary's reach".
 
 Not yet code, so not yet boundaries: SM1128's native OIDC relying party and directory
 groups (phases 2-3). The visitor log's signed-in account (SM1219) and the maintenance
@@ -115,6 +123,9 @@ Elevation of privilege | A member of a protected area writing a rule on a subfol
 Denial of service | An upgrade that moves the extensions directory and its key leaving a site's list, or one entry, under the old spelling, so each extension it names reads as off, and silently - the login rate limiter among them (SM1142) | `install.pl`'s one-time `extensions-rename` converts the list and its entries and moves the directory, and is recorded as done only when it ran without a warning; `login-rate-limit-on` runs after it; `lazysite check` names an old-spelling line by number and an old directory left beside the docroot, and says when the limiter is not in force (SM798) | 0.16.4 (t/tools/306, t/journey/06); a line written back by hand reads as off until it is corrected
 Elevation of privilege | A theme's source re-mirrored into the served asset mirror on every write to it (SM1335), so a symbolic link or a file type the web server runs that reaches a theme's `assets/` by any means - a shell, a restore, a WebDAV or manager write - is published under `/lazysite-assets/` with no activation, as SM1303's archive link was | `_mirror_theme_assets`, the one writer of every copy, refuses to switch in a copy whose `assets/` holds a symbolic link or a server-run file type (`_mirror_unsafe_entry`, SM1303's two checks; links listed, never followed) and keeps the copy it had; a served copy itself is refused to every writer, the operator included (`served_artifact_refusal`, SM1339) | 0.16.5 (t/unit/manager/430, 432, t/unit/dav/38); the refusal is a log line and a `mirrored: 0` answer, so a source that holds such an entry stops reaching its copies until it is removed
 Denial of service | The bad-URL blocker exempting loopback always (SM1321, ruling 83): on a site behind a front end that `trusted_proxies` does not cover, every visitor arrives as 127.0.0.1, so no probe is counted and the blocker is off for everyone | The blocker asks `request_address` under `trusted_proxies` (SM929), so behind a covered front end the exemption is the machine's own checks only; `lazysite check` warns when address rules exist and `trusted_proxies` trusts no front end (SM1141); `bad_url_exempt: none` removes loopback's exemption | 0.16.5 (t/unit/lib/98); the blocker was refusing every visitor on such a site before (T-03), so the change trades a self-inflicted refusal of everyone for no probe counting until `trusted_proxies` is set; the default trusts only the private ranges, not loopback, and a site with no address rules is not warned (UPGRADE.md, the 0.16.5 entry, says to name a front end on the same host)
+Elevation of privilege | An extension's own Perl run inside a core process (SM1369 X1): code that is not the extension's - core's, a system module's, a planted file's - run under its name, a disabled extension's entry or an edited index still honoured, a hook that dies taking the process with it | The declaration is validated before it is indexed; each module must be a regular file in the extension's payload lib, a real directory, found nowhere else on `@INC`, checked at the build and at the call; the payload lib is appended to `@INC`, never prepended; the extension and what it requires must be on at the call, read fresh; a dying hook is a failure, never an exception into core | 0.16.6 (t/unit/extensions/70, 71; t/tools/330): built with no caller and no live kind; in process a hook is a contract, not a sandbox, so trust is what is installed (ADR 0009); each later slice that adds a caller is assessed against boundary 15
+Information disclosure | An account reaching the primary - one granted nothing, or the primary's row - reading and writing every secondary domain's folder under the docroot through the primary's content (SM1372, the residual risk SM1332-SM1334 recorded) | The primary's content is the docroot less the other domains' content roots, one rule (`DomainAccess::foreign_root_of`) asked by the manager API, MCP and WebDAV, on reads, writes and walks; a listing leaves those folders out for a caller refused them (ruling 137) | Closed in 0.16.6 (t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74); the operator group and an account granted a domain keep it; a secondary with no content root of its own serves the primary's content
+Denial of service | The site used as a mailer: a visitor typing a stranger's address in a form whose conf opts in to an acknowledgement, so the site mails it (SM1362) | The message is the form's fixed text with nothing of the submission in it; 3 an hour per address and 60 per site across every form and smtp handler, one record; the form's own per-address limit, render timestamp and honeypot first; a quarantined submission is never answered; an unreadable cap record refuses | 0.16.6 (t/unit/forms/68); opt-in per form; a visitor can still have the fixed text sent to an address they name, within the caps
 ```
 
 ## Five priority entries (from the review)
@@ -2513,6 +2524,18 @@ verdict
   calls the loader. The first slice that makes a kind live (X2) adds a caller to this interface
   and should be assessed against this entry, in its own.
 
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): `Lazysite::Extensions::Hooks::call_hook` has no caller (no
+  file under `lib/`, `lazysite-processor/`, the manager API or `extensions/` calls it), no
+  hook kind is accepted, `add_payload_lib` appends to `@INC` and never prepends, and
+  `call_hook` reads the enabled list fresh at each call (`enabled_keys`).
+  `lib/Lazysite/Extensions/Hooks.pm` is the one shipped file 0.16.6 adds (the SBOM's 462nd
+  component; its `use` lines are core modules, declared). ADR 0007's new-external-interface
+  trigger fires as the entry says, and the entry is its assessment, confirmed contained
+  (ruling 134). The walk records the interface as trust boundary 15 and a STRIDE row, both
+  drafts for the release manager's confirmation.
+
 ### 2026-11-06 - SM1370 (0.16.6): a token follows its account's grant
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
@@ -2554,6 +2577,12 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because ruling 121 is an access-control rule and this is where it is shown to hold.
+
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): both whoamis carry the `grant` block
+  (`Capabilities::whoami_grant` and `whoami_roles`, from `lazysite-mcp.pl` and
+  `Manager::Users`), and t/unit/manager/460 holds each door both ways. No trigger fires.
 
 ### 2026-11-06 - SM1371 (0.16.6): agent roles, the role summary, the extension offer, and a form's config
 
@@ -2622,6 +2651,15 @@ verdict
   because shipped grants, a capability's reach on two doors and the Groups page's enable
   path moved.
 
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): the four roles are added by `_adopt_agent_roles` in
+  `tools/lazysite-users.pl`, run on ordinary use of the users tool, with no members;
+  `carveout_requirement` and `form_conf_name` gate a form's conf in `Manager::Common` and
+  `Manager::Files`; t/unit/users/70 and t/unit/manager/461 and 462 are on the tip. No
+  trigger fires. OBLIGATIONS.md gains an operate-side row: who holds `manage_forms`, and
+  which of the four roles a site keeps.
+
 ### 2026-11-06 - SM1373 (0.16.6): an extension's settings read answers only its own keys
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
@@ -2664,6 +2702,21 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a settings read discloses moved.
 
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): `extension-read` carries `cookie_cap => 'manage_config'` and no
+  `%GATE` line in `Lazysite::ControlApi::Actions`, so no token reaches it, and
+  t/unit/manager/445 is on the tip. No shipped extension keeps a credential in
+  `lazysite/lazysite.conf`: the two that keep their settings there (bad-url-blocker, log)
+  have none, and the credentials are each extension's own file (`forms/smtp.conf`,
+  `notify-xmpp.conf`, the Odoo key files), whose own password fields were already
+  dropped. What the read answered beyond the extension's keys was the site's other
+  settings, to an account trusted with them, on a cookie session only. Judged at this walk
+  a hardening of what a trusted role's read shows, not the fix of a vulnerability: 0.16.6
+  is not cut security-critical for it (OBLIGATIONS.md, the vulnerability-handling row). A
+  credential an operator wrote into `lazysite.conf` by hand was answered to a
+  `manage_config` holder until 0.16.6. No trigger fires.
+
 ### 2026-11-06 - SM1374 (0.16.6): a plan Odoo refused shows the visitor only validation text
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
@@ -2705,6 +2758,12 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a refusal tells a visitor moved.
+
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): the category is `fault_category`'s, read in `Lazysite::Odoo`
+  and `Lazysite::Odoo::Session`, and t/unit/odoo/125 and 77 are on the tip. No trigger
+  fires.
 
 ### 2026-11-06 - SM1366 (0.16.6): an Odoo call's record names the signed-in account
 
@@ -2750,6 +2809,13 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what the audit trail names moved.
+
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): `$Lazysite::Odoo::SIGNED_IN` is local to the request and read
+  only by `record_call` in `Lazysite::Odoo`; t/unit/odoo/03, 63 and 126 are on the tip. No
+  trigger fires. A script that reads the audit row's actor for an Odoo session call reads
+  the account from 0.16.6, with `session=` beside it (UPGRADE.md).
 
 ### 2026-11-06 - SM1362 (0.16.6): a form mails its owner, and can answer the submitter
 
@@ -2818,6 +2884,16 @@ verdict
   mail, and the change is contained (off by default, only to the operator's named
   `owner_contact` address, rate-limited by `mail.per_hour`).
 
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): `owner_contact` is read in `Lazysite::Notify`,
+  `acknowledge_field` in `Lazysite::Handlers`, and both addresses pass
+  `Lazysite::Mail::one_address`; t/unit/forms/68 is on the tip. ADR 0007's
+  new-processing-of-restricted-data trigger fires as the entry says, and the entry is its
+  assessment, confirmed contained (ruling 140). OBLIGATIONS.md gains an operate-side row:
+  the owner's address, the personal data a `notify: full` form's mail carries, and the
+  acknowledgement's wording.
+
 ### 2026-11-06 - SM1372 (0.16.6): the primary's content leaves out the other domains' roots
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
@@ -2876,6 +2952,15 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because a content boundary moved and closes a recorded residual risk.
 
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): `Lazysite::Auth::DomainAccess::foreign_root_of` is asked by
+  `Manager::Common`, `Manager::Files`, `lazysite-manager-api.pl`, `lazysite-mcp.pl` and
+  `lazysite-dav.pl`, and t/unit/manager/446, t/unit/dav/39 and t/unit/mcp/74 are on the
+  tip. No trigger fires. It closes the residual risk SM1332-SM1334's entry recorded
+  (ruling 126); a STRIDE row records it. OBLIGATIONS.md gains an operate-side row: grant
+  the domain an account relied on.
+
 ### 2026-11-06 - SM1379 (0.16.6): the quarantine reads email fields for probes and leaves them out of the repetition rule
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
@@ -2915,6 +3000,11 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a public form's quarantine reads moved.
 
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): the quarantine is `_spam_assessment` in
+  `extensions/form-handler.pl`, and t/unit/forms/75 is on the tip. No trigger fires.
+
 ### 2026-11-06 - SM1377 (0.16.6): the data endpoint refuses a query parameter it does not read
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
@@ -2949,3 +3039,71 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a public endpoint answers moved.
+
+walked
+: At the 0.16.6 compliance walk (2026-11-06), against the code on the stack's tip
+  (41c47b006): the endpoint's read set is one list in `lazysite-data.pl`
+  (`table order_by order limit offset csrf _`), and `data-rows`'s is
+  `_data_rows_unknown_parameters` in `lazysite-manager-api.pl` (the declaration's
+  parameters, `action`, `_`, `csrf_token`); t/integration/355 is on the tip. No trigger
+  fires. OBLIGATIONS.md gains an operate-side row: a site's own scripts that send a
+  parameter the endpoint does not read.
+
+### 2026-11-06 - SM1375, SM1378 (0.16.6): the 403 page's group list and a layout's engine requirement, with no trigger
+
+Assessment drafted by the developer agent at the 0.16.6 compliance walk, for the release manager's confirmation. The rest of 0.16.6 moves no control: SM1376 is a filing (file write-back to a source's API, a candidate for 0.17.0) and SM1350's commit is its umbrella's row; SM1380 is this walk. The other changes of 0.16.6 have their own entries: SM1369 (firing new-external-interface, ruling 134), SM1362 (firing new-processing-of-restricted-data, ruling 140), SM1366, SM1370-SM1374, SM1377 and SM1379.
+
+what changed
+: SM1375, the 403 page. The shipped `templates/system/403.md` writes the groups a page
+  needs as an HTML list (`<ul class="auth-required-groups">`, one `<li>` per group), on a
+  front-matter group gate and on an `auth/acls.json` read-list refusal alike, where the
+  Markdown list never started. A site's own `403.md` is unchanged.
+: SM1378, a layout's engine. `requires.lazysite` in a layout's `layout.json` is read when
+  the layout is installed (Upload, MCP `install_layout`), activated, or bound to a domain
+  (`domain-set` with `layout`), by `Lazysite::Manager::Themes::layout_engine_requirement`;
+  when the site's engine (`.install-state.json`) is older, or the value is not a version,
+  the answer carries `requires` and a `warning` naming both, and a WARN log line. It goes
+  ahead either way.
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (a field and a warning on
+  existing answers; a template's markup), no new sign-in method, no new dependency and no
+  new restricted data. The questions are these.
+: SM1375: Tampering, by markup in a group name reaching the 403 page. Found at this walk:
+  `auth_required_groups` is not among the values the stash escapes. SM709 escapes
+  `auth_user`, `auth_name`, `auth_email` and each of `auth_groups` at the one point they
+  enter the stash (`lazysite-processor/render.pm`), and `auth_required_groups` enters raw
+  with the rest of `%AUTH_CONTEXT`, where SM1375's commit says the stash escapes it.
+  Measured on the tip: a read list naming `@<i>bad</i>` in `auth/acls.json` renders
+  `<li><i>bad</i></li>` on the 403 page of a refused signed-in visitor. It is not new with
+  SM1375: before it the same value reached the page unescaped after Markdown had run, on
+  the read-list path since SM1365 (0.16.5) and on the front-matter gate's path before
+  that. Who writes it: a front-matter `auth_groups` list is the page's author, and a read
+  list's names are written by whoever may set the folder's rule. Group names the users
+  tool makes are `[A-Za-z0-9_-]`, but a rule's `@name` is not checked for shape (an
+  unknown name beside a known one is stored and reported, SM912). Each writer can already
+  put markup in a page it writes (a page's content passes HTML through, by design;
+  boundary 4), so nobody gains a power they lacked; what differs is that a rule's name
+  renders on the 403 of every page in its folder.
+: SM1378: the warning quotes a layout's own `requires.lazysite` value and name in a JSON
+  answer to the manager, MCP and the control API, never into a page; a layout is trusted
+  code by boundary 4, installed by a holder of `manage_layouts`.
+
+controls
+: SM1375: t/integration/350 renders both refusals and finds the list. SM1378:
+  t/unit/manager/470 (older, equal, newer, absent and malformed requirements, on install,
+  activation and a domain's layout); the version compared is the installed engine's, read
+  from the install state, never from a request.
+
+residual risk
+: SM1375: a group name with markup in a read list or a front-matter gate renders as markup
+  on the 403 page until the stash escapes `auth_required_groups` as it escapes
+  `auth_groups` (one line in `render.pm`, with a test). This walk changes no code; the
+  follow-up is for the release manager to rule and file. SM1378: the warning is advice; a
+  layout that needs a newer engine is installed and served, and may render without parts
+  of itself until the engine is upgraded.
+
+verdict
+: accepted, proposed by the developer agent at the 0.16.6 compliance walk, for the release
+  manager's confirmation. No trigger fired; recorded because what the 403 page renders,
+  and how it is escaped, was found at this walk to differ from what its change says.
