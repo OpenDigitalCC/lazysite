@@ -626,9 +626,11 @@ sub _active_artifact_guard {
         : $DOCROOT;
     my ( $layout, $theme )
         = Lazysite::Manager::Themes::active_layout_and_theme();
+    # SM1339 (ruling 109): and the theme each secondary domain serves.
+    my $served = Lazysite::Manager::Common::domain_active_themes( docroot => $DOCROOT );
     for my $rel (@rels) {
         next unless defined $rel;
-        if ( my ( $err, $why ) = active_artifact_refusal( $rel, $layout, $theme ) ) {
+        if ( my ( $err, $why ) = active_artifact_refusal( $rel, $layout, $theme, $served ) ) {
             return { ok => 0, error => $err, kind => 'active-artifact-refused', audit_detail => $why };
         }
         # SM976 F1: and a theme or layout another site serves is that site's.

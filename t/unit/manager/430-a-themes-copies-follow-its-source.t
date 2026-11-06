@@ -44,17 +44,19 @@ sub slurp {
 }
 
 # No primary layout, so nothing is the instance's active pair (SM749 would
-# refuse it); the secondary domain serves gallery/clarity from its own root.
+# refuse it); the secondary domain serves gallery/own from its own root, and
+# clarity is no host's theme (ruling 109 holds a domain's active theme
+# read-only, as the primary's): pages pin it, and every host has its copy.
 put( 'lazysite/lazysite.conf', <<'CONF' );
 site_name: T
 site_url: https://primary.example
 alias_hosts: two.example
 alias.two.example.content_root: sites/two
 alias.two.example.layout: gallery
-alias.two.example.theme: clarity
+alias.two.example.theme: own
 CONF
 put( 'lazysite/layouts/gallery/layout.tt', "[% content %]\n" );
-for my $t (qw(clarity other)) {
+for my $t (qw(clarity other own)) {
     put( "lazysite/layouts/gallery/themes/$t/theme.json",
         JSON::PP::encode_json( { name => $t, config => { colours => { primary => '#123456' } } } ) );
     put( "lazysite/layouts/gallery/themes/$t/assets/main.css", "/* $t v1 */\n" );
@@ -82,7 +84,7 @@ sub renders {
     put( 'content/other.html', qq{<link href="/lazysite-assets/gallery/other/main.css?v=1">O\n} );
     put( 'content/plain.md',   "---\ntitle: N\n---\nN\n" );
     put( 'content/plain.html', qq{<link href="/lazysite-assets/elsewhere/x/main.css">N\n} );
-    put( 'sites/two/index.md', "---\ntitle: Two\n---\nTwo\n" );
+    put( 'sites/two/index.md', "---\ntitle: Two\ntheme: clarity\n---\nTwo\n" );
     put( 'sites/two/index.html', qq{<link href="/lazysite-assets/gallery/clarity/main.css">Two\n} );
     put( 'lazysite/cache/hosts/three.example/content/pinned.html',
         qq{<link href="/lazysite-assets/gallery/clarity/main.css">P\n} );
@@ -108,7 +110,7 @@ subtest 'a source write reaches every host\'s copy of that theme' => sub {
 
 subtest 'the renders that use the theme go, and no others' => sub {
     ok( !-e "$d/content/pinned.html", 'the page that pins it' );
-    ok( !-e "$d/sites/two/index.html", 'the secondary domain\'s page, whose host serves it' );
+    ok( !-e "$d/sites/two/index.html", 'the secondary domain\'s page that pins it' );
     ok( !-e "$d/lazysite/cache/hosts/three.example/content/pinned.html", 'an alias host\'s copy of a render' );
     ok( -e "$d/content/other.html", 'a page on another theme stays' );
     ok( -e "$d/content/plain.html", 'and one on another layout' );
@@ -134,6 +136,18 @@ subtest 'a binary upload, a copy and a delete in the source follow too' => sub {
     ok( $r->{ok}, 'deleted' ) or diag explain $r;
     ok( !-e "$d/lazysite-assets/gallery/clarity/photo.jpg", 'gone from the docroot\'s copy' );
     ok( !-e "$d/sites/two/lazysite-assets/gallery/clarity/photo.jpg", 'and from the secondary copy' );
+};
+
+subtest 'a source write makes a host\'s missing copy (ruling 111)' => sub {
+    # A copy removed by hand, or a host whose copy was never written: the next
+    # source write writes it, as every other host's.
+    system( 'rm', '-rf', "$d/sites/two/lazysite-assets/gallery/clarity" );
+    my $r = Lazysite::Manager::Files::action_save( "$SRC/assets/main.css", 'op', "/* clarity v3 */\n" );
+    ok( $r->{ok}, 'saved' ) or diag explain $r;
+    is( slurp('sites/two/lazysite-assets/gallery/clarity/main.css'), "/* clarity v3 */\n",
+        'the secondary domain has its copy again' );
+    ok( -s "$d/sites/two/lazysite-assets/gallery/clarity/.fingerprint", 'with its version' );
+    is( $r->{mirrors_refreshed}{copies}, 2, 'and the reply counts it' );
 };
 
 subtest 'a theme whose source is gone takes its copies with it' => sub {

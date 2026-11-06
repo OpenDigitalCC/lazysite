@@ -11,6 +11,12 @@
 # source and the hosts that serve it, each with whether the theme is active
 # there - list_files showed three copies alike and nothing said which was live.
 #
+# Ruling 109: and the theme a secondary domain serves as its own is read-only
+# as the primary's is - its SOURCE refused in place, naming the domain and the
+# copy-edit-activate workflow, on the manager stack here and over WebDAV in
+# t/unit/dav/38. A theme only pages pin stays writable. And theme-copy takes
+# the theme by the path that refusal gives, lazysite/layouts/<L>/themes/<T>.
+#
 # With the fix reverted, every write lands and the listing carries no mark.
 use strict;
 use warnings;
@@ -47,7 +53,7 @@ alias.harmony2050.org.content_root: sites/harmony2050.org
 alias.harmony2050.org.theme: harmony-r3
 CONF
 put( 'lazysite/layouts/harmony/layout.tt', "[% content %]\n" );
-for my $t (qw(base harmony-r3)) {
+for my $t (qw(base harmony-r3 spare)) {
     put( "lazysite/layouts/harmony/themes/$t/theme.json", qq({"name":"$t"}) );
     put( "lazysite/layouts/harmony/themes/$t/assets/main.css", "/* $t */\n" );
 }
@@ -102,8 +108,45 @@ subtest 'what is not a served copy is not refused (controls)' => sub {
     ok( $r->{ok}, 'copying OUT of a copy reads it, and is allowed' ) or diag explain $r;
     $r = $F->can('action_delete')->( 'lazysite-assets/harmony/gone/main.css', 'op' );
     ok( $r->{ok}, 'a copy of a theme no longer installed is cleanup, and is allowed' ) or diag explain $r;
-    $r = $F->can('action_save')->( "$SRC/main.css", 'op', "/* r3 v2 */\n" );
-    ok( $r->{ok}, 'the source itself is written' ) or diag explain $r;
+    $r = $F->can('action_save')->( 'lazysite/layouts/harmony/themes/spare/assets/main.css', 'op', "/* v2 */\n" );
+    ok( $r->{ok}, 'the source of a theme no host serves is written' ) or diag explain $r;
+};
+
+subtest 'a secondary domain\'s active theme is read-only, as the primary\'s (ruling 109)' => sub {
+    my $F = 'Lazysite::Manager::Files';
+    for my $try (
+        [ 'save',   $F->can('action_save')->( "$SRC/main.css", 'op', "/* r3 v2 */\n" ) ],
+        [ 'upload', $F->can('action_save_binary')->( "$SRC/photo.jpg", 'op', 'JPEG' ) ],
+        [ 'delete', $F->can('action_delete')->( "$SRC/main.css", 'op' ) ],
+        [ 'copy into', $F->can('action_copy')->( 'content/page.md', "$SRC/page.md", 'op' ) ] )
+    {
+        my ( $label, $r ) = @$try;
+        ok( !$r->{ok}, "$label into harmony-r3's source: refused" ) or diag explain $r;
+        is( $r->{kind}, 'active-artifact-refused', "$label: by the active-theme rule" );
+        like( $r->{error} // '', qr/active theme of harmony2050\.org.*copy_theme.*with host/s,
+            "$label: naming the domain and the workflow" );
+    }
+    is( do { open my $f, '<', "$d/$SRC/main.css"; local $/; <$f> }, "/* harmony-r3 */\n", 'the source is untouched' );
+    my $r = $F->can('action_save')->( 'lazysite/layouts/harmony/themes/base/assets/main.css', 'op', "x\n" );
+    is( $r->{kind}, 'active-artifact-refused', 'the primary\'s active theme is refused as before' );
+    unlike( $r->{error} // '', qr/harmony2050/, '...in the primary\'s words' );
+};
+
+subtest 'theme-copy takes the theme by its path too' => sub {
+    my $T = 'Lazysite::Manager::Themes';
+    my $r = $T->can('action_theme_copy')->( 'lazysite/layouts/harmony/themes/harmony-r3', 'harmony-r4' );
+    ok( $r->{ok}, 'the path the refusal names is accepted' ) or diag explain $r;
+    is( $r->{from}, 'harmony-r3', '...as the theme' );
+    is( $r->{layout}, 'harmony', '...under the layout it names' );
+    ok( -f "$d/lazysite/layouts/harmony/themes/harmony-r4/assets/main.css", 'the copy is made' );
+    $r = $T->can('action_theme_copy')->( '/lazysite/layouts/harmony/themes/spare/', 'spare-2', { layout => 'harmony' } );
+    ok( $r->{ok}, 'with slashes either side, and the same layout given' ) or diag explain $r;
+    $r = $T->can('action_theme_copy')->( 'lazysite/layouts/harmony/themes/spare', 'spare-3', { layout => 'other' } );
+    ok( !$r->{ok}, 'a path naming another layout than `layout` is refused' );
+    like( $r->{error} // '', qr/'harmony'.*'other'/, '...naming both' );
+    ok( !-e "$d/lazysite/layouts/harmony/themes/spare-3", '...and nothing is copied' );
+    $r = $T->can('action_theme_copy')->( 'lazysite/layouts/harmony/themes/../x', 'bad' );
+    ok( !$r->{ok}, 'a malformed name in the path is still refused' );
 };
 
 subtest 'a listing marks a copy, its source and the hosts that serve it' => sub {

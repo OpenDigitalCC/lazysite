@@ -13,6 +13,11 @@
 # files drops its renders; and a PUT, MKCOL, DELETE, MOVE or COPY into a served
 # copy is refused, naming the source path.
 #
+# Ruling 110, the 05/11 inbox case: a PUT to the served copy of the PRIMARY's
+# active theme answered 204 while its source answered 403 - the copy is refused
+# as every copy is, whoever asks. Ruling 109: the theme a secondary domain
+# serves as its own is read-only as the primary's is.
+#
 # With the fix reverted the copies keep the old bytes, the renders stay, and the
 # writes into a copy land.
 use strict;
@@ -32,7 +37,8 @@ webdav_enabled: true
 site_name: T
 alias_hosts: two.example
 alias.two.example.content_root: sites/two
-alias.two.example.layout: plain
+alias.two.example.layout: site2
+alias.two.example.theme: own
 CONF
 my $d = $s->{docroot};
 # gallery/clarity is no host's: the pages that pin it (SM120) are what serve it,
@@ -55,11 +61,18 @@ sub dav { run_dav( $d, $_[0], $_[1], HTTP_AUTHORIZATION => $s->{auth}, @_[ 2 .. 
 put( 'lazysite/layouts/gallery/layout.tt', "[% content %]\n" );
 put( 'lazysite/layouts/gallery/themes/clarity/theme.json', '{"name":"clarity","config":{"colours":{"primary":"#123"}}}' );
 put( 'lazysite/layouts/gallery/themes/clarity/assets/main.css', "/* v1 */\n" );
-{
+put( 'lazysite/layouts/site2/layout.tt', "[% content %]\n" );
+for my $lt (qw(site2/own gallery/live)) {
+    my ( $l, $t ) = split m{/}, $lt;
+    put( "lazysite/layouts/$l/themes/$t/theme.json", qq({"name":"$t"}) );
+    put( "lazysite/layouts/$l/themes/$t/assets/main.css", "/* $t */\n" );
+}
+sub mirror_all {
     local $Lazysite::Manager::Themes::DOCROOT      = $d;
     local $Lazysite::Manager::Themes::LAZYSITE_DIR = "$d/lazysite";
-    Lazysite::Manager::Themes::_mirror_theme_assets( 'gallery', 'clarity' );
+    Lazysite::Manager::Themes::_mirror_theme_assets( split m{/} ) for qw(gallery/clarity site2/own gallery/live);
 }
+mirror_all();
 sub renders {
     put( 'content/pinned.md',   "---\ntitle: P\nlayout: gallery\ntheme: clarity\n---\nP\n" );
     put( 'content/pinned.html', qq{<link href="/lazysite-assets/gallery/clarity/main.css?v=1">P\n} );
@@ -127,6 +140,30 @@ subtest 'reading a copy, and copying out of it, are not writes to it (controls)'
     put( 'lazysite-assets/gallery/gone/x.css', "orphan\n" );
     is( dav( 'DELETE', '/lazysite-assets/gallery/gone' )->{code}, 204,
         'a copy of a theme no longer installed is cleanup' );
+};
+
+subtest 'a secondary domain\'s active theme is read-only over WebDAV too (ruling 109)' => sub {
+    my $r = dav( 'PUT', '/lazysite/layouts/site2/themes/own/assets/main.css', body => "x\n" );
+    is( $r->{code}, 403, 'PUT into its source: 403' ) or diag explain $r;
+    like( $r->{headers}{'x-lazysite-deny-reason'} // '', qr/active theme of two\.example/,
+        'the reason names the domain that serves it' );
+    is( slurp('lazysite/layouts/site2/themes/own/assets/main.css'), "/* own */\n", 'the source is untouched' );
+};
+
+subtest 'the served copy of the primary\'s active theme is refused as its source is (ruling 110)' => sub {
+    # The 05/11 inbox: the source 403, the copy the pages link 204.
+    open my $ap, '>>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$ap} "layout: gallery\ntheme: live\n";
+    close $ap;
+    my $r = dav( 'PUT', '/lazysite/layouts/gallery/themes/live/assets/main.css', body => "x\n" );
+    is( $r->{code}, 403, 'PUT into the active theme\'s source: 403' ) or diag explain $r;
+    $r = dav( 'PUT', '/lazysite-assets/gallery/live/main.css', body => "x\n" );
+    is( $r->{code}, 403, 'PUT into its served copy: 403' ) or diag explain $r;
+    like( $r->{headers}{'x-lazysite-deny-reason'} // '', qr{lazysite/layouts/gallery/themes/live/assets/main\.css},
+        'the reason names the source file' );
+    is( slurp('lazysite-assets/gallery/live/main.css'), "/* live */\n", 'the copy is untouched' );
+    is( dav( 'DELETE', '/sites/two/lazysite-assets/gallery/live/main.css' )->{code}, 403,
+        'and a DELETE in the secondary\'s copy of it' );
 };
 
 done_testing;

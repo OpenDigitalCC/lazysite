@@ -1917,6 +1917,18 @@ sub action_theme_delete {
 sub action_theme_copy {
     my ( $from, $to, $opts ) = @_;
     $opts ||= {};
+    # SM1339: the theme by its path too - lazysite/layouts/<layout>/themes/<name>,
+    # the form the active-theme refusal and the theme's own `path` field give. A
+    # caller that copied it from either was told the name was malformed. The
+    # layout it names is the layout, and must agree with `layout` when both are
+    # given.
+    if ( defined $from && $from =~ m{\A/*lazysite/layouts/([^/]+)/themes/([^/]+?)/*\z} ) {
+        my ( $pl, $pt ) = ( $1, $2 );
+        return { ok => 0, kind => 'validation', field => 'layout',
+            error => "the path names layout '$pl' and layout names '$opts->{layout}'; give one, or the same in both" }
+            if defined $opts->{layout} && length $opts->{layout} && $opts->{layout} ne $pl;
+        ( $from, $opts ) = ( $pt, { %$opts, layout => $pl } );
+    }
     # SM861: validated, not rewritten - and `to` keeps the case it was given.
     # Lower-casing it meant the copy landed somewhere other than where the
     # caller asked, and that the existence check below tested the FOLDED name,

@@ -61,7 +61,10 @@ Archive
   whole at the source's next write and reaches no other host. Reading a copy, copying out of
   one and removing the copy of a theme no longer installed are not refused. `list_files` and
   the Files page mark each copy `served_copy`, with its `source` and the hosts that serve it
-  (`served_by`, each with `theme_active`).
+  (`served_by`, each with `theme_active`). Ruling 109: the theme a secondary domain serves as
+  its own is read-only on every surface as the primary's is, the refusal naming the domain and
+  copy, edit, activate with `host`. `theme-copy` and `copy_theme` take the theme by its path,
+  `lazysite/layouts/<layout>/themes/<theme>`, as well as by its name.
 
 - SM1336 (PENDING) **Every served copy of a theme carries its tokens and its version.** Ruling
   81: an installed theme (Upload Theme, `install_theme`) and a copied theme (`theme-copy`,
@@ -73,7 +76,8 @@ Archive
   content root's) and drops the cached pages that use it, a page pinning it by `theme:`
   included; a write to a layout's own files drops the pages that use the layout. An edit to an
   inactive theme reaches the pages that pin it with no activation, and a secondary domain's
-  copy is no longer the one written at the theme's creation. One theme per write, never the
+  copy is no longer the one written at the theme's creation; a host whose copy is missing gets
+  it at the next write (ruling 111). One theme per write, never the
   site's; a link or a server-run file in a theme's `assets/` is not copied into any copy.
 
 - SM1342 (PENDING) **A /docs anchor lands on its heading.** The manual wrote its section

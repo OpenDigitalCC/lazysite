@@ -6,7 +6,7 @@ brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-11-04
-raised-by: "the sites agent (2026-11-04 inbox: an inactive theme's edit never reaches its served copy; the gallery redeploy observations, §1); ruling 81 (Q13) with triage T-32, T-38 and T-39"
+raised-by: "the sites agent (2026-11-04 inbox: an inactive theme's edit never reaches its served copy; the gallery redeploy observations, §1); ruling 81 (Q13) with triage T-32, T-38 and T-39; rulings 111 and 112 (Q43, Q44)"
 area: themes
 status-note: "SHIPPED (PENDING) on n747: Manager::Themes::follow_source_write, asked by Files (save, save_binary, delete, move, copy), the multipart upload, WebDAV (PUT, DELETE, MOVE, COPY), create_theme and theme_delete. _mirror_theme_assets refuses a link or a server-run file in assets/. t/unit/manager/430, t/unit/dav/38, t/unit/mcp/73."
 ---
@@ -39,14 +39,16 @@ surface asks after a write:
 - **A theme's source written** (`lazysite/layouts/<L>/themes/<T>/...`): that
   theme is re-mirrored through `_mirror_theme_assets` to every host's copy, with
   the build-beside-and-switch (SM756), tokens (SM352) and fingerprint (SM830) of
-  every other mirror write. A theme whose source is gone takes its copies with it.
+  every other mirror write. A host whose copy is missing - never written, or
+  removed - gets it then too (ruling 111). A theme whose source is gone takes
+  its copies with it.
 - **A layout's own files written** (`layout.tt`, `layout.json`, `strings/`): no
   copy to refresh.
 - **Either way**, the cached renders that use it are dropped: the content tree's
   renders beside their sources, and every alias host's slot (SM110). Which pages
   use a theme is read from the renders themselves, which link the theme's copy by
   path (`/lazysite-assets/<L>/<T>/`), so a host's theme, a page's pin and a
-  section's (SM812) are found alike.
+  section's (SM812) are found alike (ruling 112).
 - **Bounded**: one theme per theme written, however many files the write
   carried (a multipart upload is one call), never every theme of the site.
 
@@ -77,7 +79,8 @@ the web server runs, naming the entry, and the copy before it stays served.
   leaves another theme's copy alone; the pinning page's render, the secondary
   domain's and an alias host's go, the others stay; a layout.tt save drops every
   render on the layout; upload, copy and delete follow; a removed source takes its
-  copies; a link in assets/ is refused and the copy before it stays.
+  copies; a link in assets/ is refused and the copy before it stays; a removed
+  secondary copy is written again at the next source write.
 - t/unit/dav/38: the same over WebDAV, PUT, MOVE and DELETE, and a PUT to a pinned
   layout's template.
 - t/unit/mcp/73: `write_file` to the source reaches the secondary copy.

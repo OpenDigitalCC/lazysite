@@ -37,6 +37,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
+    domain_active_themes
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
     %USER_CAPS $REQUEST_IP _request_ip _display_names _operator
@@ -2356,8 +2357,16 @@ sub brief_write_refusal {
 #
 # Returns the refusal text, or undef when $rel is not inside the active theme
 # or the active layout (including any path that is not under lazysite/layouts).
+#
+# SM1339 (ruling 109): AND A SECONDARY DOMAIN'S ACTIVE THEME, AS THE PRIMARY'S.
+# The rule held the instance's own pair only, so the theme harmony2050.org
+# serves was written in place - every file of it a visitor there could meet
+# half-updated, the very thing this rule exists to stop. $served (optional) is
+# domain_active_themes(): { "<layout>\0<theme>" => [hosts] }, read by the caller
+# as it reads the active pointers, so the rule stays pure. The workflow is the
+# same, ending in an activation for that domain.
 sub active_artifact_refusal {
-    my ( $rel, $active_layout, $active_theme ) = @_;
+    my ( $rel, $active_layout, $active_theme, $served ) = @_;
     return unless defined $rel;
     $rel =~ s{^/+}{};
     my ( $layout, $rest ) = $rel =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
@@ -2365,6 +2374,22 @@ sub active_artifact_refusal {
     $rest          //= '';
     $active_layout //= '';
     $active_theme  //= '';
+    if ( ref $served eq 'HASH' && $rest =~ m{^themes/([^/]+)} ) {
+        my $theme = $1;
+        my @hosts = @{ $served->{"$layout\0$theme"} || [] };
+        return _refusal(
+            "the theme '$theme' (layout '$layout') is the active theme of "
+                . join( ', ', @hosts )
+                . ' and is read-only on every surface, as the primary site\'s is. To change '
+                . "a live theme: copy it (copy_theme over MCP, theme-copy on the control API, "
+                . 'or Copy on the manager Themes page), edit the copy, then activate the copy '
+                . 'for that domain (activate_theme / theme-activate with host). A theme apply '
+                . 'is atomic; a file written into the theme being rendered is not.',
+            'active-artifact-refused',
+            "theme '$theme' is the one " . join( ', ', @hosts ) . ' serves',
+            'copy_theme / theme-copy, edit the copy, then activate it with host'
+        ) if @hosts && !( $layout eq $active_layout && $theme eq $active_theme );
+    }
     return unless length $active_layout && $layout eq $active_layout;
 
     if ( $rest =~ m{^themes/([^/]+)} ) {
@@ -2397,6 +2422,29 @@ sub active_artifact_refusal {
         "layout '$layout' is the one being served",
         'install or edit another layout, then activate it'
     );
+}
+
+# SM1339 (ruling 109): the theme each secondary domain serves as its own, for
+# active_artifact_refusal - { "<layout>\0<theme>" => [hosts] }, the primary
+# ('(default)') left out, since the caller passes its pair as the active
+# pointers. Effective values (Domains::domain_usage), so a domain that pins a
+# theme under the inherited layout is counted. Unreadable configuration is {}:
+# the primary's pair is still held.
+sub domain_active_themes {
+    my (%o) = @_;
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT
+        = length( $o{docroot} // '' ) ? $o{docroot}
+        :   $Lazysite::Manager::Domains::DOCROOT // $DOCROOT // $ENV{DOCUMENT_ROOT};
+    my $use = eval { Lazysite::Manager::Domains::domain_usage() };
+    return {} unless ref $use eq 'HASH';
+    my %out;
+    for my $pair ( keys %{ $use->{themes} || {} } ) {
+        my @hosts = grep { $_ ne '(default)' } @{ $use->{themes}{$pair} || [] };
+        $out{$pair} = \@hosts if @hosts;
+    }
+    return \%out;
 }
 
 sub raw_html_page_refusal {

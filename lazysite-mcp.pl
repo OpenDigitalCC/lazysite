@@ -1795,7 +1795,7 @@ my %TOOLS = (
         inputSchema => {
             type       => 'object',
             properties => {
-                theme => { type => 'string', description => 'the theme to copy (its directory name)' },
+                theme => { type => 'string', description => 'the theme to copy: its directory name, or its path lazysite/layouts/<layout>/themes/<name> (which names the layout too)' },
                 new_name => { type => 'string', description => 'the name for the copy ([A-Za-z0-9_-]+, lower-cased)' },
                 layout => { type => 'string', description => 'the layout both live under; default the active layout' },
             },

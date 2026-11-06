@@ -425,7 +425,8 @@ whole `lazysite/` tree is denied to writes by default.
 
 **The theme a site is currently using cannot be edited in place - on any
 surface.** WebDAV, the control API, MCP and the manager all refuse a write into
-the active theme (or the active layout), deliberately: a live theme being
+the active theme (or the active layout) - the primary site's, and the theme any
+other domain on the instance serves as its own - deliberately: a live theme being
 rewritten mid-request would serve a half-updated site to whoever was reading at
 that moment. A theme apply is atomic; a stream of file writes into the theme
 being rendered is not. It is design, not obstruction, and the refusal is the
@@ -435,12 +436,15 @@ So a theme change is always **copy, edit, activate**:
 
 1. **Copy** the live theme: `copy_theme` (MCP: `{theme, new_name}`),
    `POST action=theme-copy&path=<theme>` with `{"new_name": "..."}` on the
-   control API, or **Copy** on the manager's Themes page. The copy carries the
+   control API, or **Copy** on the manager's Themes page. The theme is named by
+   its directory name or by its path, `lazysite/layouts/<layout>/themes/<theme>`,
+   as the refusal gives it. The copy carries the
    source's files and asset mirror and is yours to delete.
 2. **Edit** the copy, under `lazysite/layouts/<layout>/themes/<new_name>/`, with
    `write_file` / `replace_text` / `PUT` as usual - a non-active theme accepts
    writes with `manage_themes`.
-3. **Activate** the copy: `activate_theme` / `theme-activate`. The pointer moves
+3. **Activate** the copy: `activate_theme` / `theme-activate` (with `host` for
+   another domain's theme). The pointer moves
    once, the mirror is rebuilt once, the cache clears once.
 
 The old theme stays where it is until you remove it, which is also your rollback.
