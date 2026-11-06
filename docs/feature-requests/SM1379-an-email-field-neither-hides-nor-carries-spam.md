@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (ruling 133, triage T-34)"
 area: forms
-status-note: "SHIPPED (PENDING) on n760, ruling 133: _one_value_everywhere leaves email fields out; _email_field_injection quarantines quotes or SQL in an email field, naming the field only. Register entry drafted. t/unit/forms/75."
+status-note: "SHIPPED (PENDING) on n760, ruling 133: _one_value_everywhere leaves email fields out; _email_field_injection quarantines quotes or SQL in an email field, naming the field only; ruling 138: one apostrophe in the local part passes. Register entry drafted. t/unit/forms/75."
 ---
 
 # What happened
@@ -33,12 +33,17 @@ Ruling 133:
   rules sidecar is covered by the second: validate_fields has already refused any
   value of it that is not an address. The three-field minimum now counts the
   other fields.
-- **An email field holding quotes or SQL is quarantined**: a quote or backtick,
-  `/*` or `-- `, or SQL-shaped text (`UNION SELECT`, `DROP TABLE`,
-  `OR 1=1`, `SLEEP(`). Stored and flagged, never refused, as SM913 ruled. The
-  reason names the field and does not repeat the value.
+- **An email field holding quotes or SQL is quarantined**: a double quote or
+  backtick, an apostrophe other than one in an address's local part, `/*` or
+  `-- `, or SQL-shaped text (`UNION SELECT`, `DROP TABLE`, `OR 1=1`, `SLEEP(`).
+  Stored and flagged, never refused, as SM913 ruled. The reason names the field
+  and does not repeat the value.
 
-# Known cost
+# One apostrophe passes (ruling 138)
 
-An address with a legal apostrophe (`o'brien@...`) is quarantined. The cost is
-one message read from the Quarantine filter instead of the bell.
+Ruling 138 (release manager, 2026-11-06): a single apostrophe in an email's local
+part passes, so `o'brien@example.org` is not quarantined. As first built, any
+apostrophe quarantined, which held back real addresses. Two apostrophes, one in
+the domain, or one in a value that is not an address still quarantine, and so do
+double quotes, backticks, SQL comments and SQL-shaped text, apostrophe or not.
+t/unit/forms/75 tests both sides.

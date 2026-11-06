@@ -903,9 +903,11 @@ sub _email_fields {
 # quarantine here would pre-empt that record. A semicolon followed by SQL is
 # still caught by the SQL shapes.
 #
-# A quote IS legal in an address's local part (o'brien@...) and such an address
-# is quarantined too; ruling 133 accepted that, because the cost of the miss is
-# one message read from the Quarantine filter instead of the bell.
+# ONE APOSTROPHE IN THE LOCAL PART PASSES (ruling 138, 2026-11-06). It is legal
+# there and real addresses carry it (o'brien@example.org), so an address with a
+# single apostrophe before the @ is not a probe by that alone. A second one, an
+# apostrophe in the domain or outside an address, a double quote and a backtick
+# still quarantine, as do the SQL comments and shapes below, whatever the quotes.
 sub _email_field_injection {
     my ($form) = @_;
     my %email = _email_fields($form);
@@ -913,7 +915,8 @@ sub _email_field_injection {
         my $v = $form->{$k};
         next if !defined $v || ref $v || !length $v;
         return "the email field '$k' holds quotes or SQL"
-            if $v =~ /['"`]/
+            if $v =~ /["`]/
+            || ( $v =~ /'/ && !_one_local_part_apostrophe($v) )
             || $v =~ m{/\*|--(?:\s|\z)}
             || $v =~ m{ \b (?: select \b .* \b from
                         | union \b .* \b select
@@ -927,6 +930,14 @@ sub _email_field_injection {
                         | (?: or | and ) \s+ \d+ \s* = \s* \d+ ) }xi;
     }
     return '';
+}
+
+# SM1379 (ruling 138): is this one address whose only apostrophe is one in its
+# local part?
+sub _one_local_part_apostrophe {
+    my ($v) = @_;
+    return 0 unless ( $v =~ tr/'// ) == 1;
+    return $v =~ /\A\s*[^\s\@']*'[^\s\@']*\@[^\s\@'.]+(?:\.[^\s\@'.]+)+\s*\z/ ? 1 : 0;
 }
 
 # SM115: one line per submission in the audit trail - the submitter is the

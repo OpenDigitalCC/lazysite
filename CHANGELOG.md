@@ -57,7 +57,8 @@ Archive
   quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
   counted the email field, so a random address defeated it; email fields (named so, or
   holding only an address) are now left out. An email field holding quotes, an
-  SQL comment or SQL-shaped text quarantines the submission, the reason naming the field.
+  SQL comment or SQL-shaped text quarantines the submission, the reason naming the field;
+  one apostrophe in an address's local part (`o'brien@example.org`) passes (ruling 138).
   Quarantined, never refused. Register entry drafted.
 
 - SM1378 (PENDING) **A layout says the engine it needs, and installing or activating it on an

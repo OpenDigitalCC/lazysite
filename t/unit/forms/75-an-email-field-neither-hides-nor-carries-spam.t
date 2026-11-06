@@ -148,9 +148,49 @@ subtest 'an email field holding quotes or SQL is quarantined' => sub {
         contact => q{o'x@example.com},
         message => 'Hello there, a question about pricing.',
     );
-    ok( $r, 'a declared type=email field with a quote passes the shape check' ) or return;
-    like( $r->{_spam_reason} // '', qr/the email field 'contact'/,
-        'and is quarantined: what the declaration lets through is address-shaped' );
+    ok( $r, 'a declared type=email field with an apostrophe passes the shape check' ) or return;
+    ok( !$r->{_quarantined}, '  and one apostrophe in its local part is not quarantined (ruling 138)' )
+        or diag( $r->{_spam_reason} );
+    $r = submit( 'declared',
+        contact => q{o''x@example.com},
+        message => 'Hello there, a question about pricing.',
+    );
+    like( ( $r && $r->{_spam_reason} ) // '', qr/the email field 'contact'/,
+        'two are quarantined: what the declaration lets through is address-shaped' );
+};
+
+# Ruling 138 (2026-11-06): a single apostrophe in an address's local part is
+# legal and real (o'brien@...), and passes. Double quotes, backticks, SQL
+# comments and SQL-shaped text still quarantine, apostrophe or not.
+subtest 'one apostrophe in the local part passes; the rest still quarantine (ruling 138)' => sub {
+    for my $addr ( q{o'brien@example.org}, q{d'arcy.smith@example.co.uk}, q{'quoted@example.net} ) {
+        my $r = submit( 'contact',
+            name    => 'Ada Lovelace',
+            email   => $addr,
+            message => 'Could you send me a quote for a five-page site? Thank you.',
+        );
+        ok( $r && !$r->{_quarantined}, "$addr is not quarantined" )
+            or diag( $r ? $r->{_spam_reason} : 'not stored' );
+    }
+    my %still = (
+        'two apostrophes'                  => q{o'brien'@example.org},
+        'an apostrophe in the domain'      => q{obrien@exam'ple.org},
+        'an apostrophe and no address'     => q{o'brien},
+        'a double quote'                   => q{"o'brien"@example.org},
+        'a backtick'                       => q{o`brien@example.org},
+        'an SQL comment after the address' => q{o'brien@example.org --},
+        'a comment opener'                 => q{o'brien@example.org/*},
+        'SQL-shaped text'                  => q{o'brien@example.org OR 1=1},
+    );
+    for my $case ( sort keys %still ) {
+        my $r = submit( 'contact',
+            name    => 'Ada Lovelace',
+            email   => $still{$case},
+            message => 'Could you send me a quote for a five-page site? Thank you.',
+        );
+        ok( $r, "$case: stored, never refused" ) or next;
+        like( $r->{_spam_reason} // '', qr/the email field 'email' holds quotes or SQL/, "$case: quarantined" );
+    }
 };
 
 subtest 'ordinary addresses are left alone' => sub {

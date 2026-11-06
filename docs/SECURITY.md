@@ -2884,13 +2884,18 @@ what changed
 : The form handler's quarantine (`extensions/form-handler.pl`, `_spam_assessment`) gains
   one signal and corrects another. An email field (named so, or holding only an address)
   that holds a quote, an SQL comment marker or SQL-shaped text quarantines
-  the submission, the reason naming the field and never the value. SM913 S3's "one value
+  the submission, the reason naming the field and never the value. Ruling 138
+  (2026-11-06): a single apostrophe in an address's local part passes
+  (`o'brien@example.org`); double quotes, backticks, a second apostrophe or one outside
+  the local part, SQL comments and SQL-shaped text still quarantine. SM913 S3's "one value
   in every field" rule leaves email fields out, so a random address no longer defeats it.
 
 threat delta
 : Abuse detection widened on a public, unauthenticated surface. Quarantine stores and
-  flags; nothing is refused, so a false positive (an address with a legal apostrophe,
-  `o'brien@...`) costs a message read from the Quarantine filter instead of the bell.
+  flags; nothing is refused, so a false positive costs a message read from the
+  Quarantine filter instead of the bell; the commonest one, an address with a legal
+  apostrophe, is no longer one (ruling 138). A probe made of one apostrophe in an
+  otherwise plain address passes; it carries no SQL, which the other shapes read.
   The probe's text is stored as submitted, as before, and is never interpolated into a
   query: storage is the file and table handlers' own, unchanged. The stored reason holds
   the field name only. No trigger of ADR 0007's four fires: no interface,
