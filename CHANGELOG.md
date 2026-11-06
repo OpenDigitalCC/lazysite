@@ -60,8 +60,8 @@ Archive
   new-processing-of-restricted-data are their triggers' assessments, contained. Drafted at
   the walk, for the release manager's confirmation: an entry for SM1375 and SM1378, trust
   boundary 15 (an extension's code in a core process), three STRIDE rows and four
-  operate-side rows. Found at the walk: the 403 page's group names are not escaped by the
-  stash, which the entry records for a ruling. SM1373, SM1374 and SM1375 gain their filings;
+  operate-side rows. Found at the walk: the 403 page's group names were not escaped by the
+  stash; escaped in 0.16.6 under SM1375 (ruling 141). SM1373, SM1374 and SM1375 gain their filings;
   UPGRADE.md's 0.16.6 notes are one section. Docs only; nothing is signed.
 
 - SM1379 (PENDING) **A form's quarantine leaves email fields out of the repetition rule and
@@ -138,7 +138,11 @@ Archive
   them as "- reviewers" lines run into one paragraph, on a front-matter group gate and on an
   ACL read-list refusal alike: Markdown reads the page before Template Toolkit fills it, and
   the loop's directive line kept the list from starting. The template writes the list as
-  HTML, so the groups render as a list. A site with its own `403.md` is unchanged.
+  HTML, so the groups render as a list. A site with its own `403.md` is unchanged. Ruling
+  141: the group names are HTML-escaped where the stash is built, as SM709 escapes the other
+  auth values; a read list naming a group with markup rendered it as markup on the page.
+  A hardening (only an account that can write a page's markup writes a read list's names).
+  Register entry confirmed (ruling 141).
 
 - SM1370 (PENDING) **A token follows its account's grant (ruling 121).** Measured first: no
   token door fixes a capability into a credential - an lzs_ token verifies through

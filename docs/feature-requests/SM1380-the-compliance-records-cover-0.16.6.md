@@ -65,14 +65,14 @@ the support period.
 
 # Found at the walk
 
-- **The 403 page's group names are not escaped.** SM1375's commit says the stash
+- **The 403 page's group names were not escaped.** SM1375's commit says the stash
   escapes the `auth_*` values (SM709); it escapes `auth_user`, `auth_name`,
   `auth_email` and `auth_groups`, not `auth_required_groups`. Measured on the tip
   through the test helper: a read list naming `@<i>bad</i>` renders
   `<li><i>bad</i></li>` on a refused visitor's 403 page. It predates SM1375 and is
   written only by an account that can already put markup in a page, so the walk judges
-  it no vulnerability and changes no code; the fix (escape it in
-  `lazysite-processor/render.pm`, with a test) is for the release manager to rule.
+  it no vulnerability. Ruling 141 fixes it in 0.16.6 (escaped where the stash is built,
+  t/integration/356, its own register entry).
 - **SM1373 against the vulnerability-handling row.** `extension-read` answered the rest
   of `lazysite.conf` to a cookie session holding `manage_config`. No shipped extension
   keeps a credential in that file (each keeps its own), and the reader is trusted with

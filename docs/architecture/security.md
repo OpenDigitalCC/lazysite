@@ -1336,10 +1336,10 @@ only over TLS. No Odoo is in it.
 - **Who acted, on an Odoo call** (SM1366). A call under a person's Odoo session is
   recorded under the site account the request is signed in as, with the session's hash
   beside it; the session id is never written.
-- **The 403 page lists groups as HTML** (SM1375). The group names come from a page's
-  front matter or a read list and are not escaped by the stash (SM709 escapes
-  `auth_groups`, not `auth_required_groups`); they are written by accounts that can
-  already write a page's markup (the 2026-11-06 SM1375, SM1378 register entry).
+- **The 403 page lists groups as HTML, escaped** (SM1375, ruling 141). The group names
+  come from a page's front matter, shape-checked by `Lazysite::Validate`, or a read list,
+  which is not; `auth_required_groups` is escaped where the stash is built, as SM709
+  escapes the other auth values, and `%AUTH_CONTEXT` stays raw for access control.
 
 ## Credential lifecycle and MFA (SM072)
 

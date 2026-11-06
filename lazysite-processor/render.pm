@@ -305,6 +305,16 @@ sub _render_stash {
                 : []
             }
         ],
+        # Ruling 141: the groups a refused page needs, which the 403 page lists
+        # (SM1375), come from a page's front matter or an acls.json read list,
+        # neither checked for shape - escaped here like auth_groups.
+        auth_required_groups => [
+            map { _esc_html($_) } @{
+                ref $AUTH_CONTEXT{auth_required_groups} eq 'ARRAY'
+                ? $AUTH_CONTEXT{auth_required_groups}
+                : []
+            }
+        ],
         # SM1141: the address test - two methods, no value (see _visitor_tests).
         visitor => _visitor_tests(),
         # SEC-2026-07 (H5): escape the author-controllable front-matter fields

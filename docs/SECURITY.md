@@ -3078,13 +3078,14 @@ threat delta
   `<li><i>bad</i></li>` on the 403 page of a refused signed-in visitor. It is not new with
   SM1375: before it the same value reached the page unescaped after Markdown had run, on
   the read-list path since SM1365 (0.16.5) and on the front-matter gate's path before
-  that. Who writes it: a front-matter `auth_groups` list is the page's author, and a read
-  list's names are written by whoever may set the folder's rule. Group names the users
-  tool makes are `[A-Za-z0-9_-]`, but a rule's `@name` is not checked for shape (an
-  unknown name beside a known one is stored and reported, SM912). Each writer can already
-  put markup in a page it writes (a page's content passes HTML through, by design;
-  boundary 4), so nobody gains a power they lacked; what differs is that a rule's name
-  renders on the 403 of every page in its folder.
+  that. Who writes it: a read list's names are written by whoever may set the folder's
+  rule. Group names the users tool makes are `[A-Za-z0-9_-]`, but a rule's `@name` is not
+  checked for shape (an unknown name beside a known one is stored and reported, SM912). A
+  front-matter `auth_groups` name is: `Lazysite::Validate` reads `[A-Za-z0-9_.-]` only, and
+  a name with markup makes the rule unreadable, refused with a sentence that names no
+  group. A rule's writer can already put markup in a page it writes (a page's content
+  passes HTML through, by design; boundary 4), so nobody gains a power they lacked; what
+  differs is that a rule's name renders on the 403 of every page in its folder.
 : SM1378: the warning quotes a layout's own `requires.lazysite` value and name in a JSON
   answer to the manager, MCP and the control API, never into a page; a layout is trusted
   code by boundary 4, installed by a holder of `manage_layouts`.
@@ -3096,10 +3097,8 @@ controls
   from the install state, never from a request.
 
 residual risk
-: SM1375: a group name with markup in a read list or a front-matter gate renders as markup
-  on the 403 page until the stash escapes `auth_required_groups` as it escapes
-  `auth_groups` (one line in `render.pm`, with a test). This walk changes no code; the
-  follow-up is for the release manager to rule and file. SM1378: the warning is advice; a
+: SM1375: closed in 0.16.6 by ruling 141, which escapes `auth_required_groups` where the
+  stash is built (the next entry). SM1378: the warning is advice; a
   layout that needs a newer engine is installed and served, and may render without parts
   of itself until the engine is upgraded.
 
@@ -3107,3 +3106,38 @@ verdict
 : accepted, proposed by the developer agent at the 0.16.6 compliance walk, for the release
   manager's confirmation. No trigger fired; recorded because what the 403 page renders,
   and how it is escaped, was found at this walk to differ from what its change says.
+
+### 2026-11-06 - SM1375, ruling 141 (0.16.6): the 403 page escapes the groups it names
+
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 141).
+
+what changed
+: `auth_required_groups`, the groups a refused page needs, which the 403 page lists
+  (SM1375), is HTML-escaped where `lazysite-processor/render.pm` builds the stash, with
+  the same `_esc_html` SM709 gives `auth_user`, `auth_name`, `auth_email` and
+  `auth_groups`. It entered the stash raw, so an `auth/acls.json` read list naming a group
+  with markup rendered that markup on the 403 page (the previous entry, found at the
+  0.16.6 compliance walk).
+
+threat delta
+: Tampering, narrowed: a read list's names reach the 403 page as text. Hardening, not a
+  vulnerability fix: the names are written only by accounts that can already put markup
+  in a page (boundary 4), and a front-matter gate's names were already shape-checked. No
+  trigger of ADR 0007's four fires: no interface, method, dependency or data is added.
+  `%AUTH_CONTEXT` stays raw for access control; only the rendering copy is escaped, as
+  SM709 rules.
+
+controls
+: t/integration/356 renders an `auth/acls.json` read list naming `@<i>bad</i>` for a
+  refused signed-in visitor and finds `&lt;i&gt;bad&lt;/i&gt;` in the list and no
+  `<i>bad</i>` on the page; it fails with the escape removed. The same test holds that a
+  front-matter gate naming markup is refused naming no group, and that a plain gate's
+  list is unchanged; t/integration/350 still passes.
+
+residual risk
+: A site's own `403.md` that prints a group name with the `| none` filter, or reads
+  `%AUTH_CONTEXT` another way, is the site's own markup.
+
+verdict
+: accepted, confirmed by the release manager on 2026-11-06 (ruling 141). No trigger
+  fired; 0.16.6 stays edge and not security-critical (ruling 142).
