@@ -80,6 +80,15 @@ builds it, and runs nothing. If the rebuild cannot write the index, the summary
 warns under `HOOKS:` and the previous index stands. Enabling or saving an extension
 in the manager rebuilds it. Nothing to do for an operator.
 
+**Existing tokens (SM1370).** A token's capabilities are its account's grant at each
+request: a grant added at the account reaches every existing token on its next
+request, and a grant removed is refused on every token at once, with no re-pairing.
+This is how every token door already resolved a grant (measured on 0.16.5), so no
+existing token gains or loses anything at the upgrade; what is new is that `whoami`
+says so in a `grant` block. An agent whose client shows an old tool list after a
+grant lists its tools again, or reconnects the connector; it needs no new pairing
+key, and rotating a token changes nothing about its grant.
+
 ## Address lists become address profiles, and the rest of 0.16.5
 
 **Address profiles (SM1343-SM1345).** Address lists are now address profiles. The

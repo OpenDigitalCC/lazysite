@@ -462,7 +462,9 @@ yourself** over the control API.
    [Capabilities](/docs/ai-connector-tools#capabilities)). If a layout write
    still `403`s right after a grant, you are almost certainly writing the
    **active** layout (next point), which is denied regardless of capability. (Ruled that out and a fresh grant still
-   seems not to apply? Rotating your token is a reliable belt-and-braces.)
+   seems not to apply? Call `whoami`: its `capabilities` are the grant as it
+   stands now. A tool missing from your client's list means the list was
+   fetched before the grant - list the tools again.)
 2. **Stage a NEW layout dir - never the active one.** A `PUT` into the
    active layout returns `403`: the live layout is immutable in place, by
    design (a deliberate guard, not a grant failure). A path under a new

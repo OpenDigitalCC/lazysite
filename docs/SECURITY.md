@@ -2512,3 +2512,45 @@ verdict
   fires and the change is contained for 0.16.6, because no hook kind is live and nothing
   calls the loader. The first slice that makes a kind live (X2) adds a caller to this interface
   and should be assessed against this entry, in its own.
+
+### 2026-11-06 - SM1370 (0.16.6): a token follows its account's grant
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: Ruling 121. Measured, before any change: no token door fixes a capability into a
+  credential. The pairing exchange (`cmd_token_exchange`) replaces the account's
+  credential and sets its expiry; an lzs_ token verifies through
+  `Auth::Verify::verify_credential`, which resolves `caps_for` from the group store at that
+  request (manager API `%token_caps` and MCP `verify_bearer`, per request); an OAuth access
+  token maps to a partner, resolved through `partner-caps` at each MCP call, and a refresh
+  mints no capability; WebDAV asks `caps_for` once per CGI process. What changes is
+  reporting: both whoamis carry a `grant` block (`Capabilities::whoami_roles`) saying the
+  grant is the account's at each request, and the layouts briefing stops advising a token
+  rotation.
+
+threat delta
+: Elevation of privilege is the question: a token holding more than its account now holds,
+  after a grant is taken away. It does not, on any door, and did not before
+  (t/unit/manager/460 subtests 1-3 pass on b7f178856): a removed grant is refused on the
+  token's next request over the control API, MCP bearer and MCP OAuth, and a token confined
+  to one domain is refused another's page, read and write, after the account gains four
+  capabilities. The `grant` block is a fixed sentence about the engine, no account data. No
+  trigger of ADR 0007's four fires: no interface, method, dependency or data is added.
+
+controls
+: One resolver (`caps_for`, ADR 0001), asked per request by every door; t/unit/manager/460
+  pins each door in each direction, so a capability cache or a snapshot in a credential
+  fails there.
+
+residual risk
+: An MCP client keeps the tool list it fetched at connect: after a grant is removed it may
+  still show a tool, which the server refuses (the call is refused and audited, -32002);
+  after a grant is added it may not show the tool until it lists again. The server declares
+  `listChanged: false` and has no push channel, so the remedy is the client's (the whoami
+  note and the docs). There is no per-token narrowing in this release; what narrows a token
+  is its account's domain scope and address rule (SM1140), both per request.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because ruling 121 is an access-control rule and this is where it is shown to hold.

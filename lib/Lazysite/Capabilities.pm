@@ -18,7 +18,7 @@ use Lazysite::Paths          ();
 use Lazysite::Util           ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface implied_by implications whoami_grant);
+our @EXPORT_OK = qw(describe capability_keys reachability reach_for channel_keys action_keys channel_service action_channel_surface implied_by implications whoami_grant whoami_roles);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -933,6 +933,31 @@ sub whoami_grant {
         grep { !$is_cap{$_} && $_ ne 'manager_ui' } keys %$s;
     $account{interactive_login} = ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true();
     return ( capabilities => \%caps, account => \%account );
+}
+
+# SM1370 (ruling 121): the block both whoamis add,
+# from one builder so the doors cannot disagree (SM288).
+#
+# `grant` says where this credential's capabilities come from: the account's
+# groups, resolved at each request, so a grant made or taken away at the account
+# reaches the token on its next request with no new pairing key. A client that
+# lists tools once when it connects keeps its old list until it lists again;
+# the note says so, because that is what an agent sees as "my grant did not
+# arrive".
+#
+sub whoami_roles {
+    my ( $user, $s ) = @_;
+    $s ||= {};
+    return (
+        grant => {
+            source => 'account',
+            note => 'Capabilities are resolved from your account\'s groups at each request. '
+                . 'A grant added or removed at the account applies from your next request; '
+                . 'no new pairing key or token is needed. If a tool you have just been '
+                . 'granted is missing, your client is showing the tool list it fetched '
+                . 'when it connected: list tools again (or reconnect the connector).',
+        },
+    );
 }
 
 sub implications {

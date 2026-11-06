@@ -69,6 +69,17 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1370 (PENDING) **A token follows its account's grant (ruling 121).** Measured first: no
+  token door fixes a capability into a credential - an lzs_ token verifies through
+  `verify_credential` and `caps_for` at each request, an OAuth token resolves its partner
+  through `partner-caps` at each call, WebDAV asks once per CGI process. So a grant added at
+  the account reaches an existing token on its next request, one removed is refused at once,
+  and a token confined to a domain stays confined when the account widens; t/unit/manager/460
+  now holds that on the control API, MCP bearer and MCP OAuth. Both whoamis carry a `grant`
+  block saying so, with the remedy for a client whose tool list predates the grant (list the
+  tools again; no new pairing key). The layouts briefing stops advising a token rotation.
+
+- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
   four register entries the branches wrote are walked, and two of them (SM1324's protected
   history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data

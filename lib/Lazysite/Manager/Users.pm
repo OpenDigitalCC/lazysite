@@ -102,6 +102,8 @@ sub action_whoami {
         # reported the login setting, and MCP put the whole settings map under
         # `capabilities`.
         Lazysite::Capabilities::whoami_grant($s),
+        # SM1370: where the grant comes from.
+        Lazysite::Capabilities::whoami_roles( $user, $s ),
         # SM491: per held capability, which channels of THIS grant reach it
         # (via) and which would but are off (requires). Same derivation as the
         # MCP whoami, so the two doors cannot disagree. THIS LINE WAS IN THE

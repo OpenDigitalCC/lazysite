@@ -90,6 +90,12 @@ target, regardless of capability.
 
 Capabilities are read from your account on every request (the token does not
 encode them), so a grant is effective immediately - you do not need a new token.
+A grant taken away is refused on your next request in the same way, and what
+confines you (your domain scope) still applies when your grant widens.
+`whoami.grant` says this in the response. A client that fetched the tool list
+when it connected keeps showing that list: list the tools again, or reconnect
+the connector, to see a tool you have just been granted. No new pairing key is
+needed.
 
 ## Scope and denied paths
 
@@ -157,6 +163,8 @@ whoami
   (`created_by`, `created_at`, `managed_by`), token and MFA state, scopes, and
   `interactive_login` (whether it may sign in to the manager at all). The control
   API's `whoami` carries the same two blocks from the same builder (SM821).
+  `grant` says where the capabilities come from: your account, at each request;
+  both surfaces carry it.
 
 describe_capabilities
 : The full capability map: every capability and what it unlocks (MCP tools,

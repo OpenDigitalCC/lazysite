@@ -676,6 +676,11 @@ my %TOOLS = (
             # says capabilities.
             return { ok => 1, user => $user,
                 Lazysite::Capabilities::whoami_grant($caps),
+                # SM1370: the twin of the API whoami's grant block.
+                do {
+                    local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+                    Lazysite::Capabilities::whoami_roles( $user, $caps );
+                },
                 # SM612: THE BUILD THIS INSTANCE IS RUNNING. An agent asked to
                 # re-check a previous release's finding is in the one case
                 # where the build IS the question, and no token-readable
