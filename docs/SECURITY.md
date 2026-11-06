@@ -111,6 +111,7 @@ Information disclosure | A long-lived parent that every Odoo endpoint child is f
 Elevation of privilege | A theme archive's symbolic link copied into the served asset mirror, so a public URL under `/lazysite-assets/` named any file the web server can read - the session-signing secret `lazysite/auth/.secret` among them, from which a `manage_themes` holder could mint an operator's session (SM1303) | The theme upload checks every entry before extracting any and refuses a symbolic link, a file type the web server runs and an archive over the upload limit; `lazysite check` warns for every link under `lazysite-assets/` (SM1304) | Closed in 0.16.2; a link planted before then stays until removed, and the secret it may have served until rotated (t/integration/336, t/tools/290)
 Information disclosure | A grant confined to a scope answered from the whole docroot by a listing or search that names no path, which the scope check skips; a search quoting lines of a file whose rule the caller does not pass (SM1308) | A confined grant's missing or empty path is its scope roots and every walk starts there (MCP `list_files`, `list_pages`, `search_files`, `delete_page`'s references, `rename_page`'s link rewrite; the manager API's `list` and `pages`); each search hit is asked `_acl_denied`, read_file's question | Closed in 0.16.3 (t/unit/mcp/65, t/unit/manager/415); `audit_site` is confined too and a page's title is listed only to a caller who may read it (SM1311, SM1312; t/unit/mcp/68, t/unit/mcp/69)
 Elevation of privilege | A member of a protected area writing a rule on a subfolder that admits a non-member, which replaces the area's rule there by longest match (SM1309) | Writing or moving a rule that admits, to read or write, anyone its enclosing rule does not is refused unless the operator or the enclosing rule's owner does it (`Acl::widening_refusal`, `move_widening_refusal`), on every surface that writes or moves a rule | Closed in 0.16.3 (t/unit/mcp/66, t/unit/dav/36); a carve-out written before then is honoured until removed, and `lazysite check` names each for review (SM1313; t/tools/295)
+Denial of service | An upgrade that moves the extensions directory and its key leaving a site's list, or one entry, under the old spelling, so each extension it names reads as off, and silently - the login rate limiter among them (SM1142) | `install.pl`'s one-time `extensions-rename` converts the list and its entries and moves the directory, and is recorded as done only when it ran without a warning; `login-rate-limit-on` runs after it; `lazysite check` names an old-spelling line by number and an old directory left beside the docroot, and says when the limiter is not in force (SM798) | 0.16.4 (t/tools/306, t/journey/06); a line written back by hand reads as off until it is corrected
 ```
 
 ## Five priority entries (from the review)
@@ -1973,3 +1974,86 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-05. No trigger fired;
   recorded because access, the served tree, the theme upload's reach, an Odoo control and
   the deploy path moved, as the 0.16.1 entry of 2026-10-23 recorded its own.
+
+### 2026-11-06 - SM1142 (0.16.4): one name for extensions, on disk, in lazysite.conf and on the wire
+
+Assessment drafted by the developer agent at the 0.16.4 compliance walk, for the release manager's confirmation. 0.16.4 is SM1142 alone (ruling 63), cut as an edge release, not marked security-critical. Ruling 95: the response keys move with the rest of the wire (`extensions` on extension-list and whoami, `capability_extension` on groups-read), a breaking change for an external reader, recorded in the CHANGELOG and UPGRADE.md.
+
+what changed
+: On disk. The engine's extensions ship in `extensions/` beside the docroot (deb:
+  `/usr/share/lazysite/extensions`), and every lookup of an extension's script asks one
+  resolver, `Lazysite::Extensions::locate` (t/lint/306 refuses another). A site's
+  `lazysite.conf` lists the enabled ones as `- extensions/<file>.pl` under
+  `extensions:`, the only spelling a reader accepts.
+: The upgrade step. `install.pl`'s one-time `extensions-rename` moves each entry left in
+  the old directory beside the docroot into `extensions/` (a copy of a shipped file the
+  site edited is kept beside the release's, under a suffix naming the old directory),
+  rewrites the conf's list and its
+  entries so every extension that was on stays on, re-points a cgi-bin symbolic link into
+  the old directory at the moved file, rewrites a start page stored as the old Extensions
+  page, removes the emptied old directory, and lists what it did in the upgrade summary
+  under `Extensions:`. It is recorded as done in the install state only when it ran
+  without a warning, so a step that warned runs again on the next upgrade. On HestiaCP
+  the root-run deploy (`lazysite-hestia-deploy.sh`) makes `extensions/` and gives it and
+  the old directory to the site user before the install, and removes the old directory
+  with `rmdir` after it.
+: On the wire. The actions, the parameter and whoami's switch in the old spelling
+  are refused with `not-found`, naming the `extension-*` spelling, before
+  authentication. The responses name `extensions` (extension-list, whoami) and
+  `capability_extension` (groups-read) (ruling 95). An audit row for the seven extension
+  actions records `extension-*` where it recorded the old spelling, SM831's
+  `spelling=deprecated` flag goes with the spelling, and the runner's refusal of a
+  disabled extension logs as `extension-gate`. The manager pages are
+  `/manager/extensions` and `/manager/extension-config`; the old addresses are not kept.
+  MCP's tool names, arguments and responses are unchanged; its descriptions say
+  extension.
+: `lazysite check` names, by line, a list or an entry in the old spelling written
+  back by hand, and an old directory left beside the docroot.
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (actions, parameters and
+  pages are renamed, none added), no new sign-in method, no new dependency and no new
+  restricted data. The questions are these. The step moves files and re-points links in
+  every site's tree, on HestiaCP after a root-run `chown` (Tampering; Elevation of
+  privilege, through a link planted in the old directory or a link re-pointed out of the
+  site). The conf rewrite decides which extensions run, the login rate limiter among them
+  (Denial of service, against guessing, if the limiter read as off). The audit's action
+  names change (Repudiation: a reader filtering the old names stops matching). The
+  old-spelling refusal answers before authentication (Information disclosure).
+
+controls
+: The step refuses to run unless its two directories resolve to the old directory's
+  name and `.../extensions`, skips an old directory that is itself a symbolic link, moves each
+  entry with `rename` (a link is moved as a link, never followed), and never overwrites:
+  an entry whose kept-copy name is taken too is left in place and named. It
+  re-points only a
+  cgi-bin link whose target is a file in the old directory, and only at a regular file of that name
+  in `extensions/`. The conf and the start-page store are rewritten through
+  `_replace_conf`, a temporary file renamed over the original with its mode and group,
+  as the other conf conversions are. The root-run `chown -R` is the one the deploy
+  already ran on the old directory with the docroot, `lib/` and `tools/` (it does not
+  follow links); the removal is `rmdir`, which removes only an empty directory. The rate
+  limiter's entry is converted with the rest, `login-rate-limit-on` runs after the step,
+  and `lazysite check` says when the limiter is not in force (SM798) as well as naming
+  an old-spelling line. The refusal says how an action is spelled and nothing about the
+  site. t/tools/306 (the step), t/tools/307 (the Hestia deploy's order and its
+  removal), t/unit/manager/168 (the refusals), t/journey/06 (a pre-rename site upgraded
+  in place: the sign-in CGI's rate limiter, the data gate, the runtime's start gate, the
+  notifier and the registry see what they saw before); t/lint/306, t/lint/307.
+
+residual risk
+: A reference the upgrade cannot see stays the operator's: a crontab or pipe naming the
+  old directory's `stats.pl` or `form-smtp.pl` stops running (a form's mail pipe stops
+  sending), a script on the old spelling is refused, a reader of the old response keys
+  reads nothing, and an audit filter on the old action names matches no row written
+  from 0.16.4. UPGRADE.md lists the first three; the 0.16.4 notes list all four. An
+  old-spelling entry line written back by hand under `extensions:` reads as off in the manager and as on in
+  the notifier and the processor nav, which match an entry by its file name (older than
+  the rename and not widened by it); `lazysite check` names the line. A step that warned
+  leaves its files in the old directory, run by nothing, until the next upgrade.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation. No trigger fired;
+  recorded because the upgrade moves files and links in every site's tree (on HestiaCP
+  after a root-run step), decides which extensions stay on, the login rate limiter among
+  them, and changes what an external reader and the audit trail see (ruling 95).

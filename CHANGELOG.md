@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1367 (PENDING) **docs: the compliance records cover 0.16.4.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against SM1142, the release's one change, and stamped 0.16.4.
+  The register has a drafted entry for the rename, for the release manager's confirmation:
+  the upgrade step that moves a site to `extensions/` and converts which extensions are on,
+  and the wire's old spelling refused and its response keys renamed (ruling 95); no trigger
+  fired. A STRIDE row, the architecture notes and an operate-side row for the references the
+  upgrade cannot see, among them an audit filter on the old action names: the audit records
+  the extension actions as `extension-*` from 0.16.4. Docs only; nothing is signed.
+
 - SM1142 (PENDING) **A site from before the rename upgrades in place and behaves the same, and
   the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
   and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has

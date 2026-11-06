@@ -1218,6 +1218,33 @@ only over TLS. No Odoo is in it.
   unmodified ones, never an edited page or one the site needs; it runs as the site
   user, refuses root and is audited.
 
+## Extensions on disk, and the step that moves a site to them (SM1142, 0.16.4)
+
+- **One directory, one key, one resolver.** Extensions live in `extensions/` beside
+  the docroot (deb: `/usr/share/lazysite/extensions`), outside the served tree as the
+  old directory was. A site's `lazysite.conf` lists the enabled ones as
+  `- extensions/<file>.pl` under `extensions:`, the only spelling a reader accepts, and
+  every lookup of an extension's script asks `Lazysite::Extensions::locate`
+  (t/lint/306).
+- **The upgrade converts each site once** (`install.pl`, `extensions-rename`). It runs
+  only when its directories resolve to the old directory's name and `.../extensions`, skips an old
+  directory that is a symbolic link, moves each entry with `rename` (a link moves as a
+  link), never overwrites (an edited copy of a shipped file is kept as
+  `<file>` with a suffix naming the old directory; a name taken twice is left and
+  named), re-points only a cgi-bin link whose target is a file in the old directory at a
+  regular file in `extensions/`, and writes
+  `lazysite.conf` and the start-page store by temporary file and rename. It is recorded
+  as done only when it ran without a warning. On HestiaCP the root-run deploy makes
+  `extensions/` and hands it to the site user before the install, and removes the
+  emptied old directory with `rmdir` after it.
+- **Which extensions run** is the converted list, the login rate limiter among them.
+  `lazysite check` names an old-spelling list or entry by line and an old directory
+  left beside the docroot, and says when the limiter is not in force (SM798).
+- **The wire.** The old action spelling, the old parameter and whoami's old switch are
+  refused before authentication, naming the new spelling and nothing about the site.
+  The responses name `extensions` and `capability_extension` (ruling 95), and the
+  audit records the extension actions as `extension-*`.
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a
