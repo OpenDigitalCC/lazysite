@@ -893,17 +893,22 @@ sub action_extension_read {
     my $config_file = $desc->{config_file} // '';
     my %values;
 
-    if ($config_file) {
-        my $kv = _read_kv_lines("$DOCROOT/$config_file");
+    # SM1373: ONLY THE EXTENSION'S OWN KEYS, WHATEVER FILE THEY LIVE IN. An
+    # extension whose config_file is lazysite/lazysite.conf (bad-url-blocker,
+    # log) answered every key in the site's main config - site settings it does
+    # not own - and an extension's own file answered keys its schema never
+    # names. The answer is the keys config_schema or config_keys declares;
+    # anything else in the file is not this extension's to show.
+    my %want = map { $_ => 1 } @{ $desc->{config_keys} // [] },
+        map { $_->{key} // () } @{ $desc->{config_schema} // [] };
+    my $source
+        = $config_file         ? "$DOCROOT/$config_file"
+        : $desc->{config_keys} ? _lz() . "/lazysite.conf"
+        :                        undef;
+    if ( defined $source ) {
+        my $kv = _read_kv_lines($source);
         for my $k ( keys %$kv ) {
-            $values{$k} = $kv->{$k} if defined $kv->{$k};
-        }
-    }
-    elsif ( $desc->{config_keys} ) {
-        my %want = map { $_ => 1 } @{ $desc->{config_keys} };
-        my $kv   = _read_kv_lines( _lz() . "/lazysite.conf" );
-        for my $k ( keys %$kv ) {
-            $values{$k} = $kv->{$k} if $want{$k};
+            $values{$k} = $kv->{$k} if $want{$k} && defined $kv->{$k};
         }
     }
 

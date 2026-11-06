@@ -89,6 +89,13 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1373 (PENDING) **An extension's settings read answers only its own keys.** `extension-read`
+  for an extension kept in `lazysite.conf` (bad-url-blocker, log) answered every key in the
+  site's main config, and one with its own file any key its schema does not name; only its
+  own password fields were dropped. It now answers the keys the extension's `config_schema`
+  or `config_keys` names, whatever its file. The action is reachable by a manager session
+  with `manage_config` only (no token reaches it). Register entry drafted.
+
 - SM1375 (PENDING) **The 403 page lists the groups a page needs.** The shipped `403.md` named
   them as "- reviewers" lines run into one paragraph, on a front-matter group gate and on an
   ACL read-list refusal alike: Markdown reads the page before Template Toolkit fills it, and

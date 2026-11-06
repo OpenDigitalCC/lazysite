@@ -2621,3 +2621,45 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because shipped grants, a capability's reach on two doors and the Groups page's enable
   path moved.
+
+### 2026-11-06 - SM1373 (0.16.6): an extension's settings read answers only its own keys
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: `extension-read` (`Lazysite::Manager::Extensions::action_extension_read`) answered
+  every `key: value` pair in an extension's `config_file`. For the two extensions whose
+  file is `lazysite/lazysite.conf` (bad-url-blocker, log) that was the site's whole main
+  config; for one with its own file, any key its schema does not name. Only the
+  extension's own `type: password` fields were dropped. The answer is now the keys the
+  extension's `config_schema` or `config_keys` names, whatever its file, with password
+  fields still dropped.
+
+threat delta
+: Information disclosure, narrowed: a read of one extension's settings no longer carries
+  site settings and secrets kept in the same file that the extension does not own (a
+  credential another extension keeps in `lazysite.conf`, for one). Who may call it is
+  unchanged: `extension-read` is absent from the token gate (`%GATE` in
+  `Lazysite::ControlApi::Actions`), so no access token, MCP client or partner reaches
+  it; it is reachable by a manager cookie session only, with `manage_config` (its
+  `cookie_cap`; the dispatcher's cookie check in `lazysite-manager-api.pl` asks it).
+  The exposure was to an account trusted with the site's settings, but wider than its
+  own door: `config-read`, the Config page's reader, answers a named safe subset of
+  `lazysite.conf` with no secrets (SM122), and `extension-read` answered the rest.
+  No trigger of ADR 0007's four fires: no interface,
+  method, dependency or data is added, and the change removes output.
+
+controls
+: One key list, the extension's own declaration, read where the values are chosen;
+  t/unit/manager/445 puts a foreign key (and a foreign password-shaped key) beside
+  bad-url-blocker's and log's in `lazysite.conf` and a key outside form-smtp's schema in
+  its own file, and finds none answered, and the password field still dropped.
+
+residual risk
+: An extension that declares a key also kept by another extension in the same file is
+  answered it; that is a shared key by the extensions' own declarations. Whoever
+  can read `lazysite/lazysite.conf` as a file on the host still reads it whole.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because what a settings read discloses moved.
