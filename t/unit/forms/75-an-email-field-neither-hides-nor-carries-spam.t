@@ -163,6 +163,16 @@ subtest 'ordinary addresses are left alone' => sub {
         ok( $r && !$r->{_quarantined}, "$addr is not quarantined" )
             or diag( $r ? $r->{_spam_reason} : 'not stored' );
     }
+    # A bare semicolon is an address list, which the acknowledgement path refuses
+    # and records by name (t/unit/forms/60); this rule must not pre-empt it.
+    my $list = submit( 'contact',
+        name    => 'Ada Lovelace',
+        email   => 'a@example.net;b@example.org',
+        message => 'Could you send me a quote for a five-page site? Thank you.',
+    );
+    unlike( ( $list && $list->{_spam_reason} ) // '', qr/holds quotes or SQL/,
+        'a semicolon between addresses is not an injection' );
+
     # The rule reads EMAIL fields: a message may say select ... from, or quote.
     my $r = submit( 'contact',
         name    => 'Dev',

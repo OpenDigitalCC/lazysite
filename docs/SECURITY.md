@@ -2883,7 +2883,7 @@ Assessment drafted by the developer agent, for the release manager's confirmatio
 what changed
 : The form handler's quarantine (`extensions/form-handler.pl`, `_spam_assessment`) gains
   one signal and corrects another. An email field (named so, or holding only an address)
-  that holds a quote, a semicolon, an SQL comment marker or SQL-shaped text quarantines
+  that holds a quote, an SQL comment marker or SQL-shaped text quarantines
   the submission, the reason naming the field and never the value. SM913 S3's "one value
   in every field" rule leaves email fields out, so a random address no longer defeats it.
 

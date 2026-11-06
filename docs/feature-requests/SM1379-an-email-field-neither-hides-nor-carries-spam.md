@@ -33,8 +33,8 @@ Ruling 133:
   rules sidecar is covered by the second: validate_fields has already refused any
   value of it that is not an address. The three-field minimum now counts the
   other fields.
-- **An email field holding quotes or SQL is quarantined**: a quote, backtick or
-  semicolon, `/*` or `-- `, or SQL-shaped text (`UNION SELECT`, `DROP TABLE`,
+- **An email field holding quotes or SQL is quarantined**: a quote or backtick,
+  `/*` or `-- `, or SQL-shaped text (`UNION SELECT`, `DROP TABLE`,
   `OR 1=1`, `SLEEP(`). Stored and flagged, never refused, as SM913 ruled. The
   reason names the field and does not repeat the value.
 

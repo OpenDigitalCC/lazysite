@@ -559,7 +559,7 @@ visitor, no tracker, nothing sent anywhere. It holds a submission back when:
   in every field, on a form with three or more filled in. That is a bot checking
   whether the form delivers, not a message. Email fields are left out of this
   count, so a made-up address beside the repeated text does not hide it.
-- an **email field holds quotes or SQL** - a `'`, `"`, `` ` `` or `;`, an SQL
+- an **email field holds quotes or SQL** - a `'`, `"` or `` ` ``, an SQL
   comment, or text such as `OR 1=1` or `UNION SELECT`. An email field is one named
   `email` (or `e-mail`, `your_email` and the like) or one holding only an address.
   The reason names the field and never repeats what was typed. An address with an

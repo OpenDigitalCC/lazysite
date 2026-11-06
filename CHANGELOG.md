@@ -143,7 +143,7 @@ Archive
 - SM1379 (PENDING) **A form's quarantine leaves email fields out of the repetition rule and
   quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
   counted the email field, so a random address defeated it; email fields (named so, or
-  holding only an address) are now left out. An email field holding quotes, a semicolon, an
+  holding only an address) are now left out. An email field holding quotes, an
   SQL comment or SQL-shaped text quarantines the submission, the reason naming the field.
   Quarantined, never refused. Register entry drafted.
 

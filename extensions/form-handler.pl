@@ -892,11 +892,16 @@ sub _email_fields {
 #
 # The scanner that found SM934 put its payload into the email field, and a form
 # with no rules sidecar has no `type: email` check to refuse it. An address
-# needs no quote, no semicolon and no SQL, so any of them in a field that is an
+# needs no quote and no SQL, so either in a field that is an
 # email field by declaration or by name is quarantined - stored, kept off the
 # bell, recoverable, never refused (SM913's rule: a wrong guess costs nobody the
 # message). The reason names the field and never repeats the value, which is
 # the probe's own text.
+#
+# A BARE SEMICOLON IS NOT THIS SIGNAL. `a@x;b@y` is an address list, and the
+# acknowledgement path refuses it by name and records why (t/unit/forms/60); a
+# quarantine here would pre-empt that record. A semicolon followed by SQL is
+# still caught by the SQL shapes.
 #
 # A quote IS legal in an address's local part (o'brien@...) and such an address
 # is quarantined too; ruling 133 accepted that, because the cost of the miss is
@@ -908,7 +913,7 @@ sub _email_field_injection {
         my $v = $form->{$k};
         next if !defined $v || ref $v || !length $v;
         return "the email field '$k' holds quotes or SQL"
-            if $v =~ /['"`;]/
+            if $v =~ /['"`]/
             || $v =~ m{/\*|--(?:\s|\z)}
             || $v =~ /\b(?:select\b.*\bfrom|union\b.*\bselect|insert\s+into|delete\s+from|drop\s+(?:table|database)|update\b.+\bset|sleep\s*\(|benchmark\s*\(|waitfor\s+delay|(?:or|and)\s+\d+\s*=\s*\d+)/i;
     }
