@@ -8,7 +8,8 @@ package main;
 #         with _acl_map, the rule store read every reader here shares (SM1068),
 #         and _acl_entry_for, the longest-match resolver it shares with
 #         _acl_is_draft, _acl_governed, _acl_governing_key and _acl_refused,
-#         the static file gate; the private-store copies of Lazysite::Private
+#         the static file gate, with _acl_refusal_is_navigation and
+#         _acl_read_groups for its themed 403 (SM1365); the private-store copies of Lazysite::Private
 #         - _private_root and $PRIVATE_ROOT_CACHE, _content_rel, _content_abs,
 #         _private_twin, _path_under_content; _groups_grant_cap, ADR 0001's
 #         marked copy of Auth::Settings::groups_grant_cap, and _cap_groups, the
@@ -24,7 +25,8 @@ package main;
 #         (SM286); one group semantics for every reader (SM121, SM268 01-L1);
 #         every auth file read as raw octets (ADR 0001).
 # CALLS   check_auth, resolve_site_vars, is_auth_surface, _is_engine_asset,
-#         not_found, output_page, _security_headers, uri_encode, _path_under,
+#         not_found, output_page, serve_403, _request_no_password,
+#         _security_headers, uri_encode, _path_under,
 #         log_event (the script and its parts); realpath and decode_json
 #         (imported by the script's `use`, before its parts load).
 # READS   $LAZYSITE_DIR, $DOCROOT, $ENGINE_DOCS_DIR, $ENGINE_HOME_MD and
@@ -815,6 +817,41 @@ sub _acl_governing_key {
     return join( '+', ( defined $key ? $key : () ), @addr );
 }
 
+# SM1365: is a refused request a visitor opening a PAGE, as opposed to a file a
+# page embeds or links? A page's source (.md, .url, a legacy .html), a directory,
+# a request path ending in `/`, .html/.htm/.md or with no extension, or an Accept
+# header that puts text/html (or XHTML) first - which is how a browser asks when
+# it navigates, where an <img> asks for image/* first.
+sub _acl_refusal_is_navigation {
+    my ( $abs, $uri ) = @_;
+    return 1 if defined $abs && ( -d $abs || $abs =~ /\.(?:md|url|html?)\z/i );
+    my $path = $uri // '';
+    $path =~ s/[?#].*\z//s;
+    return 1 if $path eq '' || $path =~ m{/\z};
+    my ($last) = $path =~ m{([^/]*)\z};
+    return 1 if $last !~ /\./ || $last =~ /\.(?:md|html?)\z/i;
+    my ($first) = split /,/, ( $ENV{HTTP_ACCEPT} // '' );
+    return ( defined $first && $first =~ m{\A\s*(?:text/html|application/xhtml\+xml)\s*(?:;|\z)}i ) ? 1 : 0;
+}
+
+# SM1365: the groups named by the read list that governs $rel, without the `@`,
+# in the list's order - what the 403 page names as the way in. Individual users on
+# the list are never named. [] when the store will not load or names no group.
+sub _acl_read_groups {
+    my ($rel) = @_;
+    my $map = _acl_map($rel);
+    return [] unless ref $map eq 'HASH';
+    my $a = _acl_entry_for( $map, $rel, 'read' );
+    return [] unless ref $a eq 'HASH' && ref $a->{read} eq 'ARRAY';
+    my ( @g, %seen );
+    for my $e ( @{ $a->{read} } ) {
+        next unless defined $e && !ref $e && $e =~ /\A\@(.+)\z/;
+        my $name = $1;
+        push @g, $name unless $seen{ lc $name }++;
+    }
+    return \@g;
+}
+
 # SM223: gate a SOURCE-LESS static file (no .md/.url behind it) on the ACL.
 #
 # Returns true when it has already written a response and the caller must stop.
@@ -823,7 +860,8 @@ sub _acl_governing_key {
 #
 # Anonymous and refused bounces to the login page, the way a protected page
 # does, so a person following a link to a private PDF gets somewhere useful.
-# Authenticated and refused gets 403, because logging in again will not help.
+# Authenticated and refused gets 403, because logging in again will not help:
+# the site's own 403 page for a page, the short body for a file (SM1365).
 sub _acl_refused {
     my ( $abs, $uri ) = @_;
 
@@ -902,6 +940,35 @@ sub _acl_refused {
         log_event( 'WARN', $uri, 'static refused by ACL', user => $user );
         $ACCESS_REC{s} //= 403;
         $ACCESS_REC{ar} = 1;
+
+        # SM1365: A PAGE REFUSED BY THE RULE GETS THE SITE'S 403. A directory of
+        # pages behind a read list answered a signed-in outsider with the bare
+        # body below - no layout, no theme, no way back - where the same refusal
+        # by a front-matter group gate renders 403.md through serve_403. Same
+        # page now, naming the rule's groups as the front-matter gate names its
+        # own. Group names only: a user named on the list is nobody else's
+        # business. An image, a PDF or a download keeps the short answer -
+        # rendering a page for an <img> is wrong.
+        if ( _acl_refusal_is_navigation( $abs, $uri ) ) {
+            my $required = _acl_read_groups($rel);
+            %AUTH_CONTEXT = (
+                authenticated        => 1,
+                auth_user            => $user,
+                auth_name            => $id->{auth_name} // '',
+                auth_denied_reason   => 'insufficient_groups',
+                auth_required_groups => $required,
+                no_password          => _request_no_password(),
+            );
+            my %refusal = (
+                forbidden            => 1,
+                auth_user            => $user,
+                auth_denied_reason   => 'insufficient_groups',
+                auth_required_groups => $required,
+            );
+            serve_403( \%refusal );
+            return 1;
+        }
+
         # SM381: through output_page. This is an ACCESS REFUSAL on a static,
         # which makes it one of the responses most worth carrying the header
         # set rather than least.

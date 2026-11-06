@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1365 (PENDING) **A page refused by an ACL read list gets the site's 403.** A signed-in
+  visitor outside an `auth/acls.json` read list who opened a page in the governed directory
+  got a bare 103-byte 403 with no layout or theme. They now get the site's 403 page, which
+  says who is signed in and names the list's groups (never a user on it), as a front-matter
+  group gate does. An image, a PDF or a download keeps the short 403, with the security
+  headers. A draft section is still 404 and an anonymous visitor is still sent to sign in.
+
 - SM1339 (PENDING) **A served copy of a theme says so, and is not written.** Ruling 81: a write
   into a host's `/lazysite-assets/<layout>/<theme>/` (the docroot's or a domain's own) is
   refused on every surface - the manager, the control API, MCP `write_file`, `upload_file`,
