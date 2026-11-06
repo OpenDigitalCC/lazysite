@@ -53,18 +53,6 @@ Archive
 
 ## Unreleased
 
-## 0.16.3 - EDGE: a confined agent stays in its scope, a rule inside another cannot widen it, and the /docs manual is the engine's (2026-11-06)
-
-- SM1337 (2c3b663a) **docs: the compliance records cover 0.16.3.** OBLIGATIONS.md and
-  TECHNICAL-FILE.md are walked against the 0.16.3 batch and stamped 0.16.3. The register
-  records the release manager's acceptance of the SM1303, SM1308 and SM1309 entries
-  (ruling 65), and one entry for the rest of 0.16.3 that moves a control, accepted too
-  (ruling 93); SM1308 and SM1309 owe no Article 14 notice or advisory (ruling 94). The
-  architecture notes and OPERATOR.md cover the confined walks, the widening refusal and
-  SM1313's warning, the engine's /docs manual, the theme upload over MCP and the Odoo
-  settle capability. Docs only; nothing is signed.
-
-- SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
 - SM1142 (PENDING) **A site from before the rename upgrades in place and behaves the same, and
   the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
   and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has
@@ -114,7 +102,18 @@ Archive
   of your own that names the old directory - a crontab running `extensions/stats.pl`, a pipe to
   `extensions/form-smtp.pl` (UPGRADE.md lists them).
 
-- SM1280 (PENDING) **An Odoo operation is told whether the call came from an address list.**
+## 0.16.3 - EDGE: a confined agent stays in its scope, a rule inside another cannot widen it, and the /docs manual is the engine's (2026-11-06)
+
+- SM1337 (2c3b663a) **docs: the compliance records cover 0.16.3.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.3 batch and stamped 0.16.3. The register
+  records the release manager's acceptance of the SM1303, SM1308 and SM1309 entries
+  (ruling 65), and one entry for the rest of 0.16.3 that moves a control, accepted too
+  (ruling 93); SM1308 and SM1309 owe no Article 14 notice or advisory (ruling 94). The
+  architecture notes and OPERATOR.md cover the confined walks, the widening refusal and
+  SM1313's warning, the engine's /docs manual, the theme upload over MCP and the Odoo
+  settle capability. Docs only; nothing is signed.
+
+- SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
   Ruling 3 (the OOM Lab's office-network clock-in): a binding names an `address_profile` and an
   `address_param` (a yes/no parameter), and its operation receives only 1 or 0 - never the
   address. The server decides it from the request's address behind `trusted_proxies`, and a page
