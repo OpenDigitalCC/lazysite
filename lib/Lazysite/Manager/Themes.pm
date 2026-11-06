@@ -37,7 +37,7 @@ our @EXPORT_OK = qw(
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
     _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for _mirror_theme_assets _mirror_warning _mirror_layout_themes
-    _read_json_file
+    _read_json_file _layout_engine_requirement
 );
 
 our $DOCROOT;
@@ -1663,6 +1663,15 @@ sub action_layout_activate {
                     . 'pages using it. Activated anyway; this is a note, not a '
                     . 'refusal.';
             }
+
+            # SM1378: and whether this engine is the one the layout was
+            # written for. Beside the nav note when there is one, so a caller
+            # that already shows `warning` shows both.
+            my ( $requires, $engine_note ) =
+                _layout_engine_requirement( $layout_dir, $LAZYSITE_DIR );
+            $res->{requires} = { lazysite => $requires } if defined $requires;
+            $res->{warning}  = join ' ', grep { defined } $res->{warning}, $engine_note
+                if defined $engine_note;
         }
         return $res;
     };
@@ -1690,6 +1699,58 @@ sub _set_layout_pointer {
     return { ok => 0, error => "Cannot write conf: $werr" } unless $wok;
     _invalidate_html_cache();
     return { ok => 1, layout => $layout, ( defined $theme ? ( theme => $theme ) : () ) };
+}
+
+# SM1378 (ruling 133, triage T-31): THE ENGINE A LAYOUT SAYS IT NEEDS.
+#
+# The catalogue writes `"requires": { "lazysite": "0.15.11" }` in every
+# layout.json - the lowest release whose variables and filters the template
+# uses - and nothing read it, so a layout installed on an older engine said
+# ok:1 and then failed or degraded at render time (an unknown filter is a
+# template error). This reads it, beside SM337's nav check and in its manner:
+# a WARNING naming the consequence, never a refusal. An operator may install
+# ahead of an upgrade they are about to make, and a tool that refuses that gets
+# worked around.
+#
+# The running engine is the site's .install-state.json `version`, the same
+# value the generator meta and action_version report. Where either side is
+# absent (a dev tree with no install state, a layout that declares nothing)
+# there is nothing to compare and nothing is said; a declaration that is not a
+# version is named, since a layout that meant to say something and could not
+# is the case a reader needs to hear about.
+#
+# $name is the layout as the site will call it (an install reads a release
+# unpacked under a temporary name); it defaults to the directory's own.
+# Returns ( $requires, $warning ): the declared version (or undef) and a
+# sentence (or undef).
+sub _layout_engine_requirement {
+    my ( $layout_dir, $lazysite_dir, $name ) = @_;
+    my $meta = _read_json_file("$layout_dir/layout.json");
+    return ( undef, undef ) unless ref $meta eq 'HASH' && ref $meta->{requires} eq 'HASH';
+    my $want = $meta->{requires}{lazysite};
+    return ( undef, undef ) unless defined $want && !ref $want && length $want;
+    ( $name = $layout_dir ) =~ s{.*/}{} unless defined $name && length $name;
+    return ( $want,
+        "'$name' declares requires.lazysite '$want', which is not a version "
+            . '(expected X.Y.Z), so the engine it needs cannot be checked.' )
+        unless $want =~ /\A\d+(?:\.\d+){0,2}\z/;
+
+    my $state = _read_json_file("$lazysite_dir/.install-state.json");
+    my $have  = ref $state eq 'HASH' ? $state->{version} : undef;
+    return ( $want, undef ) unless defined $have && $have =~ /\A\d+(?:\.\d+){0,2}/;
+
+    my @w = split /\./, $want;
+    my @h = ( $have =~ /\A(\d+)(?:\.(\d+))?(?:\.(\d+))?/ );
+    for my $i ( 0 .. 2 ) {
+        my ( $x, $y ) = ( $h[$i] // 0, $w[$i] // 0 );
+        return ( $want, undef ) if $x > $y;
+        last                    if $x < $y;
+        return ( $want, undef ) if $i == 2;    # equal: the engine is new enough
+    }
+    return ( $want,
+        "'$name' requires lazysite $want and this site runs $have - pages using "
+            . 'it may fail or render without parts of the layout until the engine '
+            . 'is upgraded. Done anyway; this is a note, not a refusal.' );
 }
 
 sub _validate_layout_dir {

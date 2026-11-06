@@ -846,6 +846,13 @@ tokens at activation logs a **non-fatal warning** (comparing declared vs supplie
 sets) - the loose coupling is a designed property, so a mismatch is surfaced, never
 rejected. The shipped layouts (the `lazysite-layouts` repo) carry these blocks.
 
+`layout.json` may also say the engine it needs, `"requires": { "lazysite":
+"0.15.11" }` (the catalogue writes it in every layout). Installing or activating
+such a layout on an older engine **warns and goes ahead** (SM1378, as SM337 warns
+for a layout with no `[% nav %]`): the reply carries `requires` and a `warning`
+naming both versions, on install, on activation and on binding the layout to a
+domain. The running engine is the site's `.install-state.json` version.
+
 ### `theme_tokens` - token-vocabulary discovery (SM204)
 
 A new MCP **read** tool (`manage_themes`, not audited) answers the first question

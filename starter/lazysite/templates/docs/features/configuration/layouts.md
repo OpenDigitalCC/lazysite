@@ -39,11 +39,19 @@ built-in minimal template (functional, not pretty).
       "name": "default",
       "version": "1.0.0",
       "description": "Default lazysite page layout with header, main, footer",
-      "author": "lazysite"
+      "author": "lazysite",
+      "requires": { "lazysite": "0.15.11" }
     }
 
 **Required:** `name` (must match directory), `version` (semver).
-**Optional:** `description`, `author`.
+**Optional:** `description`, `author`, `requires`.
+
+`requires.lazysite` is the lowest lazysite release whose variables and
+filters the layout uses. Installing or activating the layout (on the site or
+on one domain) on an older engine still goes ahead, and the answer carries a
+`warning` naming both versions, so you know pages may fail or lose parts of
+the layout until the engine is upgraded. A value that is not a version is
+named in the warning too.
 
 ### layout.tt contract
 

@@ -140,6 +140,13 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1378 (PENDING) **A layout says the engine it needs, and installing or activating it on an
+  older one warns.** Ruling 133: `requires.lazysite` in `layout.json`, which the layouts
+  catalogue writes in every layout, was read nowhere. Installing a layout, activating it, or
+  binding it to a domain now compares it with the site's engine version and, when the engine
+  is older, answers with `requires` and a `warning` naming both versions - as SM337 does for
+  a layout with no `[% nav %]`. It goes ahead either way.
+
 - SM1377 (PENDING) **The data endpoint refuses a query parameter it does not read.** Ruling
   131: `/cgi-bin/lazysite-data.pl` named an unknown parameter (`ignored`, a warning) and
   still answered every row, so `?table=t&chunk=AAA` looked like a filtered answer. It now

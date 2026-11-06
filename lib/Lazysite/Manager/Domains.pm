@@ -1426,6 +1426,17 @@ sub domain_set {
                 . 'will still return 200.'
             ) unless $mirror->{mirrored};
     }
+
+    # SM1378: binding a layout to a domain is activating it there, so it says
+    # what the instance-wide activation says when the layout needs a newer
+    # engine. A warning, never a refusal (as SM337).
+    if ( $key eq 'layout' && length $value && $value =~ /\A[A-Za-z0-9_-]+\z/ ) {
+        require Lazysite::Manager::Themes;
+        my ( $requires, $note ) = Lazysite::Manager::Themes::_layout_engine_requirement(
+            _lz() . "/layouts/$value", _lz() );
+        $res->{requires} = { lazysite => $requires } if defined $requires;
+        push @{ $res->{warnings} ||= [] }, $note if defined $note;
+    }
     return $res;
 }
 

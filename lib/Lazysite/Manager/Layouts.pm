@@ -19,7 +19,7 @@ use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan
 use Lazysite::Paths            ();
 use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
     _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for
-    _mirror_theme_assets action_layout_activate _read_json_file);
+    _mirror_theme_assets action_layout_activate _read_json_file _layout_engine_requirement);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -1020,6 +1020,11 @@ sub action_layout_install {
         theme_errors     => \@theme_errors,
         active_theme     => $primary,
         activated        => $activated,
+
+        # SM1378: the install's engine note travels to the caller, as the
+        # activation's does; activation, when asked for, says it again.
+        ( $lr->{requires}        ? ( requires => $lr->{requires} ) : () ),
+        ( defined $lr->{warning} ? ( warning  => $lr->{warning} )  : () ),
     };
 }
 
@@ -1051,6 +1056,21 @@ sub _install_layout_from_dir {
         unless -f "$layout_source/layout.tt";
 
     my $target_dir = _lz() . "/layouts/$layout_name";
+
+    # SM1378: the engine the release says it needs, read from the release
+    # itself (the copy being installed, not one already on disk), and carried
+    # on every success below - a warning, never a refusal (as SM337).
+    my ( $requires, $engine_note ) =
+        _layout_engine_requirement( $layout_source, _lz(), $layout_name );
+    my $done = sub {
+        my $r = { ok => 1, @_ };
+        $r->{requires} = { lazysite => $requires } if defined $requires;
+        $r->{warning}  = $engine_note if defined $engine_note;
+        log_event( 'WARN', $action_label, 'layout requires a newer engine',
+            layout => $layout_name, requires => $requires )
+            if defined $engine_note;
+        return $r;
+    };
 
     # Collect the release's layout files: the root files (layout.tt, optional
     # layout.json) and the optional components/ subtree (D035 content
@@ -1143,9 +1163,9 @@ sub _install_layout_from_dir {
             Lazysite::Manager::Themes::invalidate_html_cache();
             log_event( 'INFO', $action_label, 'layout updated',
                 name => $layout_name, files => join( ',', @differs ), user => $user );
-            return { ok => 1, action => 'updated' };
+            return $done->( action => 'updated' );
         }
-        return { ok => 1, action => 'already_installed' };
+        return $done->( action => 'already_installed' );
     }
 
     # New install.
@@ -1160,7 +1180,7 @@ sub _install_layout_from_dir {
         name => $layout_name, files => join( ',', @rel_files ),
         user => $user );
 
-    return { ok => 1, action => 'installed' };
+    return $done->( action => 'installed' );
 }
 
 # Recursively list regular files under $base as paths relative to $base.
