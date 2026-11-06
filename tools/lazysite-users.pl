@@ -594,8 +594,14 @@ if ($API_MODE) {
             $result = {
                 ok    => 1,
                 me    => $req->{me},
+                # SM1371: each account's roles, and what it holds beyond them,
+                # for the account view - the same summary whoami reports.
                 users => [
-                    map { my $u = $_; +{ user => $u, settings => effective_settings($u) } }
+                    map {
+                        my $u   = $_;
+                        my $eff = effective_settings($u);
+                        +{ user => $u, settings => $eff, roles => _roles_of( $u, $eff ) }
+                    }
                     grep { defined && length } sort keys %users
                 ],
                 groups => _group_settings_view(),
@@ -1856,6 +1862,17 @@ sub cmd_group_reach {
 # cut. Account-shaped fields keep per-account defaults:
 #   ui:        on  (interactive login allowed unless switched off)
 #   dav_scope: undef (docroot-wide, still subject to endpoint denials)
+# SM1371: the roles an account holds and its grants beyond them, over the
+# settings effective_settings resolved (`ui` there is the login flag; the
+# manager capability is `manager_ui`).
+sub _roles_of {
+    my ( $user, $eff ) = @_;
+    $eff ||= {};
+    my %held = map { $_ => ( ( $_ eq 'ui' ? $eff->{manager_ui} : $eff->{$_} ) ? 1 : 0 ) }
+        @Lazysite::Auth::Settings::CAP_KEYS;
+    return Lazysite::Auth::Settings::role_summary( $user, \%held );
+}
+
 sub effective_settings {
     my ($user) = @_;
 
@@ -4231,8 +4248,51 @@ sub _default_group_seed {
             description => 'Reads form submissions over the API and nothing else - '
                 . 'the least-privilege grant for processing enquiries.',
             read_submissions => 1 },
+
+        # --- SM1371 (ruling 122): roles for AGENT accounts ------------------
+        #
+        # Every permissions change measured on real sites was one of a few
+        # grants to an agent account (analytics; manage_data + write_data;
+        # read_submissions; manage_briefs), and an over-grant went unnoticed.
+        # These are the named bundles an operator gives an agent instead: one
+        # job each, over MCP, composable (an account may hold several), and
+        # nothing an agent did not need in the measured grants.
+        #
+        # THE CAPABILITIES SIT ON THE ROLE ITSELF, as lead-readers' do, rather
+        # than through cap-* nesting: a role an existing site adopts (see
+        # _adopt_agent_roles) is then one record and no change to a bundle any
+        # other role draws on. A role with no member grants nothing.
+        'content-agent' => {
+            label       => 'Content agent', assignable => 1, agent_role => 1,
+            description => 'An AI agent that writes pages, navigation and forms over MCP '
+                . '(a form\'s own configuration included). No design, data or settings.',
+            mcp => 1, manage_content => 1, manage_nav => 1, manage_forms => 1 },
+        'data-agent' => {
+            label       => 'Data agent', assignable => 1, agent_role => 1,
+            description => 'An AI agent that defines typed data tables, writes their rows '
+                . 'and keeps authoring briefs, over MCP. Needs the data extension '
+                . '(and briefs for the briefs).',
+            mcp => 1, manage_data => 1, write_data => 1, manage_briefs => 1 },
+        'forms-reader' => {
+            label       => 'Forms reader', assignable => 1, agent_role => 1,
+            description => 'An AI agent that reads form submissions over MCP and nothing '
+                . 'else - the least-privilege grant for processing enquiries.',
+            mcp => 1, read_submissions => 1 },
+        'analytics-agent' => {
+            label       => 'Analytics', assignable => 1, agent_role => 1,
+            description => 'An AI agent that reads the sanitised visitor analytics over '
+                . 'MCP. Changes nothing.',
+            mcp => 1, analytics => 1 },
     );
     return \%seed;
+}
+
+# SM1371: the agent roles, by name - the ones _adopt_agent_roles may add to a site
+# seeded before they shipped.
+sub _agent_role_names {
+    my $seed = _default_group_seed();
+    my @names = sort grep { ref $seed->{$_} eq 'HASH' && $seed->{$_}{agent_role} } keys %$seed;
+    return @names;
 }
 
 # SM631: which bundles each role draws on.
@@ -4362,6 +4422,38 @@ sub _adopt_added_bundles {
     return;
 }
 
+# SM1371: THE AGENT ROLES REACH A SITE SEEDED BEFORE THEY SHIPPED, ONCE.
+#
+# The same narrow rules as the bundles above, for the same reasons: only on a
+# site that has the shipped role layer (a `seeded` group), only a role that is
+# ABSENT, never rewriting one that exists, and only once - the names go into the
+# same had-record (bundles-adopted.json), so a role an operator deleted stays
+# deleted. A role is added with NO MEMBERS: it grants nothing to anyone until an
+# operator puts an account in it, so adopting it changes no one's access.
+sub _adopt_agent_roles {
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    return unless ref $gs eq 'HASH';
+    return unless grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } keys %{$gs};
+    my ( $had, $readable ) = _bundles_had();
+    return unless $readable;
+    my $seed = _default_group_seed();
+    my $was  = join ',', sort keys %$had;
+    my @added;
+    for my $role ( _agent_role_names() ) {
+        if ( ref $gs->{$role} eq 'HASH' ) { $had->{$role} = 1; next }
+        next if $had->{$role};
+        $gs->{$role}  = { %{ $seed->{$role} }, seeded => 1 };
+        $had->{$role} = 1;
+        push @added, $role;
+    }
+    my $changed = join( ',', sort keys %$had ) ne $was;
+    unless (@added) { _write_bundles_had($had) if $changed; return }
+    write_group_settings($gs);
+    _write_bundles_had($had);
+    log_event( 'INFO', $_, 'agent role added for this release (SM1371)' ) for @added;
+    return;
+}
+
 # Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
 # from the effective lookup so the seeder never recurses through itself.
 sub _conf_manager_groups {
@@ -4397,6 +4489,7 @@ sub _ensure_groups_seeded {
         # happened to name: an operator may have made a second one.
         _migrate_admins_to_sysops();
         _adopt_added_bundles();
+        _adopt_agent_roles();
         my $gs = Lazysite::Auth::Settings::read_group_settings();
         for my $g ( sort keys %{ $gs || {} } ) {
             next unless ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};

@@ -154,7 +154,7 @@ my %ACTION_INFO = (
         # outbound HTTP goes through a connector, which is manage_connectors'.
         # What this grant configures is email and file delivery, and which
         # existing handlers a form calls.
-        grants => 'Choose which handlers each form calls, and create, change and delete the email and file handlers - whose settings name the address mail goes to and the store a submission is kept in. A table handler needs manage_data and a connector handler manage_connectors. It does not read what was submitted; read_submissions does.',
+        grants => 'Choose which handlers each form calls, and create, change and delete the email and file handlers - whose settings name the address mail goes to and the store a submission is kept in. A table handler needs manage_data and a connector handler manage_connectors. It also reads and writes a form\'s own configuration, lazysite/forms/<name>.conf, over WebDAV, MCP read_file/write_file and the manager\'s file editor (SM1371). It does not read what was submitted; read_submissions does.',
         # SM435 was this defect pointed the other way: the descriptor CLAIMED
         # a path enforcement refused. Under-claiming is the quieter failure -
         # nothing 403s, nothing errors, the agent simply cannot find a door it
@@ -935,7 +935,7 @@ sub whoami_grant {
     return ( capabilities => \%caps, account => \%account );
 }
 
-# SM1370 (ruling 121): the block both whoamis add,
+# SM1370 (ruling 121) and SM1371 (ruling 122): the two blocks both whoamis add,
 # from one builder so the doors cannot disagree (SM288).
 #
 # `grant` says where this credential's capabilities come from: the account's
@@ -945,9 +945,13 @@ sub whoami_grant {
 # the note says so, because that is what an agent sees as "my grant did not
 # arrive".
 #
+# `roles` is Lazysite::Auth::Settings::role_summary over the same settings the
+# `capabilities` block reports: the roles held, and what is held beyond them.
 sub whoami_roles {
     my ( $user, $s ) = @_;
     $s ||= {};
+    my %held = map { $_ => ( $_ eq 'ui' ? $s->{manager_ui} : $s->{$_} ) ? 1 : 0 } @CAP_KEYS;
+    my $r    = Lazysite::Auth::Settings::role_summary( $user, \%held );
     return (
         grant => {
             source => 'account',
@@ -957,6 +961,7 @@ sub whoami_roles {
                 . 'granted is missing, your client is showing the tool list it fetched '
                 . 'when it connected: list tools again (or reconnect the connector).',
         },
+        roles => $r,
     );
 }
 

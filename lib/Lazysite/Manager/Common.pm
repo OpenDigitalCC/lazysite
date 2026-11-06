@@ -34,7 +34,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     page_bytes_refusal text_save_refusal invalid_utf8_offset
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     handler_reach_refusal caller_may_use_handler handler_bind_refusal
-    carveout_requirement carveout_refusal path_leads_to_carveout
+    carveout_requirement carveout_refusal path_leads_to_carveout form_conf_name
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
     domain_active_artifacts
@@ -1746,6 +1746,17 @@ sub carveout_requirement {
     # constraining the layout: forbidding a store outside lazysite/forms/ would
     # remove a configuration the code supports and an operator may already be
     # using.
+    # SM1371 (ruling 122): A FORM'S OWN CONFIGURATION IS manage_forms'S. WebDAV
+    # has admitted lazysite/forms/<name>.conf to manage_forms since 0.8.1; the
+    # file doors here refused it to everyone, so a grant that could bind the form
+    # (bind_form, set_form_*) could not open the file the binding is written in.
+    # The three files under lazysite/forms/ that are not a form stay refused by
+    # the blocklist: they are not this branch's.
+    if ( defined( my $name = form_conf_name($r) ) ) {
+        return { caps => ['manage_forms'], mode => $mode,
+            why => "a form's own configuration is governed by the manage_forms capability" };
+    }
+
     if ( _is_submission_store_path($r) ) {
         return { caps => [], mode => $mode,
             why => 'the submission store is append-only: the form handler writes it' }
@@ -1755,6 +1766,20 @@ sub carveout_requirement {
     }
 
     return undef;
+}
+
+# SM1371: the form a path is the configuration of - lazysite/forms/<name>.conf,
+# the name the shape lazysite-dav.pl admits - or undef. smtp.conf,
+# handlers.conf and schedule.conf are not forms (credentials, handler
+# definitions, what the timer calls) and answer undef.
+sub form_conf_name {
+    my ($rel) = @_;
+    return undef unless defined $rel;
+    ( my $r = $rel ) =~ s{^/+}{};
+    return undef unless $r =~ m{\Alazysite/forms/([A-Za-z0-9_-]+)\.conf\z};
+    my $name = $1;
+    return undef if $name eq 'smtp' || $name eq 'handlers' || $name eq 'schedule';
+    return $name;
 }
 
 # The refusal text for a governed path the caller cannot reach, or undef when

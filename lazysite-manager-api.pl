@@ -311,6 +311,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
 # (t/lint/217).
 Lazysite::Timing::to('identity'); # SM1144: the token or the wrapper's cookie identity, below
 reset_request_context();
+$Lazysite::Manager::Files::CALLER_CAPS = undef;    # SM1371: set below, per request
 $token_auth       = 0;
 %token_caps       = ();
 $REQUEST_CONFINED = 0;     # SM648: were this caller's scopes RESOLVED?
@@ -1249,6 +1250,8 @@ if ($token_auth) {
     my $fs_mode = $file_surface{$action};
     if ( defined $fs_mode && $site_secured ) {
         my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+        # SM1371: the choke point's own answer for a form's config asks the same caps.
+        $Lazysite::Manager::Files::CALLER_CAPS = { %{ $caps || {} } };
         # SM517: the zip parses `paths=` from the query string itself, so $path
         # is `/` here; gate every entry it will read. One governed path the
         # caller may not read refuses the WHOLE zip, naming the path and the

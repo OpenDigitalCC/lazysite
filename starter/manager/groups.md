@@ -898,8 +898,36 @@ function toggleSetting(group, key, el) {
       // list reload (the checkbox already reflects the new state).
       refreshGroupSummary(group);
       refreshGroupInert(group);   // SM198: caps changed -> inert status may change
+      if (on) offerExtensionFor(key);
     })
     .catch(function(e) { el.checked = !on; showStatus('Error: ' + e.message, true); });
+}
+
+// SM1371 (ruling 122): A GRANT THAT NEEDS AN EXTENSION NAMES IT, AND THE ENABLE
+// IS OFFERED IN THE SAME STEP. manage_data does nothing while the data
+// extension is off (SM675 marks such a grant dormant); an operator granting it
+// was left to find the Extensions page. The enable stays its own explicit act -
+// a confirm the operator answers - and goes through extension-enable, which
+// needs manage_config and is audited like any extension switch.
+function offerExtensionFor(cap) {
+  var owner = capabilityExtension[cap];
+  if (!owner || owner.enabled !== false || !owner.script) return;
+  var name = owner.name || owner.extension;
+  var ask = capLabel(cap) + ' (' + cap + ') needs the ' + name
+    + ' extension, which is switched off - the grant does nothing until it is on. '
+    + 'Enable the ' + name + ' extension now?';
+  return mgConfirm(ask, { ok: 'Enable ' + name }).then(function(okd) {
+    if (!okd) return;
+    return fetch(API + '?action=extension-enable', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script: owner.script })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok) { showStatus('The ' + name + ' extension was not enabled: ' + (d.error || 'unknown'), true); return; }
+      owner.enabled = true;
+      showStatus('The ' + name + ' extension is enabled; ' + cap + ' now takes effect.');
+      loadGroups();
+    }).catch(function(e) { showStatus('Error enabling ' + name + ': ' + e.message, true); });
+  });
 }
 
 // Members render as removable pills (the shared "pick none-or-many" style).

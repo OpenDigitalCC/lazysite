@@ -676,7 +676,7 @@ my %TOOLS = (
             # says capabilities.
             return { ok => 1, user => $user,
                 Lazysite::Capabilities::whoami_grant($caps),
-                # SM1370: the twin of the API whoami's grant block.
+                # SM1370/SM1371: the twin of the API whoami's two blocks.
                 do {
                     local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
                     Lazysite::Capabilities::whoami_roles( $user, $caps );
@@ -5009,6 +5009,8 @@ elsif ( $method eq 'tools/call' ) {
     # SM976 F1: and the file choke point's served-artifact rule asks with the
     # same scopes - this process has no manager request to read them from.
     $Lazysite::Manager::Files::CALLER_SCOPES = ( ref $scopes eq 'ARRAY' ) ? [ @{$scopes} ] : [];
+    # SM1371: and what the grant holds, for the form-config rule at that choke point.
+    $Lazysite::Manager::Files::CALLER_CAPS = { %{ $caps || {} } };
     # SM464: the grant's own settings, for the acl audit-read override - same
     # line the control API sets, so the two token surfaces cannot disagree.
     %Lazysite::Auth::Acl::token_caps = %{ $caps || {} };

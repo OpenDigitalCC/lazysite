@@ -17,7 +17,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     groups_grant_cap site_grants_manager
     groups_are_operator account_is_operator operator_groups
     request_cap_groups request_group_caps narrow_caps_to_request
-    effective_groups touch_credential
+    effective_groups touch_credential role_summary
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings group_is_assignable @CAP_KEYS
     group_settings_unreadable group_settings_undecodable auth_cannot_tell cannot_tell_refusal);
@@ -628,6 +628,56 @@ sub account_is_operator {
     my ($user) = @_;
     return 0 unless defined $user && length $user;
     return groups_are_operator( _effective_groups($user) );
+}
+
+# SM1371 (ruling 122): WHICH ROLE AN ACCOUNT HOLDS, AND WHAT IT HOLDS BEYOND IT.
+#
+# A role is a group: an ASSIGNABLE group the account is a direct member of that
+# grants at least one capability (ADR 0003 - capabilities are group-only, and a role is a group-like grant on
+# that model, never a second permission system). The account's own
+# `role-<account>` group is NOT a role here: it is where a one-account grant is
+# kept (partner-create, grant_caps), so what it carries is reported as beyond
+# the roles - which is the over-grant the ruling wants an operator to see.
+#
+# $held is the account's resolved capabilities ({cap => true}); the answer is
+#   { roles  => [ { group, label, capabilities => [..] } ],
+#     beyond => [ caps held that no role grants ] }
+# Each role's capabilities are what it grants through its own nesting closure,
+# so a role that draws on a bundle reports the bundle's grants. Account view, not
+# request view: no address rule is applied (narrow_caps_to_request is the
+# request's question).
+sub role_summary {
+    my ( $user, $held ) = @_;
+    return { roles => [], beyond => [] } unless defined $user && length $user;
+    $held = {} unless ref $held eq 'HASH';
+    my %membership = _groups_membership();
+    my $gs         = read_group_settings();
+    my @direct     = sort grep {
+        my $g = $_;
+        grep { $_ eq $user } @{ $membership{$g} || [] }
+    } keys %membership;
+    my ( @roles, %by_role );
+    for my $g (@direct) {
+        next if $g eq "role-$user";
+        next unless group_is_assignable( $g, $gs );
+        my %c;
+        for my $e ( _group_closure_in( \%membership, $gs, $g ) ) {
+            my $cfg = $gs->{$e};
+            next unless ref $cfg eq 'HASH';
+            for my $k (@CAP_KEYS) { $c{$k} = 1 if $cfg->{$k} }
+        }
+        # A group that grants nothing (an organisational group, a page-access
+        # group) is membership, not a role: naming it beside the roles would say
+        # it hands something over.
+        next unless %c;
+        $by_role{$_} = 1 for keys %c;
+        my $cfg = ref $gs->{$g} eq 'HASH' ? $gs->{$g} : {};
+        push @roles, { group => $g,
+            label => ( defined $cfg->{label} && length $cfg->{label} ) ? $cfg->{label} : $g,
+            capabilities => [ grep { $c{$_} } @CAP_KEYS ] };
+    }
+    my @beyond = grep { $held->{$_} && !$by_role{$_} } @CAP_KEYS;
+    return { roles => \@roles, beyond => \@beyond };
 }
 
 # The operator groups themselves, sorted - for reports (group-reach).

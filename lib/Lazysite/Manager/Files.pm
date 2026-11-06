@@ -62,6 +62,15 @@ our $action       = '';
 # context there is fail-closed (it reaches nothing).
 our $CALLER_SCOPES;
 
+# SM1371: WHAT THE CALLER HOLDS, for the one file rule here that asks a
+# capability itself: a form's own configuration (lazysite/forms/<name>.conf) is
+# read and written only by a holder of manage_forms. The dispatchers' carve-out
+# gate asks the same thing first (Common::carveout_requirement); this is the
+# choke point's own answer, so a verb that reaches action_save without passing
+# that gate cannot open the file. Set by lazysite-mcp.pl per tool call and by
+# lazysite-manager-api.pl on a secured site. Undef - nobody said - refuses.
+our $CALLER_CAPS;
+
 # SM085: content-history commit hook. One cheap enabled() check inside
 # commit_paths makes every call an instant no-op when the feature is off, and
 # Lazysite::Git eval-guards the git work - a git failure never breaks a save.
@@ -508,14 +517,57 @@ sub _camera_fields {
     );
 }
 
+# SM1371 (ruling 122): manage_forms covers a form's own .conf. The refusal for
+# a caller that may not read or write lazysite/forms/<name>.conf, or undef. A
+# write also meets the rules every other door applies to that file: its targets
+# name existing handlers only (Handlers::form_conf_problems, as WebDAV's PUT),
+# a domain-confined caller reaches the form (form_reach_refusal, as WebDAV's
+# gate) and binds only handlers it may use (handler_bind_refusal, as
+# form-targets-save).
+sub _form_conf_refusal {
+    my ( $rel, $name, $mode, $content ) = @_;
+    unless ( ref $CALLER_CAPS eq 'HASH' && $CALLER_CAPS->{manage_forms} ) {
+        return _refused( 'forbidden', "'$rel' is the form '$name''s own configuration, which "
+                . 'only the manage_forms capability reads or writes',
+            'ask the operator for manage_forms, or use bind_form / set_form_uploads / set_form_notify' );
+    }
+    my %who = defined $CALLER_SCOPES ? ( scopes => $CALLER_SCOPES ) : ();
+    if ( my $r = Lazysite::Manager::Common::form_reach_refusal( $name, %who ) ) {
+        return { %$r, audit_detail => refusal_detail( 'forbidden',
+                "the form '$name' is outside the caller's reach", 'work on a form of its own domain' ) };
+    }
+    return undef unless $mode eq 'write';
+    require Lazysite::Handlers;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $DOCROOT;
+    my $problems = Lazysite::Handlers::form_conf_problems( $content // '' );
+    if (@$problems) {
+        return { ok => 0, kind => 'validation', error => join( '; ', @$problems ),
+            audit_detail => refusal_detail( 'validation', "the form config for '$name' does not meet the binding rules",
+                'name existing handlers only (- handler: <id>)' ) };
+    }
+    my ($ids) = Lazysite::Handlers::parse_form_conf( $content // '' );
+    if ( my $r = Lazysite::Manager::Common::handler_bind_refusal( $ids, %who ) ) {
+        return { %$r, audit_detail => refusal_detail( 'forbidden',
+                "the form config for '$name' binds a handler of a domain the caller does not reach",
+                "bind the instance's handlers or its own domain's" ) };
+    }
+    return undef;
+}
+
 sub action_read {
     my ( $rel_path, $username ) = @_;
 
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
-    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    if ( defined( my $form = Lazysite::Manager::Common::form_conf_name( $result->{rel} ) ) ) {
+        if ( my $d = _form_conf_refusal( $result->{rel}, $form, 'read' ) ) { return $d }
+    }
+    else {
+        if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+        if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    }
 
     if ( my $d = _acl_denied( $result->{rel}, 'read', $username ) ) { return $d }
 
@@ -977,8 +1029,17 @@ sub action_save {
     return $result unless $result->{ok};
     if ( my $d = _folder_target_refusal($result) ) { return $d }    # SM1103
 
-    if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
-    if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    if ( defined( my $form = Lazysite::Manager::Common::form_conf_name( $result->{rel} ) ) ) {
+        # SM1371: the bytes are text first, as every save's are (SM1031 a).
+        if ( my ( $err, $why ) = text_save_refusal( $result->{rel}, $content ) ) {
+            return { ok => 0, error => $err, kind => 'page-encoding-refused', audit_detail => $why };
+        }
+        if ( my $d = _form_conf_refusal( $result->{rel}, $form, 'write', $content ) ) { return $d }
+    }
+    else {
+        if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
+        if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM1030: the refusals the CONTENT decides, shared with a draft preview

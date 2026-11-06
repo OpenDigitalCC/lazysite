@@ -97,6 +97,19 @@ when it connected keeps showing that list: list the tools again, or reconnect
 the connector, to see a tool you have just been granted. No new pairing key is
 needed.
 
+An operator gives an agent account a ROLE - a group that bundles the
+capabilities for one job. The shipped agent roles are `content-agent` (pages,
+navigation and forms, a form's own configuration included), `data-agent` (data
+tables, their rows and authoring briefs), `forms-reader` (form submissions,
+read only) and `analytics-agent` (visitor analytics), each over MCP; an account
+may hold several. `whoami.roles` names the roles you hold and, under `beyond`,
+any capability you hold that none of them grants.
+
+`manage_forms` reads and writes a form's own configuration,
+`lazysite/forms/<name>.conf`, through `read_file` and `write_file` as well as
+WebDAV: its targets name existing handlers only (`- handler: <id>`).
+`smtp.conf`, `handlers.conf` and `schedule.conf` are not forms and stay closed.
+
 ## Scope and denied paths
 
 Your capabilities and path scope come from the brief (and `whoami`). The content
@@ -163,8 +176,9 @@ whoami
   (`created_by`, `created_at`, `managed_by`), token and MFA state, scopes, and
   `interactive_login` (whether it may sign in to the manager at all). The control
   API's `whoami` carries the same two blocks from the same builder (SM821).
-  `grant` says where the capabilities come from: your account, at each request;
-  both surfaces carry it.
+  `grant` says where the capabilities come from (your account, at each request)
+  and `roles` lists the roles held and any capability `beyond` them; both
+  surfaces carry these too.
 
 describe_capabilities
 : The full capability map: every capability and what it unlocks (MCP tools,

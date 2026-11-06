@@ -89,6 +89,21 @@ says so in a `grant` block. An agent whose client shows an old tool list after a
 grant lists its tools again, or reconnects the connector; it needs no new pairing
 key, and rotating a token changes nothing about its grant.
 
+**Four agent roles appear (SM1371).** The first use of the users tool after the
+upgrade (any Users or Groups page load) adds `content-agent`, `data-agent`,
+`forms-reader` and `analytics-agent` to a site that has the shipped roles and lacks
+them. They have no members, so nobody's access changes; delete any you do not want
+and it stays deleted. To move an agent onto a role, put it in the role on the Groups
+or Users page and take the matching capabilities off its own `role-<account>` group;
+the Users page shows what an account holds beyond its roles.
+
+**manage_forms reaches a form's config on more doors (SM1371).** An account holding
+`manage_forms` can now read and write `lazysite/forms/<name>.conf` through MCP
+`read_file`/`write_file` and the manager's file editor, as it already could over
+WebDAV. The file's targets must name existing handlers. `smtp.conf`,
+`handlers.conf` and `schedule.conf` stay closed to every grant. If an account
+holds `manage_forms` it should not, this is the release to check.
+
 ## Address lists become address profiles, and the rest of 0.16.5
 
 **Address profiles (SM1343-SM1345).** Address lists are now address profiles. The

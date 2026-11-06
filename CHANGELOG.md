@@ -78,6 +78,15 @@ Archive
   now holds that on the control API, MCP bearer and MCP OAuth. Both whoamis carry a `grant`
   block saying so, with the remedy for a client whose tool list predates the grant (list the
   tools again; no new pairing key). The layouts briefing stops advising a token rotation.
+- SM1371 (PENDING) **Agent accounts hold roles (ruling 122).** Four agent roles ship as
+  assignable groups (ADR 0003): `content-agent`, `data-agent`, `forms-reader` and
+  `analytics-agent`, each one job over MCP, and an existing site adopts them once, with no
+  members. `whoami` (both doors) and the Users page name the roles an account holds and any
+  capability beyond them (`Auth::Settings::role_summary`). Ticking a grant whose extension is
+  off offers the enable in the same step, through the audited `extension-enable`.
+  `manage_forms` now reads and writes a form's own `lazysite/forms/<name>.conf` through MCP
+  `read_file`/`write_file` and the manager's file editor, as WebDAV has since 0.8.1, with
+  WebDAV's binding rules; `smtp.conf`, `handlers.conf` and `schedule.conf` stay closed.
 
 - SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The

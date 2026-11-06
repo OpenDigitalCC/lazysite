@@ -163,6 +163,14 @@ subtest '4. both whoamis say where the grant comes from' => sub {
     my $a = mapi( QUERY_STRING => 'action=whoami&extensions=0', HTTP_AUTHORIZATION => $basic );
     is( ref $a->{grant} eq 'HASH' ? $a->{grant}{source} : undef, 'account',
         'control-API whoami: the same block' ) or diag explain $a;
+
+    # SM1371: and the roles block, from the same builder on both doors. This
+    # account's grants all sit on its own role-agent group, which is not a role,
+    # so every one of them is reported beyond the roles.
+    my $mr = $m->{result}{structuredContent}{roles};
+    is_deeply( $mr && $mr->{roles}, [], 'MCP whoami: no role held' );
+    ok( ( grep { $_ eq 'manage_content' } @{ $mr->{beyond} || [] } ), '...and manage_content is beyond the roles' );
+    is_deeply( $a->{roles}, $mr, 'control-API whoami: the same roles block' );
 };
 
 done_testing();

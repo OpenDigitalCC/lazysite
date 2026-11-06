@@ -2554,3 +2554,70 @@ residual risk
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
   because ruling 121 is an access-control rule and this is where it is shown to hold.
+
+### 2026-11-06 - SM1371 (0.16.6): agent roles, the role summary, the extension offer, and a form's config
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: Ruling 122. Four assignable groups ship in the seed, each over MCP with one job's
+  capabilities on the record: `content-agent` (`manage_content`, `manage_nav`,
+  `manage_forms`), `data-agent` (`manage_data`, `write_data`, `manage_briefs`),
+  `forms-reader` (`read_submissions`), `analytics-agent` (`analytics`). An existing site
+  with the shipped role layer adopts each absent one once, with no members, recorded in
+  `bundles-adopted.json` (`_adopt_agent_roles`).
+: `Auth::Settings::role_summary`: the account's direct assignable groups that grant
+  something, less its own `role-<account>` group, and the capabilities it holds that none
+  of them grants (`beyond`), reported by both whoamis and by `users-page` to the Users page.
+: The Groups page's capability map (`channel-services`) carries each owning extension's
+  `script`; ticking a grant whose extension is off asks to enable it, through
+  `extension-enable`.
+: `manage_forms` reads and writes `lazysite/forms/<name>.conf` through MCP `read_file` /
+  `write_file` and the manager's `read` / `save`, as over WebDAV since 0.8.1: the carve-out
+  gate requires it (`carveout_requirement`, `form_conf_name`), and the choke point asks it
+  again from `Manager::Files::$CALLER_CAPS`; a write meets WebDAV's rules (UTF-8, targets
+  naming existing handlers only, the form in the caller's reach, handlers it may use).
+
+threat delta
+: Elevation of privilege is the question for each part.
+: The roles: a shipped group is a grant waiting for a member. Adoption adds no member, so
+  no account's capabilities change at the upgrade (t/unit/users/70); putting an account in
+  a role is the existing `group-add`, with SM195's conferral ceiling (a delegate confers
+  only what it may). No role carries `ui`, `api`, `webdav`, design, settings, people,
+  audit or purge.
+: The role summary and the map's `script`: read-only, shown to callers who already see the
+  account's settings (users-page) or their own grant (whoami); the script path is the one
+  the Extensions page already lists.
+: The extension offer: the enable stays a separate request that needs `manage_config`
+  (`cookie_cap` on `extension-enable`) and is audited as a mutating action; a grant never
+  enables anything by itself. A Groups-page user without `manage_config` is refused the
+  enable as before.
+: The form config: this widens what `manage_forms` reaches on two doors to what it
+  already reached on the third. A form's config names which handlers a form dispatches to,
+  and `manage_forms` already writes it through `bind_form`, `set_form_uploads`,
+  `set_form_notify` and `form-targets-save`; the raw write meets the same binding rules,
+  so it reaches no handler, destination or form those verbs refuse. Credentials
+  (`smtp.conf`), handler definitions (`handlers.conf`) and the schedule stay refused
+  (t/unit/manager/461). Undef caps (an unsecured site, where the gate is skipped) refuse.
+: No trigger of ADR 0007's four fires: no new interface (two blocks on whoami, a field on
+  an existing response, existing actions), no new sign-in method, no new dependency, no new
+  restricted data.
+
+controls
+: Groups-only resolution (ADR 0003, `caps_for`), the adoption rules of SM1241/SM1262
+  reused, the carve-out definition shared by both dispatchers (SM268 H4) and answered again
+  at the choke point, `Handlers::form_conf_problems` and `handler_bind_refusal` as on the
+  other doors. Tests: t/unit/users/70, t/unit/manager/460 (subtest 4), 461, 462.
+
+residual risk
+: A site that granted `manage_forms` to an account it would not trust with a form's raw
+  config gains nothing it could not already do through the binding verbs, but the raw file
+  is now one more way to do it; UPGRADE.md says to check who holds `manage_forms`. An
+  operator who puts an agent in `data-agent` gives it `manage_briefs` with the data
+  capabilities (a choice recorded in the filing). The four roles appear on every site with
+  the shipped role layer; an operator who does not want them deletes them once.
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because shipped grants, a capability's reach on two doors and the Groups page's enable
+  path moved.

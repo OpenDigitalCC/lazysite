@@ -88,6 +88,9 @@ sub action_channel_services {
                 extension => $p->{id},
                 name    => ( $p->{name} // $p->{id} ),
                 enabled => ( $p->{_enabled} ? JSON::PP::true : JSON::PP::false ),
+                # SM1371: what extension-enable takes, so the Groups page can
+                # offer the enable in the step that makes the grant.
+                script => $p->{_script},
             };
         }
     }

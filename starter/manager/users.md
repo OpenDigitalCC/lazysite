@@ -440,6 +440,27 @@ function sec(title, inner) {
 // always a single line. Editing opens in the full-width editor sheet
 // (configureUser), which never nests - so the tree can go arbitrarily deep
 // without the editor ever shrinking.
+// SM1371 (ruling 122): the ROLES an account holds, and any capability it holds
+// beyond them, on its row - from users-page's `roles` (Auth::Settings
+// role_summary, the summary whoami reports). A grant beyond the roles is the
+// over-grant that went unnoticed on real sites, so it is drawn, not hidden.
+function rolesChip(r) {
+  if (!r) return '';
+  var h = '';
+  (r.roles || []).forEach(function(x) {
+    h += ' <span class="mg-tag mg-tag-auto" title="' + escHtml('Role ' + x.group + ': '
+      + ((x.capabilities || []).map(function(c) { return PERM_LABELS[c] || c; }).join(', ') || 'grants nothing'))
+      + '">' + escHtml(x.label || x.group) + '</span>';
+  });
+  var b = r.beyond || [];
+  if (b.length) {
+    h += ' <span class="mg-tag mg-tag-off" title="' + escHtml('Held beyond its roles: '
+      + b.map(function(c) { return (PERM_LABELS[c] || c) + ' (' + c + ')'; }).join(', '))
+      + '">+' + b.length + ' beyond role' + ((r.roles || []).length === 1 ? '' : 's') + '</span>';
+  }
+  return h;
+}
+
 function renderUserRow(row, kidsHtml, subCount, parentName) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var disabled = !!s.disabled;
@@ -474,7 +495,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
       + escHtml(dn) + ' <span class="mg-muted">(' + ue + ')</span></span>'
     : '<span class="mg-acc-name" title="' + ue + '">' + ue + '</span>';
   var line =
-    nameEl + recentDot(u) + roleTag + lineChip + note +
+    nameEl + recentDot(u) + roleTag + rolesChip(row.roles) + lineChip + note +
     '<span class="mg-acc-spacer"></span>' + flags +
     '<button type="button" class="mg-btn mg-btn-sm mg-configbtn" data-cfg="' + ue + '" ' +
     'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">Edit</button>';
