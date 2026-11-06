@@ -2515,7 +2515,7 @@ verdict
 
 ### 2026-11-06 - SM1370 (0.16.6): a token follows its account's grant
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : Ruling 121. Measured, before any change: no token door fixes a capability into a
@@ -2552,12 +2552,12 @@ residual risk
   is its account's domain scope and address rule (SM1140), both per request.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because ruling 121 is an access-control rule and this is where it is shown to hold.
 
 ### 2026-11-06 - SM1371 (0.16.6): agent roles, the role summary, the extension offer, and a form's config
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : Ruling 122. Four assignable groups ship in the seed, each over MCP with one job's
@@ -2618,6 +2618,6 @@ residual risk
   the shipped role layer; an operator who does not want them deletes them once.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because shipped grants, a capability's reach on two doors and the Groups page's enable
   path moved.
