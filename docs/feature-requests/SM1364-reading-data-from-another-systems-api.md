@@ -20,7 +20,7 @@ status-note: "Filed 2026-11-06 under SM1350. The first use is an app's integrati
 
   The table is then read-only in lazysite for the mapped columns, and a site edits those facts at the source.
 - **Refresh:** on a schedule run by the engine's existing scheduler, plus on demand. Every refresh is logged. A failed refresh keeps the last good copy and says how old it is.
-- **Writing back:** none. Data flows one way, from the source; anything that must change there is changed there. An app may add a write path as its own extension.
+- **Writing back:** see [[SM1376]] (ruling 129), which supersedes the "none" this line said: a form posts to the source's API and shows its answer, an edit to a sourced column is sent to the source, and a failed post is reported with nothing kept locally in its place.
 - **Mapping the systems:** before a source is connected, the app records which system owns each fact, so nothing is held or entered in both.
 - **Feeds:** a source's rows feed wizards (SM1355), schedules (SM1356) and search data (SM1357) like any table.
 
