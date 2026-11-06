@@ -2624,7 +2624,7 @@ verdict
 
 ### 2026-11-06 - SM1373 (0.16.6): an extension's settings read answers only its own keys
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : `extension-read` (`Lazysite::Manager::Extensions::action_extension_read`) answered
@@ -2661,12 +2661,12 @@ residual risk
   can read `lazysite/lazysite.conf` as a file on the host still reads it whole.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a settings read discloses moved.
 
 ### 2026-11-06 - SM1374 (0.16.6): a plan Odoo refused shows the visitor only validation text
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : An Odoo plan that failed at Odoo answered `apply-incomplete` with "the plan did not
@@ -2703,12 +2703,12 @@ residual risk
   message through the filter, as before.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what a refusal tells a visitor moved.
 
 ### 2026-11-06 - SM1366 (0.16.6): an Odoo call's record names the signed-in account
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : Ruling 124. An Odoo call made under a person's Odoo session was recorded (the call
@@ -2748,12 +2748,12 @@ residual risk
   Odoo session's hash beside it to tell them apart.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because what the audit trail names moved.
 
 ### 2026-11-06 - SM1362 (0.16.6): a form mails its owner, and can answer the submitter
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : Ruling 123. (1) `lazysite/notify.conf` `owner_contact:` names one address, and each
@@ -2790,8 +2790,12 @@ threat delta
   (the address is not written to either cap record, only a hash for the
   per-recipient count, as SM877), but personal data now leaves the site to a second
   party, the owner, for a `notify: full` form - the same disclosure an smtp handler
-  makes, chosen by the operator; recorded here for the release manager to assess
-  whether the trigger fires.
+  makes, chosen by the operator. Ruling 140 (2026-11-06): an owner notice under
+  `notify: full` carries a submission's contents by email, so ADR 0007's
+  new-processing-of-restricted-data trigger fires, and it is assessed contained: it is
+  off by default (no `owner_contact`, and `notify: full` set per form), it goes only to
+  the one address the operator names in `owner_contact`, never to one a request
+  carries, and it is rate-limited by `mail.per_hour`.
 
 controls
 : t/unit/forms/68 through the real form CGI and Form SMTP with a mock sendmail: the
@@ -2809,13 +2813,14 @@ residual risk
   is what sends it.
 
 verdict
-: accepted (drafted; for the release manager's confirmation, including whether the
+: accepted, confirmed by the release manager on 2026-11-06 (ruling 140): the
   new-processing-of-restricted-data trigger fires for a `notify: full` form's owner
-  mail).
+  mail, and the change is contained (off by default, only to the operator's named
+  `owner_contact` address, rate-limited by `mail.per_hour`).
 
 ### 2026-11-06 - SM1372 (0.16.6): the primary's content leaves out the other domains' roots
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 140).
 
 what changed
 : Ruling 126, closing the residual risk SM1332-SM1334's entry (2026-11-05) recorded. An
@@ -2868,5 +2873,5 @@ residual risk
   manager's cookie operator is decided (SM991); a token is never an operator.
 
 verdict
-: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+: accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because a content boundary moved and closes a recorded residual risk.

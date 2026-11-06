@@ -84,3 +84,11 @@ full` gives the owner the fields; nothing without the opt-ins; the owner mail
 needs the extension, follows `notify: off` and refuses two addresses; a
 quarantined submission tells nobody; `mail.per_hour`, the per-address cap, the
 form's per-site cap, and the bucket shared with the smtp handler each hold.
+
+# ADR 0007
+
+Ruling 140 (release manager, 2026-11-06): an owner notice under `notify: full`
+carries a submission's contents by email, so the new-processing-of-restricted-data
+trigger fires. It is assessed contained: off by default, sent only to the
+operator's named `owner_contact` address, and rate-limited by `mail.per_hour`.
+The register entry in `docs/SECURITY.md` (2026-11-06, SM1362) records it.

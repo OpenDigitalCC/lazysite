@@ -60,7 +60,7 @@ Archive
   WebDAV, MCP, the control API and the manager's Files, and the refusal names the folder and
   how to grant it. Ruling 137: a listing (the manager's Files, MCP `list_files`, WebDAV
   PROPFIND) leaves those folders out too, for a caller refused them. The operator (a member of the operator group) and an account granted a domain keep that
-  reach. UPGRADE.md says how to give an account the domain it relied on. Register entry drafted.
+  reach. UPGRADE.md says how to give an account the domain it relied on. Register entry confirmed (ruling 140).
 
 - SM1362 (PENDING) **A form tells the site's owner by email, and can answer the submitter.**
   Ruling 123 re-scoped the filing: a bare form already saves (the shipped local-storage
@@ -71,7 +71,7 @@ Archive
   acknowledgement with `acknowledge_field` and `acknowledge_message` (and
   `acknowledge_subject`): the form's own words, never the visitor's text, mailed to the
   address in that field under the email handler's caps (3 an hour per address, 60 per
-  site, counted together). Register entry drafted.
+  site, counted together). Register entry confirmed (ruling 140): the owner notice under `notify: full` fires ADR 0007's new-processing-of-restricted-data, contained.
 
 - SM1366 (PENDING) **An Odoo call's record names the signed-in account.** A call made under a
   person's Odoo session was recorded, and written to the audit log, as `session:<hash>`
@@ -96,7 +96,7 @@ Archive
   site's main config, and one with its own file any key its schema does not name; only its
   own password fields were dropped. It now answers the keys the extension's `config_schema`
   or `config_keys` names, whatever its file. The action is reachable by a manager session
-  with `manage_config` only (no token reaches it). Register entry drafted.
+  with `manage_config` only (no token reaches it). Register entry confirmed (ruling 140).
 
 - SM1375 (PENDING) **The 403 page lists the groups a page needs.** The shipped `403.md` named
   them as "- reviewers" lines run into one paragraph, on a front-matter group gate and on an
