@@ -163,7 +163,7 @@ subtest 'ordinary addresses are left alone' => sub {
         ok( $r && !$r->{_quarantined}, "$addr is not quarantined" )
             or diag( $r ? $r->{_spam_reason} : 'not stored' );
     }
-    # A bare semicolon is an address list, which the acknowledgement path refuses
+    # A bare semicolon names two recipients, which the acknowledgement path refuses
     # and records by name (t/unit/forms/60); this rule must not pre-empt it.
     my $list = submit( 'contact',
         name    => 'Ada Lovelace',

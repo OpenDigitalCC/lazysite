@@ -898,7 +898,7 @@ sub _email_fields {
 # message). The reason names the field and never repeats the value, which is
 # the probe's own text.
 #
-# A BARE SEMICOLON IS NOT THIS SIGNAL. `a@x;b@y` is an address list, and the
+# A BARE SEMICOLON IS NOT THIS SIGNAL. `a@x;b@y` names two recipients, and the
 # acknowledgement path refuses it by name and records why (t/unit/forms/60); a
 # quarantine here would pre-empt that record. A semicolon followed by SQL is
 # still caught by the SQL shapes.
@@ -915,7 +915,16 @@ sub _email_field_injection {
         return "the email field '$k' holds quotes or SQL"
             if $v =~ /['"`]/
             || $v =~ m{/\*|--(?:\s|\z)}
-            || $v =~ /\b(?:select\b.*\bfrom|union\b.*\bselect|insert\s+into|delete\s+from|drop\s+(?:table|database)|update\b.+\bset|sleep\s*\(|benchmark\s*\(|waitfor\s+delay|(?:or|and)\s+\d+\s*=\s*\d+)/i;
+            || $v =~ m{ \b (?: select \b .* \b from
+                        | union \b .* \b select
+                        | insert \s+ into
+                        | delete \s+ from
+                        | drop \s+ (?: table | database )
+                        | update \b .+ \b set
+                        | sleep \s* \(
+                        | benchmark \s* \(
+                        | waitfor \s+ delay
+                        | (?: or | and ) \s+ \d+ \s* = \s* \d+ ) }xi;
     }
     return '';
 }
