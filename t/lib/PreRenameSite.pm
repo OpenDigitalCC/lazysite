@@ -77,7 +77,11 @@ sub make_pre_rename {
         $files{$o} = $state->{files}{$k};
     }
     $state->{files}   = \%files;
-    $state->{version} = '0.16.3';
+    # Older than the tree's VERSION, which on a development branch names the
+    # last release (0.16.3 since the restack): a state at that version is
+    # "already at 0.16.3 - nothing to upgrade" and the step never runs.
+    # 0.16.2 is as pre-rename as 0.16.3, and stays below every later VERSION.
+    $state->{version} = '0.16.2';
     $state->{once}    = [ grep { $_ ne 'extensions-rename' } @{ $state->{once} || [] } ];
     spit( $sp, JSON::PP->new->canonical->pretty->encode($state) );
 
