@@ -57,10 +57,10 @@ Archive
   TECHNICAL-FILE.md are walked against the 0.16.6 stack and stamped 0.16.6. The ten register
   entries the branches wrote, each confirmed by the release manager (rulings 134, 140), are
   walked against the code; SM1369's new-external-interface and SM1362's
-  new-processing-of-restricted-data are their triggers' assessments, contained. Drafted at
-  the walk, for the release manager's confirmation: an entry for SM1375 and SM1378, trust
-  boundary 15 (an extension's code in a core process), three STRIDE rows and four
-  operate-side rows. Found at the walk: the 403 page's group names were not escaped by the
+  new-processing-of-restricted-data are their triggers' assessments, contained. Written at
+  the walk and confirmed by the release manager (ruling 142): an entry for SM1375 and
+  SM1378, trust boundary 15 (an extension's code in a core process) and three STRIDE rows,
+  with four operate-side rows. 0.16.6 is edge, not security-critical (ruling 142). Found at the walk: the 403 page's group names were not escaped by the
   stash; escaped in 0.16.6 under SM1375 (ruling 141). SM1373, SM1374 and SM1375 gain their filings;
   UPGRADE.md's 0.16.6 notes are one section. Docs only; nothing is signed.
 

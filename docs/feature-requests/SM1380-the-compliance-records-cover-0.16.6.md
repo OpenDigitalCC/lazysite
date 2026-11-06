@@ -33,11 +33,13 @@ SM1377-SM1379, and SM1350's umbrella row).
   new-processing-of-restricted-data, each assessed and confirmed contained; the others
   fire none.
 - docs/SECURITY.md, a new entry dated 2026-11-06 for SM1375 and SM1378 (the 403 page's
-  group list; a layout's engine requirement), no trigger, drafted for the release
-  manager's confirmation.
+  group list; a layout's engine requirement), no trigger, confirmed by the release
+  manager on 2026-11-06 (ruling 142); and one for ruling 141 (the 403 page escapes its
+  group names), confirmed.
 - docs/SECURITY.md, trust boundary 15 (an extension's code in a core process, SM1369)
   and three STRIDE rows (the hook loader; the primary's content reaching the other
-  domains' folders, closed by SM1372; the site as a mailer, SM1362), drafts.
+  domains' folders, closed by SM1372; the site as a mailer, SM1362), confirmed by the
+  release manager on 2026-11-06 (ruling 142).
 - docs/compliance/OBLIGATIONS.md, stamped 0.16.6: the register, threat-model, SBOM
   (strict, exit 0, 462 components, the one more being `lib/Lazysite/Extensions/Hooks.pm`;
   sbom-deps.json unchanged) and technical-file rows; the operate-side register and
