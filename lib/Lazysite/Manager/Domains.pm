@@ -1432,7 +1432,7 @@ sub domain_set {
     # engine. A warning, never a refusal (as SM337).
     if ( $key eq 'layout' && length $value && $value =~ /\A[A-Za-z0-9_-]+\z/ ) {
         require Lazysite::Manager::Themes;
-        my ( $requires, $note ) = Lazysite::Manager::Themes::_layout_engine_requirement(
+        my ( $requires, $note ) = Lazysite::Manager::Themes::layout_engine_requirement(
             _lz() . "/layouts/$value", _lz() );
         $res->{requires} = { lazysite => $requires } if defined $requires;
         push @{ $res->{warnings} ||= [] }, $note if defined $note;

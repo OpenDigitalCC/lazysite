@@ -37,7 +37,7 @@ our @EXPORT_OK = qw(
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
     _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for _mirror_theme_assets _mirror_warning _mirror_layout_themes
-    _read_json_file _layout_engine_requirement
+    _read_json_file layout_engine_requirement
 );
 
 our $DOCROOT;
@@ -1668,7 +1668,7 @@ sub action_layout_activate {
             # written for. Beside the nav note when there is one, so a caller
             # that already shows `warning` shows both.
             my ( $requires, $engine_note ) =
-                _layout_engine_requirement( $layout_dir, $LAZYSITE_DIR );
+                layout_engine_requirement( $layout_dir, $LAZYSITE_DIR );
             $res->{requires} = { lazysite => $requires } if defined $requires;
             $res->{warning}  = join ' ', grep { defined } $res->{warning}, $engine_note
                 if defined $engine_note;
@@ -1723,7 +1723,7 @@ sub _set_layout_pointer {
 # unpacked under a temporary name); it defaults to the directory's own.
 # Returns ( $requires, $warning ): the declared version (or undef) and a
 # sentence (or undef).
-sub _layout_engine_requirement {
+sub layout_engine_requirement {
     my ( $layout_dir, $lazysite_dir, $name ) = @_;
     my $meta = _read_json_file("$layout_dir/layout.json");
     return ( undef, undef ) unless ref $meta eq 'HASH' && ref $meta->{requires} eq 'HASH';

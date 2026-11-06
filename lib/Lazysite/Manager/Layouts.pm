@@ -19,7 +19,7 @@ use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan
 use Lazysite::Paths            ();
 use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
     _snapshot_artifact _prune_backups _snapshot_wanted _swap_in _staging_for
-    _mirror_theme_assets action_layout_activate _read_json_file _layout_engine_requirement);
+    _mirror_theme_assets action_layout_activate _read_json_file layout_engine_requirement);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -1061,7 +1061,7 @@ sub _install_layout_from_dir {
     # itself (the copy being installed, not one already on disk), and carried
     # on every success below - a warning, never a refusal (as SM337).
     my ( $requires, $engine_note ) =
-        _layout_engine_requirement( $layout_source, _lz(), $layout_name );
+        layout_engine_requirement( $layout_source, _lz(), $layout_name );
     my $done = sub {
         my $r = { ok => 1, @_ };
         $r->{requires} = { lazysite => $requires } if defined $requires;

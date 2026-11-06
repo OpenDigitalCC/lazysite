@@ -10,11 +10,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(setup_test_site repo_root);
+use TestHelper qw(setup_test_site repo_root site_tempdir);
 use lib repo_root() . '/lib';
 
 require Lazysite::Manager::Themes;
@@ -22,7 +21,7 @@ require Lazysite::Manager::Layouts;
 require Lazysite::Manager::Domains;
 require Lazysite::Manager::Files;
 
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();
 setup_test_site($docroot);
 my $lz = "$docroot/lazysite";
 no warnings 'once';
@@ -59,7 +58,7 @@ sub layout_at {
     return $dir;
 }
 
-my $req = \&Lazysite::Manager::Themes::_layout_engine_requirement;
+my $req = \&Lazysite::Manager::Themes::layout_engine_requirement;
 
 subtest 'the reader: older warns, equal or newer does not' => sub {
     my $d = layout_at( "$docroot/src/needs", '"0.15.11"' );
