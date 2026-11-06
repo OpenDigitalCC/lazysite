@@ -22,6 +22,7 @@ status-note: "Filed 2026-11-06 under SM1350. Builds on ruling 70 (a generic iden
 - **The engine signs people in through a provider:** it is an OpenID Connect relying party, with the authorisation code flow plus PKCE. Settings: issuer URL, client id and secret (the secret under `lazysite/auth/`, never in `lazysite.conf`), the scopes, and which claim carries groups.
 - **The sign-in page:** it offers "Sign in with <provider name>" beside, or instead of, the local form (an instance setting).
 - **Group mapping:** a provider group maps to a lazysite group per instance, e.g. `service-team` to `operators`. Membership is read at each sign-in and never stored as a grant, so removing someone at the provider removes them everywhere at their next request.
+- **More than one provider:** an instance may trust more than one provider, each mapped to its own groups. For example, the service desk's provider maps to operators, and a partner platform where site owners already have logins maps that owner to their own site's owner group. A provider that is not OpenID Connect is connected through ruling 70's identity hook as an extension.
 - **Local accounts stay:** a site owner's account can remain local to the site (with SM1352 passkeys). They can also be at the provider.
 - **No account is created** for a provider user who maps to no group.
 - **Audit:** each provider sign-in is recorded with the provider and the subject.
