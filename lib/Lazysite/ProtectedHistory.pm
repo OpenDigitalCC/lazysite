@@ -18,7 +18,7 @@ package Lazysite::ProtectedHistory;
 #   so outside the served tree with the store's own protection (02770, the
 #   docroot's group), and at a name no content path can take, `lazysite/` being
 #   the engine's reserved name in every tree. Git-sync never sees it: the sync
-#   plugin works the public repository only.
+#   extension works the public repository only.
 #
 #   Only what a history rule covers is ever staged. There is no adoption of the
 #   whole store and no commit_all: a folder that has not opted in is never read
