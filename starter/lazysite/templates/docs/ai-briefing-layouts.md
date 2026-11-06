@@ -425,8 +425,8 @@ whole `lazysite/` tree is denied to writes by default.
 
 **The theme a site is currently using cannot be edited in place - on any
 surface.** WebDAV, the control API, MCP and the manager all refuse a write into
-the active theme (or the active layout) - the primary site's, and the theme any
-other domain on the instance serves as its own - deliberately: a live theme being
+the active theme (or the active layout) - the primary site's, and the theme and
+layout any other domain on the instance serves as its own - deliberately: a live theme being
 rewritten mid-request would serve a half-updated site to whoever was reading at
 that moment. A theme apply is atomic; a stream of file writes into the theme
 being rendered is not. It is design, not obstruction, and the refusal is the

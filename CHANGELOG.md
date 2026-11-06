@@ -63,7 +63,8 @@ Archive
   the Files page mark each copy `served_copy`, with its `source` and the hosts that serve it
   (`served_by`, each with `theme_active`). Ruling 109: the theme a secondary domain serves as
   its own is read-only on every surface as the primary's is, the refusal naming the domain and
-  copy, edit, activate with `host`. `theme-copy` and `copy_theme` take the theme by its path,
+  copy, edit, activate with `host`; ruling 120: and so is the layout it serves as its own, a
+  layout only pages pin staying writable. `theme-copy` and `copy_theme` take the theme by its path,
   `lazysite/layouts/<layout>/themes/<theme>`, as well as by its name.
 
 - SM1336 (PENDING) **Every served copy of a theme carries its tokens and its version.** Ruling

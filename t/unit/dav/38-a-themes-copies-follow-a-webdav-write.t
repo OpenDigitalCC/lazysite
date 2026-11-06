@@ -15,8 +15,8 @@
 #
 # Ruling 110, the 05/11 inbox case: a PUT to the served copy of the PRIMARY's
 # active theme answered 204 while its source answered 403 - the copy is refused
-# as every copy is, whoever asks. Ruling 109: the theme a secondary domain
-# serves as its own is read-only as the primary's is.
+# as every copy is, whoever asks. Rulings 109 and 120: the theme and the layout
+# a secondary domain serves as its own are read-only as the primary's are.
 #
 # With the fix reverted the copies keep the old bytes, the renders stay, and the
 # writes into a copy land.
@@ -148,6 +148,15 @@ subtest 'a secondary domain\'s active theme is read-only over WebDAV too (ruling
     like( $r->{headers}{'x-lazysite-deny-reason'} // '', qr/active theme of two\.example/,
         'the reason names the domain that serves it' );
     is( slurp('lazysite/layouts/site2/themes/own/assets/main.css'), "/* own */\n", 'the source is untouched' );
+};
+
+subtest 'a secondary domain\'s active layout is read-only over WebDAV too (ruling 120)' => sub {
+    my $r = dav( 'PUT', '/lazysite/layouts/site2/layout.tt', body => "<main>[% content %]</main>\n" );
+    is( $r->{code}, 403, 'PUT to its layout.tt: 403' ) or diag explain $r;
+    like( $r->{headers}{'x-lazysite-deny-reason'} // '', qr/active layout of two\.example/,
+        'the reason names the domain that serves it' );
+    is( slurp('lazysite/layouts/site2/layout.tt'), "[% content %]\n", 'the layout is untouched' );
+    is( dav( 'MKCOL', '/lazysite/layouts/site2/partials' )->{code}, 403, 'MKCOL in it: 403' );
 };
 
 subtest 'the served copy of the primary\'s active theme is refused as its source is (ruling 110)' => sub {

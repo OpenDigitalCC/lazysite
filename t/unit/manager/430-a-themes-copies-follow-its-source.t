@@ -44,19 +44,22 @@ sub slurp {
 }
 
 # No primary layout, so nothing is the instance's active pair (SM749 would
-# refuse it); the secondary domain serves gallery/own from its own root, and
-# clarity is no host's theme (ruling 109 holds a domain's active theme
-# read-only, as the primary's): pages pin it, and every host has its copy.
+# refuse it); the secondary domain serves site2/own from its own root, and
+# gallery and its themes are no host's (rulings 109 and 120 hold a domain's
+# active theme and layout read-only, as the primary's): pages pin them, and
+# every host has their copies.
 put( 'lazysite/lazysite.conf', <<'CONF' );
 site_name: T
 site_url: https://primary.example
 alias_hosts: two.example
 alias.two.example.content_root: sites/two
-alias.two.example.layout: gallery
+alias.two.example.layout: site2
 alias.two.example.theme: own
 CONF
 put( 'lazysite/layouts/gallery/layout.tt', "[% content %]\n" );
-for my $t (qw(clarity other own)) {
+put( 'lazysite/layouts/site2/layout.tt', "[% content %]\n" );
+put( 'lazysite/layouts/site2/themes/own/theme.json', '{"name":"own"}' );
+for my $t (qw(clarity other)) {
     put( "lazysite/layouts/gallery/themes/$t/theme.json",
         JSON::PP::encode_json( { name => $t, config => { colours => { primary => '#123456' } } } ) );
     put( "lazysite/layouts/gallery/themes/$t/assets/main.css", "/* $t v1 */\n" );

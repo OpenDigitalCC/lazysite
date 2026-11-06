@@ -6,9 +6,9 @@ brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-11-05
-raised-by: "the sites agent (2026-11-05 inbox: a secondary domain's theme mirror is a third copy nobody can see; the served mirror of the active theme accepts a PUT its source refuses); ruling 81 (Q13) with triage T-39; rulings 109 and 110 (Q41, Q42)"
+raised-by: "the sites agent (2026-11-05 inbox: a secondary domain's theme mirror is a third copy nobody can see; the served mirror of the active theme accepts a PUT its source refuses); ruling 81 (Q13) with triage T-39; rulings 109, 110 and 120 (Q41, Q42, Q52)"
 area: themes
-status-note: "SHIPPED (PENDING) on n747: served_artifact_refusal answers a served copy (Themes::served_mirror), at the choke point and before WebDAV's writes; action_list marks served_copy. Ruling 109: active_artifact_refusal holds each domain's active theme (domain_active_themes). action_theme_copy takes the theme's path. t/unit/manager/432, t/unit/dav/38, t/unit/mcp/73."
+status-note: "SHIPPED (PENDING) on n747: served_artifact_refusal answers a served copy (Themes::served_mirror), at the choke point and before WebDAV's writes; action_list marks served_copy. Rulings 109, 120: active_artifact_refusal holds each domain's active theme and layout (domain_active_artifacts). action_theme_copy takes the theme's path. t/unit/manager/432, t/unit/dav/38, t/unit/mcp/73."
 ---
 
 # What happened
@@ -60,12 +60,20 @@ primary is named by its `site_url` host.
 
 **A secondary domain's active theme is read-only** (ruling 109), as the
 primary's has been since SM749. `active_artifact_refusal` takes the themes each
-domain serves as its own (`Common::domain_active_themes`, the effective values
+domain serves as its own (`Common::domain_active_artifacts`, the effective values
 `Domains::domain_usage` reads, the primary left out), asked by the choke point
 and by WebDAV's `authorise_layout`: a write into such a theme's source is
 refused for every caller, kind `active-artifact-refused`, naming the domain and
 the workflow - copy, edit, activate the copy with `host`. A theme only pages pin
 stays writable, and its copies follow it (SM1335).
+
+**And its active layout** (ruling 120). The same rule takes each domain's
+layout too: a write into its own files (`layout.tt`, `layout.json`, `strings/`,
+the `themes/` folder itself) is refused for every caller, the same kind, naming
+the domain and the route - install the new version under another name or edit
+a layout no domain serves, then activate it with `host`. A theme under it that no
+host serves stays writable, and so does a layout only pages pin. The refusal for
+a domain's theme or layout is 400, as the primary's is (ruling 119).
 
 **`theme-copy` takes the theme by its path.** `action_theme_copy` (control API
 `theme-copy`, MCP `copy_theme`) accepts `lazysite/layouts/<layout>/themes/<theme>`
@@ -81,12 +89,15 @@ as well as the bare name; the layout in the path is the layout, and one given in
   The listing marks the copies with source, hosts and `theme_active`. Save,
   upload, delete and copy into the secondary domain's active theme's source are
   refused by the active-theme rule naming the domain; the primary's keeps its
-  words. `theme-copy` by path, with slashes, with a matching `layout`; a
+  words. `layout.tt`, a new file and the `themes/` folder of a secondary
+  domain's active layout are refused naming the domain; a theme under it no
+  host serves, and a layout only pages pin, are written. `theme-copy` by path, with slashes, with a matching `layout`; a
   different `layout` and a malformed name refused.
 - t/unit/dav/38: PUT (both copies), MKCOL, DELETE (file and whole copy), MOVE out
   and COPY in answer 403 with the source in `X-Lazysite-Deny-Reason`; GET, COPY
   out and an orphan DELETE are allowed. A PUT to the secondary domain's active
-  theme's source is 403 naming the domain (ruling 109); with the primary's
+  theme's source is 403 naming the domain (ruling 109), and a PUT to its active
+  layout's `layout.tt` and a MKCOL in it (ruling 120); with the primary's
   theme active, its source and its served copy are both 403, the copy's reason
   naming the source file (ruling 110, the lazysite.io case).
 - t/unit/mcp/73: `list_files` names harmony2050.org and `theme_active`;
@@ -94,5 +105,5 @@ as well as the bare name; the layout in the path is the layout, and one given in
 
 With Common.pm, Files.pm and lazysite-dav.pl as on main, every write lands and
 the listing carries no mark. With the served pairs ignored, the secondary
-domain's theme is written; with the path form removed, `theme-copy` refuses the
+domain's theme is written; with the served layouts ignored, its layout is; with the path form removed, `theme-copy` refuses the
 path.

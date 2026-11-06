@@ -37,7 +37,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
-    domain_active_themes
+    domain_active_artifacts
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
     $action $auth_user $token_auth %token_caps @REQUEST_SCOPES $REQUEST_CONFINED $IS_OPERATOR $path $body
     %USER_CAPS $REQUEST_IP _request_ip _display_names _operator
@@ -2362,9 +2362,14 @@ sub brief_write_refusal {
 # The rule held the instance's own pair only, so the theme harmony2050.org
 # serves was written in place - every file of it a visitor there could meet
 # half-updated, the very thing this rule exists to stop. $served (optional) is
-# domain_active_themes(): { "<layout>\0<theme>" => [hosts] }, read by the caller
-# as it reads the active pointers, so the rule stays pure. The workflow is the
-# same, ending in an activation for that domain.
+# domain_active_artifacts(): { "<layout>\0<theme>" => [hosts], "<layout>" =>
+# [hosts] }, read by the caller as it reads the active pointers, so the rule
+# stays pure. The workflow is the same, ending in an activation for that domain.
+#
+# Ruling 120: AND ITS ACTIVE LAYOUT. A domain's layout's own files (layout.tt,
+# layout.json, strings/, the themes/ folder itself) are refused as the
+# primary's are; a theme under it that no host serves stays writable, and so
+# does a layout only pages pin.
 sub active_artifact_refusal {
     my ( $rel, $active_layout, $active_theme, $served ) = @_;
     return unless defined $rel;
@@ -2389,6 +2394,21 @@ sub active_artifact_refusal {
             "theme '$theme' is the one " . join( ', ', @hosts ) . ' serves',
             'copy_theme / theme-copy, edit the copy, then activate it with host'
         ) if @hosts && !( $layout eq $active_layout && $theme eq $active_theme );
+    }
+    elsif ( ref $served eq 'HASH' && $layout ne $active_layout ) {
+        my @hosts = @{ $served->{$layout} || [] };
+        return _refusal(
+            "the layout '$layout' is the active layout of "
+                . join( ', ', @hosts )
+                . ' and is read-only on every surface, as the primary site\'s is. To change '
+                . 'a live layout: install the new version under another name (install_layout / '
+                . 'layout-install) or edit a layout no domain serves, then activate it for that '
+                . 'domain (activate_layout / layout-activate with host). A layout apply is '
+                . 'atomic; a file written into the layout being rendered is not.',
+            'active-artifact-refused',
+            "layout '$layout' is the one " . join( ', ', @hosts ) . ' serves',
+            'install or edit another layout, then activate it with host'
+        ) if @hosts;
     }
     return unless length $active_layout && $layout eq $active_layout;
 
@@ -2424,13 +2444,14 @@ sub active_artifact_refusal {
     );
 }
 
-# SM1339 (ruling 109): the theme each secondary domain serves as its own, for
-# active_artifact_refusal - { "<layout>\0<theme>" => [hosts] }, the primary
-# ('(default)') left out, since the caller passes its pair as the active
-# pointers. Effective values (Domains::domain_usage), so a domain that pins a
-# theme under the inherited layout is counted. Unreadable configuration is {}:
-# the primary's pair is still held.
-sub domain_active_themes {
+# SM1339 (rulings 109, 120): the theme and the layout each secondary domain
+# serves as its own, for active_artifact_refusal - { "<layout>\0<theme>" =>
+# [hosts], "<layout>" => [hosts] } (a name holds no NUL, so the two never meet),
+# the primary ('(default)') left out, since the caller passes its pair as the
+# active pointers. Effective values (Domains::domain_usage), so a domain that
+# pins a theme under the inherited layout is counted. Unreadable configuration
+# is {}: the primary's pair is still held.
+sub domain_active_artifacts {
     my (%o) = @_;
     require Lazysite::Manager::Domains;
     no warnings 'once';
@@ -2440,9 +2461,11 @@ sub domain_active_themes {
     my $use = eval { Lazysite::Manager::Domains::domain_usage() };
     return {} unless ref $use eq 'HASH';
     my %out;
-    for my $pair ( keys %{ $use->{themes} || {} } ) {
-        my @hosts = grep { $_ ne '(default)' } @{ $use->{themes}{$pair} || [] };
-        $out{$pair} = \@hosts if @hosts;
+    for my $kind (qw(themes layouts)) {
+        for my $key ( keys %{ $use->{$kind} || {} } ) {
+            my @hosts = grep { $_ ne '(default)' } @{ $use->{$kind}{$key} || [] };
+            $out{$key} = \@hosts if @hosts;
+        }
     }
     return \%out;
 }

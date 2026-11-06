@@ -14,7 +14,9 @@
 # Ruling 109: and the theme a secondary domain serves as its own is read-only
 # as the primary's is - its SOURCE refused in place, naming the domain and the
 # copy-edit-activate workflow, on the manager stack here and over WebDAV in
-# t/unit/dav/38. A theme only pages pin stays writable. And theme-copy takes
+# t/unit/dav/38. A theme only pages pin stays writable. Ruling 120: and so is
+# a domain's active layout, three.example's solo here; a layout only pages pin
+# (gallery) stays writable. And theme-copy takes
 # the theme by the path that refusal gives, lazysite/layouts/<L>/themes/<T>.
 #
 # With the fix reverted, every write lands and the listing carries no mark.
@@ -48,11 +50,19 @@ site_name: T
 site_url: https://primary.example
 layout: harmony
 theme: base
-alias_hosts: harmony2050.org
+alias_hosts: harmony2050.org, three.example
 alias.harmony2050.org.content_root: sites/harmony2050.org
 alias.harmony2050.org.theme: harmony-r3
+alias.three.example.content_root: sites/three
+alias.three.example.layout: solo
+alias.three.example.theme: s1
 CONF
 put( 'lazysite/layouts/harmony/layout.tt', "[% content %]\n" );
+for my $l (qw(solo gallery)) {
+    put( "lazysite/layouts/$l/layout.tt", "[% content %]\n" );
+    put( "lazysite/layouts/$l/themes/s1/theme.json", qq({"name":"s1"}) );
+    put( "lazysite/layouts/$l/themes/spare/theme.json", qq({"name":"spare"}) );
+}
 for my $t (qw(base harmony-r3 spare)) {
     put( "lazysite/layouts/harmony/themes/$t/theme.json", qq({"name":"$t"}) );
     put( "lazysite/layouts/harmony/themes/$t/assets/main.css", "/* $t */\n" );
@@ -130,6 +140,29 @@ subtest 'a secondary domain\'s active theme is read-only, as the primary\'s (rul
     my $r = $F->can('action_save')->( 'lazysite/layouts/harmony/themes/base/assets/main.css', 'op', "x\n" );
     is( $r->{kind}, 'active-artifact-refused', 'the primary\'s active theme is refused as before' );
     unlike( $r->{error} // '', qr/harmony2050/, '...in the primary\'s words' );
+};
+
+subtest 'a secondary domain\'s active layout is read-only, as the primary\'s (ruling 120)' => sub {
+    my $F = 'Lazysite::Manager::Files';
+    for my $try (
+        [ 'layout.tt', $F->can('action_save')->( 'lazysite/layouts/solo/layout.tt', 'op', "<main>[% content %]</main>\n" ) ],
+        [ 'a new file in it', $F->can('action_save')->( 'lazysite/layouts/solo/extra.tt', 'op', "x\n" ) ],
+        [ 'a new folder in it', $F->can('action_mkdir')->( 'lazysite/layouts/solo/partials', 'op' ) ] )
+    {
+        my ( $label, $r ) = @$try;
+        ok( !$r->{ok}, "$label: refused" ) or diag explain $r;
+        is( $r->{kind}, 'active-artifact-refused', "$label: by the active-artifact rule" );
+        like( $r->{error} // '', qr/active layout of three\.example.*activate it for that domain.*with host/s,
+            "$label: naming the domain and the route" );
+    }
+    is( do { open my $f, '<', "$d/lazysite/layouts/solo/layout.tt"; local $/; <$f> }, "[% content %]\n",
+        'the layout is untouched' );
+    my $r = $F->can('action_save')->( 'lazysite/layouts/solo/themes/spare/theme.json', 'op', qq({"name":"spare","v":2}) );
+    ok( $r->{ok}, 'a theme under it no host serves is still written' ) or diag explain $r;
+    $r = $F->can('action_save')->( 'lazysite/layouts/gallery/layout.tt', 'op', "<main>[% content %]</main>\n" );
+    ok( $r->{ok}, 'a layout only pages pin is written' ) or diag explain $r;
+    $r = $F->can('action_save')->( 'lazysite/layouts/harmony/layout.tt', 'op', "x\n" );
+    unlike( $r->{error} // '', qr/three\.example|harmony2050/, 'the primary\'s layout keeps the primary\'s words' );
 };
 
 subtest 'theme-copy takes the theme by its path too' => sub {

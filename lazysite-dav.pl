@@ -2088,10 +2088,10 @@ sub authorise_layout {
     # This stack reads its own pointers and passes them; the rule is pure.
     if ($is_write) {
         require Lazysite::Manager::Common;
-        # SM1339 (ruling 109): a secondary domain's active theme, as the primary's.
+        # SM1339 (rulings 109, 120): a domain's active theme and layout too.
         if ( my ( $err, $why ) = Lazysite::Manager::Common::active_artifact_refusal(
                 $rel, $active_layout, $active_theme,
-                Lazysite::Manager::Common::domain_active_themes( docroot => $DOCROOT ) ) )
+                Lazysite::Manager::Common::domain_active_artifacts( docroot => $DOCROOT ) ) )
         {
             return _deny( 403, $err, $why );
         }
