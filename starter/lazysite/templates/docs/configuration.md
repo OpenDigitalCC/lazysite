@@ -78,8 +78,10 @@ works on staging and production.
   and the [layouts briefing](/docs/ai-briefing-layouts) then open with a "This
   site's design guide" line linking it. Default unset: no line. Only a same-site
   path counts (letters, digits, `_`, `-`, `.` and `/`, starting with `/`); a full
-  URL or anything else is ignored. A domain with a content root of its own shows
-  no line.
+  URL or anything else is ignored. A domain names its own guide with
+  `alias.<host>.design_guide: /path` (see [Domain aliases](#domainaliases)), which
+  overrides this one for that host; a domain without the line uses this one, except
+  a domain with a content root of its own, which shows no line.
 
 `manager`
 : `enabled` or `disabled`. Controls the built-in manager at `/manager`.
@@ -284,7 +286,7 @@ Rules:
   `app_theme_colour`, `app_background_colour`, `app_icon_64`,
   `app_icon_192`, `app_icon_512`, `app_icon_maskable`, `app_shell`,
   `app_offline_pages`, `app_update`; and `maintenance`,
-  `maintenance_page`, `maintenance_until`. Anything else (notably
+  `maintenance_page`, `maintenance_until`; and `design_guide`. Anything else (notably
   `manager`, `auth_*`, `webdav_*`) is ignored with a logged warning - the
   Host header is request-supplied, so security settings must never vary
   by host.

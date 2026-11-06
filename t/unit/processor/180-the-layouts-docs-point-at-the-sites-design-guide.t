@@ -86,6 +86,57 @@ subtest 'a host with a content root of its own links none' => sub {
     unlike( run_processor( $d, '/docs/layouts' ), $LINE, 'the other site\'s /docs/layouts has no line' );
 };
 
+# Ruling 114: a domain names its own guide with alias.<host>.design_guide, which
+# overrides the site's for that host - a path in that host's own content, so it
+# holds for a host with a content root of its own too. Without the line the host
+# falls back to the site's (or to none, above); unset on both is no line.
+subtest 'a domain may name its own guide' => sub {
+    my $own = qr{\QThis site's design guide:</strong> <a href="/brand/guide">/brand/guide</a>\E};
+    my $site = qr{\QThis site's design guide:</strong> <a href="/guides/design">/guides/design</a>\E};
+    my $d = site( "design_guide: /guides/design\nalias_hosts: brand.example, plain.example, rooted.example\n"
+            . "alias.brand.example.design_guide: /brand/guide\n"
+            . "alias.rooted.example.content_root: rooted\n"
+            . "alias.rooted.example.design_guide: /brand/guide\n" );
+    make_path("$d/rooted");
+    for my $p (@PAGES) {
+        {
+            local $ENV{HTTP_HOST} = 'brand.example';
+            my $html = run_processor( $d, "/docs/$p" );
+            like( $html, $own, "brand.example /docs/$p links its own guide" );
+            unlike( $html, qr{/guides/design}, '...and not the site\'s' );
+        }
+        {
+            local $ENV{HTTP_HOST} = 'rooted.example';
+            like( run_processor( $d, "/docs/$p" ), $own, "rooted.example (own content root) /docs/$p links its own" );
+        }
+        {
+            local $ENV{HTTP_HOST} = 'plain.example';
+            like( run_processor( $d, "/docs/$p" ), $site, "plain.example /docs/$p falls back to the site's" );
+        }
+        my $primary = run_processor( $d, "/docs/$p" );
+        like( $primary, $site, "the primary's /docs/$p keeps the site's" );
+        unlike( $primary, qr{/brand/guide}, '...and never a domain\'s' );
+    }
+
+    my $e = site( "alias_hosts: brand.example, bare.example\nalias.brand.example.design_guide: /brand/guide\n" );
+    {
+        local $ENV{HTTP_HOST} = 'brand.example';
+        like( run_processor( $e, '/docs/layouts' ), $own, 'a domain\'s guide needs no site-level one' );
+    }
+    {
+        local $ENV{HTTP_HOST} = 'bare.example';
+        unlike( run_processor( $e, '/docs/layouts' ), $LINE, 'unset for the domain and the site: no line' );
+    }
+    unlike( run_processor( $e, '/docs/layouts' ), $LINE, '...and none on the primary' );
+
+    my $f = site( "design_guide: /guides/design\nalias_hosts: brand.example\n"
+            . "alias.brand.example.design_guide: https://elsewhere.example/\n" );
+    local $ENV{HTTP_HOST} = 'brand.example';
+    my $html = run_processor( $f, '/docs/layouts' );
+    unlike( $html, $LINE, 'a domain\'s invalid guide is no guide, not the site\'s' );
+    unlike( $html, qr/elsewhere/, '...and none of it reaches the page' );
+};
+
 subtest 'the processor\'s copy of the rule is sanitise_next\'s' => sub {
     my $d = site();
     load_processor($d);

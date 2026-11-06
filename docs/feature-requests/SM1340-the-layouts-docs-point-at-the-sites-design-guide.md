@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the lazysite.io site agent (inbox 2026-11-05, the shipped layout docs do not point at the design guide); ruling 79"
 area: docs
-status-note: "SHIPPED (PENDING) on n749: design_guide in lazysite.conf, validated as a same-site path; the two layouts pages carry the line when it is set. t/unit/processor/180."
+status-note: "SHIPPED (PENDING) on n749: design_guide in lazysite.conf, validated as a same-site path, and per domain as alias.<host>.design_guide (ruling 114); the two layouts pages carry the line when it is set. t/unit/processor/180."
 ---
 
 # What was asked
@@ -37,20 +37,31 @@ A shipped doc cannot name it: it is one site's page.
 - A host whose alias lines give it a content root of its own gets no line: the path
   names a page in the primary's content. An alias serving the primary's content keeps
   it.
-- configuration.md and reference.md document the key.
+- Ruling 114 (2026-11-06, Q46): a domain may set its own guide with
+  `alias.<host>.design_guide: /path`, which overrides the site-level `design_guide`
+  for that host on both pages. `design_guide` joins the alias whitelist (and SM1200's
+  test of it, and configuration.md's list). The domain's own value is a path in its
+  own content, so it holds whatever the domain's content root; it is held to the same
+  same-site rule, and an invalid one is no guide (it does not fall back to the
+  site's). A domain without the line falls back to the site's as before, or to none
+  when it has a content root of its own; unset on both is no line. Only the conf key:
+  `domain_set` and the Domains page do not carry it, like the CSP and app keys.
+- configuration.md and reference.md document the key and the per-domain override.
 
 # Tests
 
 - **t/unit/processor/180** (new): set, both pages carry the line linking the path;
   unset, neither does; eight invalid values give no line and none of the value reaches
   the page; a host with its own content root gets none; and the processor's copy of the
-  rule answers as `sanitise_next` does for twelve values.
+  rule answers as `sanitise_next` does for twelve values. Ruling 114's subtest: a
+  domain with its own line links it on both pages and not the site's, also with a
+  content root of its own; a domain without one falls back to the site's; the primary
+  keeps the site's and never a domain's; a domain's guide needs no site-level one;
+  unset for the domain and the site is no line; a domain's invalid value is no guide.
+- **t/unit/processor/146**: the whitelist's intended keys include `design_guide`.
 
 With the processor's assignment removed (the raw conf value reaching the template), the
 invalid subtest fails. With the line removed from layouts.md, the set subtest fails.
-
-# Open
-
-- Whether a domain with its own content root should be able to name its own guide
-  (an `alias.<host>.design_guide` line or a `domain_set` key). Not built: the
-  ruling names a per-site setting, and the alias whitelist is held by SM1200's test.
+With `design_guide` out of the alias whitelist, eight assertions of ruling 114's
+subtest fail; with the own-guide exemption from the content-root rule removed, the two
+content-root assertions fail.

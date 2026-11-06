@@ -121,7 +121,8 @@ Directory scan
 `design_guide`
 : A same-site path (`/guides/design`) the engine's layouts doc and layouts
   briefing link as "This site's design guide". Default unset: no line. A full URL
-  or a malformed path is ignored.
+  or a malformed path is ignored. `alias.<host>.design_guide` gives one domain its
+  own.
 
 `manager`
 : `enabled` or `disabled`. Controls the built-in manager UI at

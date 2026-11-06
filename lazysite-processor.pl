@@ -532,7 +532,8 @@ our %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     app_background_colour app_icon_64 app_icon_192 app_icon_512 app_icon_maskable
     app_shell
     app_offline_pages app_update
-    maintenance maintenance_page maintenance_until);    # SM1197, SM1118
+    maintenance maintenance_page maintenance_until
+    design_guide);    # SM1197, SM1118; design_guide SM1340 ruling 114
 
 # SM151 P6: content-type by extension for per-domain static files served by the
 # processor (_serve_content_static). Kept small - the SEO artefacts
@@ -2015,6 +2016,7 @@ sub _lazy_lib {
         # decides; this keeps the cheap test in front of it honest).
         my $base_maint = $defs{maintenance};
         my $base_croot = $defs{content_root} // '';    # SM1340, below
+        my $own_dg     = 0;    # SM1340 ruling 114: this host names its own guide
         if ( defined $defs{alias_hosts} ) {
             my $req_host = _request_host();
             my %declared;
@@ -2052,6 +2054,7 @@ sub _lazy_lib {
                     next unless $host eq $alias_host;
                     if ( $ALIAS_OVERRIDE_KEYS{$key} ) {
                         $defs{$key} = $val;
+                        $own_dg = 1 if $key eq 'design_guide';
                     }
                     else {
                         log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
@@ -2075,9 +2078,13 @@ sub _lazy_lib {
         # SM1340: the design guide is a path in the primary's content, so a host
         # with a content root of its own links none (the path would name a page
         # of a different site). An alias serving the primary's content keeps it.
+        # Ruling 114: an alias.<host>.design_guide line is that host's own guide,
+        # a path in its own content, so it holds whatever the host's content root.
         # No guide is no variable, so a site without the key has the stash it had.
         {
-            my $dg = ( $defs{content_root} // '' ) ne $base_croot ? '' : _design_guide_path( $defs{design_guide} );
+            my $dg = !$own_dg && ( $defs{content_root} // '' ) ne $base_croot
+                ? ''
+                : _design_guide_path( $defs{design_guide} );
             if ( length $dg ) { $vars{design_guide} = $dg }
             else              { delete $vars{design_guide} }
         }

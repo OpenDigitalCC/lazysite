@@ -76,7 +76,9 @@ Archive
   the docs never found it. `design_guide: /path` in `lazysite.conf` makes both pages open
   with a "This site's design guide" line linking it; unset, they carry nothing. Only a
   same-site path counts, under the rule `?next=` is held to; a full URL or anything
-  malformed is ignored, and a domain with its own content root shows no line. Ruling 79.
+  malformed is ignored. A domain names its own with `alias.<host>.design_guide`, which
+  overrides the site's for that host; without one it uses the site's, except a domain
+  with its own content root, which shows no line. Rulings 79, 114.
 
 - SM1322 (PENDING) **/login asks the server whether the session is honoured.** It judged
   "signed in" from the `lzs_session` display marker alone, which outlives a revoked or
