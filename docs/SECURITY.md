@@ -2438,7 +2438,7 @@ verdict
 
 ### 2026-11-06 - SM1369 X0, X1 (0.16.6): an extension's own code can be loaded into a core process
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-06 (ruling 134).
 Ruling 55; the design is the extension-hooks proposal, whose security model (G-1 to
 G-10, and what an extension can never do) these slices begin to build.
 
@@ -2508,7 +2508,7 @@ residual risk
   enabled extension's own payload.
 
 verdict
-: drafted as accepted for the release manager's confirmation: the trigger fires and the
-  change is contained for 0.16.6, because no hook kind is live and nothing calls the
-  loader. The first slice that makes a kind live (X2) adds a caller to this interface
+: accepted, confirmed by the release manager on 2026-11-06 (ruling 134): the trigger
+  fires and the change is contained for 0.16.6, because no hook kind is live and nothing
+  calls the loader. The first slice that makes a kind live (X2) adds a caller to this interface
   and should be assessed against this entry, in its own.
