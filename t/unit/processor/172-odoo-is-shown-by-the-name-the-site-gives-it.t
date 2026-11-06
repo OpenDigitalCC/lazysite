@@ -22,7 +22,7 @@ sub site {
     my $d = site_tempdir();
     system( 'cp', '-r', "$root/starter/.", $d ) == 0 or die 'copy starter';
     make_path("$d/lazysite/cache");
-    spit( "$d/lazysite/lazysite.conf", "site_name: Probe\nplugins:\n  - plugins/odoo.pl\n" );
+    spit( "$d/lazysite/lazysite.conf", "site_name: Probe\nextensions:\n  - extensions/odoo.pl\n" );
     spit( "$d/lazysite/odoo.conf", "odoo_site_signin: on\n" . ( defined $name ? "odoo_display_name: $name\n" : '' ) );
     return $d;
 }
