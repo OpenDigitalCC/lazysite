@@ -74,7 +74,9 @@ Archive
   answers 400 with `kind: unknown-parameter`, naming the parameter and the four it reads
   (`order_by`, `order`, `limit`, `offset`). `_`, a cache-buster, is accepted and unread;
   `table` and `csrf` are unchanged. The `ignored` field is gone. Supersedes SM606 in part.
-  UPGRADE.md says who is affected. Register entry drafted.
+  Ruling 139: the control API's `data-rows` refuses an unknown parameter the same way
+  (it reads `table`, `order_by`, `order`, `limit`, `offset`; `_` and `csrf_token` are
+  accepted). UPGRADE.md says who is affected. Register entry drafted.
 
 - SM1372 (PENDING) **The primary site's content leaves out the other domains' folders.** Ruling
   126: an account given nothing, or granted the primary's row, read the whole document root

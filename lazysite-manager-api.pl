@@ -1397,6 +1397,25 @@ sub _missing_required {
     return undef;
 }
 
+# SM1377 (ruling 139): DATA-ROWS REFUSES A QUERY PARAMETER IT DOES NOT READ, as
+# /cgi-bin/lazysite-data.pl does (ruling 131). It reads what its declaration in
+# Lazysite::ControlApi::Actions lists (table, order_by, order, limit, offset) and
+# `action`; anything else - a filter such as `chunk=AAA` - was ignored and every
+# row came back, read by a script as the subset it asked for. `_` (a
+# cache-buster) and `csrf_token` (the CSRF gate's last-resort channel) are
+# accepted and unread. Returns the refusal, or undef.
+sub _data_rows_unknown_parameters {
+    my $spec    = $Lazysite::ControlApi::Actions::ACTION{'data-rows'} || {};
+    my @named   = map       { $_->{name} } @{ $spec->{params} || [] };
+    my %reads   = map       { $_ => 1 } ( 'action', @named, '_', 'csrf_token' );
+    my @unknown = sort grep { !$reads{$_} } keys %params;
+    return undef unless @unknown;
+    return { ok => 0, kind => 'unknown-parameter', parameters => \@unknown,
+        error => 'unknown parameter' . ( @unknown == 1 ? '' : 's' ) . ': ' . join( ', ', @unknown )
+            . ' - data-rows reads ' . join( ', ', @named )
+            . ' (and ignores _, a cache-buster). Filter in your own script after reading the rows.' };
+}
+
 # SM1119: the absence is a row on the trail, as the handler's own refusal of
 # it was (SM943 ruling 1: a refusal or an error is audited, a read included).
 # This answered with no row, so marking a parameter required took away the row
@@ -1879,6 +1898,9 @@ elsif ( $action eq 'data-table-source' ) {
 }
 elsif ( $action eq 'data-migrate-plan' ) {
     $result = Lazysite::Manager::Data::action_data_migrate_plan( $params{table} );
+}
+elsif ( $action eq 'data-rows' && ( my $unknown = _data_rows_unknown_parameters() ) ) {
+    $result = $unknown;    # SM1377 (ruling 139)
 }
 elsif ( $action eq 'data-rows' ) {
     $result = Lazysite::Manager::Data::action_data_rows(

@@ -148,6 +148,14 @@ Before upgrading, search the site's scripts for `lazysite-data.pl?`. Filter on
 the page binding (`db:t(chunk=AAA)`) or in the script after reading the rows,
 and name a cache-buster `_`.
 
+**The control API's data-rows does the same (SM1377, ruling 139).** A call to
+`action=data-rows` with a query parameter other than `table`, `order_by`,
+`order`, `limit`, `offset`, `_` or `csrf_token` is now a 400 with the same
+`kind: "unknown-parameter"`, naming it, where it used to return every row. The
+manager's Data page and MCP `read_data_rows` are unaffected. A token client or
+operator script that sends its own filter to `data-rows` should drop it and
+filter the rows it reads; search those scripts for `data-rows` before upgrading.
+
 ## Address lists become address profiles, and the rest of 0.16.5
 
 **Address profiles (SM1343-SM1345).** Address lists are now address profiles. The

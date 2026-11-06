@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.16.5
+     engine-version: 0.16.6
      imported: 2026-11-06
      agent: the lazysite site agent (Claude Code)
      source: docs/practice/authoring-practice.md sha256=24d4158eb67fcee6b6a4dc70dc672726dfb84a16f1d3a9cf8a7740743197dead modified=2026-11-05
-     source: docs/practice/app-practice.md sha256=bd755f0e768ace6899f87581e6d11bc557536bb9e4f29c76f55d8fee2b10df71 modified=2026-11-06
-     body-sha256: b3055db4daa23133a54ff11cc7817237aa8a0072d89a69495b11eccd2bc9f046
+     source: docs/practice/app-practice.md sha256=a1618a0b4f96a44a245143ef650c4612c72032c404a2b040b9bbb63e9ef62f3e modified=2026-11-06
+     body-sha256: 4f06c433029870c8bdf40fbd0e8d204d06ba063a133fef3b7b33762cec0fd7dc
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.16.5**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.16.6**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 
@@ -1029,10 +1029,10 @@ The two read paths do not have the same grammar, and the difference is silent.
 | `db:t(mine)` in front matter | the signed-in viewer's own rows; none when signed out; needs `timestamps: true`; the page is never cached |
 | `/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - any other parameter is REFUSED (400, `kind: unknown-parameter`, naming it), except `_`, a cache-buster, which is accepted and unread (SM1377, 0.16.6; before that it was ignored and every row came back) |
 
-`/cgi-bin/lazysite-data.pl?table=t&chunk=AAA` is a 400 that names `chunk`. The
-control API's `data-rows&table=t&chunk=AAA` still returns every row including
-the ones where `chunk` is not `AAA`. **Never read an unfiltered result as a
-filtered one.**
+`/cgi-bin/lazysite-data.pl?table=t&chunk=AAA` is a 400 that names `chunk`, and
+so is the control API's `data-rows&table=t&chunk=AAA` (same kind, 0.16.6; before
+that it returned every row, including the ones where `chunk` is not `AAA`).
+**Never read an unfiltered result as a filtered one.**
 
 So a script that needs a subset reads the whole table and indexes it in memory,
 paging at the 500-row ceiling until a page comes back short. At a couple of

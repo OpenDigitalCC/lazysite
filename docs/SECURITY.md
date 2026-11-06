@@ -2940,8 +2940,11 @@ controls
   refusal, `_`, and the four parameters, and fails with the change reverted.
 
 residual risk
-: The control API's `data-rows` action still ignores an unknown parameter; it is reached
-  only with `manage_data`, which reads every row of the table regardless.
+: Ruling 139 (2026-11-06) closes what this entry first left: the control API's
+  `data-rows` action, reached only with `manage_data`, refuses an unknown parameter the
+  same way (400, `kind: unknown-parameter`), reading only what its declaration lists
+  (`table`, `order_by`, `order`, `limit`, `offset`) and `action`, with `_` and
+  `csrf_token` accepted and unread; t/integration/355 fails with it reverted.
 
 verdict
 : accepted (drafted; for the release manager's confirmation). No trigger fired; recorded

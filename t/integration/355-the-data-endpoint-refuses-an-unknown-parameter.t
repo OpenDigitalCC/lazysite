@@ -97,4 +97,35 @@ subtest 'the four read parameters, table and csrf are unchanged' => sub {
     like( $r->{error} // '', qr/not signed in/, 'with the same wording' );
 };
 
+# Ruling 139: the control API's data-rows action refuses an unknown parameter
+# the same way. It reads table, order_by, order, limit and offset (its
+# declaration) and `action`; `_` and `csrf_token` are accepted and unread.
+sub api {
+    my ($qs) = @_;
+    local %ENV = ( env_passthrough(), DOCUMENT_ROOT => $docroot, HTTP_X_REMOTE_USER => 'testmgr',
+        LAZYSITE_AUTH_TRUSTED => 1, REQUEST_METHOD => 'GET', QUERY_STRING => $qs );
+    my $out      = qx($^X \Q$root/lazysite-manager-api.pl\E 2>/dev/null);
+    my ($status) = $out =~ /Status:\s*(\d+)/;
+    my ($body)   = $out =~ /\r?\n\r?\n(.*)/s;
+    return ( $status // 200, ( eval { decode_json( $body // '' ) } || {} ) );
+}
+
+subtest 'the control API\'s data-rows refuses an unknown parameter too (ruling 139)' => sub {
+    my ( $st, $r ) = api('action=data-rows&table=notes&chunk=AAA');
+    is( $st, 400, 'a parameter data-rows does not read is a 400' ) or diag( explain $r );
+    is( $r->{ok},   0,                   'ok:0' );
+    is( $r->{kind}, 'unknown-parameter', 'kind unknown-parameter, as the endpoint answers' );
+    ok( !exists $r->{rows}, 'and no rows' );
+    is_deeply( $r->{parameters}, ['chunk'], 'naming it for a script' );
+    like( $r->{error}, qr/\bchunk\b.*table, order_by, order, limit, offset/, 'and the ones it reads' );
+
+    ( $st, $r ) = api('action=data-rows&table=notes&order_by=code&order=desc&limit=2&offset=1&_=9');
+    is( $st, 200, 'the five it reads, and `_`, are answered' ) or diag( explain $r );
+    is( codes($r), 'N4,N3', 'as before' );
+
+    ( $st, $r ) = api('action=data-rows&table=notes&csrf_token=x');
+    is( $st, 200, '`csrf_token` is accepted' ) or diag( explain $r );
+    is( scalar @{ $r->{rows} || [] }, 5, 'every row' );
+};
+
 done_testing();

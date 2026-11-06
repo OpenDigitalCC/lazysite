@@ -450,10 +450,10 @@ tone: medium
 `/cgi-bin/lazysite-data.pl?table=t` | `order_by`, `order`, `limit`, `offset` **only** - any other parameter is REFUSED (400, `kind: unknown-parameter`, naming it), except `_`, a cache-buster, which is accepted and unread (SM1377, 0.16.6; before that it was ignored and every row came back)
 ```
 
-`/cgi-bin/lazysite-data.pl?table=t&chunk=AAA` is a 400 that names `chunk`. The
-control API's `data-rows&table=t&chunk=AAA` still returns every row including
-the ones where `chunk` is not `AAA`. **Never read an unfiltered result as a
-filtered one.**
+`/cgi-bin/lazysite-data.pl?table=t&chunk=AAA` is a 400 that names `chunk`, and
+so is the control API's `data-rows&table=t&chunk=AAA` (same kind, 0.16.6; before
+that it returned every row, including the ones where `chunk` is not `AAA`).
+**Never read an unfiltered result as a filtered one.**
 
 So a script that needs a subset reads the whole table and indexes it in memory,
 paging at the 500-row ceiling until a page comes back short. At a couple of
