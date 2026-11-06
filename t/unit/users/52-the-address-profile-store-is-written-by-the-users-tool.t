@@ -238,7 +238,7 @@ subtest 'a store that will not decode is not written over' => sub {
         'the CLI listing says so';
 };
 
-# SM1343 (ruling 56): renamed outright, as SM1142 renamed the plugin actions. An old
+# SM1343 (ruling 56): renamed outright, as SM1142 renamed the extension actions. An old
 # command is not run and not shown the whole usage: it is told the new name.
 subtest 'the old command names are refused, naming the new ones' => sub {
     # old-address-name: begin (SM1343, the test sends the names that are refused)

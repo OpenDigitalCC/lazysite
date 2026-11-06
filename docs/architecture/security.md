@@ -1119,7 +1119,7 @@ fresh child for each request. Never on a plain-CGI site.
   when and why.
 - **The caller's address as one bit** (SM1280): a binding's `address_profile` gives its
   operation 1 or 0, whether the request's address (behind `trusted_proxies`) is in the
-  named address list; a page cannot set it, and the address itself never reaches Odoo.
+  named address profile; a page cannot set it, and the address itself never reaches Odoo.
 
 ## Raw pages and the ADR 0006 downgrade (SM1213, 0.15.15)
 
@@ -1209,7 +1209,7 @@ only over TLS. No Odoo is in it.
   `{LAZYSITE}/templates/docs/`, outside the docroot on an SM293 layout and
   DAV-blocklisted with the rest of the engine tree, and serves at `/docs/` only where
   the site has no page of its own. It is named by the path it serves at, so an access
-  rule, address list, draft section or section theme over `docs/` governs it as it
+  rule, address profile, draft section or section theme over `docs/` governs it as it
   would a site page. Its renders cache under the engine's cache, not in the docroot.
   It is out of the site's search, sitemap, feeds and `llms.txt` unless
   `engine_docs_public: true`.

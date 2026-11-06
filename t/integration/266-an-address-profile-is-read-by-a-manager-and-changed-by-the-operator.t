@@ -265,7 +265,7 @@ subtest 'a store that does not decode is shown as such, never as no profiles' =>
     is( store_text(), '{ "office": ', 'the file is as it was' );
 };
 
-# SM1343 (ruling 56): renamed outright, as SM1142 renamed the plugin actions. A
+# SM1343 (ruling 56): renamed outright, as SM1142 renamed the extension actions. A
 # caller still using an old name is told the new one, on every door, and nothing
 # runs.
 subtest 'the old action and tool names are refused, naming the new ones' => sub {

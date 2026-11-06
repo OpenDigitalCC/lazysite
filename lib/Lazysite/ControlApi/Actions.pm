@@ -1103,7 +1103,7 @@ sub cookie_only_reasons { return _valued('cookie_only_reason') }
 sub content_writes      { return _flagged('content_write') }
 
 # SM1343 (ruling 56): THE ADDRESS-LIST NAMES WERE RENAMED OUTRIGHT, with no alias,
-# as SM1142 renamed the plugin actions. A caller still sending an old name is told
+# as SM1142 renamed the extension actions. A caller still sending an old name is told
 # the new one rather than "no such action", on the control API and MCP alike.
 # old-address-name: begin (SM1343, the refusal names the spelling it refuses)
 my %RENAMED = (
