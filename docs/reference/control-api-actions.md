@@ -50,7 +50,7 @@ tone: medium
 `accounts-import-stage` | manage_users | accounts (body), csv (body)
 `acl-get` | manage_content | path (query)
 `acl-remove` | manage_content | path (query)
-`acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), addresses (body), addresses_deny (body), paths (body)
+`acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), addresses (body), addresses_deny (body), history (body), paths (body)
 `actions-list` | any authenticated |  
 `address-list-delete` | cookie only | name (body), force (body)
 `address-list-set` | cookie only | name (body), kind (body), entries (body)
@@ -60,7 +60,7 @@ tone: medium
 `artifact-backups-delete` | purge | path (query)
 `artifact-manifest` | manage_themes / manage_layouts |  
 `artifact-validate` | manage_themes / manage_layouts |  
-`audit` | audit | user (query), target (query), start (query), end (query), page (query), per_page (query)
+`audit` | audit | user (query), target (query), start (query), end (query), page (query), per_page (query), view (query)
 `audit-trail-set` | audit_switch | state (body), reason (body)
 `backup-create` | cookie only | scope (query)
 `backup-delete` | cookie only | name (query_or_body)
