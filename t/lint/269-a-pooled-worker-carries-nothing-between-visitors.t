@@ -343,6 +343,8 @@ my %T = (
         '%CALL_FIELD' => [ exempt => 'derived from a constant list' ],
         '$TRANSPORT'  => [ exempt => 'a test seam; unset in the product' ],
         '$LAST_VIA'   => [ exempt => $STATUS ],
+        '$SIGNED_IN'  => [ exempt => 'SM1366: never assigned, only `local`-ised by the Odoo endpoint for its request, so it is undef again when the request ends' ],
+        '$INCOMPLETE_PLAIN' => [ exempt => 'SM1374: a fixed sentence, never assigned at run time' ],
         '%REGISTRY'    => [ exempt => 'OOM\'s operation classes for one site configuration, keyed on the docroot, namespaces, pack directories, cache directory and OOM version (SM1179); it holds no person' ],
     },
     'lib/Lazysite/Odoo/Daemon.pm' => { '%NAME' => [ exempt => 'the daemon\'s name, a function of the docroot and keyed on it' ] },

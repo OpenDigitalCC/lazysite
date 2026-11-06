@@ -204,7 +204,6 @@ sub main {
     # with the session's hash beside it (Lazysite::Odoo::$SIGNED_IN)
     no warnings 'once';
     local $Lazysite::Odoo::SIGNED_IN = $user;
-    use warnings 'once';
     my @groups;
     my $caps = {};
     if ( length $user ) {
