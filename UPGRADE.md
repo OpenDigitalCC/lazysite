@@ -68,6 +68,71 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Address lists become address profiles, and the rest of 0.16.5
+
+**Address profiles (SM1343-SM1345).** Address lists are now address profiles. The
+upgrade to 0.16.5 converts `lazysite/auth/address-lists.json` to
+`address-profiles.json` once: the same names and entries, with no allow or deny
+kind. The old file is kept as `address-lists.json.converted`. The same step renames
+`visitor.in_list` / `visitor.in_any` to `visitor.in_profile` /
+`visitor.in_any_profile` in the site's pages, layouts, themes, templates and private
+store, and lists each file it changed. Whether a profile allows or denies is now set
+by the rule that names it: `addresses` allows, `addresses_deny` denies.
+
+After upgrading, run `lazysite check`. It names:
+
+- any rule that now allows a profile that was a deny list, or denies one that was an
+  allow list. Such a rule was possible only by hand-editing; it refused every
+  visitor before, and now does what its key says;
+- any template call still using the old names, which now always answer false;
+- an old store the upgrade could not convert. Until it is converted, every rule that
+  names a profile refuses.
+
+Scripts and agents: the actions are `address-profiles`, `address-profile-set` and
+`address-profile-delete`, the MCP tool is `list_address_profiles`, and the users-tool
+commands are named the same way (no `--kind`). The old names, and a `kind` sent, are
+refused with a message naming the new spelling.
+
+**The bad-URL blocker (SM1321).** A request for a file the site really has is never
+counted, and loopback (127.0.0.0/8, ::1) is always exempt. `bad_url_exempt` names
+address profiles whose addresses are exempt too; `bad_url_exempt: none` takes
+loopback's exemption away. If a front end on the same host (a reverse proxy on
+127.0.0.1) forwards to the engine, name it in `trusted_proxies` (`127.0.0.1`): the
+default trusts the private ranges only, so until then every visitor is the proxy,
+loopback, and the blocker counts nothing. Before 0.16.5 the same site refused every
+visitor once a theme's scripts under `vendor/` were requested often enough.
+
+**A site with its own `login.md` (SM1322).** The shipped sign-in page asks the server
+whether the session is still honoured before it says "You are already signed in". A
+site's own `login.md` carries that only if its signed-in panel has the
+`data-ls-auth-check` attribute; add it, and the "Sign in as someone else" link
+(`/cgi-bin/lazysite-auth.pl?action=logout&then=signin`, with the page's `next`), as
+the shipped page has them.
+
+**Theme copies under `/lazysite-assets/` (SM1335, SM1336, SM1339).** A theme's served
+copies now follow its source: a write to `lazysite/layouts/<layout>/themes/<theme>/`
+reaches every host's copy at once, with no activation. A write into a copy itself,
+on any surface and for the operator too, is refused, naming the source to write
+instead. The theme and the layout a secondary domain serves are read-only, as the
+primary's are: copy, edit, then activate with `host`. A script or agent that wrote
+into `/lazysite-assets/` or edited a domain's active theme in place must change.
+A theme whose `assets/` holds a symbolic link or a file the web server would run is
+not copied; the log and the write's answer name the entry to remove.
+
+**Connect an AI assistant is public (SM1341).** `/docs/ai-connector-setup`, which
+says how a client connects and authenticates, no longer needs a sign-in. It names no
+site's accounts or credentials. A site that wants it signed-in puts an access rule on
+`docs/` or a page of its own at that path.
+
+**Smaller changes, nothing to do.** A protected folder may keep a history
+(`history: true` on its rule, SM1324) and a site may audit agents' reads
+(`audit_reads: on`, SM1325); both are off unless set. MCP `write_file` takes an
+optional `base_mtime` and refuses a write over a newer version (SM1327). The Odoo
+extension's `odoo_display_name` names Odoo in what a visitor reads (SM1328). A page
+refused by an `auth/acls.json` read list now gets the site's 403, naming the list's
+groups, never a user on it (SM1365). A grant on a secondary domain no longer takes
+the primary away, and an account scoped today keeps exactly its reach (SM1332-SM1334).
+
 ## Plugins become extensions, on disk and in lazysite.conf (SM1142)
 
 The upgrade to 0.16.4 moves each site in place, once, and the result is in its

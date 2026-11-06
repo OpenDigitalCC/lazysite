@@ -1252,6 +1252,43 @@ only over TLS. No Odoo is in it.
   The responses name `extensions` and `capability_extension` (ruling 95), and the
   audit records the extension actions as `extension-*`.
 
+## Protected history, the read audit, served theme copies and the sign-in check (0.16.5)
+
+- **A protected folder's history is an opt-in second store** (SM1324). A folder rule's
+  `history: true` keeps its versions in a repository whose work tree is the private
+  store, at `<store>/lazysite/git` (02770), never the public repository a git-sync
+  remote receives. Every history reader resolves its target through the file's read
+  rule and a restore through its write rule. Nested rules inherit unless one says
+  `history: false`; only the operator purges, with `lazysite acl purge-history`,
+  audited.
+- **Agents' reads can be audited** (SM1325). `audit_reads: on` writes each successful
+  MCP read and a token's `git-show` to `logs/audit-reads.log`, beside the trail, rotated
+  and forwarded as it is, shown on the Audit page's own view; switching it needs
+  `manage_config` and `audit_switch` together.
+- **A theme's served copies follow its source, and only the source is written**
+  (SM1335, SM1336, SM1339). Every write to a theme's source, on any surface, re-mirrors
+  it to each host's `/lazysite-assets/` copy through `_mirror_theme_assets`, the one
+  writer, which refuses to switch in a copy holding a symbolic link or a server-run file
+  (SM1303's checks). A served copy is refused to every writer, the operator included
+  (`served_artifact_refusal`), and the theme and layout a secondary domain serves are
+  read-only as the primary's are (`active_artifact_refusal`).
+- **The bad-URL blocker spares real files and loopback** (SM1321). A path that resolves,
+  by plain segments with no link on the way, to a regular file under the docroot is
+  never counted; loopback is always exempt unless `bad_url_exempt: none`, and the key
+  names address profiles whose members are exempt too. The address is the one
+  `request_address` gives under `trusted_proxies` (SM929), so behind a front end on the
+  same host that the setting does not cover (the default trusts the private ranges, not
+  loopback), every visitor is loopback and the blocker counts nothing.
+- **The sign-in page asks the server** (SM1322). `lazysite-auth.pl?action=session`
+  answers one bit, whether the request's own cookie is honoured, from the verdict every
+  surface asks; it is uncached, and a no clears only the display marker.
+- **A refusal by a read list is the site's 403** (SM1365). A page refused by an
+  `auth/acls.json` read list is served the site's 403, naming the list's groups and
+  never a user on it; a file keeps the short 403.
+- **Connect an AI assistant is public** (SM1341). The page that says how a client
+  connects and authenticates carries placeholders only (t/lint/311); the tools
+  reference, with the capabilities and denied paths, stays signed-in.
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

@@ -113,6 +113,8 @@ Elevation of privilege | A theme archive's symbolic link copied into the served 
 Information disclosure | A grant confined to a scope answered from the whole docroot by a listing or search that names no path, which the scope check skips; a search quoting lines of a file whose rule the caller does not pass (SM1308) | A confined grant's missing or empty path is its scope roots and every walk starts there (MCP `list_files`, `list_pages`, `search_files`, `delete_page`'s references, `rename_page`'s link rewrite; the manager API's `list` and `pages`); each search hit is asked `_acl_denied`, read_file's question | Closed in 0.16.3 (t/unit/mcp/65, t/unit/manager/415); `audit_site` is confined too and a page's title is listed only to a caller who may read it (SM1311, SM1312; t/unit/mcp/68, t/unit/mcp/69)
 Elevation of privilege | A member of a protected area writing a rule on a subfolder that admits a non-member, which replaces the area's rule there by longest match (SM1309) | Writing or moving a rule that admits, to read or write, anyone its enclosing rule does not is refused unless the operator or the enclosing rule's owner does it (`Acl::widening_refusal`, `move_widening_refusal`), on every surface that writes or moves a rule | Closed in 0.16.3 (t/unit/mcp/66, t/unit/dav/36); a carve-out written before then is honoured until removed, and `lazysite check` names each for review (SM1313; t/tools/295)
 Denial of service | An upgrade that moves the extensions directory and its key leaving a site's list, or one entry, under the old spelling, so each extension it names reads as off, and silently - the login rate limiter among them (SM1142) | `install.pl`'s one-time `extensions-rename` converts the list and its entries and moves the directory, and is recorded as done only when it ran without a warning; `login-rate-limit-on` runs after it; `lazysite check` names an old-spelling line by number and an old directory left beside the docroot, and says when the limiter is not in force (SM798) | 0.16.4 (t/tools/306, t/journey/06); a line written back by hand reads as off until it is corrected
+Elevation of privilege | A theme's source re-mirrored into the served asset mirror on every write to it (SM1335), so a symbolic link or a file type the web server runs that reaches a theme's `assets/` by any means - a shell, a restore, a WebDAV or manager write - is published under `/lazysite-assets/` with no activation, as SM1303's archive link was | `_mirror_theme_assets`, the one writer of every copy, refuses to switch in a copy whose `assets/` holds a symbolic link or a server-run file type (`_mirror_unsafe_entry`, SM1303's two checks; links listed, never followed) and keeps the copy it had; a served copy itself is refused to every writer, the operator included (`served_artifact_refusal`, SM1339) | 0.16.5 (t/unit/manager/430, 432, t/unit/dav/38); the refusal is a log line and a `mirrored: 0` answer, so a source that holds such an entry stops reaching its copies until it is removed
+Denial of service | The bad-URL blocker exempting loopback always (SM1321, ruling 83): on a site behind a front end that `trusted_proxies` does not cover, every visitor arrives as 127.0.0.1, so no probe is counted and the blocker is off for everyone | The blocker asks `request_address` under `trusted_proxies` (SM929), so behind a covered front end the exemption is the machine's own checks only; `lazysite check` warns when address rules exist and `trusted_proxies` trusts no front end (SM1141); `bad_url_exempt: none` removes loopback's exemption | 0.16.5 (t/unit/lib/98); the blocker was refusing every visitor on such a site before (T-03), so the change trades a self-inflicted refusal of everyone for no probe counting until `trusted_proxies` is set; the default trusts only the private ranges, not loopback, and a site with no address rules is not warned (UPGRADE.md, the 0.16.5 entry, says to name a front end on the same host)
 ```
 
 ## Five priority entries (from the review)
@@ -2098,6 +2100,18 @@ residual risk
 verdict
 : proposed: accepted, pending the release manager's confirmation.
 
+walked
+: At the 0.16.5 compliance walk (2026-11-06), against the code on the stack's tip: the
+  repository is made 02770 inside the private store (`Lazysite::ProtectedHistory`), the
+  purge is the operator's and audited, and `lazysite check`'s mode probe covers the
+  docroot's `lazysite/git`, not this one, as the residual risk says. ADR 0007's
+  new-processing-of-restricted-data trigger fires: protected content gains a second
+  store, kept for as long as the repository is, as SM286's move of where protected
+  content lives fired it. The entry above is that trigger's assessment; the release
+  manager confirms it with the verdict. No other trigger fires: the `history` key is a
+  new value on the existing rule writers, and the readers are the existing history
+  actions.
+
 ### 2026-11-05 - SM1325 (0.16.5): a site can audit the AI reads of its content
 
 Assessment drafted by the developer agent for the release manager's confirmation. Ruling
@@ -2126,6 +2140,22 @@ data and privacy
 residual risk
 : volume, bounded by rotation only. The reads have their own file and view, so they do
   not push a change off the change view.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation. Added at the 0.16.5
+  compliance walk: the entry as filed carried no verdict.
+
+walked
+: At the 0.16.5 compliance walk (2026-11-06), against the code on the stack's tip: the
+  rows go to `logs/audit-reads.log` (`Lazysite::Audit`), and the Config page's switch
+  needs `manage_config` and `audit_switch` together (`Manager::Config`). ADR 0007's
+  new-processing-of-restricted-data trigger fires: which account read which protected
+  path, when and from which address, is personal data added to a log, as SM1219's account
+  names in the visitor log fired it (2026-10-20). The entry above is that trigger's
+  assessment. No other trigger fires: the switch is a new key on the existing Config
+  page and `config-set`, and the view is a filter on the existing Audit page. Telling the
+  people whose agents' reads are recorded is the operator's, as SM1219's notice is
+  (OBLIGATIONS.md, the operate-side row added at this walk).
 
 ### 2026-11-05 - SM1332-SM1334 (0.16.5): a domain grant adds, the primary can be granted, and a group can pin
 
@@ -2177,6 +2207,12 @@ residual risk
 
 verdict
 : proposed: accepted, pending the release manager's confirmation.
+
+walked
+: At the 0.16.5 compliance walk (2026-11-06): no trigger fires, as the entry finds. The
+  question in the residual risk (whether the primary's content should exclude the other
+  domains' roots) has no ruling on record in the filings and is carried to the 0.16.5
+  "what a person must confirm" list in OBLIGATIONS.md.
 
 ### 2026-11-05 - SM1343-SM1345 (0.16.5): an address rule's allow or deny moves from the list to the use
 
@@ -2231,3 +2267,168 @@ verdict
   meaning of an access control's stored value changes (the kind moves from the profile to
   the use), and the upgrade can widen a hand-edited rule; the check names each, and every
   fault on the way fails closed.
+
+walked
+: At the 0.16.5 compliance walk (2026-11-06), against the code on the stack's tip: the
+  conversion keeps the old store as `address-lists.json.converted` and renames the
+  template calls in the pages, layouts, themes, templates and private store
+  (`install.pl`), `lazysite check` names an unconverted store, each wrong-slot rule and
+  each old call, and the old action, tool and command names are refused naming the new
+  ones (`ControlApi::Actions`, the users tool). No trigger fires: the actions, tool and
+  page are renamed, none added, and no data is added. SM1321's `bad_url_exempt` (the
+  2026-11-06 entry) names profiles too, membership only.
+
+### 2026-11-06 - SM1335, SM1336, SM1339 (0.16.5): a theme's served copies follow its source, and are not written
+
+Assessment drafted by the developer agent at the 0.16.5 compliance walk, for the release manager's confirmation (ruling 81; rulings 109-112, 120).
+
+what changed
+: SM1335. A write to a theme's source, on any surface (the manager's save, upload,
+  delete, move and copy, WebDAV PUT, DELETE, MOVE and COPY, MCP `create_theme`, theme
+  delete), re-mirrors that theme to every host's copy, the docroot's and each content
+  root's (`Themes::follow_source_write`), or removes the copies when the source is gone,
+  and drops the cached renders that link it. Before, a copy was written at activation,
+  apply, domain-add and creation only. One theme per write, never the site's.
+: SM1336. An installed theme (Upload Theme, MCP `install_theme`) and a copied theme
+  (`theme-copy`, `copy_theme`) have their copies written by the same writer,
+  `_mirror_theme_assets`, with the tokens and the fingerprint (SM830), where they were
+  built by hand from `assets/` or from the docroot's copy.
+: SM1339. A write into a host's `/lazysite-assets/<layout>/<theme>/`, the layout folder or
+  `lazysite-assets` itself is refused for every caller, the operator included, naming
+  the source to write instead (`served_artifact_refusal`, the SM976 F1 rule the choke
+  point and WebDAV share). Reading a copy, copying out of one and removing the copy of a
+  theme no longer installed are not refused. The theme and the layout a secondary domain
+  serves as its own are read-only on every surface, as the primary's are
+  (`active_artifact_refusal`, `Common::domain_active_artifacts`; rulings 109, 120).
+  `list_files` and the Files page mark each copy `served_copy`. `theme-copy` and
+  `copy_theme` take the theme by its path as well as by its name.
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (the refusals and the
+  `served_copy` mark are on existing actions; the theme's path is a new spelling of an
+  existing argument), no new sign-in method, no new dependency and no new restricted data
+  (a theme's assets are public by design). The question is SM1303's: what reaches the
+  served asset mirror (boundary 6). Before, a theme's source reached a copy only at an
+  activation or an upload, both checked; now every source write reaches every copy with
+  no activation, so whatever lands in a theme's `assets/` - by a manager or WebDAV write,
+  a restore or a shell - is published under `/lazysite-assets/` at the next write
+  (Elevation of privilege, through a symbolic link to the session secret, as in SM1303;
+  Tampering, through a server-run file). The refusal on the copies narrows: no writer,
+  the operator included, edits a published copy directly.
+
+controls
+: `_mirror_theme_assets` is the one writer of every copy, and refuses to switch in a copy
+  whose `assets/` holds a symbolic link or a file type the web server would run
+  (`_mirror_unsafe_entry`: SM1303's two archive checks, links listed and never followed),
+  keeping the copy it had and logging the entry. The copy is built in a staging directory
+  and swapped in, as before. A write to a source needs what it did: the theme's layout
+  capability and the path's own reach; a secondary domain's active theme and layout are
+  refused to every caller, so a domain's served look changes only by copy, edit and
+  activate with `host`. t/unit/manager/430, 431, 432, t/unit/dav/38, t/unit/mcp/73,
+  t/integration/116.
+
+residual risk
+: A theme's source holding a link or a server-run file stops reaching its copies, and
+  says so in the log and the write's answer, until it is removed. An edit to a theme
+  reaches every visitor of every page that uses it at once, with no activation step to
+  review it. A copy planted before 0.16.2 stays until `lazysite check` names it and the
+  operator removes it (SM1304; OBLIGATIONS.md).
+
+verdict
+: proposed: accepted, pending the release manager's confirmation. No trigger fired;
+  recorded because the path into the served asset mirror (SM1303's) now runs on every
+  theme write, and a served copy is refused to the operator.
+
+### 2026-11-06 - SM1321, SM1322, SM1327, SM1328, SM1340, SM1341, SM1347, SM1365 (0.16.5): access, sign-in, serving and Odoo changes with no trigger
+
+Assessment drafted by the developer agent at the 0.16.5 compliance walk, for the release manager's confirmation. The rest of 0.16.5 moves no control: SM1330 and SM1346 are the test harness and the pinned OOM snapshot in `t/vendor/oom` (0.42 to 0.44, never installed; lazysite's code is unchanged by it, ruling 82), and SM1342 is the manual's anchors. The other changes of 0.16.5 have their own entries: SM1324 and SM1325 (2026-11-05, each firing new-processing-of-restricted-data, recorded at this walk), SM1332-SM1334 and SM1343-SM1345 (2026-11-05), SM1335, SM1336 and SM1339 (2026-11-06).
+
+what changed
+: SM1321, the bad-URL blocker (rulings 48, 83, 84). A path that resolves to a regular file
+  under the docroot is never counted as a probe (`Lazysite::BadUrl::site_has_file`: the
+  path less its query, percent-decoded once, plain segments `lstat`'d from the docroot
+  down; a `.` or `..`, a symbolic link on the way, a dot name, the engine tree, a NUL or a
+  backslash is not the site's file). Loopback (127.0.0.0/8, ::1) is always exempt, never
+  counted or refused, a block on file included; `bad_url_exempt` names address profiles
+  whose addresses are exempt too, and the value `none` removes loopback's exemption. The
+  Config page refuses an address, an unknown profile, or `none` beside names.
+: SM1322, `/login` (rulings 49, 85). `lazysite-auth.pl?action=session` (GET) answers only
+  `signed_in` yes or no for the request's own cookie, from
+  `Lazysite::Auth::Session::request_session`, the verdict every surface asks; `no-store`,
+  logged as a session line, and a no clears the display marker. The chrome script asks
+  it on a page carrying `data-ls-auth-check`. "Sign in as someone else" is the sign-out
+  with `then=signin`, landing on the sign-in page with `next` through `sanitise_next`.
+: SM1327, MCP `write_file` (ruling 51). An optional `base_mtime` makes a write conditional
+  on the version read: stale, or for a file gone, nothing is written and the answer is a
+  conflict. `rename_page`'s alias and link rewrite save with the time they read.
+: SM1328, the Odoo name (ruling 52). `odoo_display_name` in the Odoo extension's
+  settings is said by the sign-in dialog, `/odoo-signin`, `/login`'s link, the browser
+  helper's messages, the page endpoint's errors and the Unknown Odoo writes panel; one
+  reader, `Lazysite::Odoo::Name`, and the helper script carries it as an attribute.
+: SM1340, the design guide (rulings 79, 114). `design_guide: /path`, and
+  `alias.<host>.design_guide` for a domain, put a link at the head of `/docs/layouts` and
+  `/docs/ai-briefing-layouts`; only a same-site path counts (the processor's copy of
+  `sanitise_next`'s rule), written through `url_safe`.
+: SM1341, the AI docs (rulings 80, 113, 115). Connect an AI assistant
+  (`/docs/ai-connector-setup`) becomes public, carrying the endpoints, the connection
+  modes and how a client authenticates (pairing key, access token, checking access), with
+  placeholders only; `.well-known/ai-partner` lists it. The tools reference stays
+  signed-in.
+: SM1347, Odoo results (rulings 103, 104). A write Odoo did not keep names its fields
+  (`not_kept`), never the values asked or found, with a note the helper draws as text;
+  `refused/access` and `refused/missing` each have their own sentence.
+: SM1365, the ACL 403. A signed-in visitor refused by an `auth/acls.json` read list who
+  opens a page gets the site's 403 page, naming the list's groups (never a user on it), as
+  the front-matter group gate does; a file keeps the short 403.
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (`action=session` is an action
+  on the existing sign-in CGI, as `/odoo-signin` was a page on existing surfaces (SM1299); `base_mtime`,
+  `bad_url_exempt`, `odoo_display_name` and `design_guide` are a parameter and keys on
+  existing surfaces), no new sign-in method (the session check asks the existing
+  verdict), no new dependency and no new restricted data. The questions are these.
+  SM1321: an exemption on a guard (Denial of service: the blocker counts nothing from an
+  exempt address, and behind a front end `trusted_proxies` does not cover, every visitor
+  is loopback; a STRIDE row records it), and a path resolved against the disk from a
+  request (Information disclosure, by probing which files exist). SM1322: an
+  unauthenticated endpoint about a session (Information disclosure, Spoofing). SM1328,
+  SM1340: a site-set value written into pages and scripts (Tampering, by markup in the
+  value; Spoofing, by an open redirect through the link). SM1341: how a client
+  authenticates, readable before sign-in (Information disclosure). SM1365: the 403 page
+  names groups (Information disclosure). SM1347: what an ERP write held reaching a page
+  (Information disclosure). SM1327 reduces Tampering: a lost update between two writers.
+
+controls
+: SM1321: the file test changes only whether a hit is counted, never what is served, and
+  answers the same as a fetch of the path would; the exemption is asked only for an
+  address on file or a probe about to be counted, of the address `request_address` gives
+  under `trusted_proxies` (SM929); profile names only, validated at save, and
+  `lazysite check` names an unknown one (t/unit/lib/98, t/integration/296). SM1322: the
+  answer is one bit about the requester's own cookie, never why; nothing is set but the
+  marker's clearing, and the HttpOnly cookie is left to the endpoints that own it
+  (t/unit/auth/74). SM1328: the name is set by a holder of the extension's settings and is
+  escaped where it is written (t/unit/odoo/121, t/unit/processor/172). SM1340: a full URL,
+  `//`, a backslash or any character outside a path's is no guide at all
+  (t/unit/processor/180). SM1341: the page carries placeholders only, held by
+  t/lint/311, and describes the engine's own mechanisms, which ship in every release's
+  source; no site's addresses, accounts or credentials are on it. SM1365: the groups are the ones the front-matter gate's 403 already names for a
+  page; users on the list are never named; draft sections keep their 404 and anonymous
+  requests the bounce to sign in (t/integration/345). SM1347: field names only
+  (t/unit/odoo/122-124). SM1327: t/unit/mcp/70.
+
+residual risk
+: SM1321: a site behind a front end on the same host with `trusted_proxies` unset (the
+  default trusts the private ranges, not loopback) counts no probe until it is set (the
+  STRIDE row); `lazysite check` warns about it only where address rules are in use, so
+  UPGRADE.md says to name such a front end. A probe can learn whether a path is a real file by whether it is counted,
+  which a fetch of the path already tells it. SM1341: a site that kept the setup steps
+  private by the signed-in manual now publishes them; an access rule over `docs/` or a
+  page of the site's own at that path governs it (SM1284). SM1365: a signed-in visitor
+  refused a folder learns the names of the groups that may read it, as a front-matter
+  gate already told them. SM1322: the answer is uncached and per request, so it is one
+  more request a page makes while the marker is set.
+
+verdict
+: proposed: accepted, pending the release manager's confirmation. No trigger fired;
+  recorded because a guard's exemption, the sign-in page's check, a page's public status
+  and what a refusal names moved, as the 0.16.3 entry of 2026-11-05 recorded its own.

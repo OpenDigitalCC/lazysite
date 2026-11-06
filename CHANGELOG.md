@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
+  four register entries the branches wrote are walked, and two of them (SM1324's protected
+  history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data
+  trigger, which each entry now records as that trigger's assessment. Two entries are drafted
+  at the walk (a theme's served copies; the rest of 0.16.5), with two STRIDE rows (a theme's
+  source re-mirrored on every write; the bad-URL blocker's loopback exemption behind a front
+  end `trusted_proxies` does not cover), the architecture notes, two operate-side rows and
+  UPGRADE.md's 0.16.5 entry. All six entries are for the release manager's confirmation.
+  Docs only; nothing is signed.
+
 - SM1365 (PENDING) **A page refused by an ACL read list gets the site's 403.** A signed-in
   visitor outside an `auth/acls.json` read list who opened a page in the governed directory
   got a bare 103-byte 403 with no layout or theme. They now get the site's 403 page, which
@@ -148,24 +159,22 @@ Archive
   converted. No rule is rewritten: every use already named its list in the slot the list's
   kind meant, so an allow list's uses are Allow uses and a deny list's Deny uses. A profile
   store already there is never overwritten, and an old store that will not decode is left for
-  the operator, with every rule that names a profile refused until it is converted.
-
   the operator, with every rule that names a profile refused until it is converted. The same
   step renames the site's `visitor.in_list` / `visitor.in_any` calls (pages, layouts, themes,
   templates, the private store) to `visitor.in_profile` / `visitor.in_any_profile`, naming each
   file. `lazysite check` names any old call left, and every rule whose slot is not its old
   list's kind (a hand edit only; it refused everyone before and now applies in its slot): run
   it after upgrading.
+
 - SM1344 (PENDING) **The Files page limits a rule by address profile, each chosen Allow or
   Deny.** The request's A-3: the permissions card's "Limited by address" becomes "Limited by
   address profile", one row per profile with Not used, Allow or Deny, in place of the two
   pickers that offered only allow lists or only deny lists. A name the rule carries that the
   store does not hold keeps its choice and is marked, so saving the card does not drop it.
-
-  The Groups page limits a group by address profile with the same picker.
   The Groups page limits a group by address profile with the same picker, saved as one request
   (`address_limit`, both lists, one write), so a profile moved from Deny to Allow is never in
   neither list.
+
 - SM1343 (PENDING) **Address lists are address profiles, allowed or denied where they are
   used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
   set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule
@@ -233,10 +242,6 @@ Archive
 - SM1325 (PENDING) **A site can audit the AI reads of its pages and files.** Ruling 50 (T-17):
   a successful read is kept off the audit trail (SM943). `audit_reads: on` in lazysite.conf
   records each successful MCP `read_file`, `read_page`, `view_version` and `preview_page`, and a
-  token's control-API `git-show`, in the existing trail with the account, the path and the
-  time. Off by default, and a value other than on is off. A signed-in person's reads are not
-  recorded. It is set in the file only, for now. The rows rotate with the trail.
-
   token's control-API `git-show`, with the account, the path and the time, in a file of its
   own beside the trail, `logs/audit-reads.log` (ruling 97): rotated and forwarded as the trail
   is, and shown on the Audit page under Show: AI reads, so reads never push a change off the
@@ -244,6 +249,7 @@ Archive
   are not recorded. The Config page switches it (Record AI reads; `config-set`), and only for
   an account or token holding Site config AND the audit trail switch permission, the trail's
   own gate (ruling 96).
+
 - SM1324 (PENDING) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
   protected content is kept out of the content history, which may be pushed to a remote. A
   folder rule may now carry `history: true` (the manager's Keep history, `history` on the
