@@ -110,6 +110,7 @@ my %T       = (
     'lib/Lazysite/Daemon/Service/Scheduler.pm' => { '%JOBS' => 'the job table: names, intervals and code references' },
     'lib/Lazysite/Data/Descriptor.pm' => { '%TYPE' => $DERIVED, '%TRUE' => $DERIVED, '%FALSE' => $DERIVED },
     'lib/Lazysite/Data/Owned.pm' => { '%RESERVED' => $DERIVED, '%STAMPED' => $DERIVED },
+    'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED },
     'lib/Lazysite/Handlers.pm'   => { '%RESERVED_FORM' => $DERIVED },
     'lib/Lazysite/Lifecycle.pm'  => { '%IS_VERDICT'    => $DERIVED },
     'lib/Lazysite/Manager/Common.pm' => { '$DANGEROUS_RE' => $PATTERN, '%REFUSAL_STATUS' => $DERIVED },

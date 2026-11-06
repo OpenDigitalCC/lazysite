@@ -22,10 +22,12 @@ use warnings;
 use Test::More;
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
+use File::Basename qw(dirname);
 use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(site_tempdir);
 use Lazysite::Manager::Extensions qw(action_extension_enable action_extension_disable
     action_extension_save extension_enabled);
 use Lazysite::Extensions::Hooks qw(call_hook read_index);
@@ -51,8 +53,8 @@ my $KIND = { hook => 'test', slice => 'X1', live => 1, form => 'functions' };
 
 sub fixture {
     $M = 'Probe' . ++$N;
-    my $base = tempdir( CLEANUP => 1 );
-    my $d    = "$base/web";
+    my $d    = site_tempdir();
+    my $base = dirname($d);
     make_path( "$d/lazysite", "$base/extensions/probe/lib/${M}" );
     spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
     write_extension( "$base/extensions/probe.pl", {
