@@ -53,42 +53,6 @@ Archive
 
 ## Unreleased
 
-- SM1370 (PENDING) **A token follows its account's grant (ruling 121).** Measured first: no
-  token door fixes a capability into a credential - an lzs_ token verifies through
-  `verify_credential` and `caps_for` at each request, an OAuth token resolves its partner
-  through `partner-caps` at each call, WebDAV asks once per CGI process. So a grant added at
-  the account reaches an existing token on its next request, one removed is refused at once,
-  and a token confined to a domain stays confined when the account widens; t/unit/manager/460
-  now holds that on the control API, MCP bearer and MCP OAuth. Both whoamis carry a `grant`
-  block saying so, with the remedy for a client whose tool list predates the grant (list the
-  tools again; no new pairing key). The layouts briefing stops advising a token rotation.
-
-- SM1371 (PENDING) **Agent accounts hold roles (ruling 122).** Four agent roles ship as
-  assignable groups (ADR 0003): `content-agent`, `data-agent`, `forms-reader` and
-  `analytics-agent`, each one job over MCP, and an existing site adopts them once, with no
-  members. `whoami` (both doors) and the Users page name the roles an account holds and any
-  capability beyond them (`Auth::Settings::role_summary`). Ticking a grant whose extension is
-  off offers the enable in the same step, through the audited `extension-enable`.
-  `manage_forms` now reads and writes a form's own `lazysite/forms/<name>.conf` through MCP
-  `read_file`/`write_file` and the manager's file editor, as WebDAV has since 0.8.1, with
-  WebDAV's binding rules; `smtp.conf`, `handlers.conf` and `schedule.conf` stay closed.
-
-- SM1369 (PENDING) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
-  and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
-  names Odoo (odoo, OOM, oomd; ruling 136 counts Odoo's names only); the 43 files that do today
-  are an allow-list that may only shrink, and X7 empties it. X1: an extension's `owns` may declare `hooks` and
-  `requires`, validated by the new `Lazysite::Extensions::Hooks` before anything is indexed. The
-  manager writes `lazysite/extensions.index.json` from the enabled extensions on enable,
-  disable and save, and the upgrade rebuilds it. `Hooks::call_hook` runs an indexed function
-  from the extension's own payload lib (`extensions/<stem>/lib`), only while the extension and
-  what it requires are on. Enabling an extension whose `requires` names one that is off is
-  refused by name. No hook kind is live yet: a declaration of one is refused, naming the slice
-  that builds it (X2 to X8 are to come). A site whose extensions declare no hooks has no index
-  and behaves as before.
-
-## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
-
-- SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
 - SM1372 (PENDING) **The primary site's content leaves out the other domains' folders.** Ruling
   126: an account given nothing, or granted the primary's row, read the whole document root
   as its content, and so reached every secondary domain's folder (`sites/...`) through it.
@@ -139,7 +103,42 @@ Archive
   the loop's directive line kept the list from starting. The template writes the list as
   HTML, so the groups render as a list. A site with its own `403.md` is unchanged.
 
-- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1370 (PENDING) **A token follows its account's grant (ruling 121).** Measured first: no
+  token door fixes a capability into a credential - an lzs_ token verifies through
+  `verify_credential` and `caps_for` at each request, an OAuth token resolves its partner
+  through `partner-caps` at each call, WebDAV asks once per CGI process. So a grant added at
+  the account reaches an existing token on its next request, one removed is refused at once,
+  and a token confined to a domain stays confined when the account widens; t/unit/manager/460
+  now holds that on the control API, MCP bearer and MCP OAuth. Both whoamis carry a `grant`
+  block saying so, with the remedy for a client whose tool list predates the grant (list the
+  tools again; no new pairing key). The layouts briefing stops advising a token rotation.
+
+- SM1371 (PENDING) **Agent accounts hold roles (ruling 122).** Four agent roles ship as
+  assignable groups (ADR 0003): `content-agent`, `data-agent`, `forms-reader` and
+  `analytics-agent`, each one job over MCP, and an existing site adopts them once, with no
+  members. `whoami` (both doors) and the Users page name the roles an account holds and any
+  capability beyond them (`Auth::Settings::role_summary`). Ticking a grant whose extension is
+  off offers the enable in the same step, through the audited `extension-enable`.
+  `manage_forms` now reads and writes a form's own `lazysite/forms/<name>.conf` through MCP
+  `read_file`/`write_file` and the manager's file editor, as WebDAV has since 0.8.1, with
+  WebDAV's binding rules; `smtp.conf`, `handlers.conf` and `schedule.conf` stay closed.
+
+- SM1369 (PENDING) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
+  and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
+  names Odoo (odoo, OOM, oomd; ruling 136 counts Odoo's names only); the 43 files that do today
+  are an allow-list that may only shrink, and X7 empties it. X1: an extension's `owns` may declare `hooks` and
+  `requires`, validated by the new `Lazysite::Extensions::Hooks` before anything is indexed. The
+  manager writes `lazysite/extensions.index.json` from the enabled extensions on enable,
+  disable and save, and the upgrade rebuilds it. `Hooks::call_hook` runs an indexed function
+  from the extension's own payload lib (`extensions/<stem>/lib`), only while the extension and
+  what it requires are on. Enabling an extension whose `requires` names one that is off is
+  refused by name. No hook kind is live yet: a declaration of one is refused, naming the slice
+  that builds it (X2 to X8 are to come). A site whose extensions declare no hooks has no index
+  and behaves as before.
+
+## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
+
+- SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
   four register entries the branches wrote are walked, and two of them (SM1324's protected
   history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data
