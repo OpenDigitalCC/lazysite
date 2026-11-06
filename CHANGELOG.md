@@ -140,6 +140,13 @@ Archive
 ## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
 
 - SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+- SM1379 (PENDING) **A form's quarantine leaves email fields out of the repetition rule and
+  quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
+  counted the email field, so a random address defeated it; email fields (named so, or
+  holding only an address) are now left out. An email field holding quotes, a semicolon, an
+  SQL comment or SQL-shaped text quarantines the submission, the reason naming the field.
+  Quarantined, never refused. Register entry drafted.
+
 - SM1378 (PENDING) **A layout says the engine it needs, and installing or activating it on an
   older one warns.** Ruling 133: `requires.lazysite` in `layout.json`, which the layouts
   catalogue writes in every layout, was read nowhere. Installing a layout, activating it, or

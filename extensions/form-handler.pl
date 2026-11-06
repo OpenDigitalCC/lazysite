@@ -610,6 +610,7 @@ sub _spam_assessment {
     if ( my $host = _disguised_link($text) ) { push @reasons, "a link written as '$host'" }
     if ( my $host = _shortener_link($text) ) { push @reasons, "a link shortener '$host'" }
     if ( my $why  = _one_value_everywhere($form) )       { push @reasons, $why }
+    if ( my $why  = _email_field_injection($form) )      { push @reasons, $why }  # SM1379
     if ( my $why  = _own_domain_sender( $form, $conf ) ) { push @reasons, $why }
 
     return @reasons ? ( 1, join( ' + ', @reasons ) ) : ( 0, '' );
@@ -829,10 +830,20 @@ sub _disguised_link {
 #   * one run of five or more digits appears in every field. A reference number
 #     legitimately appears in two fields now and then; in all of them, with
 #     nothing else shared, it is a bot checking whether the form delivers.
+#
+# SM1379 (ruling 133, triage T-34): EMAIL FIELDS ARE LEFT OUT. They counted, so a
+# bot that put its number in name, subject and message and a RANDOM ADDRESS in
+# the email field broke both shapes - the address differs from the others and
+# need not carry the run. A sender's address is the one field that is never a
+# repetition of the message, so it says nothing about this rule either way.
+# See _email_fields for what counts as one.
 sub _one_value_everywhere {
     my ($form) = @_;
-    my @vals = map { $form->{$_} }
-        grep { !/^_/ && defined $form->{$_} && !ref $form->{$_} && length $form->{$_} }
+    my %email  = _email_fields($form);
+    my @vals   = map { $form->{$_} }
+        grep {
+        !/^_/ && !$email{$_} && defined $form->{$_} && !ref $form->{$_} && length $form->{$_}
+        }
         sort keys %$form;
     return '' unless @vals >= 3;
 
@@ -847,6 +858,59 @@ sub _one_value_everywhere {
     for my $run (@runs) {
         return "the number $run is in every field"
             if @vals == grep { index( $_, $run ) >= 0 } @vals;
+    }
+    return '';
+}
+
+# SM1379: WHICH FIELDS ARE EMAIL FIELDS. Two ways to know, either enough:
+#
+#   * its name says so - `email`, `e-mail`, `your_email`, `email-address`;
+#   * its value is one address and nothing else (the shape a browser's
+#     type=email accepts), whatever the field is called.
+#
+# The name marks a field whatever it holds, which is what the injection check
+# below needs: an email field holding SQL with spaces in it is not
+# address-shaped. A field the rules sidecar declares `type: email` needs no
+# third test: validate_fields has already refused any value of it that is not
+# address-shaped, so whatever reaches here is caught by the value test (a
+# sabotage disabling a sidecar reader here changed no outcome, which is why
+# there is none). Returns a hash of field name => how it was known.
+sub _email_fields {
+    my ($form) = @_;
+    my %email;
+    for my $k ( keys %$form ) {
+        next if $k =~ /^_/;
+        my $v = $form->{$k};
+        next if !defined $v || ref $v;
+        if ( $k =~ /(?:\A|[_\W])e-?mail(?:\z|[_\W])/i ) { $email{$k} = 'name' }
+        elsif ( $v =~ /\A\s*[^\s\@]+\@[^\s\@.]+(?:\.[^\s\@.]+)+\s*\z/ ) { $email{$k} = 'value' }
+    }
+    return %email;
+}
+
+# SM1379: AN EMAIL FIELD HOLDING QUOTES OR SQL is a probe, not an address.
+#
+# The scanner that found SM934 put its payload into the email field, and a form
+# with no rules sidecar has no `type: email` check to refuse it. An address
+# needs no quote, no semicolon and no SQL, so any of them in a field that is an
+# email field by declaration or by name is quarantined - stored, kept off the
+# bell, recoverable, never refused (SM913's rule: a wrong guess costs nobody the
+# message). The reason names the field and never repeats the value, which is
+# the probe's own text.
+#
+# A quote IS legal in an address's local part (o'brien@...) and such an address
+# is quarantined too; ruling 133 accepted that, because the cost of the miss is
+# one message read from the Quarantine filter instead of the bell.
+sub _email_field_injection {
+    my ($form) = @_;
+    my %email = _email_fields($form);
+    for my $k ( sort keys %email ) {
+        my $v = $form->{$k};
+        next if !defined $v || ref $v || !length $v;
+        return "the email field '$k' holds quotes or SQL"
+            if $v =~ /['"`;]/
+            || $v =~ m{/\*|--(?:\s|\z)}
+            || $v =~ /\b(?:select\b.*\bfrom|union\b.*\bselect|insert\s+into|delete\s+from|drop\s+(?:table|database)|update\b.+\bset|sleep\s*\(|benchmark\s*\(|waitfor\s+delay|(?:or|and)\s+\d+\s*=\s*\d+)/i;
     }
     return '';
 }

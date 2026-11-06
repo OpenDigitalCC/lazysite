@@ -2875,3 +2875,37 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-11-06. No trigger fired; recorded
   because a content boundary moved and closes a recorded residual risk.
+
+### 2026-11-06 - SM1379 (0.16.6): the quarantine reads email fields for probes and leaves them out of the repetition rule
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: The form handler's quarantine (`extensions/form-handler.pl`, `_spam_assessment`) gains
+  one signal and corrects another. An email field (named so, or holding only an address)
+  that holds a quote, a semicolon, an SQL comment marker or SQL-shaped text quarantines
+  the submission, the reason naming the field and never the value. SM913 S3's "one value
+  in every field" rule leaves email fields out, so a random address no longer defeats it.
+
+threat delta
+: Abuse detection widened on a public, unauthenticated surface. Quarantine stores and
+  flags; nothing is refused, so a false positive (an address with a legal apostrophe,
+  `o'brien@...`) costs a message read from the Quarantine filter instead of the bell.
+  The probe's text is stored as submitted, as before, and is never interpolated into a
+  query: storage is the file and table handlers' own, unchanged. The stored reason holds
+  the field name only. No trigger of ADR 0007's four fires: no interface,
+  authentication method, dependency or data processing is added.
+
+controls
+: t/unit/forms/75 posts built probes and honest addresses through the handler and
+  asserts each outcome; each part, reverted, fails it. t/unit/forms/23 still passes.
+
+residual risk
+: A heuristic: a probe written without any of the listed shapes is not seen, and a form
+  that names its email field otherwise and posts a non-address is read only by the
+  value test (which a probe with spaces fails). A form with a rules sidecar declaring
+  `type: email` refuses a non-address there first (SM934).
+
+verdict
+: accepted (drafted; for the release manager's confirmation). No trigger fired; recorded
+  because what a public form's quarantine reads moved.

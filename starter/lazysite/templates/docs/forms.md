@@ -557,7 +557,13 @@ visitor, no tracker, nothing sent anywhere. It holds a submission back when:
   close to a sure sign. Naming a shortener in a sentence is not a link.
 - **every field holds the same value**, or one run of five or more digits appears
   in every field, on a form with three or more filled in. That is a bot checking
-  whether the form delivers, not a message.
+  whether the form delivers, not a message. Email fields are left out of this
+  count, so a made-up address beside the repeated text does not hide it.
+- an **email field holds quotes or SQL** - a `'`, `"`, `` ` `` or `;`, an SQL
+  comment, or text such as `OR 1=1` or `UNION SELECT`. An email field is one named
+  `email` (or `e-mail`, `your_email` and the like) or one holding only an address.
+  The reason names the field and never repeats what was typed. An address with an
+  apostrophe in it is held back too; you will find it under the quarantine filter.
 - it matches one of your own `spam_keywords` (a comma-separated list, empty by
   default).
 

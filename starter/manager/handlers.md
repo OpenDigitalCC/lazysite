@@ -572,7 +572,7 @@ function quarantineDetail(n) {
   } else {
     var why = [];
     if (q.url_threshold > 0) why.push(q.url_threshold + ' or more links');
-    why.push('a link shortener', 'a disguised link', 'one value repeated in every field');
+    why.push('a link shortener', 'a disguised link', 'one value repeated in every field', 'quotes or SQL in an email field');
     if (q.keywords) why.push(q.keywords + (q.keywords === 1 ? ' keyword' : ' keywords'));
     if (q.own_domain) why.push("a sender on the site's own domain");
     text = 'On - a submission is held, unannounced, under the Submissions quarantine filter when it has '
