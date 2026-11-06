@@ -16,7 +16,7 @@ package Lazysite::Auth::AddressRefs;
 #   groups-settings.json  fields addresses, addresses_deny (a list of names)
 #   lazysite.conf         manager_addresses, manager_addresses_deny (comma list)
 #                         signin_addresses, signin_addresses_deny
-#                         bad_url_exempt (SM1321: list names only, ruling 84; the
+#                         bad_url_exempt (SM1321: profile names only, ruling 84; the
 #                         blocker asks membership only, so slot 'match')
 #   handlers.conf         a type-odoo binding's signin_addresses, signin_addresses_deny
 #                         (SM1229; SM1159 held them on the binding's calls), and its
@@ -234,7 +234,7 @@ sub rules {
         for _names( $conf{signin_addresses} );
     push @rules, { where => 'conf', ref => 'signin_addresses_deny', slot => 'deny', name => $_ }
         for _names( $conf{signin_addresses_deny} );
-    # SM1321: the bad-URL blocker's exempt lists (ruling 84: names only, so every item
+    # SM1321: the bad-URL blocker's exempt profiles (ruling 84: names only, so every item
     # is one, and one the store lacks is reported like any other; `none` is no name).
     push @rules, { where => 'conf', ref => 'bad_url_exempt', slot => 'match', name => $_ }
         for grep { lc $_ ne 'none' } _names( $conf{bad_url_exempt} );

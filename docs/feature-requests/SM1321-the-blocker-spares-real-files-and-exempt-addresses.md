@@ -1,14 +1,14 @@
 ---
 id: SM1321
 title: "SM1321: the bad-URL blocker spares the site's own files and exempt addresses"
-subtitle: "The blocker counted a site's own vendor/ assets as scanner probes, and behind a front proxy every visitor was 127.0.0.1, so everyone got 403 for 1 h 44 min. A path that resolves to a file the site has is never counted now, loopback is always exempt, and bad_url_exempt names address lists whose addresses are exempt too."
+subtitle: "The blocker counted a site's own vendor/ assets as scanner probes, and behind a front proxy every visitor was 127.0.0.1, so everyone got 403 for 1 h 44 min. A path that resolves to a file the site has is never counted now, loopback is always exempt, and bad_url_exempt names address profiles whose addresses are exempt too."
 brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 48 (tmp/rulings-2026-10-22.md), Q3, on T-03 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a site report, section 1; rulings 83 and 84 (Q15, Q16) on this branch's questions"
 area: security
-status-note: "SHIPPED (PENDING) on n742: Lazysite::BadUrl::guard skips a path site_has_file resolves to a regular file under the docroot, and an address exempt() finds: loopback always, and the address lists bad_url_exempt names (none removes loopback). validate_exempt refuses a bad value at save. t/unit/lib/98."
+status-note: "SHIPPED (PENDING) on n742: Lazysite::BadUrl::guard skips a path site_has_file resolves to a regular file under the docroot, and an address exempt() finds: loopback always, and the address profiles bad_url_exempt names (none removes loopback). validate_exempt refuses a bad value at save. t/unit/lib/98. It reads AddressProfiles (SM1343)."
 ---
 
 # What was asked

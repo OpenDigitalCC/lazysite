@@ -71,10 +71,10 @@ Archive
   for 1 h 44 min. A path that resolves to a regular file under the docroot is never counted now
   (plain segments only: no `..`, no symbolic link on the way, no dot name, not the engine
   tree). Loopback (127.0.0.0/8, ::1) is always exempt: never counted or refused, a block on
-  file included. The new `bad_url_exempt` key names address lists whose addresses are exempt
-  too, in addition to loopback; only the value `none` removes loopback. It takes list names
-  only: the Config page refuses an address or a list that does not exist, `lazysite check`
-  warns about one, and a list it names counts as in use. Ruled 2026-11-04 (ruling 48) and
+  file included. The new `bad_url_exempt` key names address profiles (SM1343) whose addresses are
+  exempt too, in addition to loopback; only the value `none` removes loopback. It takes
+  profile names only: the Config page refuses an address or a profile that does not exist,
+  `lazysite check` warns about one, and a profile it names counts as in use. Ruled 2026-11-04 (ruling 48) and
   2026-11-05 (rulings 83, 84).
 
 - SM1345 (PENDING) **The upgrade turns each address list into an address profile, and no

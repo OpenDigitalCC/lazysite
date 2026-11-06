@@ -8,7 +8,7 @@
 # 1h44m. Now a path that resolves to a regular file under the docroot - plain
 # segments, no symbolic link on the way, no dot name, not the engine tree - is never
 # counted. Loopback is never counted nor refused, and neither is an address in an
-# address list `bad_url_exempt` names (rulings 83, 84: the key names lists only and
+# address profile `bad_url_exempt` names (rulings 83, 84: the key names profiles only and
 # adds to loopback; only `none` takes loopback away).
 use strict;
 use warnings;
@@ -92,8 +92,8 @@ subtest 'a real vendor file is not counted; a missing one is' => sub {
 
 subtest 'loopback is always exempt; only none takes it away' => sub {
     my $d = site();
-    spit( "$d/lazysite/auth/address-lists.json", encode_json( {
-                office => { kind => 'allow', entries => [ { cidr => '198.51.100.7', note => '' } ] } } ) );
+    spit( "$d/lazysite/auth/address-profiles.json", encode_json( {
+                office => { entries => [ { cidr => '198.51.100.7', note => '' } ] } } ) );
     for my $ip (qw(127.0.0.1 127.5.5.5 ::1)) {
         is( hit( $d, '/wp-login.php', $ip ), 0, "$ip: a probe is not counted" );
         is( hit( $d, '/wp-login.php', $ip ), 0, "$ip: nor the next" );
@@ -105,76 +105,76 @@ subtest 'loopback is always exempt; only none takes it away' => sub {
     is( hit( $d, '/', '127.0.0.1' ), 0, 'loopback already in the block store is served' );
     is( hit( $d, '/', '127.0.0.1', "bad_url_exempt:   \n" ), 0, 'an empty key exempts loopback' );
     is( hit( $d, '/', '127.0.0.1', "bad_url_exempt: office\n" ), 0,
-        'naming a list ADDS to loopback (ruling 83): loopback is still served' );
+        'naming a profile ADDS to loopback (ruling 83): loopback is still served' );
     is( hit( $d, '/wp-login.php', '::1', "bad_url_exempt: office\n" ), 0, '...and still not counted' );
     is( hit( $d, '/', '127.0.0.1', "bad_url_exempt: none\n" ), 1, 'with none, the block on file holds' );
     is( hit( $d, '/wp-login.php', '::1', "bad_url_exempt: NONE \n" ), 1, '...and loopback is counted' );
     is_deeply( [ Lazysite::BadUrl::exempt_names(undef) ],         [1],             'absent: loopback' );
     is_deeply( [ Lazysite::BadUrl::exempt_names('none') ],        [0],             'none: nothing' );
-    is_deeply( [ Lazysite::BadUrl::exempt_names(' a , b ,') ],    [ 1, 'a', 'b' ], 'names: loopback and the lists' );
+    is_deeply( [ Lazysite::BadUrl::exempt_names(' a , b ,') ],    [ 1, 'a', 'b' ], 'names: loopback and the profiles' );
     is_deeply( [ Lazysite::BadUrl::exempt_names('none, office') ], [ 1, 'office' ],
         'none among names is no name, and does not take loopback away' );
 };
 
-subtest 'bad_url_exempt names address lists only' => sub {
+subtest 'bad_url_exempt names address profiles only' => sub {
     my $d = site();
-    spit( "$d/lazysite/auth/address-lists.json", encode_json( {
-                office  => { kind => 'allow', entries => [ { cidr => '198.51.100.7', note => '' } ] },
-                scanner => { kind => 'deny',  entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } ) );
+    spit( "$d/lazysite/auth/address-profiles.json", encode_json( {
+                office  => { entries => [ { cidr => '198.51.100.7', note => '' } ] },
+                scanner => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } ) );
     my $conf = "bad_url_exempt: office, scanner\n";
-    is( hit( $d, '/wp-login.php', '198.51.100.7', $conf ), 0, 'an address in a named allow list is not counted' );
-    is( hit( $d, '/wp-login.php', '203.0.113.9', $conf ), 0, '...nor one in a named deny list (membership only)' );
+    is( hit( $d, '/wp-login.php', '198.51.100.7', $conf ), 0, 'an address in a named profile is not counted' );
+    is( hit( $d, '/wp-login.php', '203.0.113.9', $conf ), 0, '...nor one in the other named profile (membership only)' );
     is( hits_of( $d, $_ ), 0, "$_: nothing recorded" ) for qw(203.0.113.9 198.51.100.7);
     is( hit( $d, '/wp-login.php', '192.0.2.20', $conf ), 1, 'an address in neither is counted' );
     is( hit( $d, '/wp-login.php', '192.0.2.30', "bad_url_exempt: 192.0.2.30\n" ), 1,
         'an address written in the key is not an exemption (ruling 84)' );
     is( hit( $d, '/wp-login.php', '198.51.100.8', "bad_url_exempt: nosuch\n" ), 1,
-        'an unknown list name exempts nobody' );
-    ok( exempt( $d, '198.51.100.7', 'office' ), 'exempt() asks the list' );
+        'an unknown profile name exempts nobody' );
+    ok( exempt( $d, '198.51.100.7', 'office' ), 'exempt() asks the profile' );
     ok( !exempt( $d, '', 'office' ), 'no address is never exempt' );
 
     # The save-time check refuses what would not work, by name.
     my $lz = "$d/lazysite";
     is( Lazysite::BadUrl::validate_exempt( $_, $lz ), '', "'$_' may be stored" )
         for ( 'office', 'office, scanner', '', 'none', ' None ' );
-    like( Lazysite::BadUrl::validate_exempt( '203.0.113.0/24', $lz ), qr/'203\.0\.113\.0\/24' is not an address list name/,
-        'an address or range is refused: the key names lists only' );
-    like( Lazysite::BadUrl::validate_exempt( 'office, nosuch', $lz ), qr/'nosuch' is not an address list/,
+    like( Lazysite::BadUrl::validate_exempt( '203.0.113.0/24', $lz ), qr/'203\.0\.113\.0\/24' is not an address profile name/,
+        'an address or range is refused: the key names profiles only' );
+    like( Lazysite::BadUrl::validate_exempt( 'office, nosuch', $lz ), qr/'nosuch' is not an address profile/,
         'a name the store does not hold is refused, naming it' );
     unlike( Lazysite::BadUrl::validate_exempt( 'office, nosuch', $lz ), qr/'office'/, '...and only it' );
     like( Lazysite::BadUrl::validate_exempt( 'none, office', $lz ), qr/'none' is the whole value/,
         'none beside names is refused' );
-    my $plugin = do { open my $fh, '<', "$FindBin::Bin/../../../plugins/bad-url-blocker.pl" or die $!; local $/; <$fh> };
-    like( $plugin, qr/key\s*=>\s*'bad_url_exempt',.*?validate\s*=>\s*'Lazysite::BadUrl::validate_exempt'/s,
+    my $extension = do { open my $fh, '<', "$FindBin::Bin/../../../extensions/bad-url-blocker.pl" or die $!; local $/; <$fh> };
+    like( $extension, qr/key\s*=>\s*'bad_url_exempt',.*?validate\s*=>\s*'Lazysite::BadUrl::validate_exempt'/s,
         'the Config field names the check' );
     {
-        # ...and the Config page's save runs it (Manager::Plugins calls a field's validate_*).
+        # ...and the Config page's save runs it (Manager::Extensions calls a field's validate_*).
         require TestHelper;
-        require Lazysite::Manager::Plugins;
-        my $sd = TestHelper::site_tempdir( plugins => 1 );
+        require Lazysite::Manager::Extensions;
+        my $sd = TestHelper::site_tempdir( extensions => 1 );
         make_path("$sd/lazysite/auth");
         spit( "$sd/lazysite/lazysite.conf", "site_name: T\n" );
-        spit( "$sd/lazysite/auth/address-lists.json", encode_json( {
-                    office => { kind => 'allow', entries => [ { cidr => '198.51.100.7', note => '' } ] } } ) );
+        spit( "$sd/lazysite/auth/address-profiles.json", encode_json( {
+                    office => { entries => [ { cidr => '198.51.100.7', note => '' } ] } } ) );
         no warnings 'once';
         local $ENV{PERL5LIB} = "$FindBin::Bin/../../../lib" . ( $ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : '' );
-        local $Lazysite::Manager::Plugins::DOCROOT = $sd;
-        my $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/bad-url-blocker.pl',
+        local $Lazysite::Manager::Extensions::DOCROOT = $sd;
+        my $res = Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/bad-url-blocker.pl',
             { bad_url_exempt => '10.0.0.0/8' } );
         is( $res->{ok}, 0, 'saving an address in the field is refused' );
         is( $res->{field}, 'bad_url_exempt', '...naming the field' );
-        $res = Lazysite::Manager::Plugins::action_plugin_save( undef, 'plugins/bad-url-blocker.pl',
+        $res = Lazysite::Manager::Extensions::action_extension_save( undef, 'extensions/bad-url-blocker.pl',
             { bad_url_exempt => 'office' } );
-        ok( $res->{ok}, 'saving a list that exists is accepted' ) or diag explain $res;
+        ok( $res->{ok}, 'saving a profile that exists is accepted' ) or diag explain $res;
     }
 
-    # The exemption counts as a use of the list, and lazysite check names a name the
+    # The exemption counts as a use of the profile, and lazysite check names a name the
     # store lacks (it reads AddressRefs): every item is a name.
     spit( "$d/lazysite/lazysite.conf", "site_name: T\nbad_url_exempt: office, 192.0.2.30, none\n" );
     my @r = grep { $_->{ref} eq 'bad_url_exempt' } @{ Lazysite::Auth::AddressRefs::rules($d)->{rules} };
     is_deeply( [ map { [ $_->{where}, $_->{slot}, $_->{name} ] } @r ],
         [ [ 'conf', 'match', 'office' ], [ 'conf', 'match', '192.0.2.30' ] ],
-        'AddressRefs names each item as a list, so the check reports one the store lacks' );
+        'AddressRefs names each item as a profile, so the check reports one the store lacks' );
 };
 
 done_testing();

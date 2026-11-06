@@ -39,7 +39,7 @@ our @EXPORT_OK = qw(guard is_bad_url is_blocked exempt exempt_names validate_exe
 # file the site really has is not a probe, whatever it looks like: `vendor/` is a
 # probe pattern and also where a theme keeps its scripts, and counting a site's own
 # assets blocked 127.0.0.1 - every visitor behind the front proxy - for 1h44m. And
-# an exempt address - loopback always (ruling 83), and the address lists
+# an exempt address - loopback always (ruling 83), and the address profiles
 # `bad_url_exempt` names - is never counted and never refused, a block already on
 # file included.
 sub guard {
@@ -99,18 +99,18 @@ my $HIT_CAP   = 20_000;    # keep the hit store bounded (drop oldest IPs over th
 our $LOOPBACK = '127.0.0.0/8, ::1';
 
 # SM1321: IS THIS ADDRESS EXEMPT FROM THE BLOCKER? Loopback is (above), and so is an
-# address in an address list `bad_url_exempt` (lazysite.conf) names: a comma list of
-# list NAMES only (ruling 84; SM1138 lists, membership only, so either kind). No
-# address or range is written in the key - an exemption is a list the Access pages
+# address in an address profile `bad_url_exempt` (lazysite.conf) names: a comma list
+# of profile NAMES only (ruling 84; membership only - a profile has no kind, SM1343).
+# No address or range is written in the key - an exemption is a profile the Access pages
 # show. The value `none` exempts nothing, loopback included (ruling 83).
 #
-# An item that names no list in the store exempts nobody and is never silent:
-# AddressLists logs it once, validate_exempt refuses it at save, and `lazysite check`
+# An item that names no profile in the store exempts nobody and is never silent:
+# AddressProfiles logs it once, validate_exempt refuses it at save, and `lazysite check`
 # names it (AddressRefs reads this key). An unreadable store exempts nobody but
 # loopback (fails toward counting, never toward letting a scanner through).
 #
-# THE ONE PLACE THE BLOCKER TOUCHES ADDRESS LISTS (rulings 56-58 rename them address
-# profiles): exempt_names, exempt and validate_exempt here, and AddressRefs' line for
+# THE ONE PLACE THE BLOCKER TOUCHES ADDRESS PROFILES (rulings 56-58, SM1343):
+# exempt_names, exempt and validate_exempt here, and AddressRefs' line for
 # the key.
 #
 # exempt_names($spec) -> ( $loopback, @names )
@@ -135,17 +135,17 @@ sub exempt {
     return 0 unless @names;
     my $lz = Lazysite::Paths::lazysite_dir($docroot);
     return 0 unless defined $lz;
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = "$lz/auth";
-    for my $n (@names) { return 1 if Lazysite::Auth::AddressLists::in_list( $ip, $n ) }
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = "$lz/auth";
+    for my $n (@names) { return 1 if Lazysite::Auth::AddressProfiles::in_profile( $ip, $n ) }
     return 0;
 }
 
 # SM1321 (ruling 84): the Config page's save-time check of `bad_url_exempt` (the
-# descriptor names it; Manager::Plugins calls it with the lazysite dir). '' when the
-# value may be stored, else why not: an item that is not a list name (an address or
-# a range among them: the key names lists only), a name the store does not hold, and
+# descriptor names it; Manager::Extensions calls it with the lazysite dir). '' when
+# the value may be stored, else why not: an item that is not a profile name (an
+# address or a range among them: the key names profiles only), a name the store does not hold, and
 # `none` beside names (it is the whole value or nothing).
 sub validate_exempt {
     my ( $value, $lz ) = @_;
@@ -153,21 +153,21 @@ sub validate_exempt {
     ( my $v = $value ) =~ s/\A\s+|\s+\z//g;
     return '' if lc $v eq 'none';
     my @items = grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v;
-    require Lazysite::Auth::AddressLists;
+    require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
-    local $Lazysite::Auth::AddressLists::AUTH_DIR = defined $lz ? "$lz/auth" : undef;
-    my %have  = map { $_ => 1 } Lazysite::Auth::AddressLists::list_names();
-    my $fault = Lazysite::Auth::AddressLists::store_fault();
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = defined $lz ? "$lz/auth" : undef;
+    my %have  = map { $_ => 1 } Lazysite::Auth::AddressProfiles::profile_names();
+    my $fault = Lazysite::Auth::AddressProfiles::store_fault();
     my @why;
     for my $i (@items) {
         if ( lc $i eq 'none' ) {
-            push @why, "'none' is the whole value (it turns off loopback's exemption too) and cannot stand beside list names";
+            push @why, "'none' is the whole value (it turns off loopback's exemption too) and cannot stand beside profile names";
         }
-        elsif ( !Lazysite::Auth::AddressLists::valid_name($i) ) {
-            push @why, "'$i' is not an address list name (this key names address lists only; loopback is always exempt)";
+        elsif ( !Lazysite::Auth::AddressProfiles::valid_name($i) ) {
+            push @why, "'$i' is not an address profile name (this key names address profiles only; loopback is always exempt)";
         }
         elsif ( !$fault && !$have{$i} ) {
-            push @why, "'$i' is not an address list (make it under Access -> Address lists first)";
+            push @why, "'$i' is not an address profile (make it under Access -> Address profiles first)";
         }
     }
     return join '; ', @why;

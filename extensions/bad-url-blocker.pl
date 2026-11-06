@@ -62,14 +62,14 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     note    => 'Comma-separated substrings to treat as probes on top of '
                         . 'the built-ins.',
                 },
-                # SM1321 (rulings 48, 83, 84): address lists never counted or refused.
+                # SM1321 (rulings 48, 83, 84): address profiles never counted or refused.
                 {
                     key      => 'bad_url_exempt',
                     label    => 'Never block',
                     type     => 'text',
                     default  => '',
                     validate => 'Lazysite::BadUrl::validate_exempt',
-                    note => 'Comma-separated names of address lists (Access -> Address lists) '
+                    note => 'Comma-separated names of address profiles (Access -> Address profiles) '
                         . 'whose addresses are never counted or blocked. Loopback (127.0.0.0/8, ::1) '
                         . 'is always exempt; the value none exempts nothing, loopback included. '
                         . 'A path to a file the site has is never counted.',
