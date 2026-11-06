@@ -2046,7 +2046,7 @@ residual risk
   old directory's `stats.pl` or `form-smtp.pl` stops running (a form's mail pipe stops
   sending), a script on the old spelling is refused, a reader of the old response keys
   reads nothing, and an audit filter on the old action names matches no row written
-  from 0.16.4. UPGRADE.md lists the first three; the 0.16.4 notes list all four. An
+  from 0.16.4. UPGRADE.md and the 0.16.4 notes list all four. An
   old-spelling entry line written back by hand under `extensions:` reads as off in the manager and as on in
   the notifier and the processor nav, which match an entry by its file name (older than
   the rename and not widened by it); `lazysite check` names the line. A step that warned

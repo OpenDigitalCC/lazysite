@@ -8,7 +8,7 @@ package Lazysite::Extensions;
 # manager's tool path, the dev server, the bench. Three fell back to the
 # package's copy and the rest did not, two still looked inside the docroot, and
 # moving the directory meant finding all eleven. They ask here now, and
-# t/lint/308 refuses a twelfth list.
+# t/lint/306 refuses a twelfth list.
 #
 # THE ORDER: the dev server's --extensions directories (SM1222; empty on an
 # installed engine), then `extensions/` under each install root the caller

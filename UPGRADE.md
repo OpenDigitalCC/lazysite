@@ -100,7 +100,13 @@ from older docs:
 - a script calling the manager or control API as `plugin-list`, `plugin-read`,
   `plugin-save`, `plugin-action`, `plugin-enable` or `plugin-disable`, or passing
   `?plugin=`: those are refused now, naming the `extension-*` action and the
-  `extension` parameter to use. `extension-list` answers under `extensions`.
+  `extension` parameter to use. `extension-list` answers under `extensions`;
+- an audit or log filter on the old names: from 0.16.4 the audit writes an
+  extension action's row as `extension-*` (`extension-save`, `extension-action`
+  and the rest; rows written before stay `plugin-*`), SM831's
+  `spelling=deprecated` flag is gone with the old spelling, and a disabled
+  extension's refusal logs as `extension-gate` (was `plugin-gate`). Match both
+  spellings until the old rows age out.
 
 ## Starter pages are opt-in for new sites (SM1285, SM1286)
 

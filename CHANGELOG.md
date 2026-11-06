@@ -66,7 +66,7 @@ Archive
   the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
   and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has
   the entry, with the hand-made references the upgrade cannot see (a crontab running
-  `extensions/stats.pl`, a pipe to `extensions/form-smtp.pl`, a bookmark, a script on the old
+  `plugins/stats.pl`, a pipe to `plugins/form-smtp.pl`, a bookmark, a script on the old
   action spelling). The tests moved with the code (`t/unit/extensions/` and every test whose
   name said the old word). A journey test (t/journey/06) upgrades a pre-rename site and asks
   each deciding reader - the sign-in CGI's rate limiter, the data gate, the runtime's start
@@ -90,7 +90,10 @@ Archive
   answers unknown action naming its `extension-*` spelling, and the old `?<id>` parameter on
   extension-read, -save and -action and whoami's old catalogue switch are refused naming
   `extension` and `extensions`; the list's response key is `extensions` and groups-read's is
-  `capability_extension`. t/lint/307 holds the word to history, third-party names and the few
+  `capability_extension`. The audit writes an extension action's row as `extension-*` from
+  0.16.4 (earlier rows stay `plugin-*`), SM831's `spelling=deprecated` flag is gone with the
+  old spelling, and a disabled extension's refusal logs as `extension-gate` (was
+  `plugin-gate`): a filter or report on the old names matches nothing new. t/lint/307 holds the word to history, third-party names and the few
   places that must name the old spelling to convert or refuse it. ON UPGRADE: a script calling
   the old spelling must move to `extension-*` (SM1125's note); the sites agent has been told.
 
@@ -108,8 +111,9 @@ Archive
   `/manager/extension-config`; the old addresses are not kept (R2). Eleven script lookups ask
   one resolver, `Lazysite::Extensions` (t/lint/306 refuses a twelfth), and `lazysite check`
   names a list or entry written back under the old name, by line. ON UPGRADE: check anything
-  of your own that names the old directory - a crontab running `extensions/stats.pl`, a pipe to
-  `extensions/form-smtp.pl` (UPGRADE.md lists them).
+  of your own that names the old directory - a crontab running `plugins/stats.pl`, a pipe to
+  `plugins/form-smtp.pl`: they are `extensions/stats.pl` and `extensions/form-smtp.pl` now
+  (UPGRADE.md lists them).
 
 ## 0.16.3 - EDGE: a confined agent stays in its scope, a rule inside another cannot widen it, and the /docs manual is the engine's (2026-11-06)
 

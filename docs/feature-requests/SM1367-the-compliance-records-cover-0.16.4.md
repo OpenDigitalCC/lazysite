@@ -56,8 +56,15 @@ standards, support and declaration rows. No trust boundary is added.
 
 - The audit's action names for the seven extension actions are `extension-*` from
   0.16.4, where every earlier row says `plugin-*` (SM831 kept the canonical name so
-  that a reader filtering on it would not stop matching). The CHANGELOG and UPGRADE.md
-  do not name it; the register entry, the operate-side row and the 0.16.4 notes do.
+  that a reader filtering on it would not stop matching), SM831's `spelling=deprecated`
+  flag is gone, and a disabled extension's refusal logs as `extension-gate`. Ruling 95
+  records the rename's breaking changes in the CHANGELOG and UPGRADE.md, so the walk's second
+  commit adds it to the CHANGELOG's SM1142 entry and UPGRADE.md's, beside the register
+  entry, the operate-side row and the 0.16.4 notes.
+- The S1 and S4 CHANGELOG entries named the new paths where they meant the old ones an
+  operator's crontab or pipe still holds; they name the old ones again (the CHANGELOG is
+  history under t/lint/307). A comment in `lib/Lazysite/Extensions.pm` named t/lint/308
+  for the lint that is t/lint/306; corrected.
 
 # Tests
 

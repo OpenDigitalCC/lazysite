@@ -104,9 +104,9 @@ stand.
   ADR 0007 trigger fired.
 - The audit's action names for the seven extension actions are `extension-*` from
   0.16.4, where every row before it says the old spelling, and SM831's `spelling=deprecated`
-  flag goes with the old spelling. The CHANGELOG and UPGRADE.md do not name it; the
-  register entry and the 0.16.4 notes do. Whether UPGRADE.md should is for the release
-  manager.
+  flag goes with the old spelling. Found at this walk and recorded, as ruling 95 asks of
+  the rename's breaking changes, in the CHANGELOG's SM1142 entry and UPGRADE.md's, beside
+  the register entry and the 0.16.4 notes.
 - The operate-side row for SM1142 (references the upgrade cannot see), added at this
   walk.
 - The threat model rows in `docs/SECURITY.md` and `docs/architecture/security.md`: read
