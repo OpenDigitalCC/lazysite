@@ -53,9 +53,6 @@ Archive
 
 ## Unreleased
 
-## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
-
-- SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
 - SM1369 (PENDING) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
   and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
   names an extension (its script name, or Odoo's own names); the 59 files that do today are an
@@ -69,7 +66,9 @@ Archive
   that builds it (X2 to X8 are to come). A site whose extensions declare no hooks has no index
   and behaves as before.
 
-- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
+
+- SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
   four register entries the branches wrote are walked, and two of them (SM1324's protected
   history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data
