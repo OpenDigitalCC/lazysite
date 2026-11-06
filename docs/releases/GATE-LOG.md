@@ -99,3 +99,4 @@ the two differ only by the release material (`tools/release-material.pl --paths`
 | 0.16.0 | stable | `f16cd9707f2b95cb373033f2d43542c1747346af` | 1485 | 26883 | 2026-10-22 13:31 |
 | 0.16.1 | edge | `b81c128ee9da95151442affaf7c7ae8946b26861` | 1550 | 27971 | 2026-10-23 07:46 |
 | 0.16.2 | edge | `d51c52c0c8505f4565efff314e3235a52369e820` | 1553 | 28008 | 2026-10-23 20:12 |
+| 0.16.3 | edge | `2c3b663a43340c36776f450c173334c65986cec0` | 1593 | 28517 | 2026-11-06 08:06 |

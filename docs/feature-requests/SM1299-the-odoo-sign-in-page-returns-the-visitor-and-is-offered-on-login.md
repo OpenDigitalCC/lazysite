@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, rulings 36-39 (2026-10-23), on SM1295's open questions"
 area: auth
-status-note: "SHIPPED (PENDING) on n736: Lazysite::Util::sanitise_next (moved from lazysite-auth.pl), the Odoo endpoint's sign-in answers (_next), lazysite-odoo.js (data-ls-odoo-next), the odoo-signin component, the system login page, Lazysite::Maintenance::exempt. t/unit/odoo/63, 120, t/unit/processor/171, t/unit/auth/02."
+status-note: "SHIPPED (0.16.3) on n736: Lazysite::Util::sanitise_next (moved from lazysite-auth.pl), the Odoo endpoint's sign-in answers (_next), lazysite-odoo.js (data-ls-odoo-next), the odoo-signin component, the system login page, Lazysite::Maintenance::exempt. t/unit/odoo/63, 120, t/unit/processor/171, t/unit/auth/02."
 ---
 
 # The rulings

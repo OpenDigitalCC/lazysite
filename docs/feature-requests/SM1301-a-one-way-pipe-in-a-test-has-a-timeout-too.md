@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "SM1245's own filing (\"Not changed: single-stream pipe opens\"), planned as n737 for 0.16.2"
 area: tests
-status-note: "SHIPPED (PENDING) on n737: every one-way pipe open under t/ (t/vendor/ apart) reads or feeds its child through run_child, the forking opens too. Two fixture strings in t/tools/100 and the manager/99 stub are declared. With LAZYSITE_TEST_CHILD_TIMEOUT=0.01 a converted test fails naming its child; before the change it passes."
+status-note: "SHIPPED (0.16.3) on n737: every one-way pipe open under t/ (t/vendor/ apart) reads or feeds its child through run_child, the forking opens too. Two fixture strings in t/tools/100 and the manager/99 stub are declared. With LAZYSITE_TEST_CHILD_TIMEOUT=0.01 a converted test fails naming its child; before the change it passes."
 ---
 
 # What happened

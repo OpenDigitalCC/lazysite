@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 29 (2026-10-23); the site half of SM710 and ruling 2"
 area: security
-status-note: "SHIPPED (PENDING) on n736: Lazysite::SecurityHeaders::permissions_ceiling and its processor copy _pp_ceiling (t/lint/55), Lazysite::Validate (the warning, page_status and the editor), config-read/config-set and the Config page, lazysite check, the configuration and front-matter docs. t/unit/processor/170, t/unit/manager/410, t/lint/55."
+status-note: "SHIPPED (0.16.3) on n736: Lazysite::SecurityHeaders::permissions_ceiling and its processor copy _pp_ceiling (t/lint/55), Lazysite::Validate (the warning, page_status and the editor), config-read/config-set and the Config page, lazysite check, the configuration and front-matter docs. t/unit/processor/170, t/unit/manager/410, t/lint/55."
 ---
 
 # What was asked

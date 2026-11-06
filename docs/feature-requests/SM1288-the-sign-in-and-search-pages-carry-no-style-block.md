@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the release manager, ruling 12 (rulings-2026-10-22), from the pages SM1251 named
 area: starter
-status-note: "SHIPPED (PENDING) on n735: the <style> blocks removed from five pages; the same rules under .lazysite-fallback in lazysite-chrome.css; t/unit/processor/165 renders each page with and without a layout and theme; t/tools/285 runs the upgrade."
+status-note: "SHIPPED (0.16.3) on n735: the <style> blocks removed from five pages; the same rules under .lazysite-fallback in lazysite-chrome.css; t/unit/processor/165 renders each page with and without a layout and theme; t/tools/285 runs the upgrade."
 ---
 
 # What happened

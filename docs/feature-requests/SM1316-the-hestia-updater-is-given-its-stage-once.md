@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "release manager, ruling 45 (after the 0.16.2 rollout)"
 area: docs
-status-note: "SHIPPED (PENDING) on n740: OPERATOR.md, UPGRADE.md, the lazysite upgrade --all hint on a Hestia host and tools/lazysite-deploy.sh drop the second stage argument; the updater's usage says it need not be given. t/lint/292, t/tools/291."
+status-note: "SHIPPED (0.16.3) on n740: OPERATOR.md, UPGRADE.md, the lazysite upgrade --all hint on a Hestia host and tools/lazysite-deploy.sh drop the second stage argument; the updater's usage says it need not be given. t/lint/292, t/tools/291."
 ---
 
 # What happened

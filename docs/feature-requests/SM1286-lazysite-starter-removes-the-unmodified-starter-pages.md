@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 34 (2026-10-23)"
 area: install
-status-note: "SHIPPED (PENDING) on n734: lazysite starter --docroot D (--list | --remove-unmodified [--dry-run]) over install.pl --list-starter / --remove-starter; the manifest's starter flag, provenance stamp and recorded or shipped checksum; refuses root to remove; audited; names menu entries left linking a removed page. t/tools/281."
+status-note: "SHIPPED (0.16.3) on n734: lazysite starter --docroot D (--list | --remove-unmodified [--dry-run]) over install.pl --list-starter / --remove-starter; the manifest's starter flag, provenance stamp and recorded or shipped checksum; refuses root to remove; audited; names menu entries left linking a removed page. t/tools/281."
 ---
 
 # What was asked

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, rulings 10a-10c (2026-10-23)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: settle_odoo_writes in @CAP_KEYS and the check's copy, described in the capability map, owned by plugins/odoo.pl; the SM645 top-up gives it to a manager group. Used by SM1275 (assume on another's run) and SM1278 (the manager's list, assume and dismiss). t/unit/odoo/105."
+status-note: "SHIPPED (0.16.3) on n733: settle_odoo_writes in @CAP_KEYS and the check's copy, described in the capability map, owned by plugins/odoo.pl; the SM645 top-up gives it to a manager group. Used by SM1275 (assume on another's run) and SM1278 (the manager's list, assume and dismiss). t/unit/odoo/105."
 ---
 
 # What was asked

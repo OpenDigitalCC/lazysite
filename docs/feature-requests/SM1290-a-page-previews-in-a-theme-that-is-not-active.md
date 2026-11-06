@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-forms-validator-and-page-var-quotes.md (K-4)
 area: mcp
-status-note: "SHIPPED (PENDING) on n735: preview_page `theme` (saved page and draft) and the cookie preview action's `theme`; LAZYSITE_PREVIEW_THEME read by the processor on a single-shot CGI GET, applied in resolve_layout_vars over page, section and site, reported in X-Lazysite-Preview-Theme; the render writes nothing (_draft_requested); needs manage_themes or manage_layouts. t/unit/mcp/60, t/integration/335."
+status-note: "SHIPPED (0.16.3) on n735: preview_page `theme` (saved page and draft) and the cookie preview action's `theme`; LAZYSITE_PREVIEW_THEME read by the processor on a single-shot CGI GET, applied in resolve_layout_vars over page, section and site, reported in X-Lazysite-Preview-Theme; the render writes nothing (_draft_requested); needs manage_themes or manage_layouts. t/unit/mcp/60, t/integration/335."
 ---
 
 # What happened

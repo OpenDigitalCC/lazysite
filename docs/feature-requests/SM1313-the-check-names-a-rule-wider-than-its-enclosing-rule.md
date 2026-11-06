@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 61, on SM1309's open point"
 area: access
-status-note: "SHIPPED (PENDING) on n739: report_widened_rules asks Acl::widening_refusal of each stored rule, one mode at a time, with the rule's owner as the writer; an operator's rule is skipped. A WARN per finding; nothing is written, with or without --fix. t/tools/295."
+status-note: "SHIPPED (0.16.3) on n739: report_widened_rules asks Acl::widening_refusal of each stored rule, one mode at a time, with the rule's owner as the writer; an operator's rule is skipped. A WARN per finding; nothing is written, with or without --fix. t/tools/295."
 ---
 
 # What was asked

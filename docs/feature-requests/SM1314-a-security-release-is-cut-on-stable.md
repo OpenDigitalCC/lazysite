@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "release manager, ruling 45 (after the 0.16.2 rollout)"
 area: release
-status-note: "SHIPPED (PENDING) on n740: tools/release.sh refuses --security-critical below stable (exit 2), before a receipt is read. t/tools/104."
+status-note: "SHIPPED (0.16.3) on n740: tools/release.sh refuses --security-critical below stable (exit 2), before a receipt is read. t/tools/104."
 ---
 
 # What happened

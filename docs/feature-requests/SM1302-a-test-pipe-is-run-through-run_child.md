@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "SM1301, planned as n737 for 0.16.2"
 area: tests
-status-note: "SHIPPED (PENDING) on n737: t/lint/284 scans t/ (TestHelper.pm and t/vendor/ apart) for the '-|', '|-', forking and two-argument pipe opens and fails an undeclared one; it proves it still finds the old git helper and each shape. On the tree before SM1301 it fails on 61 sites in 56 files."
+status-note: "SHIPPED (0.16.3) on n737: t/lint/284 scans t/ (TestHelper.pm and t/vendor/ apart) for the '-|', '|-', forking and two-argument pipe opens and fails an undeclared one; it proves it still finds the old git helper and each shape. On the tree before SM1301 it fails on 61 sites in 56 files."
 ---
 
 # What happened

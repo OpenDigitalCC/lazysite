@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, rulings 10b and 10c (2026-10-23)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: odoo-unknown-runs / odoo_unknown_runs and odoo-dismiss / odoo_dismiss (settle_odoo_writes), odoo-resume / odoo_resume (ALWAYS: the run's binding decides, as for odoo-confirm); the Unknown Odoo writes panel on the Odoo extension's row of the Extensions page. t/unit/odoo/110."
+status-note: "SHIPPED (0.16.3) on n733: odoo-unknown-runs / odoo_unknown_runs and odoo-dismiss / odoo_dismiss (settle_odoo_writes), odoo-resume / odoo_resume (ALWAYS: the run's binding decides, as for odoo-confirm); the Unknown Odoo writes panel on the Odoo extension's row of the Extensions page. t/unit/odoo/110."
 ---
 
 # What was asked

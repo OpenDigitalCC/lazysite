@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 10c (2026-10-23)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: _prune_plans skips an open unknown run and keeps the daemon run folder it names; _plan_spent holds the bytes of an apply that left a change unknown; resume purges them once settled, and SM1278's dismiss does the same. t/unit/odoo/109."
+status-note: "SHIPPED (0.16.3) on n733: _prune_plans skips an open unknown run and keeps the daemon run folder it names; _plan_spent holds the bytes of an apply that left a change unknown; resume purges them once settled, and SM1278's dismiss does the same. t/unit/odoo/109."
 ---
 
 # What was asked

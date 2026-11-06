@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1337 (PENDING) **docs: the compliance records cover 0.16.3.** OBLIGATIONS.md and
+## 0.16.3 - EDGE: a confined agent stays in its scope, a rule inside another cannot widen it, and the /docs manual is the engine's (2026-11-06)
+
+- SM1337 (2c3b663a) **docs: the compliance records cover 0.16.3.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.3 batch and stamped 0.16.3. The register
   records the release manager's acceptance of the SM1303, SM1308 and SM1309 entries
   (ruling 65), and one entry for the rest of 0.16.3 that moves a control, accepted too
@@ -62,31 +64,31 @@ Archive
   SM1313's warning, the engine's /docs manual, the theme upload over MCP and the Odoo
   settle capability. Docs only; nothing is signed.
 
-- SM1280 (PENDING) **An Odoo operation is told whether the call came from an address list.**
+- SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
   Ruling 3 (the OOM Lab's office-network clock-in): a binding names an `address_profile` and an
   `address_param` (a yes/no parameter), and its operation receives only 1 or 0 - never the
   address. The server decides it from the request's address behind `trusted_proxies`, and a page
   cannot set or override it. No address, an unknown list or an unreadable store is 0. The list
   counts as in use, so it is not deleted while the binding names it. The key is `address_profile`
   (ruling 58, ahead of address lists becoming address profiles); for now it names an address list.
-- SM1277 (PENDING) **The page shows an Odoo write whose answer never came.** Ruling 10b: the
+- SM1277 (af65be3a) **The page shows an Odoo write whose answer never came.** Ruling 10b: the
   browser helper draws what a `write()` or `confirm()` left unknown into the page's
   `data-ls-odoo-unknown` element, as text, with Check again, and It was made / It was not made
   for each change only when the answer says the person may say. `LazysiteOdoo.resume` and
   `showUnknown` are there for a page that draws it itself.
-- SM1278 (PENDING) **The manager lists, settles and dismisses an unknown Odoo run.** Rulings 10b
+- SM1278 (6ebdf225) **The manager lists, settles and dismisses an unknown Odoo run.** Rulings 10b
   and 10c: the Odoo extension's row on the Extensions page has Unknown Odoo writes, each open run
   with the changes still unknown, It was made / It was not made for a change, and Check again and
   Close run (a dismissal) for the run. Listing and dismissing need `settle_odoo_writes`; a dismissal sends
   nothing to Odoo, keeps who, when and why, and is one call record and one audit line. The
   control API and MCP have `odoo-unknown-runs`, `odoo-resume` and `odoo-dismiss` (and their
   twins).
-- SM1279 (PENDING) **An unknown Odoo run is kept until it is settled or dismissed.** Ruling 10c:
+- SM1279 (7ee5a892) **An unknown Odoo run is kept until it is settled or dismissed.** Ruling 10c:
   no expiry. The plan store's seven days, the daemon run folders' schedule and SM1162's purge
   of a spent plan's file bytes no longer reach a run left unknown and still open, since a resume
   reads its plan, its journal and the bytes of a change it sends again. Settled or dismissed, it
   goes on the ordinary schedule and its bytes go at once.
-- SM1275 (PENDING) **An Odoo run that ended unknown is read back and settled.** Rulings 10a and
+- SM1275 (fae8b33a) **An Odoo run that ended unknown is read back and settled.** Rulings 10a and
   10b, with OOM 0.42's resume: an apply that left a change unknown now names its run (`run`,
   the plan id; no path), and `POST {run, resume: true}` resumes it. OOM reads each unknown
   change back first (found made: done, never sent again; found not made: carried), then the
@@ -96,19 +98,19 @@ Archive
   (`assume_not_done`). Anyone the binding admits may check again. A visitor never resumes a
   public binding's run. A confirm's token rule, the write caps, one call record and one audit
   line naming the run and the decision.
-- SM1276 (PENDING) **A capability settles an Odoo write whose answer never came.** Ruling 10a:
+- SM1276 (e7e8bec7) **A capability settles an Odoo write whose answer never came.** Ruling 10a:
   where OOM cannot read a change back, the run's own maker or a holder of a new capability
   says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
   grantable only where the extension is installed, and every operator group holds it: a new
   site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
-- SM1291 (PENDING) **a theme installs from a zip over MCP, its fonts with it.** MCP
+- SM1291 (7a27f58f) **a theme installs from a zip over MCP, its fonts with it.** MCP
   `install_theme` (manage_themes) takes a theme's zip as base64 and installs it through the
   function the manager's Upload Theme uses, so the checks and refusals are the same ones -
   0.16.2's among them (SM1303): the site's upload limit, and no symbolic link or file type
   the web server runs. The audit row is theme-upload's, and the caller can `delete_theme`
   what it installed. From the lazysite.io site agent (K-5).
 
-- SM1290 (PENDING) **a page previews in a theme that is not active.** MCP `preview_page` takes
+- SM1290 (6b7f53a3) **a page previews in a theme that is not active.** MCP `preview_page` takes
   `theme`: the page, or a draft, renders with that installed theme in place of the site's,
   the section's and the page's own, so a theme can be checked on real pages before it is
   activated. Nothing is activated, cached or written, and a theme not installed for the
@@ -116,7 +118,7 @@ Archive
   well as `manage_content`, as the manager's theme preview does; the manager's page preview
   takes the same `theme`. From the lazysite.io site agent (K-4).
 
-- SM1289 (PENDING) **a form under any theme has base styles, and the theme overrides them.**
+- SM1289 (f78375f8) **a form under any theme has base styles, and the theme overrides them.**
   Under a theme with no form rules (lumen, edge observation O-4) a stepped form's fields and
   buttons were the browser's own. `lazysite-chrome.css` now carries small base rules for the
   engine's forms - field spacing, full-width inputs, buttons in the page's font, the step
@@ -125,14 +127,14 @@ Archive
   a layout; under a layout the link goes first in the head, so any theme rule about the same
   element wins. Ruling 30.
 
-- SM1288 (PENDING) **the sign-in and search pages no longer override the theme.** The starter
+- SM1288 (ce8aa783) **the sign-in and search pages no longer override the theme.** The starter
   `/forgot.md` and `/search-results.md`, and the engine's login, forgot and claim pages, each
   opened with a `<style>` block that came after the theme's stylesheet, so on a themed site
   those pages wore the engine's buttons and grid. The blocks are gone and the same rules are in
   `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
   with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
   starter copy the site never changed and keeps one it did. Ruling 12.
-- SM1299 (PENDING) **the Odoo sign-in page returns the visitor where they were going, and
+- SM1299 (bd7d2da4) **the Odoo sign-in page returns the visitor where they were going, and
   /login offers it.** Once signed in, `/odoo-signin` goes to its `?next=` when that is a
   path on this site, and to `/` otherwise: the endpoint decides, through the check
   `/login`'s own return uses (now one function, which also refuses a `//` anywhere in the
@@ -141,7 +143,7 @@ Archive
   reachable while the site is in maintenance, as `/login` does. Ruled 2026-10-23
   (rulings 36-39).
 
-- SM1295 (PENDING) **a ready-made sign-in page for a site whose sign-in is the Odoo
+- SM1295 (ace93456) **a ready-made sign-in page for a site whose sign-in is the Odoo
   login.** While `odoo_site_signin` is on, `/odoo-signin` is a sign-in page in the site's
   own layout: a "Sign in with your Odoo login" button that opens the sign-in dialog, and,
   once signed in, who is signed in and a sign-out. Set `auth_redirect: /odoo-signin` to
@@ -150,7 +152,7 @@ Archive
   component, which a layout may restyle; the page carries no inline style. SM1160's
   follow-up (#340).
 
-- SM1296 (PENDING) **get_permissions on a page's stem answers the rule that governs the
+- SM1296 (85885cd3) **get_permissions on a page's stem answers the rule that governs the
   page.** On edge, `/zz76/b` answered `acl: null` while `/zz76/b.md` was a draft, because a
   move had folded the draft into the page's own key (SM1257). A stem that names a page, and
   the page itself, now answer the page's rule as the engine reads it, with `key` naming
@@ -158,13 +160,13 @@ Archive
   `get_permissions`, the control API `acl-get` and `lazysite acl show`. A folder of that
   name keeps its own rule. Edge walk of 0.16.1, O-3.
 
-- SM1297 (PENDING) **the maintenance switch can be cleared back to unset.** Switched on
+- SM1297 (f220dc78) **the maintenance switch can be cleared back to unset.** Switched on
   and off through config-set, lazysite.conf read `maintenance: off` where it had been
   empty, and config-set refused an empty value. Empty is now accepted and means off, as
   an absent key does; the Config page's switch sends it when turned off, so the key is
   cleared. Edge walk of 0.16.1, O-1.
 
-- SM1298 (PENDING) **every form's unknown-rule warning says which form, in one
+- SM1298 (cd2c496e) **every form's unknown-rule warning says which form, in one
   wording.** The first form's warning for a `key:value` the renderer ignores had no
   "form 1:" and was worded differently from a later form's ("form 2: unknown form rule
   ..."). Every form's warning now reads "form N: unknown form rule '<rule>' on field
@@ -172,7 +174,7 @@ Archive
   for a bare word and a `key:value` alike. What blocks a save is unchanged. Edge walk
   of 0.16.1, O-2.
 
-- SM1294 (PENDING) **a site may set a ceiling on the browser features its pages ask
+- SM1294 (127e53bd) **a site may set a ceiling on the browser features its pages ask
   for.** `permissions_policy_allow` in lazysite.conf is optional. Absent or empty, a page
   asks for any denied feature as SM1266 made it. Set, a page's `<feature>: self` grants
   only a listed feature: an unlisted one keeps `=()`, and validate warns naming the key.
@@ -180,7 +182,7 @@ Archive
   refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
   On the Config page under Browser features; the site's for every domain, never set per
   domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
-- SM1286 (PENDING) **`lazysite starter` clears out the starter pages a site never
+- SM1286 (5e12820a) **`lazysite starter` clears out the starter pages a site never
   edited.** A site keeps the starter pages it has when the default changes (SM1285), and
   removing them was file-by-file work. `lazysite starter --docroot D --list` names each
   as unmodified or edited, by provenance: the `provenance: lazysite-starter` stamp, and
@@ -190,7 +192,7 @@ Archive
   pages). It runs as the site user, refuses root, is audited, and names a menu entry left
   linking a removed page. Ruling 34.
 
-- SM1285 (PENDING) **A new site arrives without the starter pages.** Provisioning laid
+- SM1285 (b30b3796) **A new site arrives without the starter pages.** Provisioning laid
   lazysite's demo, sample contact and members pages and its welcome page on every site, for
   the owner to delete before launch. A new site now has the system pages, the site search,
   the engine's `/docs` manual (SM1284) and a minimal home page. The engine serves that home
@@ -201,7 +203,7 @@ Archive
   demos. `lazysite-hestia-domain add --starter` and `LAZYSITE_STARTER=1` (Hestia deploy,
   Docker) opt in. Ruling 33.
 
-- SM1284 (PENDING) **The /docs manual is the engine's.** The agent briefings and the
+- SM1284 (26f7b150) **The /docs manual is the engine's.** The agent briefings and the
   manual they link into were starter content in each site's docroot. So cleaning a site
   up for launch put at risk the pages the partner brief, `.well-known/ai-partner` and the
   MCP instructions send agents to: theunited.community kept 30 of 70 pages by hand. The
@@ -215,41 +217,41 @@ Archive
   A recursive scan no longer lists pages from the `lazysite/` management tree.
   Rulings 4, 27, 32, 34 and 35.
 
-- SM1283 (PENDING) **The sign-in and error pages serve when the engine tree is beside the
+- SM1283 (b1fafdef) **The sign-in and error pages serve when the engine tree is beside the
   docroot.** On a site that had moved its engine tree to `<docroot>-lazysite` (SM293), the
   engine's own `/claim` and `/login` (SM201) answered 404 whenever the docroot had no copy
   of its own, which a fresh install never seeds. The fallback chose the engine's file and
   the content-root check then refused it, because its real path is outside the docroot. A
   source the fallback chose is now accepted when it sits under the engine's page tree.
   Every other source is confined as before.
-- SM1302 (PENDING) **internal: a test opens no pipe to a child itself.** t/lint/284, t/lint/273's
+- SM1302 (2fb0c7ff) **internal: a test opens no pipe to a child itself.** t/lint/284, t/lint/273's
   sibling, fails a test that opens a pipe to or from a child (`'-|'`, `'|-'`, the forking open,
   `'cmd |'`) itself, unless it says it drives the child itself or the text is fixture text.
 
-- SM1301 (PENDING) **internal: a one-way pipe in a test has a timeout too.** SM1245 bounded the
+- SM1301 (c9535430) **internal: a one-way pipe in a test has a timeout too.** SM1245 bounded the
   two-way spawns under t/ and left 58 one-way pipe opens in 54 files, mostly git, find, tar and
   the tools under test, with no limit: a child that never exits hung its test with nothing to
   name it. They run through TestHelper::run_child now, which fails the test naming itself and
   the child after `child_timeout()`.
-- SM1313 (PENDING) **lazysite check names a rule wider than its enclosing rule.** 0.16.3
+- SM1313 (a4924496) **lazysite check names a rule wider than its enclosing rule.** 0.16.3
   refuses such a rule unless the operator or the enclosing rule's owner writes it (SM1309),
   and keeps the ones already stored. The check now names each stored one whose owner is
   neither, as a WARN naming the path, the enclosing rule and whom it admits beyond it, and
   asks the operator to review it. It changes nothing, and `lazysite repair` leaves it to a
   person. Ruled 2026-11-04 (ruling 61).
 
-- SM1312 (PENDING) **list_pages leaves out a page the caller may not read.** It read every
+- SM1312 (6fa4fb0a) **list_pages leaves out a page the caller may not read.** It read every
   page's title without asking the page's rule, so a gated page still in the document root
   (protected before 0.10.8, or under a rule with only address lists) had its title listed.
   Ruled 2026-11-04 (ruling 60).
 
-- SM1311 (PENDING) **a confined audit is of its scope.** `audit_site` walked the whole site
+- SM1311 (b9542a81) **a confined audit is of its scope.** `audit_site` walked the whole site
   for a grant confined to a scope. It now audits the scope (`scope_roots`). A link to a page
   outside it is listed in `outside_scope_links`, never as broken, and its target is not
   looked up; a path on the domain the scope root serves is read there. An unconfined
   audit is unchanged. Ruled 2026-11-04 (ruling 59).
 
-- SM1310 (PENDING) **replace_text refuses a page changed under it.** It saved without the
+- SM1310 (c364fdcb) **replace_text refuses a page changed under it.** It saved without the
   modification time it read, which skips the save's conflict check, so of two agents
   replacing text on one page at once both answered `replacements: 1` and one change was
   lost. It saves with that time now: a page another writer saved in between is refused as a
@@ -257,7 +259,7 @@ Archive
   check's resolution is one second. Ruled 2026-11-04 (ruling 51, part (a); `write_file`'s
   base version is 0.16.4).
 
-- SM1309 (PENDING) **a rule inside another may narrow it; only the operator or the
+- SM1309 (643e4e02) **a rule inside another may narrow it; only the operator or the
   enclosing rule's owner may widen it.** A subfolder's rule replaces its parent's for a mode
   (longest match), and anyone who may write a path may write its first rule, so a member of
   a protected area, or the member's agent, opened a subfolder to a non-member with one
@@ -269,7 +271,7 @@ Archive
   operator's carve-out still works, and an existing carve-out can be re-applied by its
   owner. Ruled 2026-11-04 (ruling 46).
 
-- SM1308 (PENDING) **a confined agent lists and searches only its scope.** An MCP grant
+- SM1308 (630b5735) **a confined agent lists and searches only its scope.** An MCP grant
   confined to a scope was answered `list_pages`, `list_files` and `search_files` from the
   whole docroot when it named no path, because the scope check skips an argument that is not
   given; and the search printed lines of files whose rule the caller does not pass. A
@@ -279,14 +281,14 @@ Archive
   with no or an empty path, and `pages`, answer a confined caller the same way. Ruled
   2026-11-04 (ruling 47).
 
-- SM1274 (PENDING) **Dismiss all empties the notices panel.** "Mark all read" marked every
+- SM1274 (adf2903a) **Dismiss all empties the notices panel.** "Mark all read" marked every
   notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
   the panel is empty and the count 0, on screen and on the next page, and the notices stay in
   the store, as a single Dismiss leaves them. A notice that arrives afterwards is unread. The
   manager offers it whenever the panel holds a notice; a member's own bell does the same.
   Ruled 2026-10-23 (ruling 26).
 
-- SM1273 (PENDING) **lazysite repair gives a manager group the capabilities a release
+- SM1273 (a28ef0d0) **lazysite repair gives a manager group the capabilities a release
   added.** A site whose only warning was a manager group's not-yet-held capability was left
   "awaiting your decision", though there was nothing to decide. Before it checks again,
   repair now runs the users tool's top-up (`group-reach` for each manager group, as the
@@ -295,7 +297,7 @@ Archive
   and the repair goes on. The check's warning names `repair --domain DOMAIN` as the
   simplest fix.
 
-- SM1272 (PENDING) **the check says a manager group is granted a new capability on the next
+- SM1272 (15c2c6a1) **the check says a manager group is granted a new capability on the next
   use, not that it must decide.** After an upgrade, `lazysite check` told an operator that
   sysops had "not decided" on a capability the release added (on edge, `maintenance_access`)
   and asked them to grant or dismiss it on the Groups page. The SM645 top-up grants a manager
@@ -308,14 +310,14 @@ Archive
   next use of the users tool after the upgrade (SM685, kept by the release manager on
   2026-10-23).
 
-- SM1270 (PENDING) **acl-remove needs a path.** The control API's `acl-remove` with no path,
+- SM1270 (b7be28de) **acl-remove needs a path.** The control API's `acl-remove` with no path,
   or an empty one, removed the site-wide rule and published everything it held back (the
   dispatcher's `/` default, which SM306 kept for recovery). It is refused now, on every
   channel and before the scope check, with a message saying the site-wide rule is removed
   with `path=/`; `Files::action_acl_remove` refuses it for the CLI and MCP too. The action
   declares `path` required, as MCP `remove_permissions` does. `/`, `.` and `./` still remove
   the site-wide rule. Ruled 2026-10-23 (ruling 17), replacing SM306's no-path default.
-- SM1316 (PENDING) **docs: the Hestia updater is given its stage once.**
+- SM1316 (c093a5e8) **docs: the Hestia updater is given its stage once.**
   `lazysite-hestia-update-all.sh` defaults its stage to the release it runs from, and every
   command that told an operator to run it named the stage twice
   (`bash STAGE/installers/hestia/lazysite-hestia-update-all.sh --force-security STAGE`).
@@ -324,7 +326,7 @@ Archive
   given. t/lint/292 refuses the doubled form anywhere outside the release history (ruling
   45).
 
-- SM1315 (PENDING) **release: the deploy hook passes `--force-security` itself.** A
+- SM1315 (83bab8b6) **release: the deploy hook passes `--force-security` itself.** A
   release whose manifest declares `"security_critical": true` was deployed by
   `tools/lazysite-deploy.sh` with its usual flags, so the Hestia updater scoped it by each
   site's `update_channel` and the operator pushed it to the rest by hand. The hook now reads
@@ -333,7 +335,7 @@ Archive
   it cannot read adds nothing and says so. It still deploys only a strictly higher version
   (ruling 45).
 
-- SM1314 (PENDING) **release: a security release is cut on stable.** 0.16.2 was cut
+- SM1314 (28b0d2eb) **release: a security release is cut on stable.** 0.16.2 was cut
   `--security-critical` on edge, so the standard deploy reached only the edge sites and the
   rest were pushed by hand with the Hestia updater's `--force-security`.
   `tools/release.sh build X --security-critical` now refuses (exit 2) unless `--final` (or

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 47 (tmp/rulings-2026-10-22.md, \"4 November\"), on T-01 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a report from a site building a protected intranet, gap G3"
 area: access
-status-note: "SHIPPED (PENDING) on n739: a confined grant's walks (list_files, list_pages, search_files, delete_page's references, rename_page's rewrite) start at its scope roots; each search hit is asked _acl_denied; the manager API's list and pages answer the same. t/unit/mcp/65, t/unit/manager/415."
+status-note: "SHIPPED (0.16.3) on n739: a confined grant's walks (list_files, list_pages, search_files, delete_page's references, rename_page's rewrite) start at its scope roots; each search hit is asked _acl_denied; the manager API's list and pages answer the same. t/unit/mcp/65, t/unit/manager/415."
 ---
 
 # What was asked

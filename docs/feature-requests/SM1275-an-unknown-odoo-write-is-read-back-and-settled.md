@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, rulings 10a and 10b (2026-10-23); task #376 part 2 (SM1244)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: Lazysite::Odoo::resume on OOM 0.42's Runner->resume_plan and, for a run oomd made, Calls->resume; the run handle is the plan id; the endpoint's {run, resume: true}; unknown-outcome / settled / dismissed / not-yours. t/unit/odoo/106, 107, 108, 03."
+status-note: "SHIPPED (0.16.3) on n733: Lazysite::Odoo::resume on OOM 0.42's Runner->resume_plan and, for a run oomd made, Calls->resume; the run handle is the plan id; the endpoint's {run, resume: true}; unknown-outcome / settled / dismissed / not-yours. t/unit/odoo/106, 107, 108, 03."
 ---
 
 # What was asked

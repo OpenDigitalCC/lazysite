@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 60, on SM1308's open point"
 area: access
-status-note: "SHIPPED (PENDING) on n739: list_pages asks _acl_denied of each page before it opens it, for every grant. t/unit/mcp/69."
+status-note: "SHIPPED (0.16.3) on n739: list_pages asks _acl_denied of each page before it opens it, for every grant. t/unit/mcp/69."
 ---
 
 # What was asked

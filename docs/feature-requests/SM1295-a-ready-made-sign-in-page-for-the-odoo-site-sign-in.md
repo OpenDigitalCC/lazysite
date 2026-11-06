@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "plan 0.16.2 row n736, #340 (the follow-up of SM1128 and SM1160)"
 area: auth
-status-note: "SHIPPED (PENDING) on n736: lazysite/templates/system/odoo-signin.md and the built-in component lazysite/templates/components/odoo-signin.tt; the processor's %SYSTEM_PAGES and _odoo_site_signin_on (render.pm, shared with the banner). t/unit/processor/171. The questions it left were ruled 2026-10-23 (rulings 36-39) and built as [[SM1299]]."
+status-note: "SHIPPED (0.16.3) on n736: lazysite/templates/system/odoo-signin.md and the built-in component lazysite/templates/components/odoo-signin.tt; the processor's %SYSTEM_PAGES and _odoo_site_signin_on (render.pm, shared with the banner). t/unit/processor/171. The questions it left were ruled 2026-10-23 (rulings 36-39) and built as [[SM1299]]."
 ---
 
 # What was asked

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 33 (2026-10-23), from the owner's request on theunited.community"
 area: install
-status-note: "SHIPPED (PENDING) on n734: install.pl provisions without starter pages unless --starter (recorded, --no-starter accepted); the engine's minimal home serves / until index.md exists; the seeded nav drops the skipped pages; provision, hestia-domain, the Hestia deploy and Docker opt in. t/tools/95, t/unit/processor/161."
+status-note: "SHIPPED (0.16.3) on n734: install.pl provisions without starter pages unless --starter (recorded, --no-starter accepted); the engine's minimal home serves / until index.md exists; the seeded nav drops the skipped pages; provision, hestia-domain, the Hestia deploy and Docker opt in. t/tools/95, t/unit/processor/161."
 ---
 
 # What was asked

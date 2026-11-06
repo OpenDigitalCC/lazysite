@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 10b (2026-10-23)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: LazysiteOdoo.resume and showUnknown in starter/assets/lazysite-odoo.js; write() and confirm() draw an unknown answer into [data-ls-odoo-unknown]. t/unit/odoo/111 (t/lib/odoo-unknown-harness.js)."
+status-note: "SHIPPED (0.16.3) on n733: LazysiteOdoo.resume and showUnknown in starter/assets/lazysite-odoo.js; write() and confirm() draw an unknown answer into [data-ls-odoo-unknown]. t/unit/odoo/111 (t/lib/odoo-unknown-harness.js)."
 ---
 
 # What was asked

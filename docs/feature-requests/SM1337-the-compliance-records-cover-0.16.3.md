@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the compliance check run alone for 0.16.3 (tmp/n748-compliance-check.sh): two blocking findings, as the 0.16.1 and 0.16.2 gates had (SM1269, SM1306)"
 area: release
-status-note: "SHIPPED (PENDING) on n748: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.3; the SM1303, SM1308 and SM1309 register entries accepted (ruling 65); a drafted entry for the rest of 0.16.3; architecture notes and an OPERATOR.md paragraph for SM1313. content_sha is left for the release manager to stamp at sign-off."
+status-note: "SHIPPED (0.16.3) on n748: docs only. OBLIGATIONS.md reviewed_at_version and TECHNICAL-FILE.md covers_version 0.16.3; the SM1303, SM1308 and SM1309 register entries accepted (ruling 65); a drafted entry for the rest of 0.16.3; architecture notes and an OPERATOR.md paragraph for SM1313. content_sha is left for the release manager to stamp at sign-off."
 ---
 
 # What was asked

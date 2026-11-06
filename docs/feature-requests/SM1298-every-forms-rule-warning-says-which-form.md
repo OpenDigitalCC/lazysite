@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "edge walk of 0.16.1, observation O-2"
 area: forms
-status-note: "SHIPPED (PENDING) on n736: Lazysite::Validate::_unknown_form_rule is the one sentence for a bare word and a key:value alike, and the first form's warnings carry \"form 1:\". t/unit/lib/206."
+status-note: "SHIPPED (0.16.3) on n736: Lazysite::Validate::_unknown_form_rule is the one sentence for a bare word and a key:value alike, and the first form's warnings carry \"form 1:\". t/unit/lib/206."
 ---
 
 # What happened

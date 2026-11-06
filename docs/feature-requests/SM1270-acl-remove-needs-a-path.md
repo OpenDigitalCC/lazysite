@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 17 (tmp/rulings-2026-10-22.md, \"23 October\"), on SM1263's open question"
 area: access
-status-note: "SHIPPED (PENDING) on n731: the control API refuses acl-remove with an absent or empty path before the scope check, and Files::action_acl_remove refuses it for every caller, both naming path=/; the action declares path required, as MCP remove_permissions does; lints 52 and 265 no longer record a difference. t/unit/manager/401, t/integration/52."
+status-note: "SHIPPED (0.16.3) on n731: the control API refuses acl-remove with an absent or empty path before the scope check, and Files::action_acl_remove refuses it for every caller, both naming path=/; the action declares path required, as MCP remove_permissions does; lints 52 and 265 no longer record a difference. t/unit/manager/401, t/integration/52."
 ---
 
 # What was asked

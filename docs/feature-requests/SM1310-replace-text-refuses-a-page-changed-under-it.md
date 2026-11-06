@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 51 (a) (tmp/rulings-2026-10-22.md, \"4 November\"), Q6, on T-06 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a report from a site building a protected intranet, gap G1"
 area: mcp
-status-note: "SHIPPED (PENDING) on n739: replace_text passes action_read's mtime to action_save, and answers a conflict with kind conflict and a sentence telling the agent to run it again. t/unit/mcp/67. Part (b), write_file's base_mtime, is 0.16.4."
+status-note: "SHIPPED (0.16.3) on n739: replace_text passes action_read's mtime to action_save, and answers a conflict with kind conflict and a sentence telling the agent to run it again. t/unit/mcp/67. Part (b), write_file's base_mtime, is 0.16.4."
 ---
 
 # What was asked

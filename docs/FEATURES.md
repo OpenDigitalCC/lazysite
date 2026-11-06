@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.2"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.3"
 brand: plain
 ---
 
@@ -2033,6 +2033,18 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.3** (2026-11-06, edge) - **A confined agent stays in its scope, a rule
+  inside another cannot widen it, and the /docs manual is the engine's.** a
+  confined MCP grant lists, searches and audits only its scope (SM1308, SM1311,
+  SM1312); a rule inside a protected area may narrow it, and only the operator
+  or the area's owner may widen it, with lazysite check naming the older ones
+  (SM1309, SM1313); the /docs manual is served by the engine and new sites
+  arrive without starter pages, with lazysite starter to clear them
+  (SM1284-SM1286); an Odoo write whose answer never came is read back, settled
+  or dismissed (SM1275-SM1279); a ready-made /odoo-signin page (SM1295,
+  SM1299); a site ceiling on page-asked browser features (SM1294); MCP
+  install_theme and theme preview (SM1290, SM1291); a security release is cut
+  on stable and the deploy hook forces it itself (SM1314, SM1315)
 - **0.16.2** (2026-10-23, edge) - **A security release: a theme archive cannot
   plant a link in the served asset mirror.** the manager's theme upload refuses
   a symbolic link, a server-run file type and an oversized archive before

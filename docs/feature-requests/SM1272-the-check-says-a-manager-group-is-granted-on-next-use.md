@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the 0.16.1 deploy on edge.explore.lazysite.io (\"manager group(s) have not decided on capabilities this release has: sysops/maintenance_access\"); the release manager's rulings 23 (A: SM685 stands, no top-up at upgrade) and 24 (n731 starts the 0.16.2 batch), 2026-10-23"
 area: users
-status-note: "SHIPPED (PENDING) on n731: lazysite-check reports a manager group's absent capability as granted on the next use of the manager or the users tool (the Users, Groups or Config page, or a command such as group-reach), with group-reach as the shell fallback; a gap the top-up does not fill keeps SM496's wording. The SM471 comment is brought up to SM645 and SM685. t/tools/59, t/unit/tools/41."
+status-note: "SHIPPED (0.16.3) on n731: lazysite-check reports a manager group's absent capability as granted on the next use of the manager or the users tool (the Users, Groups or Config page, or a command such as group-reach), with group-reach as the shell fallback; a gap the top-up does not fill keeps SM496's wording. The SM471 comment is brought up to SM645 and SM685. t/tools/59, t/unit/tools/41."
 ---
 
 # What was found

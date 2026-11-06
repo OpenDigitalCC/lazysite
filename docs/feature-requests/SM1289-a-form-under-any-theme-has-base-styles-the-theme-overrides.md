@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "edge observation O-4; the release manager, ruling 30 (2026-10-23)"
 area: processor
-status-note: "SHIPPED (PENDING) on n735: native-form base rules in lazysite-chrome.css, each selector a :where(); _inject_form_base links the file first in the head of a layout's page with a form and drops the stepped form's later copy; t/unit/processor/166, t/unit/processor/148."
+status-note: "SHIPPED (0.16.3) on n735: native-form base rules in lazysite-chrome.css, each selector a :where(); _inject_form_base links the file first in the head of a layout's page with a form and drops the stepped form's later copy; t/unit/processor/166, t/unit/processor/148."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "edge walk of 0.16.1, observation O-1"
 area: manager
-status-note: "SHIPPED (PENDING) on n736: config-set takes an empty maintenance (unset, the same as off); the Config page's switch sends it when turned off. t/unit/manager/411, 385."
+status-note: "SHIPPED (0.16.3) on n736: config-set takes an empty maintenance (unset, the same as off); the Config page's switch sends it when turned off. t/unit/manager/411, 385."
 ---
 
 # What happened

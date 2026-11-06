@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-21
 raised-by: "the owner, filed from the theunited.community setup (inbox 2026-10-21-agent-briefings-apart-from-starter-boilerplate.md); rulings 4, 27, 32, 34 and 35"
 area: processor
-status-note: "SHIPPED (PENDING) on n734: the manual ships in {LAZYSITE}/templates/docs and serves when the site has no page at the path (site, engine, 404); access rules and section themes see its served path; engine_docs_public lists it as the site's; check warns on a shadowing copy; the upgrade drops unmodified docroot copies. t/tools/280, t/unit/processor/160, t/lint/290."
+status-note: "SHIPPED (0.16.3) on n734: the manual ships in {LAZYSITE}/templates/docs and serves when the site has no page at the path (site, engine, 404); access rules and section themes see its served path; engine_docs_public lists it as the site's; check warns on a shadowing copy; the upgrade drops unmodified docroot copies. t/tools/280, t/unit/processor/160, t/lint/290."
 ---
 
 # What was asked

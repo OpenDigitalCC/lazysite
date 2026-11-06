@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 25 (2026-10-23), on SM1272's open question"
 area: cli
-status-note: "SHIPPED (PENDING) on n731: cmd_repair runs lazysite-users.pl --docroot D group-reach <group> for each manager group after --fix and before the re-check, as the site's owner when run as root; --dry-run names the commands and runs none; a failed call is reported and the repair goes on. The check's fix for the SM1272 warning names `repair --domain DOMAIN` first. t/tools/273, t/tools/59."
+status-note: "SHIPPED (0.16.3) on n731: cmd_repair runs lazysite-users.pl --docroot D group-reach <group> for each manager group after --fix and before the re-check, as the site's owner when run as root; --dry-run names the commands and runs none; a failed call is reported and the repair goes on. The check's fix for the SM1272 warning names `repair --domain DOMAIN` first. t/tools/273, t/tools/59."
 ---
 
 # What was asked

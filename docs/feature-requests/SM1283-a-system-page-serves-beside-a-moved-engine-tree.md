@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "found while designing n734 (engine-served docs), fix asked by the supervisor"
 area: processor
-status-note: "SHIPPED (PENDING) on n734: the render path's confinement accepts a source the system-page fallback chose when its real path sits under the engine's page tree. t/integration/340."
+status-note: "SHIPPED (0.16.3) on n734: the render path's confinement accepts a source the system-page fallback chose when its real path sits under the engine's page tree. t/integration/340."
 ---
 
 # What was found

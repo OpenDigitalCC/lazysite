@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 59, on SM1308's open point"
 area: access
-status-note: "SHIPPED (PENDING) on n739: audit_site takes the grant's scope roots for its page walk, its static-file walk and its rule keys; a link outside them is read on the domain the scope root serves, else listed in outside_scope_links. t/unit/mcp/68."
+status-note: "SHIPPED (0.16.3) on n739: audit_site takes the grant's scope roots for its page walk, its static-file walk and its rule keys; a link outside them is read on the domain the scope root serves, else listed in outside_scope_links. t/unit/mcp/68."
 ---
 
 # What was asked

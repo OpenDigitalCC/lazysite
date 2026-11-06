@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: "the lazysite-sites agent for the OOM Lab (inbox 2026-10-22, P-8 to P-10); ruled by the release manager, ruling 3"
 area: odoo
-status-note: "SHIPPED (PENDING) on n733: binding keys address_profile + address_param (Lazysite::Odoo::Binding parse, check_against, assemble), decided in Lazysite::Odoo::call by _address_inside (AddressLists::in_list on the call's ip); the list is a binding reference in AddressRefs (slot match); a page variable refuses such a binding. t/unit/odoo/112."
+status-note: "SHIPPED (0.16.3) on n733: binding keys address_profile + address_param (Lazysite::Odoo::Binding parse, check_against, assemble), decided in Lazysite::Odoo::call by _address_inside (AddressLists::in_list on the call's ip); the list is a binding reference in AddressRefs (slot match); a page variable refuses such a binding. t/unit/odoo/112."
 ---
 
 # What was asked

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "edge walk of 0.16.1, observation O-3"
 area: acl
-status-note: "SHIPPED (PENDING) on n736: Acl::page_rule (sharing fold_page_stem's folder test and merge), Files::action_acl_get (MCP get_permissions, the control API acl-get, lazysite acl show). t/unit/manager/412."
+status-note: "SHIPPED (0.16.3) on n736: Acl::page_rule (sharing fold_page_stem's folder test and merge), Files::action_acl_get (MCP get_permissions, the control API acl-get, lazysite acl show). t/unit/manager/412."
 ---
 
 # What happened

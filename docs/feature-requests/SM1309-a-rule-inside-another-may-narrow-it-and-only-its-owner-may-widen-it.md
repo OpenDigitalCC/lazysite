@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 46 (tmp/rulings-2026-10-22.md, \"4 November\"), Q1 option (b), on T-02 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a report from a site building a protected intranet, gap G4"
 area: access
-status-note: "SHIPPED (PENDING) on n739: Acl::widening_refusal (enclosing_rule, the principals the new list adds, those the enclosing rule does not admit) is asked by Files::action_acl_set before it writes, and Acl::move_widening_refusal by Files::action_move and WebDAV MOVE before they move; kind widens-enclosing-rule, naming the enclosing rule. t/unit/mcp/66, t/unit/dav/36."
+status-note: "SHIPPED (0.16.3) on n739: Acl::widening_refusal (enclosing_rule, the principals the new list adds, those the enclosing rule does not admit) is asked by Files::action_acl_set before it writes, and Acl::move_widening_refusal by Files::action_move and WebDAV MOVE before they move; kind widens-enclosing-rule, naming the enclosing rule. t/unit/mcp/66, t/unit/dav/36."
 ---
 
 # What was asked

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-23
 raised-by: "the release manager, ruling 26 (2026-10-23)"
 area: manager
-status-note: "SHIPPED (PENDING) on n732: notices-seen with no id dismisses, by id, every notice the caller's bell holds (the operators' and a member's me-notices-seen alike); the store is untouched; a later notice is unread. The manager panel and the account bell call it Dismiss all and empty the list; the manager offers it while the panel holds any notice. t/unit/lib/208, 196, t/unit/manager/204."
+status-note: "SHIPPED (0.16.3) on n732: notices-seen with no id dismisses, by id, every notice the caller's bell holds (the operators' and a member's me-notices-seen alike); the store is untouched; a later notice is unread. The manager panel and the account bell call it Dismiss all and empty the list; the manager offers it while the panel holds any notice. t/unit/lib/208, 196, t/unit/manager/204."
 ---
 
 # What was asked

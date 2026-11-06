@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-10-22
 raised-by: the lazysite.io site agent, inbox 2026-10-22-forms-validator-and-page-var-quotes.md (K-5)
 area: mcp
-status-note: "SHIPPED (PENDING) on n735: MCP install_theme (manage_themes) decodes the zip as upload_file does and calls Manager::Themes::action_theme_upload, so it goes through the archive checks 0.16.2 shipped as SM1303; records the install as the caller's for delete_theme, audits as theme-upload. t/unit/mcp/61."
+status-note: "SHIPPED (0.16.3) on n735: MCP install_theme (manage_themes) decodes the zip as upload_file does and calls Manager::Themes::action_theme_upload, so it goes through the archive checks 0.16.2 shipped as SM1303; records the install as the caller's for delete_theme, audits as theme-upload. t/unit/mcp/61."
 ---
 
 # What happened

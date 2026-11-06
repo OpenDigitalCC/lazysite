@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "release manager, ruling 45 (after the 0.16.2 rollout)"
 area: tools
-status-note: "SHIPPED (PENDING) on n740: tools/lazysite-deploy.sh reads release-manifest.json from the tarball it deploys and adds --force-security when security_critical is true. t/tools/292."
+status-note: "SHIPPED (0.16.3) on n740: tools/lazysite-deploy.sh reads release-manifest.json from the tarball it deploys and adds --force-security when security_critical is true. t/tools/292."
 ---
 
 # What happened
