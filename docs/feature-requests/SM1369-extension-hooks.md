@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL on n757: X0 (t/lint/321) and X1 (Lazysite::Extensions::Hooks, the index build in Manager::Extensions, install.pl run_hook_index_build, the payload lib rule) are built. To come: X2 actions and capabilities, X3 sources and handlers, X4 identity, X5 endpoint, services and assets, X6 check, panels and secrets, X7 the move, X8 the offline kit."
+status-note: "PARTIAL on n757: X0 (t/lint/321) and X1 (Lazysite::Extensions::Hooks, the index build, install.pl run_hook_index_build, the payload lib rule) are built. Next, ruling 135: Odoo's file move (X7's move), which X2 waits for. Then X2 actions and capabilities, X3 sources and handlers, X4 identity, X5 endpoint, services, assets, X6 check, panels, secrets, X7's rest, X8 the offline kit."
 ---
 
 # The ruling
@@ -19,6 +19,14 @@ that enable odoo, and could also enable other extensions to hook in to other
 remote databases and systems, then make a proposal." The proposal is
 `tmp/proposal-extension-hooks.md`: twelve hooks (H-1 to H-12) and nine slices
 (X0 to X8). This filing carries the slices; this branch builds X0 and X1.
+
+The slice order
+: Ruling 135 (release manager, 2026-11-06): Odoo's file move, the move that is
+  part of X7 (its modules from core's `lib/` into its payload lib), comes before
+  X2. X2 waits for it: under C-3, which stands, a hook's module must be in the
+  extension's own payload lib, so X2 cannot declare a hook on a module still in
+  core's `lib/`. The order is X0, X1, the move, then X2 to X6, the rest of X7
+  and X8.
 
 # X0: core names no extension
 
@@ -111,7 +119,7 @@ text: 3
 ---
 C-1 | What X0 counts | Ruled (136, 2026-11-06): Odoo's names only (`odoo`, `OOM`, `oomd`), so that X7 empties the list. 43 files | Every extension's script name as well, as first built: 58 files, the other extensions' rows (data, stats, briefs, remap, the login rate limiter, form-smtp, notify-xmpp, pandoc, form-handler) staying after X7
 C-2 | A hook kind whose consumer is not built | Refused at validation, naming its slice; every kind is not live in X1 | Accepted and indexed now, run once its slice lands: a declaration nothing calls in the meantime
-C-3 | Where a hook's module may live | Only the extension's payload lib, and found nowhere else on `@INC`. X2 to X6 declare Odoo's hooks while its modules are still in core's `lib/` (they move in X7), so X2 needs the modules it names moved first, or a ruling that allows the extension's namespace in core's lib until X7 | Any module on `@INC` in the extension's namespace
+C-3 | Where a hook's module may live | Only the extension's payload lib, and found nowhere else on `@INC`. Stands (ruling 135, 2026-11-06): Odoo's file move comes before X2, which waits for it, so X2's hooks name modules already in the payload lib | Any module on `@INC` in the extension's namespace
 C-4 | `requires` | Inside `owns`, beside `deps` and `bins` | A top-level descriptor key
 C-5 | Disabling an extension others require | Allowed. The dependents' hooks stop at the next call, and a rebuild leaves them out with the reason | Refused while a dependent is on
 C-6 | A site with no hooks | No index file, and none written. The toggles and the save build only when the extension declares hooks or an index exists | Always write an index, empty when nothing declares hooks
