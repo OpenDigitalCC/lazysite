@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the lazysite.io site agent (inbox 2026-11-05, the AI docs say the setup three times; review REVIEW-ai-docs-2026-11-05); ruling 80"
 area: docs
-status-note: "SHIPPED (PENDING) on n749: docs only. Connecting and authenticating live in ai-connector-setup, now public; the grant model and the tools in the signed-in ai-connector-tools (rulings 113, 115). t/lint/311 pins the one homes and the public page's placeholders; t/lint/274 D-4 reads the connect code's life from its new home."
+status-note: "SHIPPED (0.16.5) on n749: docs only. Connecting and authenticating live in ai-connector-setup, now public; the grant model and the tools in the signed-in ai-connector-tools (rulings 113, 115). t/lint/311 pins the one homes and the public page's placeholders; t/lint/274 D-4 reads the connect code's life from its new home."
 ---
 
 # What was asked

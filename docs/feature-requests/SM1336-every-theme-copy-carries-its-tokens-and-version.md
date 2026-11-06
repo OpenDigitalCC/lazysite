@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the sites agent (gallery redeploy observations, §2); ruling 81 (Q13) with triage T-39"
 area: themes
-status-note: "SHIPPED (PENDING) on n747: Manager::Themes::_install_theme_from_dir and action_theme_copy call _mirror_theme_assets. t/unit/manager/431."
+status-note: "SHIPPED (0.16.5) on n747: Manager::Themes::_install_theme_from_dir and action_theme_copy call _mirror_theme_assets. t/unit/manager/431."
 ---
 
 # What happened

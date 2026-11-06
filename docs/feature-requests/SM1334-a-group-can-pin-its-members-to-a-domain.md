@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "ruling 78 (Q10, triage T-40): \"only pinning (home_domain, for an account or a group) removes the others\"; the owner: \"maybe this is a group, not a user\""
 area: security
-status-note: "SHIPPED (PENDING) on n746: locked_groups on a domain and on the primary row (DomainAccess, the processor's copy, domain-set, domain_access_edit, the Domains sheet, MCP domain_set, lazysite-domains pin-add/pin-remove); a pin on the primary confines there; the request's scopes are held inside the account's whole. t/unit/lib/211, t/unit/manager/426, t/unit/processor/175."
+status-note: "SHIPPED (0.16.5) on n746: locked_groups on a domain and on the primary row (DomainAccess, the processor's copy, domain-set, domain_access_edit, the Domains sheet, MCP domain_set, lazysite-domains pin-add/pin-remove); a pin on the primary confines there; the request's scopes are held inside the account's whole. t/unit/lib/211, t/unit/manager/426, t/unit/processor/175."
 ---
 
 # Could a group carry a pin?

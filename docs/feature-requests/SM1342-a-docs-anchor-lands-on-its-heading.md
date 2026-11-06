@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the developer agent, checking SM1341's links and anchors as ruling 80's brief asked"
 area: docs
-status-note: "SHIPPED (PENDING) on n749: eight anchors rewritten; t/lint/310."
+status-note: "SHIPPED (0.16.5) on n749: eight anchors rewritten; t/lint/310."
 ---
 
 # What was found

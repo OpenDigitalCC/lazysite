@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "ruling 78 (Q10, triage T-40): \"the domain screen shows the primary row\""
 area: security
-status-note: "SHIPPED (PENDING) on n746: Domains::domain_set and domain_access_edit take '(default)' (or '') for allowed_groups and locked_users, writing the bare lines; both listings keep each row's access its own; the Domains page lists the primary with an Access sheet; MCP domain_set and lazysite-domains.pl say so. t/unit/manager/426, t/unit/manager/427."
+status-note: "SHIPPED (0.16.5) on n746: Domains::domain_set and domain_access_edit take '(default)' (or '') for allowed_groups and locked_users, writing the bare lines; both listings keep each row's access its own; the Domains page lists the primary with an Access sheet; MCP domain_set and lazysite-domains.pl say so. t/unit/manager/426, t/unit/manager/427."
 ---
 
 # What was missing

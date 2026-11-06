@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the sites agent (2026-11-04 inbox: an inactive theme's edit never reaches its served copy; the gallery redeploy observations, §1); ruling 81 (Q13) with triage T-32, T-38 and T-39; rulings 111 and 112 (Q43, Q44)"
 area: themes
-status-note: "SHIPPED (PENDING) on n747: Manager::Themes::follow_source_write, asked by Files (save, save_binary, delete, move, copy), the multipart upload, WebDAV (PUT, DELETE, MOVE, COPY), create_theme and theme_delete. _mirror_theme_assets refuses a link or a server-run file in assets/. t/unit/manager/430, t/unit/dav/38, t/unit/mcp/73."
+status-note: "SHIPPED (0.16.5) on n747: Manager::Themes::follow_source_write, asked by Files (save, save_binary, delete, move, copy), the multipart upload, WebDAV (PUT, DELETE, MOVE, COPY), create_theme and theme_delete. _mirror_theme_assets refuses a link or a server-run file in assets/. t/unit/manager/430, t/unit/dav/38, t/unit/mcp/73."
 ---
 
 # What happened

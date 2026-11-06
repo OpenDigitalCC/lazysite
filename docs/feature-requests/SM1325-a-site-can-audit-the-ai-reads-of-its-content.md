@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 50 (Q5, T-17), on a protected agent-first intranet's gap G6"
 area: security
-status-note: "SHIPPED (PENDING) on n743: `audit_reads: on` in lazysite.conf, switched on the Config page by manage_config AND audit_switch (ruling 96), written to logs/audit-reads.log and shown under the Audit page's AI reads view (ruling 97); MCP read_file, read_page, view_version, preview_page and the control API's git-show for a token write one ok row each. t/unit/mcp/72."
+status-note: "SHIPPED (0.16.5) on n743: `audit_reads: on` in lazysite.conf, switched on the Config page by manage_config AND audit_switch (ruling 96), written to logs/audit-reads.log and shown under the Audit page's AI reads view (ruling 97); MCP read_file, read_page, view_version, preview_page and the control API's git-show for a token write one ok row each. t/unit/mcp/72."
 ---
 
 # What was asked

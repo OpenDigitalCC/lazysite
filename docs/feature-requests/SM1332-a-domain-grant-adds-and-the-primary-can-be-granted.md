@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the 2026-11-05 filing (inbox/2026-11-05-a-domain-scope-takes-the-primary-away.md), triage T-40, ruling 78 (Q10)"
 area: security
-status-note: "SHIPPED (PENDING) on n746: DomainAccess grants the primary on its row (PRIMARY_SCOPE, the docroot); caller_may_reach_domain reads it as the primary only; the content checks (WebDAV, MCP, manager list) read it as the whole docroot; the processor's copy agrees. t/unit/lib/210, t/unit/manager/425, t/unit/dav/37, t/unit/processor/175."
+status-note: "SHIPPED (0.16.5) on n746: DomainAccess grants the primary on its row (PRIMARY_SCOPE, the docroot); caller_may_reach_domain reads it as the primary only; the content checks (WebDAV, MCP, manager list) read it as the whole docroot; the processor's copy agrees. t/unit/lib/210, t/unit/manager/425, t/unit/dav/37, t/unit/processor/175."
 ---
 
 # What happened

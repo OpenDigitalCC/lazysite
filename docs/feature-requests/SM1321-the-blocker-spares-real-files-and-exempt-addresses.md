@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 48 (tmp/rulings-2026-10-22.md), Q3, on T-03 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a site report, section 1; rulings 83 and 84 (Q15, Q16) on this branch's questions"
 area: security
-status-note: "SHIPPED (PENDING) on n742: Lazysite::BadUrl::guard skips a path site_has_file resolves to a regular file under the docroot, and an address exempt() finds: loopback always, and the address profiles bad_url_exempt names (none removes loopback). validate_exempt refuses a bad value at save. t/unit/lib/98. It reads AddressProfiles (SM1343)."
+status-note: "SHIPPED (0.16.5) on n742: Lazysite::BadUrl::guard skips a path site_has_file resolves to a regular file under the docroot, and an address exempt() finds: loopback always, and the address profiles bad_url_exempt names (none removes loopback). validate_exempt refuses a bad value at save. t/unit/lib/98. It reads AddressProfiles (SM1343)."
 ---
 
 # What was asked

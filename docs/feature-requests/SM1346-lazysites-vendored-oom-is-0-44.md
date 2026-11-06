@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "ruling 82 (Q14, inbox triage 2026-11-05 T-37): adopt OOM 0.44 (commit f32c444, checked against its debs) in 0.16.5, after n745's harness fixes"
 area: odoo
-status-note: "SHIPPED (PENDING) on n751: t/vendor/oom is OOM f32c444 (Package 0.44), taken by tools/vendor-oom.sh with the 0.44 library and tools debs. SM747's spec is re-filed. Every Odoo test dir passes on it with no lib/ change."
+status-note: "SHIPPED (0.16.5) on n751: t/vendor/oom is OOM f32c444 (Package 0.44), taken by tools/vendor-oom.sh with the 0.44 library and tools debs. SM747's spec is re-filed. Every Odoo test dir passes on it with no lib/ change."
 ---
 
 # What happened

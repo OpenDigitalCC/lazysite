@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 52 (tmp/rulings-2026-10-22.md, \"4 November\"), Q7, on T-13 of the inbox triage (tmp/inbox-triage-2026-11-04.md)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n744: Lazysite::Odoo::Name, the endpoint's errors, the browser helper, /odoo-signin, /login and the unknown-runs panel. t/unit/odoo/121, t/unit/processor/172."
+status-note: "SHIPPED (0.16.5) on n744: Lazysite::Odoo::Name, the endpoint's errors, the browser helper, /odoo-signin, /login and the unknown-runs panel. t/unit/odoo/121, t/unit/processor/172."
 ---
 
 # What was asked

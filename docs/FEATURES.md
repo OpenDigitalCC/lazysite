@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.4"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.5"
 brand: plain
 ---
 
@@ -2033,6 +2033,16 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.5** (2026-11-06, edge) - **Address lists become address profiles, a
+  theme's copies follow its source, and protected folders may keep a history.**
+  address profiles, allowed or denied by the rule that names them, and the
+  upgrade converts each site's lists and template calls (SM1343-SM1345); a
+  theme's served copies follow every write to its source and are refused to
+  every writer (SM1335, SM1336, SM1339); a protected folder may keep a history
+  and a site may audit agents' reads, both opt-in (SM1324, SM1325); a domain
+  grant adds and the primary can be granted, a group can pin (SM1332-SM1334);
+  the bad-URL blocker spares real files and exempt addresses (SM1321); /login
+  asks the server (SM1322); write_file names the version it replaces (SM1327)
 - **0.16.4** (2026-11-06, edge) - **Plugins become extensions, on disk, in
   lazysite.conf, in the manager and on the wire.** the extensions directory
   beside the docroot is extensions/, and a site's lazysite.conf lists the

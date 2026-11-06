@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "rulings 103 and 104 (Q35, Q36), on SM1346's two findings"
 area: odoo
-status-note: "SHIPPED (PENDING) on n751: _applied_changes passes each change's not_kept fields and a note, _result_summary passes not_verified, %REFUSED_KIND says access and missing; the browser helper draws the notes into [data-ls-odoo-not-kept]. Wording is through one `said` in Lazysite::Odoo, plain \"Odoo\" until SM1328 is stacked."
+status-note: "SHIPPED (0.16.5) on n751: _applied_changes passes each change's not_kept fields and a note, _result_summary passes not_verified, %REFUSED_KIND says access and missing; the browser helper draws the notes into [data-ls-odoo-not-kept]. Wording is through one `said` in Lazysite::Odoo, plain \"Odoo\" until SM1328 is stacked."
 ---
 
 # What happened

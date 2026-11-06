@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the lazysite.io site agent (inbox 2026-11-05, the shipped layout docs do not point at the design guide); ruling 79"
 area: docs
-status-note: "SHIPPED (PENDING) on n749: design_guide in lazysite.conf, validated as a same-site path, and per domain as alias.<host>.design_guide (ruling 114); the two layouts pages carry the line when it is set. t/unit/processor/180."
+status-note: "SHIPPED (0.16.5) on n749: design_guide in lazysite.conf, validated as a same-site path, and per domain as alias.<host>.design_guide (ruling 114); the two layouts pages carry the line when it is set. t/unit/processor/180."
 ---
 
 # What was asked

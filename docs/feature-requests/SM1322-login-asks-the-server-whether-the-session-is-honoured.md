@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 49 (tmp/rulings-2026-10-22.md), Q4 (a), on T-07 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a site report (G); ruling 85 (Q17) on this branch's question"
 area: auth
-status-note: "SHIPPED (PENDING) on n742: GET /cgi-bin/lazysite-auth.pl?action=session answers request_session's verdict and clears the marker on a no; lazysite-chrome.js asks it on a page carrying data-ls-auth-check, which login.md's panel does; the panel offers \"Sign in as someone else\" (?action=logout&then=signin, landing on /login with next). t/unit/auth/74."
+status-note: "SHIPPED (0.16.5) on n742: GET /cgi-bin/lazysite-auth.pl?action=session answers request_session's verdict and clears the marker on a no; lazysite-chrome.js asks it on a page carrying data-ls-auth-check, which login.md's panel does; the panel offers \"Sign in as someone else\" (?action=logout&then=signin, landing on /login with next). t/unit/auth/74."
 ---
 
 # What was asked

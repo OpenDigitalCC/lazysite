@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1368 (PENDING) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
+
+- SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
   four register entries the branches wrote are walked, and two of them (SM1324's protected
   history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data
@@ -64,14 +66,14 @@ Archive
   UPGRADE.md's 0.16.5 entry. All six entries are for the release manager's confirmation.
   Docs only; nothing is signed.
 
-- SM1365 (PENDING) **A page refused by an ACL read list gets the site's 403.** A signed-in
+- SM1365 (f07f1559) **A page refused by an ACL read list gets the site's 403.** A signed-in
   visitor outside an `auth/acls.json` read list who opened a page in the governed directory
   got a bare 103-byte 403 with no layout or theme. They now get the site's 403 page, which
   says who is signed in and names the list's groups (never a user on it), as a front-matter
   group gate does. An image, a PDF or a download keeps the short 403, with the security
   headers. A draft section is still 404 and an anonymous visitor is still sent to sign in.
 
-- SM1339 (PENDING) **A served copy of a theme says so, and is not written.** Ruling 81: a write
+- SM1339 (c377650a) **A served copy of a theme says so, and is not written.** Ruling 81: a write
   into a host's `/lazysite-assets/<layout>/<theme>/` (the docroot's or a domain's own) is
   refused on every surface - the manager, the control API, MCP `write_file`, `upload_file`,
   `move_file`, `delete_file`, and WebDAV PUT, MKCOL, DELETE, MOVE and a COPY's destination -
@@ -85,12 +87,12 @@ Archive
   layout only pages pin staying writable. `theme-copy` and `copy_theme` take the theme by its path,
   `lazysite/layouts/<layout>/themes/<theme>`, as well as by its name.
 
-- SM1336 (PENDING) **Every served copy of a theme carries its tokens and its version.** Ruling
+- SM1336 (b9e9a3eb) **Every served copy of a theme carries its tokens and its version.** Ruling
   81: an installed theme (Upload Theme, `install_theme`) and a copied theme (`theme-copy`,
   `copy_theme`) had their copy built by hand, with no `theme-tokens.css`, no fingerprint (SM830)
   and no copy on a secondary domain. Both now write it the one way every copy is written.
 
-- SM1335 (PENDING) **A theme's copies follow its source.** Ruling 81: a write to a theme's
+- SM1335 (0a090fb9) **A theme's copies follow its source.** Ruling 81: a write to a theme's
   source, on any surface, re-mirrors that theme to every host's copy (the docroot's and each
   content root's) and drops the cached pages that use it, a page pinning it by `theme:`
   included; a write to a layout's own files drops the pages that use the layout. An edit to an
@@ -99,13 +101,13 @@ Archive
   it at the next write (ruling 111). One theme per write, never the
   site's; a link or a server-run file in a theme's `assets/` is not copied into any copy.
 
-- SM1342 (PENDING) **A /docs anchor lands on its heading.** The manual wrote its section
+- SM1342 (b0ea8aa0) **A /docs anchor lands on its heading.** The manual wrote its section
   links as GitHub writes them (`#the-docs-manual`), and the engine's converter ids a
   heading with no hyphens for spaces (`#thedocsmanual`), so eight links in the shipped
   manual landed at the top of their page. They are written in the engine's form, and
   t/lint/310 holds every anchor in a /docs link to a heading of the page it names.
 
-- SM1341 (PENDING) **Each AI doc says it once, and says who it is for.** An owner following
+- SM1341 (48ff1a2e) **Each AI doc says it once, and says who it is for.** An owner following
   the docs met the connect steps on two shipped pages, authentication, endpoints and the
   grant model on two more, and the layouts machinery on two that did not link each other.
   Each now has one home: the client steps, endpoints, connection modes and authentication
@@ -118,7 +120,7 @@ Archive
   docs index is by reader (operator, agent, developer), then theme, and lists the Figma
   integration. Facts moved, none dropped. Rulings 80, 113, 115.
 
-- SM1340 (PENDING) **The layouts docs point at the site's design guide.** The engine's
+- SM1340 (0ec7149b) **The layouts docs point at the site's design guide.** The engine's
   `/docs/layouts` and `/docs/ai-briefing-layouts` are the same on every site, so they could
   not name the guide a site publishes for whoever designs for it, and an agent starting from
   the docs never found it. `design_guide: /path` in `lazysite.conf` makes both pages open
@@ -128,7 +130,7 @@ Archive
   overrides the site's for that host; without one it uses the site's, except a domain
   with its own content root, which shows no line. Rulings 79, 114.
 
-- SM1322 (PENDING) **/login asks the server whether the session is honoured.** It judged
+- SM1322 (9de880fb) **/login asks the server whether the session is honoured.** It judged
   "signed in" from the `lzs_session` display marker alone, which outlives a revoked or
   expired session and an Odoo session gone stale, so it told a visitor the site had just
   refused "You are already signed in" and hid the form. The panel now carries
@@ -140,7 +142,7 @@ Archive
   `?next=`. A site with its own `login.md` adds both to its panel. Ruled 2026-11-04 (ruling
   49) and 2026-11-05 (ruling 85).
 
-- SM1321 (PENDING) **The bad-URL blocker spares the site's own files and exempt addresses.**
+- SM1321 (a4bb88f4) **The bad-URL blocker spares the site's own files and exempt addresses.**
   `vendor/` is a probe pattern and also where a theme keeps its scripts. The blocker counted a
   site's own assets, and behind a front proxy every visitor was 127.0.0.1, so everyone got 403
   for 1 h 44 min. A path that resolves to a regular file under the docroot is never counted now
@@ -152,7 +154,7 @@ Archive
   `lazysite check` warns about one, and a profile it names counts as in use. Ruled 2026-11-04 (ruling 48) and
   2026-11-05 (rulings 83, 84).
 
-- SM1345 (PENDING) **The upgrade turns each address list into an address profile, and no
+- SM1345 (d597045c) **The upgrade turns each address list into an address profile, and no
   site changes behaviour.** The request's A-4: once, install.pl converts
   `lazysite/auth/address-lists.json` to `address-profiles.json`, the same names and entries
   with no kind, keeps the old file as `address-lists.json.converted` and says what it
@@ -166,7 +168,7 @@ Archive
   list's kind (a hand edit only; it refused everyone before and now applies in its slot): run
   it after upgrading.
 
-- SM1344 (PENDING) **The Files page limits a rule by address profile, each chosen Allow or
+- SM1344 (8b2f4fb1) **The Files page limits a rule by address profile, each chosen Allow or
   Deny.** The request's A-3: the permissions card's "Limited by address" becomes "Limited by
   address profile", one row per profile with Not used, Allow or Deny, in place of the two
   pickers that offered only allow lists or only deny lists. A name the rule carries that the
@@ -175,7 +177,7 @@ Archive
   (`address_limit`, both lists, one write), so a profile moved from Deny to Allow is never in
   neither list.
 
-- SM1343 (PENDING) **Address lists are address profiles, allowed or denied where they are
+- SM1343 (06f14ed2) **Address lists are address profiles, allowed or denied where they are
   used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
   set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule
   that names one chooses: `addresses` allows it and `addresses_deny` denies it, on a page, a file
@@ -190,7 +192,7 @@ Archive
   without a second confirmation. A site whose lists were never converted refuses every rule that
   names a profile, rather than letting its deny rules block nobody.
 
-- SM1334 (PENDING) **A group can pin its members to a domain.** Ruling 78: only a pin removes the
+- SM1334 (2b713de4) **A group can pin its members to a domain.** Ruling 78: only a pin removes the
   other domains, for an account or a group. An account's pin is a domain's `locked_users`; a
   domain's new `locked_groups` pins every member of the groups it names the same way: they reach
   only the domains that lock them, of the ones they are granted. Set it on the Domains sheet
@@ -199,7 +201,7 @@ Archive
   other access keys do. A pin on the primary confines to the primary. A group a request's address
   leaves out can no longer lift a pin: the request's domains are held inside the account's.
 
-- SM1333 (PENDING) **The primary is a row on every domain surface.** Ruling 78: the Domains page
+- SM1333 (51e65e01) **The primary is a row on every domain surface.** Ruling 78: the Domains page
   lists the primary as `(default)` with an Access sheet (groups allowed, users locked), and
   `domain-set` on the control API, MCP `domain_set` and `lazysite-domains.pl` (`--host '(default)'
   group-add` and the rest) take the host `(default)` for those two keys, writing the primary's
@@ -208,7 +210,7 @@ Archive
   where it is enforced. A group named only on the primary's row reaches the primary only, as on
   any row.
 
-- SM1332 (PENDING) **A domain grant adds, and the primary can be granted.** Ruling 78: naming an
+- SM1332 (e3ba5522) **A domain grant adds, and the primary can be granted.** Ruling 78: naming an
   account's group on a secondary domain took the primary site away from it, because the primary
   was reached only by having no scope at all, and there was no primary row to grant it back on.
   The primary's row now carries `allowed_groups` (the bare `allowed_groups:` line), and a grant
@@ -218,7 +220,7 @@ Archive
   read it as the whole site, as for an unbound account; the refusal names the primary's row.
   Nothing changes at upgrade: an account scoped today keeps exactly its reach.
 
-- SM1328 (PENDING) **Odoo is shown by the name the site gives it.** Every dialog label and
+- SM1328 (a1c2adcd) **Odoo is shown by the name the site gives it.** Every dialog label and
   error text a visitor or a manager reads said "Odoo", with no way for a site to call its
   back office what its people call it. One setting, `odoo_display_name` in the Odoo
   extension's settings (default `Odoo`), is now said by the sign-in dialog, `/odoo-signin`
@@ -228,7 +230,7 @@ Archive
   The extension's own name, its page, its daemon, its settings and the logs keep "Odoo".
   The setting has one reader, `Lazysite::Odoo::Name`. Ruled 2026-11-04 (ruling 52).
 
-- SM1327 (PENDING) **A write names the version it replaces.** MCP `write_file` saved with
+- SM1327 (60e395f4) **A write names the version it replaces.** MCP `write_file` saved with
   no modification time, which skips the save's conflict check, so an agent writing back a
   file it had read replaced whatever another writer saved in between. It takes an optional
   `base_mtime`, the `mtime` `read_file` answers (`read_page`'s `modified`): given and stale,
@@ -239,7 +241,7 @@ Archive
   building-sites briefing says to write back with the version read. Ruled 2026-11-04
   (ruling 51, part (b)).
 
-- SM1325 (PENDING) **A site can audit the AI reads of its pages and files.** Ruling 50 (T-17):
+- SM1325 (1d94a533) **A site can audit the AI reads of its pages and files.** Ruling 50 (T-17):
   a successful read is kept off the audit trail (SM943). `audit_reads: on` in lazysite.conf
   records each successful MCP `read_file`, `read_page`, `view_version` and `preview_page`, and a
   token's control-API `git-show`, with the account, the path and the time, in a file of its
@@ -250,7 +252,7 @@ Archive
   an account or token holding Site config AND the audit trail switch permission, the trail's
   own gate (ruling 96).
 
-- SM1324 (PENDING) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
+- SM1324 (9712a81b) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
   protected content is kept out of the content history, which may be pushed to a remote. A
   folder rule may now carry `history: true` (the manager's Keep history, `history` on the
   control API's `acl-set` and MCP `set_permissions`, `lazysite acl set --history`; whoever may
@@ -268,7 +270,7 @@ Archive
   `list_content_history` now passes the caller to the read rule, so it lists a protected
   file to its readers.
 
-- SM1346 (PENDING) **lazysite is tested on OOM 0.44.** The pinned snapshot in
+- SM1346 (1d2ed2c6) **lazysite is tested on OOM 0.44.** The pinned snapshot in
   `t/vendor/oom` moves from 0.42 to OOM 0.44 (f32c444), skipping 0.43, checked against
   the 0.44 debs. No lazysite code changes, and every Odoo test passes on it. For an
   operator on OOM 0.44: a binding may name the new operations (`core.user delete`, the
@@ -276,7 +278,7 @@ Archive
   is told of a write Odoo did not keep, and of a refused record, is SM1347; the OOM deb
   needs libdatetime-perl and libdatetime-timezone-perl. SM747's spec is re-filed.
   t/lint/207, 261.
-- SM1347 (PENDING) **A page is told what Odoo did not keep, and why a record was refused.**
+- SM1347 (2bb2d781) **A page is told what Odoo did not keep, and why a record was refused.**
   From OOM 0.44 a write whose value Odoo dropped or reset is still `done`; its entry in
   `result.changes` now names the fields (`not_kept`) and says so (`note`), never the
   values asked or found, and `result.not_verified` is passed (ruling 103). The browser
@@ -285,7 +287,7 @@ Archive
   read (`refused/access`) and one that is gone (`refused/missing`) each have their own
   sentence, where both said "refused before Odoo answered" (ruling 104); the kind stays
   `refused`. t/unit/odoo/122, 123, 124.
-- SM1330 (PENDING) **tests: the compatibility tier tests the OOM it names.**
+- SM1330 (34cbdace) **tests: the compatibility tier tests the OOM it names.**
   `tools/ext-compat.sh` failed every night on the installed deb and on OOM's tree for
   reasons in lazysite's harness: under `LAZYSITE_OOM_LIB` the host's `shop` pack claimed the
   suite's `shop.basket` (52 files), t/unit/odoo/78 expected the snapshot's data root, and the

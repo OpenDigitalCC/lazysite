@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 50 (Q5, T-16), on a protected agent-first intranet's gap G5"
 area: access
-status-note: "SHIPPED (PENDING) on n743: `history` on a folder rule, on every surface that sets the rule, covering nested rules unless one says false; a second repository at <store>/lazysite/git; the history readers apply the file's read rule and restore its write rule; the operator deletes a folder's history with `lazysite acl purge-history` (rulings 98-100). t/unit/manager/420."
+status-note: "SHIPPED (0.16.5) on n743: `history` on a folder rule, on every surface that sets the rule, covering nested rules unless one says false; a second repository at <store>/lazysite/git; the history readers apply the file's read rule and restore its write rule; the operator deletes a folder's history with `lazysite acl purge-history` (rulings 98-100). t/unit/manager/420."
 ---
 
 # What was asked

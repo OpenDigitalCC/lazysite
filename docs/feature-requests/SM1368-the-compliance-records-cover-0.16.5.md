@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "the compliance check run alone for 0.16.5 (tmp/n756-compliance-check.sh): two blocking findings, as the 0.16.2, 0.16.3 and 0.16.4 gates had (SM1306, SM1337, SM1367)"
 area: release
-status-note: "SHIPPED (PENDING) on n756: docs only. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.5; four branch entries walked (SM1324, SM1325 fire new-processing-of-restricted-data); two entries and two STRIDE rows drafted; two operate-side rows; UPGRADE.md's 0.16.5 entry. content_sha is left for the release manager."
+status-note: "SHIPPED (0.16.5) on n756: docs only. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.5; four branch entries walked (SM1324, SM1325 fire new-processing-of-restricted-data); two entries and two STRIDE rows drafted; two operate-side rows; UPGRADE.md's 0.16.5 entry. content_sha is left for the release manager."
 ---
 
 # What was asked

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-04
 raised-by: "the release manager, ruling 51 (b) (tmp/rulings-2026-10-22.md, \"4 November\"), Q6, on T-06 of the inbox triage (tmp/inbox-triage-2026-11-04.md): a report from a site building a protected intranet, gap G1"
 area: mcp
-status-note: "SHIPPED (PENDING) on n744: write_file's base_mtime; rename_page's alias and link rewrite save with the time they read. t/unit/mcp/70."
+status-note: "SHIPPED (0.16.5) on n744: write_file's base_mtime; rename_page's alias and link rewrite save with the time they read. t/unit/mcp/70."
 ---
 
 # What was asked

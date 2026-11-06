@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "release manager, 0.16.5 batch (n745), from a read-only diagnosis of the nightly advisory notes (tmp/extcompat-diag/)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n745: OdooTest names no host packs in any mode and gives the tier's daemon tests the target's oomd (LAZYSITE_OOMD); tools/ext-compat.sh passes each target its oomd and data root and names the failing files; t/unit/odoo/78 compares the first data root with the target's. t/tools/154. The snapshot is not changed (OOM 0.44 awaits the release manager)."
+status-note: "SHIPPED (0.16.5) on n745: OdooTest names no host packs in any mode and gives the tier's daemon tests the target's oomd (LAZYSITE_OOMD); tools/ext-compat.sh passes each target its oomd and data root and names the failing files; t/unit/odoo/78 compares the first data root with the target's. t/tools/154. The snapshot is not changed (OOM 0.44 awaits the release manager)."
 ---
 
 # What happened

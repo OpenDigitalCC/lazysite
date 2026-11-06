@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-05
 raised-by: "the sites agent (2026-11-05 inbox: a secondary domain's theme mirror is a third copy nobody can see; the served mirror of the active theme accepts a PUT its source refuses); ruling 81 (Q13) with triage T-39; rulings 109, 110 and 120 (Q41, Q42, Q52)"
 area: themes
-status-note: "SHIPPED (PENDING) on n747: served_artifact_refusal answers a served copy (Themes::served_mirror), at the choke point and before WebDAV's writes; action_list marks served_copy. Rulings 109, 120: active_artifact_refusal holds each domain's active theme and layout (domain_active_artifacts). action_theme_copy takes the theme's path. t/unit/manager/432, t/unit/dav/38, t/unit/mcp/73."
+status-note: "SHIPPED (0.16.5) on n747: served_artifact_refusal answers a served copy (Themes::served_mirror), at the choke point and before WebDAV's writes; action_list marks served_copy. Rulings 109, 120: active_artifact_refusal holds each domain's active theme and layout (domain_active_artifacts). action_theme_copy takes the theme's path. t/unit/manager/432, t/unit/dav/38, t/unit/mcp/73."
 ---
 
 # What happened
