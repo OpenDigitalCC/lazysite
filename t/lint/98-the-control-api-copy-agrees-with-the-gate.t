@@ -114,7 +114,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   130, SM1354 (ruling 155): page-copy, page-copies, page-copy-discard, gated
     #        manage_content as a page write is; page-copy-publish, gated publish_copies, OFF
     #        BY DEFAULT (no shipped role holds it), with manage_content asked in the branch.
-    is( scalar keys %caps, 130, '130 actions are reachable with a token' )
+    #   137, SM1355 (ruling 156): data-row-switch, data-row-undo, data-wizards, data-wizard,
+    #        data-wizard-run, gated manage_data | write_data as data-row-save is (the branch asks
+    #        writable_by); data-row-changes and data-wizard-save, gated manage_data.
+    is( scalar keys %caps, 137, '137 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

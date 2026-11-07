@@ -72,8 +72,9 @@ $NOT_A_PATH{$_} = 1 for qw(run assume_done assume_not_done reason);
 # the file the path already names.
 $NOT_A_PATH{base_mtime} = 1;
 # SM1354: publish_copy's via - a word naming what made the change, recorded in the
-# version's message.
-$NOT_A_PATH{via} = 1;
+# version's message. SM1355: a switch's on/off, a change id, a wizard's name, its
+# answers (field => answer) and its save flag, and a wizard definition's YAML text.
+$NOT_A_PATH{$_} = 1 for qw(via available change wizard answers save definition);
 
 # A path-shaped name that is not a content path on this tool, and why.
 my %NOT_A_PATH_HERE = (

@@ -13,6 +13,7 @@ package Lazysite::Data::Query;
 #     total:    db:tasks.count(done=false)           a scalar
 #     price:    db:products.field(price,key=SKU1)    one value from one row
 #     own:      db:applications(mine,limit=20)       the viewer's own rows (SM857)
+#     today:    db:menu(available)                   the rows switched on (SM1355)
 #
 # AN UNINDEXED FILTER OR ORDER IS ALLOWED, AND REPORTED. It was refused at
 # first, on the reasoning that a scan "works on twelve test rows and stops
@@ -170,6 +171,13 @@ sub parse_binding {
         # filter on a field called mine, and falls through to the filters below.
         if ( $p eq 'mine' ) { $out{mine} = 1; next }
 
+        # SM1355 (ruling 156): THE BARE WORD `available` - the rows switched on now,
+        # by the field the table declares as its availability. The author names no
+        # field, so a page shows a menu's dishes of the day without knowing which
+        # column carries the switch; without it every row is given, with its
+        # switch, and the layout marks the unavailable ones as it chooses.
+        if ( $p eq 'available' ) { $out{available} = 1; next }
+
         my ( $k, $v ) = split /=/, $p, 2;
         next    unless defined $k && length $k;
         $v = '' unless defined $v;
@@ -250,6 +258,23 @@ sub _validate {
         return _err( "(mine) supplies created_by itself - remove the literal "
                 . "created_by filter from the '$d->{table}' binding" )
             if exists $q->{filters}{created_by};
+    }
+
+    # SM1355: (available) is a filter on the declared availability field.
+    if ( $q->{available} ) {
+        my $af = $d->{availability};
+        return {
+            ok    => 0,
+            kind  => 'no_availability',
+            table => $d->{table},
+            error => "(available) cannot be applied to '$d->{table}': it declares no "
+                . 'availability field. Name its boolean field in the descriptor (availability: '
+                . '<field>) - until then the binding renders nothing rather than every row'
+        } unless defined $af;
+        return _err( "(available) filters on '$af' itself - remove the literal $af filter "
+                . "from the '$d->{table}' binding" )
+            if exists $q->{filters}{$af};
+        $q->{filters}{$af} = 'true';
     }
 
     $q->{scans} = [];

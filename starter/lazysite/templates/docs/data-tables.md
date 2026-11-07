@@ -260,6 +260,134 @@ database file's timestamp, because the store is written through WAL and a row
 can change without that timestamp moving -- so a dependency on it would report
 a freshness it never established.
 
+## Available today: a switch per row
+
+A list that changes day to day -- a menu's dishes, the services on this week --
+is kept once, and each item is switched on or off. Name the table's boolean
+field that says so:
+
+```yaml
+title: Menu
+key: slug
+public: true
+availability: today
+fields:
+  slug:  { type: text, required: true }
+  name:  { type: text, required: true }
+  price: { type: decimal, digits: 6, places: 2 }
+  today: { type: boolean, default: false }
+```
+
+`availability` must name a declared **boolean** field; anything else is refused
+when the descriptor is saved.
+
+- **A switch** is immediate and needs no copy, preview or wizard. MCP
+  `switch_row {table, key, available}`; control API `POST ?action=data-row-switch`
+  with `{"table", "key", "available"}`; in the manager, the **Available** column
+  of the table's rows. It needs only what writing the row needs: `manage_data`, or
+  `write_data` where the table's `writable_by` names your group. A row already in
+  that state is not written.
+- **On a page**, `db:menu(available)` gives the rows switched on, and the layout
+  renders them; leave `(available)` off to have every row with its switch, and let
+  the layout mark the ones that are off:
+
+```yaml
+tt_page_var:
+  dishes: db:menu(available,order=name)
+  menu:   db:menu(order=name)
+```
+
+```
+[% FOREACH d IN dishes %]<li>[% d.name %] — [% d.price %]</li>[% END %]
+[% FOREACH d IN menu %]<li[% IF NOT d.today %] class="off"[% END %]>[% d.name %]</li>[% END %]
+```
+
+`(available)` on a table that declares no availability field renders nothing and
+the log says why, rather than giving every row.
+
+## Every row change is recorded, and can be undone
+
+Each row saved, deleted or switched -- in the manager, over the control API, over
+MCP, through the data endpoint or by a wizard -- is recorded as one change: when,
+who, from where (`manager`, `api`, `mcp`, `endpoint`, `wizard:<name>`), what
+(`insert`, `update`, `delete`, `switch`, `undo`) and the row before and after. The
+answer to the write names the change (`change`).
+
+- **List**: MCP `list_row_changes {table, key, limit}`; control API
+  `GET ?action=data-row-changes&table=…`; the manager's **History** button.
+  `manage_data`.
+- **Undo**: MCP `undo_row_change {table, change}`; control API
+  `POST ?action=data-row-undo`; **Undo** in History. An insert is undone by
+  removing the row, a delete by putting the row back as it was stored (its
+  authors and times included), anything else by writing back the fields it
+  changed. The undo is itself a recorded change. It is **refused**, writing
+  nothing, when the row changed after that change (`stale-change`, showing both)
+  or when the change was undone already; it needs what writing the row needs.
+
+The changes are kept in the data store itself, in a table named `_row_changes`
+beside the rows. A bulk import, a package restore and a form handler's
+rows are not recorded one by one: each has its own record.
+
+## Wizards: build a row one question at a time
+
+A wizard asks one question per step and builds, or edits, one row. It is a file,
+`lazysite/db/wizards/<name>.yaml`, saved with MCP `save_wizard` or control API
+`data-wizard-save` (`manage_data`), and checked against its table before it is
+stored:
+
+```yaml
+title: Add a dish
+table: menu
+steps:
+  - field: slug
+    ask: A short name for its address
+    type: text
+    required: true
+  - field: name
+    ask: What is the dish called?
+    type: text
+    required: true
+    help: As it should appear on the menu.
+  - field: price
+    ask: How much is it?
+    type: price
+  - field: spicy
+    ask: Is it spicy?
+    type: yesno
+  - field: heat
+    ask: How hot?
+    type: choice
+    options: [mild, medium, hot]
+    when: { field: spicy, is: true }
+```
+
+```datatable
+columns: Type | Writes | Takes
+widths: 2.6cm | 4cm | X
+bold: 1
+tone: medium
+---
+`text` | a text field | the answer as written
+`price` | a decimal field | an amount; a currency sign and thousands commas are taken off
+`choice` | an enum field, or a text field with `options` | one of the options (an enum's values by default)
+`choices` | a text field with `options` | several options, stored comma-separated in the listed order
+`yesno` | a boolean field | yes or no
+```
+
+A step may be `required`, may carry `help`, and may depend on an earlier answer
+with `when: { field, is }` (`is` may be a list). A field the table requires must
+be asked by a required step with no `when`, and the table's key must be asked
+unless the store assigns it: required facts are always asked, never guessed.
+
+Running one is stateless: send the answers so far and get the next question, or
+`complete` with the row. MCP `run_wizard {wizard, key, answers, save}`; control
+API `POST ?action=data-wizard-run`; in the manager, the wizard's button above the
+rows (a new row) or **Ask** on a row (that row, each question showing what it
+holds). A required question cannot be skipped; an optional one is skipped with
+an empty answer. With `save: true` and every question answered, the row is
+written through the ordinary row save, recorded as from `wizard:<name>`; it
+needs what writing the row needs. `list_wizards` / `data-wizards` lists them.
+
 ## Removing a table
 
 A table can be removed, and until 0.10.27 it could not be -- declaring one was

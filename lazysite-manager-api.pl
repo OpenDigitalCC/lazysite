@@ -2052,7 +2052,8 @@ elsif ( $action eq 'data-row-save' ) {
         : ref $row eq 'HASH'
         ? Lazysite::Manager::Data::action_data_row_save(
         $tbl, $req->{key} // $params{key}, $row,
-        as => Lazysite::Manager::Data::row_authority( $save_caps, $auth_user ) )
+        as     => Lazysite::Manager::Data::row_authority( $save_caps, $auth_user ),
+        source => ( $token_auth ? 'api' : 'manager' ) )   # SM1355: the row history's door
         : { ok => 0, error => 'row must be a JSON object' };
 }
 elsif ( $action eq 'data-row-delete' ) {
@@ -2073,7 +2074,67 @@ elsif ( $action eq 'data-row-delete' ) {
         : Lazysite::Manager::Data::action_data_row_delete(
         $req->{table} // $params{table},
         $req->{key}   // $params{key},
-        as => Lazysite::Manager::Data::row_authority( $del_caps, $auth_user ) );
+        as     => Lazysite::Manager::Data::row_authority( $del_caps, $auth_user ),
+        source => ( $token_auth ? 'api' : 'manager' ) );
+}
+# SM1355 (ruling 156): an availability switch, the row history and its undo, and
+# the wizards. Each write is a row write: the same table gate (row_write_refusal)
+# and the same row authority as data-row-save, recorded as from this door.
+elsif ( $action eq 'data-row-switch' ) {
+    my $req  = _json_body();
+    my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+    my $tbl  = $req->{table} // $params{table};
+    $result = Lazysite::Manager::Data::row_write_refusal( $tbl, $caps,
+        Lazysite::Manager::Data::groups_for($auth_user) )
+        // Lazysite::Manager::Data::action_data_row_switch(
+        $tbl,
+        $req->{key}       // $params{key},
+        $req->{available} // $params{available},
+        as     => Lazysite::Manager::Data::row_authority( $caps, $auth_user ),
+        source => ( $token_auth ? 'api' : 'manager' ) );
+}
+elsif ( $action eq 'data-row-undo' ) {
+    my $req  = _json_body();
+    my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+    my $tbl  = $req->{table} // $params{table};
+    $result = Lazysite::Manager::Data::row_write_refusal( $tbl, $caps,
+        Lazysite::Manager::Data::groups_for($auth_user) )
+        // Lazysite::Manager::Data::action_data_row_undo(
+        $tbl,
+        $req->{change} // $params{change},
+        as     => Lazysite::Manager::Data::row_authority( $caps, $auth_user ),
+        source => ( $token_auth ? 'api' : 'manager' ) );
+}
+elsif ( $action eq 'data-wizard-run' ) {
+    # The wizard names its table, and the row write is asked of that table.
+    my $req  = _json_body();
+    my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+    my $wizard = Lazysite::Manager::Data::action_data_wizard( $req->{wizard} // $params{wizard} );
+    $result = !$wizard->{ok} ? $wizard
+        : Lazysite::Manager::Data::row_write_refusal( $wizard->{table}, $caps,
+        Lazysite::Manager::Data::groups_for($auth_user) )
+        // Lazysite::Manager::Data::action_data_wizard_run(
+        $wizard->{name},
+        key     => $req->{key} // $params{key},
+        answers => $req->{answers},
+        save    => ( $req->{save} ? 1 : 0 ),
+        as      => Lazysite::Manager::Data::row_authority( $caps, $auth_user ),
+        source  => ( $token_auth ? 'api' : 'manager' ) );
+}
+elsif ( $action eq 'data-row-changes' ) {
+    $result = Lazysite::Manager::Data::action_data_row_changes( $params{table},
+        key => $params{key}, limit => $params{limit} );
+}
+elsif ( $action eq 'data-wizards' ) {
+    $result = Lazysite::Manager::Data::action_data_wizards();
+}
+elsif ( $action eq 'data-wizard' ) {
+    $result = Lazysite::Manager::Data::action_data_wizard( $params{wizard} );
+}
+elsif ( $action eq 'data-wizard-save' ) {
+    my $req = _json_body();
+    $result = Lazysite::Manager::Data::action_data_wizard_save( $req->{wizard} // $params{wizard},
+        $req->{definition} );
 }
 elsif ( $action eq 'lang-status' ) {
     $result = action_lang_status( $params{group} );

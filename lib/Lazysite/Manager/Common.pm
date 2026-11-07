@@ -2037,7 +2037,8 @@ our %REFUSAL_STATUS = (
     'copy-path' => '403 Forbidden',  # SM1354: the page copies folder takes no other write
     ( map { $_ => '404 Not Found' } qw(no-copy) ),    # SM1354: the page has no open copy
     ( map { $_ => '409 Conflict' } qw(copy-open stale-copy copy-missing) ), # SM1354: a copy against its page
-
+    ( map { $_ => '404 Not Found' } qw(no_such_change no_such_wizard) ), # SM1355: nothing recorded or defined
+    ( map { $_ => '409 Conflict' } qw(stale-change already-undone) ), # SM1355: the row moved on, or was put back
     ( map { $_ => '404 Not Found' }
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),

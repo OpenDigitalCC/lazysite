@@ -4242,3 +4242,59 @@ residual risk
 verdict
 : proposed: accepted, no trigger fired; recorded because a new capability gates writes on
   existing doors and a new carve-out opens part of `lazysite/` to the file verbs.
+
+### 2026-11-07 - SM1355 (0.16.8, PENDING): availability switches, row history and undo, and wizards
+
+Assessment drafted by the developer agent (n772) for the release manager's confirmation.
+
+what changed
+: Seven control-API actions on the existing door (`data-row-switch`, `data-row-undo`,
+  `data-row-changes`, `data-wizards`, `data-wizard`, `data-wizard-run`,
+  `data-wizard-save`) and six MCP tools (`switch_row`, `undo_row_change`,
+  `list_row_changes`, `list_wizards`, `run_wizard`, `save_wizard`), all under the data
+  extension's gate. A descriptor may name an `availability` field; a binding may say
+  `(available)`. Every row save and delete through `Manager::Data` is recorded in a new
+  store table, `_row_changes`, with the row before and after. Wizard definitions are
+  YAML files under `lazysite/db/wizards/`.
+
+threat delta
+: No ADR 0007 trigger fired: new actions on the existing doors under existing
+  authentication and capabilities (`manage_data`, `write_data`), no new sign-in
+  method, no new dependency (YAML::PP and DBD::SQLite were declared), and no new class
+  of data: the history holds rows the table already holds. The questions are these.
+: Elevation of privilege, by a switch, an undo or a wizard reaching a row its caller
+  may not write. Each is a row write through `update_row`, `delete_row` or
+  `Tables::reinsert_row`: the control API asks `row_write_refusal` (writable_by) and
+  passes `row_authority` exactly as `data-row-save` does, `table_rule_refusal` binds a
+  table's own rule, and putting back a deleted personal row is refused to anyone but
+  its owner or an operator. MCP stays `manage_data`, as `save_data_row` is.
+: Information disclosure, by the history showing rows' old values. `data-row-changes`
+  and `list_row_changes` are `manage_data`'s (a `write_data` holder is refused) and ask
+  the table's read rule; the history holds nothing the table did not.
+: Tampering, by an undo overwriting a newer change: refused as `stale-change` unless
+  the row is exactly as the change left it, and a change is undone once. A wizard
+  writes only through the row save, so every value is coerced as any write's; its
+  definition is checked against the table at save and at load, and saved only with
+  `manage_data`, as a descriptor is.
+: Repudiation: each change names its actor and its door (`manager`, `api`, `mcp`,
+  `endpoint`, `wizard:<name>`, a fixed word set, never caller text); the audit trail
+  records the mutating actions as before.
+: Denial of service: one extra read and one insert per row write; listing is capped
+  at 200. The history grows with writes and is not pruned.
+
+controls
+: t/unit/manager/491 (a write_data token switches only where writable_by names its
+  group; its undo refused the same way; the history and wizard definitions refused to
+  write_data; the door and account recorded; a deleted row put back with its authors),
+  t/unit/mcp/78 (the tools, the stale and repeat undo refusals, the required question,
+  a manage_content account refused), t/unit/data/80 (the definition rules, the step
+  walk, `(available)` refused without the field).
+
+residual risk
+: `_row_changes` keeps every row's earlier values for as long as the store is kept,
+  including values a later write removed; there is no pruning yet. A write that could
+  not be recorded stands without an undo, and says so.
+
+verdict
+: proposed: accepted, no trigger fired; recorded because new actions write rows on
+  existing doors and the store keeps rows' earlier values.

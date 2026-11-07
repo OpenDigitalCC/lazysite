@@ -216,6 +216,22 @@ connection**, **Push - send changes** and **Pull - fetch changes**. Push
 never overwrites changes on the remote that you don't have - Pull them
 first.
 
+### Data tables
+
+`/manager/data`, when the data extension is enabled. Lists the site's tables;
+opening one shows its rows with Edit, Delete, Add a row and Import CSV, and its
+descriptor. Since SM1355:
+
+- a table that declares an `availability` field has an **Available** switch on
+  each row: immediate, one recorded change;
+- **History** lists every recorded row change (when, who, from where, what) with
+  **Undo**, refused when the row changed since;
+- each wizard for the table has a button above the rows, which builds a new row
+  one question at a time, and **Ask** on a row edits that row the same way. A
+  required question has no Skip.
+
+See [Data tables](/docs/data-tables).
+
 ### Appearance
 
 `/manager/appearance` (formerly "Themes"; `/manager/themes` redirects here).

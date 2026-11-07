@@ -132,6 +132,16 @@ our %GATE = (
     'data-safety-export-delete'  => [qw(purge)],
     'data-safety-export-read'    => [qw(manage_data)],
     'data-safety-export-restore' => [qw(manage_data)],
+    # SM1355 (ruling 156): a switch, an undo and a wizard's row are row writes (the
+    # dispatch asks row_write_refusal, as for data-row-save); the history and the
+    # wizard definitions are the table's managers'.
+    'data-row-switch'  => [qw(manage_data write_data)],
+    'data-row-undo'    => [qw(manage_data write_data)],
+    'data-row-changes' => [qw(manage_data)],
+    'data-wizards'     => [qw(manage_data write_data)],
+    'data-wizard'      => [qw(manage_data write_data)],
+    'data-wizard-run'  => [qw(manage_data write_data)],
+    'data-wizard-save' => [qw(manage_data)],
     # SM576 part 1: see %COOKIE_CAP above - the write half moves to
     # manage_briefs, the read half accepts either.
     'brief-read'      => [qw(manage_content manage_briefs)],
@@ -497,6 +507,14 @@ our %ACTION = (
     # [cookie_cap] SM682: either capability reaches a ROW write; the descriptor's
     # writable_by then decides, and means different things to the two.
     'data-row-save' => { mcp => 'save_data_row', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body', required => 1 }, { name => 'key', in => 'query_or_body' }, { name => 'row', in => 'body', required => 1 } ] },
+# SM1355 (ruling 156): a row's availability switch, the row history and undo, the wizards.
+    'data-row-switch' => { mcp => 'switch_row', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body', required => 1 }, { name => 'key', in => 'query_or_body', required => 1 }, { name => 'available', in => 'query_or_body', required => 1 } ] },
+    'data-row-undo' => { mcp => 'undo_row_change', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'table', in => 'query_or_body', required => 1 }, { name => 'change', in => 'query_or_body', required => 1 } ] },
+    'data-row-changes' => { mcp => 'list_row_changes', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 }, { name => 'key', in => 'query' }, { name => 'limit', in => 'query' } ] },
+    'data-wizards' => { mcp => 'list_wizards', cookie_cap => 'manage_data|write_data', params => [] },
+    'data-wizard' => { cookie_cap => 'manage_data|write_data', params => [ { name => 'wizard', in => 'query', required => 1 } ] },
+    'data-wizard-run' => { mcp => 'run_wizard', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'wizard', in => 'query_or_body', required => 1 }, { name => 'key', in => 'query_or_body' }, { name => 'answers', in => 'body' }, { name => 'save', in => 'body' } ] },
+    'data-wizard-save' => { mcp => 'save_wizard', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'wizard', in => 'query_or_body', required => 1 }, { name => 'definition', in => 'body', required => 1 } ] },
     'data-rows' => { mcp => 'read_data_rows', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
     'data-table' => { mcp => 'describe_data_table', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 } ] },
     # [mcp] SM566: the safety step and the descriptor as text. Both were API-only

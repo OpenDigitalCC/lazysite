@@ -1457,6 +1457,48 @@ sub export_all_rows {
         pending_schema => ( $offset == 0 && !@all ) ? 1 : 0 };
 }
 
+# SM1355: ONE ROW, BY ITS KEY, AS STORED - for the row history's before and after
+# and the wizard's edit. Read on the write handle, so a change recorded straight
+# after a write sees that write. Returns ( $row_or_undef ) or ( undef, $err ).
+sub row_by_key {
+    my ( $docroot, $name, $key ) = @_;
+    my $d = load_table( $docroot, $name );
+    return ( undef, $d )    unless $d->{ok};
+    return ( undef, undef ) unless defined $key && length $key;
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return ( undef, $nowrite ) if $nowrite;
+    my ( $sql, $binds ) = select_sql( $d, where => { $d->{key} => $key }, limit => 1 );
+    my $row = eval { $dbh->selectrow_hashref( $sql, undef, @{$binds} ) };
+    return ( undef, _err( "table '$name': the row could not be read - " . _clean_db_error($@),
+            table => $name ) )
+        if $@;
+    return ( $row, undef );
+}
+
+# SM1355: PUT A DELETED ROW BACK AS IT WAS STORED, key, authors and times
+# included - the undo of a delete. Not insert_row: these values were written by
+# the store and read back from it, so they are not coerced again (a stamped
+# column would be refused, and the authors would become the undoer), and lint
+# 137 holds insert_row's authors/times/auto_key to the package restore. Only the
+# columns the table still has go back; the key must be free.
+sub reinsert_row {
+    my ( $docroot, $name, $row ) = @_;
+    my $d = load_table( $docroot, $name );
+    return $d unless $d->{ok};
+    return _err( "table '$name': there is no row to put back", table => $name )
+        unless ref $row eq 'HASH' && defined $row->{ $d->{key} };
+    my ( $dbh, $nowrite ) = _writer( $docroot, $name );
+    return $nowrite if $nowrite;
+    my %col = map { $_ => 1 } ( keys %{ $d->{fields} }, $d->{key},
+        Lazysite::Data::Owned::owned_columns($d) );
+    my %values = map { $_ => $row->{$_} } grep { $col{$_} } keys %{$row};
+    my ( $sql, $binds ) = insert_sql( $d, \%values );
+    eval { $dbh->do( $sql, undef, @{$binds} ); 1 }
+        or return _err( "table '$name': the row could not be put back - " . _clean_db_error($@),
+        table => $name, _constraint_field($@) );
+    return { ok => 1, table => $name, key => $row->{ $d->{key} } };
+}
+
 # DP-5: perform a blocked change, once it has been confirmed by name.
 #
 # apply_schema applies what is safe and REPORTS what it refuses. This is the

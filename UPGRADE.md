@@ -154,6 +154,13 @@ offered it to grant. Grant it to an agent's group only where the site has decide
 agent may publish its own change. The copies live in `lazysite/copies/`, which content
 history leaves out; nothing else changes on upgrade.
 
+**Row changes are recorded (SM1355).** From this release every row save, delete and
+switch is recorded in the data store, in a table named `_row_changes` that the first
+recorded write creates; nothing needs migrating. A table gains a switch only when its
+descriptor names an `availability` field, and wizards exist only where
+`lazysite/db/wizards/` holds them, so an upgraded site's tables and pages behave as
+before.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

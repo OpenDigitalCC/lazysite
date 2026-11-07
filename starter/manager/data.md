@@ -41,6 +41,9 @@ search: false
   <div style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <button class="mg-btn mg-btn-primary" id="row-add-btn" onclick="openEditor(null)">Add a row</button>
     <label class="mg-btn" style="cursor:pointer;">Import CSV&hellip;<input type="file" id="import-file" accept=".csv,text/csv" style="display:none;" onchange="planImport()"></label>
+    <!-- SM1355: the table's wizards and its row history (with Undo). -->
+    <span id="wizard-buttons"></span>
+    <button class="mg-btn" data-impact="inert" id="row-history-btn" onclick="loadRowChanges()">History</button>
     <span id="rows-pager" style="display:none;margin-left:auto;">
       <button class="mg-btn" id="rows-prev" onclick="pageRows(-1)">&larr; Prev</button>
       <button class="mg-btn" id="rows-next" onclick="pageRows(1)">Next &rarr;</button>
@@ -62,6 +65,29 @@ search: false
       <button class="mg-btn mg-btn-change mg-btn-primary" id="import-apply-btn" onclick="applyImport()" style="display:none;">Apply</button>
       <button class="mg-btn" onclick="cancelImport()">Cancel</button>
     </div>
+    </div>
+  </div>
+  <!-- SM1355 (ruling 156): a wizard asks one question at a time and builds or
+       edits one row; the server decides each step (data-wizard-run), so a
+       required question cannot be skipped here either. -->
+  <div id="wizard-panel" class="mg-card" hidden>
+    <div class="mg-card-header"><span class="mg-card-title" id="wizard-title"></span></div>
+    <div class="mg-card-body">
+    <div id="wizard-question"></div>
+    <div id="wizard-error" class="mg-status"></div>
+    <div class="mg-toolbar">
+      <button class="mg-btn mg-btn-primary" data-impact="commit" id="wizard-next-btn" onclick="wizardNext(false)">Next</button>
+      <button class="mg-btn" data-impact="inert" id="wizard-skip-btn" onclick="wizardNext(true)">Skip</button>
+      <button class="mg-btn" data-impact="inert" onclick="closeWizard()">Cancel</button>
+    </div>
+    </div>
+  </div>
+  <!-- SM1355: every row change, newest first, each undoable once. -->
+  <div id="history-panel" class="mg-card" hidden>
+    <div class="mg-card-header"><span class="mg-card-title">Row history</span></div>
+    <div class="mg-card-body">
+    <div class="mg-table-wrap"><table class="mg-table" id="history-table"><thead><tr><th>When</th><th>Who</th><th>From</th><th>What</th><th>Row</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="mg-toolbar"><button class="mg-btn" data-impact="inert" onclick="document.getElementById('history-panel').hidden = true">Close</button></div>
     </div>
   </div>
   <div class="mg-table-wrap">
@@ -338,6 +364,7 @@ function loadRows(table, page) {
         .then(function(desc) {
           CURRENT.desc = desc.ok ? desc : null;
           renderRows(rows, CURRENT.desc);
+          loadWizardButtons(table);
         });
     })
     .catch(function(e) { showStatus('Could not load rows: ' + e, true); });
@@ -374,8 +401,12 @@ function renderRows(rows, desc) {
     (PAGE.page + 1) * PAGE.size >= PAGE.total;
   document.getElementById('row-add-btn').style.display = desc ? '' : 'none';
 
+  /* SM1355: a table that declares an availability field gets one switch per
+     row - immediate, one recorded change, undoable from History. */
+  var avail = desc && desc.availability ? desc.availability : null;
   var head = '<tr>';
   for (var c = 0; c < cols.length; c++) head += '<th>' + escHtml(cols[c]) + '</th>';
+  if (avail) head += '<th>Available</th>';
   head += '<th></th></tr>';
   tbl.querySelector('thead').innerHTML = head;
 
@@ -385,16 +416,22 @@ function renderRows(rows, desc) {
     for (var c2 = 0; c2 < cols.length; c2++) {
       body += '<td>' + cell(rows[i][cols[c2]]) + '</td>';
     }
+    if (avail) {
+      var isOn = rows[i][avail] === true || rows[i][avail] === 1 || String(rows[i][avail]) === '1';
+      body += '<td><label class="mg-chk"><input type="checkbox" onchange="switchRow(' + i + ', this)"'
+        + (isOn ? ' checked' : '') + '> ' + (isOn ? 'on' : 'off') + '</label></td>';
+    }
     /* Indexed by POSITION, not by key in the markup: a key can contain any
        character, and putting it into an onclick attribute is exactly the
        place an apostrophe breaks a page. */
     body += '<td style="white-space:nowrap;">'
       + '<button class="mg-btn mg-btn-sm" onclick="openEditor(' + i + ')">Edit</button> '
+      + (WIZARDS.length ? '<button class="mg-btn mg-btn-sm" data-impact="inert" onclick="startWizard(0, ' + i + ')" title="Edit this row with the ' + escHtml(WIZARDS[0].title) + ' wizard">Ask</button> ' : '')
       + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteRow(' + i + ')">Delete</button>'
       + '</td></tr>';
   }
   if (!rows.length) {
-    body = '<tr><td colspan="' + (cols.length + 1) + '" style="color:var(--mg-text-muted);">'
+    body = '<tr><td colspan="' + (cols.length + 1 + (avail ? 1 : 0)) + '" style="color:var(--mg-text-muted);">'
          + 'This table holds no rows yet.</td></tr>';
   }
   tbl.querySelector('tbody').innerHTML = body;
@@ -1374,6 +1411,159 @@ function loadDataPrincipals() {
       if (d && d.ok && window.mgSetPrincipals) mgSetPrincipals(d.users, d.groups);
     })
     .catch(function() { /* the editor still works on what is already there */ });
+}
+
+// SM1355 (ruling 156): AVAILABILITY SWITCHES, ROW HISTORY AND UNDO, WIZARDS.
+// The server decides every step: a switch is data-row-switch (one recorded
+// change), History lists data-row-changes, Undo is data-row-undo (refused when
+// the row moved on since), and a wizard is data-wizard-run, answered one
+// question at a time. SM1353's simple manager reuses these four actions.
+var WIZARDS = [];
+var WIZ = null;
+function postJson(action, body) {
+  return fetch(API + '?action=' + action, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
+  }).then(function(r) { return r.json(); });
+}
+function switchRow(index, box) {
+  var row = CURRENT.rows[index];
+  if (!row) return;
+  var k = keyOf(row);
+  postJson('data-row-switch', { table: CURRENT.table, key: k, available: !!box.checked }).then(function(d) {
+    if (!d.ok) { box.checked = !box.checked; showStatus(d.error || 'The row was not switched.', true); return; }
+    showStatus('Row ' + String(k) + (d.available ? ' is available.' : ' is not available.')
+      + (d.change ? ' Undo it from History.' : ''));
+    loadRows(CURRENT.table, PAGE.page);
+  }).catch(function(e) { box.checked = !box.checked; showStatus('Could not switch: ' + e, true); });
+}
+function loadRowChanges() {
+  fetch(API + '?action=data-row-changes&table=' + encodeURIComponent(CURRENT.table) + '&limit=50')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not read the history.', true); return; }
+      var body = '';
+      (d.changes || []).forEach(function(c) {
+        body += '<tr><td>' + escHtml(c.at) + '</td><td>' + escHtml(c.actor) + '</td><td>' + escHtml(c.source)
+          + '</td><td>' + escHtml(c.op) + (c.undoes ? ' of ' + escHtml(c.undoes) : '') + '</td><td>' + escHtml(c.key) + '</td><td>'
+          + (c.undone_by ? '<span class="mg-muted">undone</span>'
+             : '<button class="mg-btn mg-btn-sm mg-btn-change" data-impact="change" onclick="undoRowChange(' + Number(c.id) + ')">Undo</button>')
+          + '</td></tr>';
+      });
+      if (!body) body = '<tr><td colspan="6" class="mg-muted">No row changes are recorded yet.</td></tr>';
+      document.querySelector('#history-table tbody').innerHTML = body;
+      document.getElementById('history-panel').hidden = false;
+    })
+    .catch(function(e) { showStatus('Could not read the history: ' + e, true); });
+}
+function undoRowChange(id) {
+  if (!confirm('Put the row back as it was before change ' + id + '?')) return;
+  postJson('data-row-undo', { table: CURRENT.table, change: id }).then(function(d) {
+    if (!d.ok) { showStatus(d.error || 'The change was not undone.', true); return; }
+    showStatus('Change ' + id + ' undone.');
+    loadRows(CURRENT.table, PAGE.page);
+    loadRowChanges();
+  }).catch(function(e) { showStatus('Could not undo: ' + e, true); });
+}
+function loadWizardButtons(table) {
+  WIZARDS = [];
+  var holder = document.getElementById('wizard-buttons');
+  holder.innerHTML = '';
+  fetch(API + '?action=data-wizards')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) return;
+      WIZARDS = (d.wizards || []).filter(function(w) { return w.table === table && w.ok !== false; });
+      holder.innerHTML = WIZARDS.map(function(w, n) {
+        return '<button class="mg-btn" data-impact="inert" onclick="startWizard(' + n + ', null)">' + escHtml(w.title) + '&hellip;</button> ';
+      }).join('');
+      if (WIZARDS.length) renderRows(CURRENT.rows, CURRENT.desc);
+    })
+    .catch(function() { /* no wizards offered */ });
+}
+function startWizard(n, index) {
+  var w = WIZARDS[n];
+  if (!w) return;
+  var row = index === null ? null : CURRENT.rows[index];
+  WIZ = { name: w.name, key: row ? keyOf(row) : null, answers: {}, q: null };
+  document.getElementById('wizard-title').textContent = w.title + (row ? ' - row ' + String(WIZ.key) : '');
+  document.getElementById('wizard-panel').hidden = false;
+  wizardStep(false);
+}
+function closeWizard() { WIZ = null; document.getElementById('wizard-panel').hidden = true; }
+function wizardInput(q) {
+  var cur = q.current;
+  var help = q.help ? '<p class="mg-help">' + escHtml(q.help) + '</p>' : '';
+  var head = '<label class="mg-field-name">' + escHtml(q.ask)
+    + (q.required ? ' <span title="required">*</span>' : '') + '</label>' + help;
+  if (q.type === 'yesno') {
+    return head + '<label class="mg-chk"><input type="radio" name="wiz-yn" value="yes"' + (cur === true ? ' checked' : '') + '> Yes</label> '
+      + '<label class="mg-chk"><input type="radio" name="wiz-yn" value="no"' + (cur === false ? ' checked' : '') + '> No</label>';
+  }
+  if (q.type === 'choice') {
+    return head + (q.options || []).map(function(o) {
+      return '<label class="mg-chk"><input type="radio" name="wiz-one" value="' + escHtml(o) + '"'
+        + (cur === o ? ' checked' : '') + '> ' + escHtml(o) + '</label>';
+    }).join('');
+  }
+  if (q.type === 'choices') {
+    var have = Array.isArray(cur) ? cur : [];
+    return head + (q.options || []).map(function(o) {
+      return '<label class="mg-chk"><input type="checkbox" name="wiz-many" value="' + escHtml(o) + '"'
+        + (have.indexOf(o) >= 0 ? ' checked' : '') + '> ' + escHtml(o) + '</label>';
+    }).join('');
+  }
+  return head + '<input class="mg-inp" id="wiz-text" value="' + escHtml(cur === undefined || cur === null ? '' : cur) + '">';
+}
+function wizardAnswer(q) {
+  if (q.type === 'yesno') { var yn = document.querySelector('input[name="wiz-yn"]:checked'); return yn ? yn.value : null; }
+  if (q.type === 'choice') { var one = document.querySelector('input[name="wiz-one"]:checked'); return one ? one.value : null; }
+  if (q.type === 'choices') {
+    return Array.prototype.map.call(document.querySelectorAll('input[name="wiz-many"]:checked'), function(b) { return b.value; });
+  }
+  var t = document.getElementById('wiz-text');
+  return t ? t.value : null;
+}
+function wizardNext(skip) {
+  if (!WIZ || !WIZ.q) return;
+  WIZ.answers[WIZ.q.field] = skip ? null : wizardAnswer(WIZ.q);
+  wizardStep(false);
+}
+function wizardStep(save) {
+  var body = { wizard: WIZ.name, answers: WIZ.answers, save: !!save };
+  if (WIZ.key !== null) body.key = WIZ.key;
+  document.getElementById('wizard-error').textContent = '';
+  postJson('data-wizard-run', body).then(function(d) {
+    if (!d.ok) {
+      document.getElementById('wizard-error').textContent = d.error || 'The wizard stopped.';
+      if (d.question && d.question.field) { delete WIZ.answers[d.question.field]; WIZ.q = d.question; }
+      return;
+    }
+    if (d.saved) {
+      closeWizard();
+      showStatus('Row ' + String(d.key) + ' saved by the wizard.' + (d.change ? ' Undo it from History.' : ''));
+      loadRows(CURRENT.table, PAGE.page);
+      return;
+    }
+    if (d.complete) {
+      WIZ.q = null;
+      var rows = Object.keys(d.row || {}).map(function(f) {
+        return '<tr><th>' + escHtml(f) + '</th><td>' + cell(d.row[f]) + '</td></tr>';
+      }).join('');
+      document.getElementById('wizard-question').innerHTML = '<p>Every question is answered. Save this row?</p>'
+        + '<table class="mg-table">' + rows + '</table>';
+      document.getElementById('wizard-skip-btn').style.display = 'none';
+      var nb = document.getElementById('wizard-next-btn');
+      nb.textContent = 'Save';
+      nb.onclick = function() { wizardStep(true); };
+      return;
+    }
+    WIZ.q = d.question;
+    document.getElementById('wizard-question').innerHTML = wizardInput(d.question);
+    document.getElementById('wizard-skip-btn').style.display = d.question.required ? 'none' : '';
+    var next = document.getElementById('wizard-next-btn');
+    next.textContent = 'Next';
+    next.onclick = function() { wizardNext(false); };
+  }).catch(function(e) { document.getElementById('wizard-error').textContent = 'The wizard stopped: ' + e; });
 }
 
 loadDataCaps().then(loadDataPrincipals).then(loadTables);

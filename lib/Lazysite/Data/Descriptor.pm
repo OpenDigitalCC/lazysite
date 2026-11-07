@@ -505,6 +505,27 @@ sub load_descriptor {
     # through, because it is compared against a configured domain's host and a
     # value that could never match would confine the table to nobody while
     # looking like it confined it to somebody.
+    # SM1355 (ruling 156): WHICH FIELD SAYS A ROW IS AVAILABLE NOW - a menu's dish
+    # today, a service this week. Optional; when given it names a declared
+    # boolean field, so a switch is one value and a page's `(available)` binding
+    # has one column to filter on. Refused by name at load otherwise: a switch
+    # on a text field would store whatever it was sent.
+    my $availability = $raw->{availability};
+    if ( defined $availability ) {
+        return _err( 'descriptor', "table '$name': availability must name one field",
+            rule => 'availability' )
+            if ref $availability || !length $availability;
+        return _err( 'descriptor',
+            "table '$name': availability names '$availability', which is not a declared field",
+            field => $availability, rule => 'availability' )
+            unless ref $fields->{$availability} eq 'HASH';
+        return _err( 'descriptor',
+            "table '$name': availability names '$availability', which is not a boolean field - "
+                . 'a row is available or it is not',
+            field => $availability, rule => 'availability' )
+            unless ( $fields->{$availability}{type} // '' ) eq 'boolean';
+    }
+
     my $domain = $raw->{domain};
     $domain = '' unless defined $domain && !ref $domain;
     $domain =~ s/\A\s+|\s+\z//g;
@@ -543,6 +564,7 @@ sub load_descriptor {
         timestamps => $timestamps,
         row_policy => $row_policy,
         ( length $domain ? ( domain => $domain ) : () ),
+        ( defined $availability ? ( availability => $availability ) : () ),    # SM1355
         ( $where ? ( where => $where ) : () ),   # SM982: the rows a visitor surface shows
     };
 }

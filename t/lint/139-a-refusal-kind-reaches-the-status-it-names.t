@@ -75,6 +75,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     permission-unreadable permission-unknown permission-above-site-ceiling
     odoo-binding-is-a-download
     unknown-parameter
+    no_availability wizard required answer not-a-page
 );
 
 # SM1377: `unknown-parameter` is GROUP 2 like `anonymous` and `csrf` - passed to

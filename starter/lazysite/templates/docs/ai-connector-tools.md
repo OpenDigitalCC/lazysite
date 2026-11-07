@@ -370,6 +370,37 @@ A copy cannot be moved, deleted, uploaded over or made by `copy_file`: each is
 refused naming the tool to use. A save to the copies folder with no open copy is
 refused as `no-copy`.
 
+### Data rows: switches, history and wizards (SM1355; needs the data extension)
+
+All need `manage_data`. Every row write through `save_data_row`,
+`delete_data_row` and these tools is recorded as one change, and the answer
+names it as `change`. See [Data tables](/docs/data-tables) for the descriptor and
+wizard formats.
+
+switch_row `{ table, key, available }`
+: Turn one row on or off by the table's declared `availability` field. Immediate,
+  one recorded change; `unchanged` when the row was already in that state. Refused
+  as `no_availability` on a table that declares none.
+
+list_row_changes `{ table, key, limit }`
+: The recorded changes, newest first: id, when, who, from where, what, and the row
+  before and after. Not audited (a read).
+
+undo_row_change `{ table, change }`
+: Put the row back as it was before that change; itself a recorded change.
+  Refused as `stale-change` when the row changed since, and `already-undone`.
+
+list_wizards `{}`
+: The site's wizards, each with its table and number of steps.
+
+run_wizard `{ wizard, key, answers, save }`
+: One step at a time: the next `question`, or `complete` with the row. Ask the
+  person each question; a required one cannot be skipped (`kind: required`).
+  `save: true` writes the row (with `key`, an update of that row).
+
+save_wizard `{ wizard, definition }`
+: Store a wizard's YAML, checked against its table first.
+
 Remote sync of the history (push/pull to a git host) is **operator-only** by
 design - it is configured and driven from the manager UI (Remote sync extension)
 and is not exposed over the connector or the control API.

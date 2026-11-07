@@ -248,6 +248,9 @@ my %API_ONLY = (
     # SM1354: the open copies, for the manager's own listing; an agent knows the copy it
     # took (copy_page answers its path) and asks read_file of it.
     'page-copies' => 'decided (SM1354): copy_page names the copy it takes; the listing serves the manager',
+    # SM1355: one wizard's definition, for the manager's runner; run_wizard returns each
+    # question as it is asked, and list_wizards names them.
+    'data-wizard' => 'decided (SM1355): run_wizard serves each question; list_wizards lists them',
     'data-table-acl-set' => 'undecided pending SM611: a table is addressed by name, not path',
     'data-table-acl-remove' => 'undecided pending SM611: a table is addressed by name, not path',
     # SM245: the sidecar migration is an operator's one-shot, reached from the

@@ -418,9 +418,9 @@ sub main {
         my $r
             = $req->{delete}
             ? Lazysite::Manager::Data::action_data_row_delete( $table,
-            $req->{key}, as => $as )
+            $req->{key}, as => $as, source => 'endpoint' )
             : Lazysite::Manager::Data::action_data_row_save( $table,
-            $req->{key}, $req->{row}, as => $as );
+            $req->{key}, $req->{row}, as => $as, source => 'endpoint' );
         return reply( $r->{ok} ? 200 : 400, $r );
     }
 

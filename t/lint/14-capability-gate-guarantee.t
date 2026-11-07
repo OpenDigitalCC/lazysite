@@ -242,6 +242,9 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     # discarding one are in %MUTATING.
     page-copies
 
+    # SM1355: the row history and the wizard definitions, read only; switching a row,
+    # undoing a change, running and saving a wizard are in %MUTATING.
+    data-row-changes data-wizards data-wizard
 COOKIE_READ
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

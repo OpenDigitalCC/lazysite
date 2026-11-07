@@ -93,8 +93,11 @@ tone: medium
 `data-migrate` | manage_data | table (query)
 `data-migrate-plan` | manage_data | table (query)
 `data-rebuild` | manage_data | table (query_or_body), confirm_lost (body)
+`data-row-changes` | manage_data | table (query), key (query), limit (query)
 `data-row-delete` | manage_data / write_data | table (query_or_body), key (query_or_body)
 `data-row-save` | manage_data / write_data | table (query_or_body), key (query_or_body), row (body)
+`data-row-switch` | manage_data / write_data | table (query_or_body), key (query_or_body), available (query_or_body)
+`data-row-undo` | manage_data / write_data | table (query_or_body), change (query_or_body)
 `data-rows` | manage_data | table (query), order_by (query), order (query), limit (query), offset (query)
 `data-safety-export-delete` | purge | file (query_or_body)
 `data-safety-export-read` | manage_data | file (query)
@@ -108,6 +111,10 @@ tone: medium
 `data-table-save` | manage_data | table (query_or_body), descriptor (body)
 `data-table-source` | manage_data | table (query)
 `data-tables` | manage_data |  
+`data-wizard` | manage_data / write_data | wizard (query)
+`data-wizard-run` | manage_data / write_data | wizard (query_or_body), key (query_or_body), answers (body), save (body)
+`data-wizard-save` | manage_data | wizard (query_or_body), definition (body)
+`data-wizards` | manage_data / write_data |  
 `delete` | cookie only | path (query)
 `describe-capabilities` | any authenticated |  
 `display-names` | any authenticated | logins (query_or_body)

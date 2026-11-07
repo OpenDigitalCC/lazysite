@@ -252,6 +252,20 @@ Archive
   API a publish needs the new `publish_copies` as well, off by default and held by no
   shipped role. The copies folder takes no upload, delete, folder, move or file copy.
 
+- SM1355 (PENDING) **Wizards that build rows, availability switches, and row history
+  with undo.** Ruling 156. A table may name a boolean `availability` field;
+  `switch_row` / `data-row-switch` and the manager's Available column turn a row on or
+  off at once, as one recorded change, with the row write the table already grants; a
+  page shows the switched-on rows with `db:<table>(available)`. Every row save, delete
+  and switch on every door is recorded in the store (`_row_changes`: who, from where,
+  before and after); `list_row_changes` / `data-row-changes` and the manager's History
+  list them, and `undo_row_change` / `data-row-undo` puts a row back, refused when the
+  row changed since. A wizard (`lazysite/db/wizards/<name>.yaml`, `save_wizard` /
+  `data-wizard-save`, checked against its table) asks one question per step (text,
+  price, choice, choices, yes/no; required, help, `when`) and builds or edits one row:
+  `run_wizard` / `data-wizard-run` and the data page's wizard buttons. A required
+  question cannot be skipped.
+
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 
 - SM1394 (def213ea) **docs: the compliance records cover 0.16.7.** OBLIGATIONS.md and

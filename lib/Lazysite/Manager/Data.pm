@@ -31,6 +31,7 @@ use Lazysite::Data::Descriptor qw(load_descriptor);
 use Lazysite::Data::Connect    ();
 use Lazysite::Data::Access     ();
 use Lazysite::Data::Owned      ();
+use Lazysite::Data::Value      ();                    # SM1355: a switch's value
 use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
     _acl_allows _is_operator);
 use Lazysite::Paths ();
@@ -46,7 +47,9 @@ our @EXPORT_OK = qw(row_write_refusal groups_for
     action_data_import action_data_table_source action_data_migrate_plan
     action_data_table_drop action_data_safety_exports
     action_data_safety_export_delete action_data_safety_export_read
-    action_data_safety_export_restore);
+    action_data_safety_export_restore
+    action_data_row_switch action_data_row_changes action_data_row_undo
+    action_data_wizards action_data_wizard action_data_wizard_save action_data_wizard_run);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -698,6 +701,7 @@ sub action_data_table {
         timestamps => $d->{timestamps},
         public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
         ( length( $d->{domain} // '' ) ? ( domain         => $d->{domain} )   : () ),
+        ( defined $d->{availability} ? ( availability => $d->{availability} ) : () ), # SM1355
         ( $pending                     ? ( pending_schema => JSON::PP::true ) : () ),
         ( @{ _provenance_notes($d) }   ? ( notes => _provenance_notes($d) )   : () ),
     };
@@ -1012,14 +1016,51 @@ sub action_data_row_save {
     # two surfaces that serve a PRINCIPAL - the control API and the data endpoint
     # - pass row_authority explicitly, and t/lint/153 refuses one that does not.
     my $as = exists $opt{as} ? $opt{as} : 'operator';
+    my $updating = ( defined $key && length $key ) ? 1        : 0;
+    my ($before) = $updating ? Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key ) : ();
     my $r
-        = ( defined $key && length $key )
+        = $updating
         ? update_row( $DOCROOT, $table, $key, $values, actor => $auth_user, as => $as )
         : insert_row( $DOCROOT, $table, $values, actor => $auth_user );
-    log_event( 'INFO', $table,
-        ( defined $key && length $key ) ? 'data row updated' : 'data row inserted' )
+    log_event( 'INFO', $table, $updating ? 'data row updated' : 'data row inserted' )
+        if $r->{ok};
+    _record_row_change( $r, $table, ( $opt{op} // ( $updating ? 'update' : 'insert' ) ),
+        $r->{key}, $before, $opt{source} )
         if $r->{ok};
     return $r;
+}
+
+# SM1355 (ruling 156): EVERY ROW CHANGE THROUGH THESE TWO ACTIONS IS RECORDED -
+# the manager, the control API, MCP, the data endpoint, a wizard and a switch -
+# as one change in Lazysite::Data::RowHistory: who (the surface's $auth_user),
+# from where (`source`, which each surface names; absent is the manager page),
+# and the row before and after. The answer names the change, which
+# data-row-undo / undo_row_change takes. A change that could not be recorded
+# leaves the write standing and says so (RowHistory is never fatal).
+sub _record_row_change {
+    my ( $r, $table, $op, $key, $before, $source ) = @_;
+    require Lazysite::Data::RowHistory;
+    my ($after) = $op eq 'delete' ? (undef) : Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
+    my $dbh = Lazysite::Data::Connect::write_handle($DOCROOT);
+    my $id  = $dbh
+        ? Lazysite::Data::RowHistory::record_change(
+        $dbh,
+        table  => $table,           key    => $key,    op    => $op, actor => $auth_user,
+        source => _source($source), before => $before, after => $after
+        )
+        : undef;
+    if ( defined $id ) { $r->{change} = $id }
+    else { $r->{change_note} = 'this change was not recorded, so it cannot be undone from the history' }
+    return $id;
+}
+
+# The door a change came from: a word, or wizard:<name>. Anything else is
+# recorded as said would be a label a caller could write into the history.
+sub _source {
+    my ($s) = @_;
+    return 'manager' unless defined $s && length $s;
+    return $s if $s =~ /\A[a-z][a-z0-9_-]{0,31}(?::[a-z][a-z0-9_]{0,63})?\z/;
+    return 'unknown';
 }
 
 sub action_data_row_delete {
@@ -1029,9 +1070,269 @@ sub action_data_row_delete {
     return { ok => 0, error => 'row key required' }
         unless defined $key && length $key;
     my $as = exists $opt{as} ? $opt{as} : 'operator';           # as action_data_row_save
-    my $r  = delete_row( $DOCROOT, $table, $key, as => $as );
+    my ($before) = Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
+    my $r        = delete_row( $DOCROOT, $table, $key, as => $as );
     log_event( 'INFO', $table, 'data row deleted' ) if $r->{ok};
+    _record_row_change( $r, $table, 'delete', $key, $before, $opt{source} ) if $r->{ok};
     return $r;
+}
+
+# --- SM1355: availability switches, row history and undo, wizards ---------------
+
+# SM1355 (ruling 156): A SWITCH IS IMMEDIATE, ONE RECORDED CHANGE, AND UNDOABLE.
+# It sets the table's declared availability field on one row - no copy, no
+# preview, no wizard - and needs only what a row save needs (the surface asks
+# row_write_refusal and passes row_authority, as for data-row-save). A row
+# already in the state asked for is not written, and the answer says so.
+sub action_data_row_switch {
+    my ( $table, $key, $available, %opt ) = @_;
+    if ( my $bad = _table_action($table) )                 { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+    my $af = $d->{availability};
+    return { ok => 0, kind => 'no_availability', table => $table,
+        error => "table '$table' declares no availability field, so it has no switch. Name its "
+            . 'boolean field in the descriptor (availability: <field>) and save it.' }
+        unless defined $af;
+    return { ok => 0, kind => 'invalid', error => 'row key required' }
+        unless defined $key && length $key;
+    my ( $why, $on ) = Lazysite::Data::Value::coerce_field( 'available', { type => 'boolean' },
+        $available );
+    return { ok => 0, kind => 'invalid', field => 'available',
+        error => 'available is true or false' . ( defined $why ? " - $why" : '' ) }
+        if defined $why || !defined $on;
+    my ( $row, $err ) = Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
+    return $err if $err;
+    return { ok => 0, kind => 'no_such_row', table => $table, error => "table '$table': no row with that key" }
+        unless $row;
+    my $bool = $on ? JSON::PP::true() : JSON::PP::false();
+    if ( defined $row->{$af} && ( $row->{$af} ? 1 : 0 ) == $on ) {
+        return { ok => 1, table => $table, key => $key, field => $af, available => $bool,
+            unchanged => JSON::PP::true(), note => 'the row was already ' . ( $on ? 'available' : 'unavailable' )
+                . '; nothing was written or recorded' };
+    }
+    my $r = action_data_row_save( $table, $key, { $af => $on }, %opt, op => 'switch' );
+    return $r unless $r->{ok};
+    log_event( 'INFO', $table, 'data row switched', row => $key, available => $on );
+    return { %$r, field => $af, available => $bool,
+        ( defined $r->{change}
+            ? ( undo => { tool => 'undo_row_change', action => 'data-row-undo', table => $table,
+                    change => $r->{change} } )
+            : () ) };
+}
+
+# The recorded changes to a table, or to one row of it, newest first.
+sub action_data_row_changes {
+    my ( $table, %opt ) = @_;
+    if ( my $bad = _table_action($table) )                { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'read' ) ) { return $no }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+    require Lazysite::Data::RowHistory;
+    my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT)
+        or return { ok => 1, table => $table, changes => [] };
+    return { ok => 1, table => $table,
+        changes => Lazysite::Data::RowHistory::list_changes( $dbh, $table, key => $opt{key},
+            limit => $opt{limit} ) };
+}
+
+# UNDO PUTS THE ROW BACK AS IT WAS BEFORE ONE CHANGE, and is itself one recorded
+# change. Refused, writing nothing, when the row changed after that change (the
+# answer shows the row as the change left it and as it is now), or when the
+# change was undone already. An insert is undone by deleting the row, a delete
+# by putting the stored row back (Tables::reinsert_row), anything else by
+# writing back each field that differs - through the same row authority as a
+# save, so a writer cannot undo their way into a row they may not change.
+sub action_data_row_undo {
+    my ( $table, $change, %opt ) = @_;
+    if ( my $bad = _table_action($table) )                 { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+    require Lazysite::Data::RowHistory;
+    my $dbh = Lazysite::Data::Connect::write_handle($DOCROOT)
+        or return { ok => 0, error => "table '$table': the data store cannot be opened for writing" };
+    my $c = Lazysite::Data::RowHistory::get_change( $dbh, $table, $change )
+        or return { ok => 0, kind => 'no_such_change', table => $table,
+        error => "table '$table' has no recorded change " . ( $change // '(none named)' )
+            . ' - list them with data-row-changes (list_row_changes)' };
+    return { ok => 0, kind => 'already-undone', table => $table, change => $c->{id},
+        undone_by => $c->{undone_by},
+        error     => "change $c->{id} was undone already, by change $c->{undone_by}" }
+        if $c->{undone_by};
+
+    my $key = $c->{key};
+    my ( $now, $err ) = Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
+    return $err if $err;
+    unless ( _same_row( $now, $c->{after} ) ) {
+        return { ok => 0, kind => 'stale-change', table => $table, key => $key, change => $c->{id},
+            error => "row $key changed after change $c->{id}, so it was not undone - look at the "
+                . 'newer changes and undo those first, or change the row by hand',
+            after_change => $c->{after}, current => $now };
+    }
+
+    my $as = exists $opt{as} ? $opt{as} : 'operator';
+    my ( $r, $op );
+    if ( !defined $c->{before} ) {
+        $r = delete_row( $DOCROOT, $table, $key, as => $as );
+    }
+    elsif ( !defined $c->{after} ) {
+        if ( my $no = _reinsert_refusal( $d, $c->{before}, $as ) ) { return $no }
+        $r = Lazysite::Data::Tables::reinsert_row( $DOCROOT, $table, $c->{before} );
+    }
+    else {
+        my $policy = Lazysite::Data::Owned::policy_column();
+        my %back;
+        for my $f ( keys %{ $d->{fields} }, ( $d->{row_policy} ? ($policy) : () ) ) {
+            next if $f eq $d->{key};
+            my ( $was, $is ) = ( $c->{before}{$f}, $now->{$f} );
+            next if ( defined $was ? "$was" : "\0undef" ) eq ( defined $is ? "$is" : "\0undef" );
+            $back{$f} = $was;
+        }
+        $r = %back
+            ? update_row( $DOCROOT, $table, $key, \%back, actor => $auth_user, as => $as )
+            : { ok => 1, table => $table, key => $key, unchanged => JSON::PP::true() };
+    }
+    return $r unless $r->{ok};
+    my ($after) = Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
+    my $id = Lazysite::Data::RowHistory::record_change(
+        $dbh,
+        table => $table,                   key => $key, op => 'undo', actor => $auth_user,
+        source => _source( $opt{source} ), before => $now, after => $after, undoes => $c->{id}
+    );
+    Lazysite::Data::RowHistory::mark_undone( $dbh, $c->{id}, $id ) if defined $id;
+    log_event( 'INFO', $table, 'data row change undone', row => $key, change => $c->{id} );
+    return { ok => 1, table => $table, key => $key, undid => $c->{id},
+        ( defined $id ? ( change => $id ) : ( change_note => 'the undo was not recorded' ) ),
+        row => $after };
+}
+
+sub _same_row {
+    my ( $x, $y ) = @_;
+    return 1 if !defined $x && !defined $y;
+    return 0 if !defined $x || !defined $y;
+    my $flat = sub {
+        my ($h) = @_;
+        return join "\0", map { $_ . '=' . ( defined $h->{$_} ? "$h->{$_}" : "\0undef" ) } sort keys %$h;
+    };
+    return $flat->($x) eq $flat->($y) ? 1 : 0;
+}
+
+# A deleted row put back is a write of that row: a writer confined to their own
+# rows (row_policy) may put back only a row that was theirs or shared.
+sub _reinsert_refusal {
+    my ( $d, $row, $as ) = @_;
+    return undef if !ref $as && $as eq 'operator';
+    return undef unless $d->{row_policy};
+    my $user   = ( ref $as eq 'HASH' && defined $as->{user} ) ? $as->{user} : '';
+    my $policy = $row->{ Lazysite::Data::Owned::policy_column() } // '';
+    return undef unless $policy eq 'personal';
+    return undef if length $user && ( $row->{created_by} // '' ) eq $user;
+    return { ok => 0, kind => 'forbidden', table => $d->{table}, rule => 'row_owner',
+        error => "table '$d->{table}': the deleted row was personal to "
+            . ( length( $row->{created_by} // '' ) ? "'$row->{created_by}'" : 'no account' )
+            . ', so only that account or an operator may put it back' };
+}
+
+# SM1355: THE WIZARDS (Lazysite::Data::Wizard says what one is).
+sub action_data_wizards {
+    if ( my $bad = _gate() ) { return $bad }
+    require Lazysite::Data::Wizard;
+    my $l = Lazysite::Data::Wizard::list_wizards($DOCROOT);
+    # A wizard writes a table, so it is listed only where its table is reachable.
+    $l->{wizards} = [ grep { !defined $_->{table} || !_outside_scope( $_->{table} ) } @{ $l->{wizards} } ];
+    return $l;
+}
+
+sub action_data_wizard {
+    my ($name) = @_;
+    if ( my $bad = _gate() ) { return $bad }
+    require Lazysite::Data::Wizard;
+    my $w = Lazysite::Data::Wizard::load_wizard( $DOCROOT, $name );
+    return $w unless $w->{ok};
+    if ( my $bad = _table_action( $w->{table} ) ) { return $bad }
+    return $w;
+}
+
+# Saved as the text written, after it loads against its table - as a table's
+# descriptor is (action_data_table_save). manage_data's, at the dispatchers.
+sub action_data_wizard_save {
+    my ( $name, $yaml ) = @_;
+    if ( my $bad = _gate() ) { return $bad }
+    require Lazysite::Data::Wizard;
+    return { ok => 0, kind => 'wizard', rule => 'name',
+        error => "'" . ( $name // '' ) . "' is not a wizard name (lower-case letters, digits, _)" }
+        unless Lazysite::Data::Wizard::valid_name($name);
+    return { ok => 0, error => 'definition text required' }
+        unless defined $yaml && !ref $yaml && length $yaml;
+    return { ok => 0, kind => 'missing_module', module => 'YAML::PP',
+        error => 'the YAML::PP module is not installed, so a wizard cannot be read' }
+        unless eval { require YAML::PP; 1 };
+    my $raw = eval { YAML::PP->new->load_string($yaml) };
+    return { ok => 0, kind => 'wizard', error => "the definition is not valid YAML - $@" }
+        if $@ || !defined $raw;
+    my $w = Lazysite::Data::Wizard::check_definition( $name, $raw,
+        sub { load_table( $DOCROOT, $_[0] ) } );
+    return $w unless $w->{ok};
+    if ( my $bad = _table_action( $w->{table} ) ) { return $bad }
+    my $dir = Lazysite::Data::Wizard::wizard_dir($DOCROOT);
+    unless ( -d $dir ) {
+        eval { File::Path::make_path($dir); 1 }
+            or return { ok => 0, error => "could not create $dir - check that lazysite/ is writable by the site" };
+    }
+    my $path = "$dir/$name.yaml";
+    my $tmp  = "$path.$$";
+    open my $fh, '>:utf8', $tmp or return { ok => 0, error => "could not write $path: $!" };
+    my $ok = print {$fh} $yaml;
+    $ok = 0 unless close $fh;
+    unless ( $ok && rename $tmp, $path ) {
+        unlink $tmp;
+        return { ok => 0, error => "could not write $path" };
+    }
+    log_event( 'INFO', $w->{table}, 'data wizard saved', wizard => $name );
+    return { %$w, saved => JSON::PP::true() };
+}
+
+# One step of a wizard: the answers so far in, the next question (or the
+# complete row) out. With save and a complete row, the row is written through
+# action_data_row_save - an insert, or with `key` an update of that row - and
+# recorded as from wizard:<name>. A required question cannot be skipped, so a
+# save with one unanswered writes nothing.
+sub action_data_wizard_run {
+    my ( $name, %opt ) = @_;
+    my $w = action_data_wizard($name);
+    return $w unless $w->{ok};
+    my $table = $w->{table};
+    if ( my $no = table_rule_refusal( $table, 'write' ) ) { return $no }
+    my $key = $opt{key};
+    my $current;
+    if ( defined $key && length $key ) {
+        my ( $row, $err ) = Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
+        return $err if $err;
+        return { ok => 0, kind => 'no_such_row', table => $table, error => "table '$table': no row with that key" }
+            unless $row;
+        $current = $row;
+    }
+    my $step = Lazysite::Data::Wizard::run_steps( $w, $opt{answers}, $current );
+    return $step unless $step->{ok};
+    return { %$step, saved => JSON::PP::false(),
+        ( $opt{save} ? ( note => 'not saved: the wizard has questions still to answer' ) : () ) }
+        unless $step->{complete};
+    return { %$step, saved => JSON::PP::false(),
+        next => 'send the same answers with save:true to write the row' }
+        unless $opt{save};
+    my %row = %{ $step->{row} };
+    return { %$step, saved => JSON::PP::false(), note => 'nothing was answered, so nothing was written' }
+        unless %row;
+    my $r = action_data_row_save( $table, ( defined $current ? $key : undef ), \%row,
+        ( exists $opt{as} ? ( as => $opt{as} ) : () ), source => "wizard:$name" );
+    return $r unless $r->{ok};
+    return { %$step, %$r, saved => JSON::PP::true(),
+        ( defined $r->{change}
+            ? ( undo => { tool => 'undo_row_change', action => 'data-row-undo', table => $table,
+                    change => $r->{change} } )
+            : () ) };
 }
 
 # DM-2: the table as a file.

@@ -1268,7 +1268,7 @@ my %TOOLS = (
             return { ok => 0, error => 'row must be an object' }
                 unless ref $a->{row} eq 'HASH';
             return Lazysite::Manager::Data::action_data_row_save( $a->{table},
-                $a->{key}, $a->{row} );
+                $a->{key}, $a->{row}, source => 'mcp' );
         },
     },
     delete_data_row => {
@@ -1283,8 +1283,92 @@ my %TOOLS = (
         run => sub {
             my $a = $_[0];
             return Lazysite::Manager::Data::action_data_row_delete( $a->{table},
-                $a->{key} );
+                $a->{key}, source => 'mcp' );
         },
+    },
+    # SM1355 (ruling 156): a row's availability switch, the row history and undo,
+    # and the wizards that build a row one question at a time. Gated as
+    # save_data_row is (manage_data); each write is recorded as from mcp.
+    switch_row => {
+        description => 'Switch one row of a table on or off - a dish available today, a service this week. The table names its availability field in its descriptor (`availability: <boolean field>`); describe_data_table shows it. The switch is immediate (no copy, no preview, no wizard) and is ONE recorded change: the answer names it (`change`), and undo_row_change with it puts the row back. A row already in that state is not written (`unchanged`). A page shows the switched-on rows with the binding db:<table>(available).',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+                key => { type => 'string', description => 'The key of the row to switch' },
+                available => { type => 'boolean', description => 'true: available now; false: not' },
+            },
+            required => [ 'table', 'key', 'available' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            return Lazysite::Manager::Data::action_data_row_switch( $a->{table}, $a->{key},
+                $a->{available}, source => 'mcp' );
+        },
+    },
+    list_row_changes => {
+        description => 'The recorded changes to a table\'s rows, newest first: each with its id, when, who, from where (manager, api, mcp, endpoint, wizard:<name>), what (insert, update, delete, switch, undo) and the row before and after. Pass `key` for one row\'s changes. A change\'s id is what undo_row_change takes. Read-only.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table => { type => 'string', description => 'The table name' },
+                key   => { type => 'string', description => 'Optional: one row\'s key' },
+                limit => { type => 'integer', description => 'How many, newest first (default 50, at most 200)' },
+            },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            return Lazysite::Manager::Data::action_data_row_changes( $a->{table}, key => $a->{key},
+                limit => $a->{limit} );
+        },
+    },
+    undo_row_change => {
+        description => 'Put a row back as it was before one recorded change (from list_row_changes, or the `change` a switch, a wizard or a row save answered). An insert is undone by removing the row, a delete by putting the row back, anything else by writing back the fields it changed. The undo is itself a recorded change. REFUSED, nothing written, when the row changed after that change (`stale-change`, showing both) or when it was undone already.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                table  => { type => 'string',  description => 'The table name' },
+                change => { type => 'integer', description => 'The change id to undo' },
+            },
+            required => [ 'table', 'change' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            return Lazysite::Manager::Data::action_data_row_undo( $a->{table}, $a->{change},
+                source => 'mcp' );
+        },
+    },
+    list_wizards => {
+        description => 'The site\'s wizards: each builds or edits one row of a data table by asking one question per step. Each with its name, title, table and number of steps; one that does not load says why. Run one with run_wizard. Read-only.',
+        cap => 'manage_data',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Manager::Data::action_data_wizards() },
+    },
+    run_wizard => {
+        description => 'Run a wizard step by step. Send the answers so far (`answers`, field => answer); the reply is the next `question` (its ask, type, help, options, whether it is required, and on an edit the row\'s `current` value) or `complete: true` with the row it would write. Ask the person each question in turn; never invent an answer. Answer null to skip an OPTIONAL step; a REQUIRED step cannot be skipped (`kind: required`, the question asked again). When complete, send the same answers with `save: true` to write the row: a new row, or with `key` an update of that row. The write is recorded as from wizard:<name>; the answer names the `change` (undo_row_change).',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                wizard => { type => 'string', description => 'The wizard name, from list_wizards' },
+                key => { type => 'string', description => 'Optional: the key of the row to EDIT. Omit to build a new row.' },
+                answers => { type => 'object', description => 'The answers so far, field => answer (a list for a choices step, true/false for yes/no)' },
+                save => { type => 'boolean', description => 'true: write the row once every question is answered' },
+            },
+            required => ['wizard'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            return Lazysite::Manager::Data::action_data_wizard_run( $a->{wizard}, key => $a->{key},
+                answers => $a->{answers}, save => ( $a->{save} ? 1 : 0 ), source => 'mcp' );
+        },
+    },
+    save_wizard => {
+        description => 'Define a wizard, or replace one: `definition` is YAML naming the `table` and its `steps`, each with `field` (the table field it writes), `ask` (the question), `type` (text, price, choice, choices or yesno), and optionally `required`, `help`, `options` (for choice and choices) and `when` ({field: <an earlier step\'s field>, is: <answer or list>}). Checked against the table before it is stored, and refused by step and rule otherwise: a field the table requires must be asked by a required step with no `when`.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => {
+                wizard => { type => 'string', description => 'The wizard name: lower-case letters, digits and _' },
+                definition => { type => 'string', description => 'The wizard definition, as YAML' },
+            },
+            required => [ 'wizard', 'definition' ], additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Manager::Data::action_data_wizard_save( $_[0]->{wizard}, $_[0]->{definition} ) },
     },
     # SM1050 (P-1..P-3): the twins of groups-list and group-set, on the same
     # module. An MCP grant is always confined (SM648), so it sees the groups

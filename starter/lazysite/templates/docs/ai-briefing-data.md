@@ -74,6 +74,23 @@ A refusal names the field and the reason. It is information, not a failure:
 
 An empty value means absence. Clearing a number stores nothing rather than `0`.
 
+**Every row change is recorded** (SM1355): the write's answer names its `change`,
+`list_row_changes` lists them with who and from where, and `undo_row_change`
+puts a row back as it was before one change (refused as `stale-change` once the
+row moved on). Use it to put right a mistaken write rather than reconstructing
+the old values by hand.
+
+**A list switched day to day** (a menu, this week's services): the table names a
+boolean `availability` field, `switch_row` turns one row on or off as one
+recorded change, and a page shows the switched-on rows with
+`db:<table>(available)`. Switch rows; do not rewrite the page.
+
+**A row built from questions**: where the site has a wizard for the table
+(`list_wizards`), build or edit a row with `run_wizard`, asking the person each
+question it returns in turn and sending the answers back. Never invent an
+answer; a required question cannot be skipped. `save: true` writes the row once
+every question is answered. See *Wizards* in [Data tables](/docs/data-tables).
+
 ## Reading on a page
 
 ```yaml

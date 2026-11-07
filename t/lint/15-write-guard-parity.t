@@ -111,6 +111,10 @@ my %EXEMPT = (
     # through validate_path, is_blocked_path and is_blocked_config first.
     action_page_copy => 'SM1354: writes the copy at Lazysite::PageCopy::copy_of(rel), rel from validate_path + '
         . 'is_blocked_path in _page_target; the copies records are engine-named; t/unit/mcp/76 pins the refusals',
+    # SM1355: a wizard definition, at lazysite/db/wizards/<name>.yaml, the bare name
+    # validated to [a-z][a-z0-9_]* before a path is built from it.
+    action_data_wizard_save => 'SM1355: writes only lazysite/db/wizards/<name>.yaml; the name is '
+        . 'validated to [a-z][a-z0-9_]{0,63} (Data::Wizard::valid_name), so no separator reaches it',
     action_backup_create   => 'backups dir, name minted by _claim_name',
     action_backup_restore  => 'extracts into the docroot; name validated, tar confined',
     action_git_show        => 'reads git objects; writes only a temp file it names',

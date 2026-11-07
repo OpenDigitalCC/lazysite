@@ -283,7 +283,8 @@ my %ACTION_INFO = (
         grants     =>
             'Insert, update and delete ROWS in the data tables whose `writable_by` names one of your groups - and no others. It does NOT declare, alter, migrate or drop a table, and it reaches no table that does not name you. Grant this to an app\'s own users where `manage_data` (every table on the instance, plus schema control) would be far too wide.',
         unlocks => {
-            api => [qw(data-row-save data-row-delete)],
+            api => [ qw(data-row-save data-row-delete
+                    data-row-switch data-row-undo data-wizards data-wizard data-wizard-run) ], # SM1355
             # SM943: NO `mcp` HALF, and it was an over-claim while it stood.
             # save_data_row and delete_data_row are gated on manage_data alone
             # (`cap` in lazysite-mcp.pl), so a write_data-only partner is
@@ -359,7 +360,9 @@ my %ACTION_INFO = (
                     data-migrate data-rebuild data-row-save data-row-delete
                     data-export data-import data-table-source data-migrate-plan
                     data-safety-exports
-                    data-safety-export-read data-safety-export-restore)
+                    data-safety-export-read data-safety-export-restore
+                    data-row-switch data-row-undo data-row-changes
+                    data-wizards data-wizard data-wizard-run data-wizard-save)
             ],
 
             mcp => [
@@ -369,7 +372,9 @@ my %ACTION_INFO = (
                     save_data_row delete_data_row
                     list_data_safety_exports
                     read_data_safety_export restore_data_safety_export
-                    read_data_table_source plan_data_migration)
+                    read_data_table_source plan_data_migration
+                    switch_row undo_row_change list_row_changes
+                    list_wizards run_wizard save_wizard)
             ],
             # NO WEBDAV ENTRY, and this used to claim one. WebDAV allows
             # only lazysite/layouts/ - "the rest of lazysite/ is protected" -
