@@ -99,10 +99,12 @@ Odoo has ended their session they reach the site's sign-in page instead
 configuration. A front end that sends `/cgi-bin/lazysite-odoo.pl` to the engine already
 sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a loop.
 
-- **An account named `v1` cannot hold a session (SM1390).** `v1` is the theme-preview
-  cookie's marker, and a session payload beginning with it is refused, so a site with an
-  account of that exact name has it sign in and be refused on every request: rename the
-  account. A session cookie whose issue time is more than 300 seconds ahead of the
+- **An account named `v1` cannot hold a session, and cannot be created (SM1390).** `v1`
+  is the theme-preview cookie's marker, and a session payload beginning with it is
+  refused, so a site with an account of that exact name has it sign in and be refused on
+  every request: `lazysite check` names it; rename it (`users rename v1 NEW-NAME`). The
+  users tool, the manager and an accounts import refuse the name from now on. A session
+  cookie whose issue time is more than 300 seconds ahead of the
   server's clock is refused as well; a host whose clock runs that far ahead of the one
   that minted the cookie sees sign-ins refused until the clocks agree.
 - **A hand-written schedule entry under the 300-second floor is now reported (SM1391).**

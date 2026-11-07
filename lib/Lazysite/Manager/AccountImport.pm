@@ -38,6 +38,7 @@ use POSIX                     qw(strftime);
 use Lazysite::Util            qw(log_event write_private_atomic);
 use Lazysite::Auth::Acl       ();
 use Lazysite::Auth::Settings  ();
+use Lazysite::Auth::Session   ();  # SM1390: the preview marker no account may be named by
 use Lazysite::Manager::Common ();
 
 our @EXPORT_OK = qw(stage plan apply list_staged remove);
@@ -117,6 +118,11 @@ sub stage {
         my @err;
         push @err, 'username must be letters, digits, ., _ or - (64 at most)'
             unless defined $u && !ref $u && $u =~ $USER_RE && lc $u ne 'local';
+        # SM1390 (ruling 147): the same refusal the users tool's add gives, so a
+        # staged row is not approved into a name that can never hold a session.
+        push @err, "'$u' is reserved - it is the preview cookie's marker, and a session for an "
+            . 'account so named would be refused as a preview'
+            if defined $u && !ref $u && $u eq Lazysite::Auth::Session::PREVIEW_MARKER();
         push @err, 'email is not an address' if ref $e || ( length $e && $e !~ $EMAIL_RE );
         push @err, 'groups is a list of group names'
             if ref $g ne 'ARRAY' || grep { ref $_ || !defined $_ || $_ !~ /\A[A-Za-z0-9_-]{1,64}\z/ } @$g;

@@ -1460,6 +1460,7 @@ sub run_checks {
     report_app_settings();              # SM1155
     report_maintenance();               # SM1118
     report_shared_manager_account();    # N141D (SM864)
+    report_preview_marker_account();    # SM1390
 
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
@@ -3020,6 +3021,37 @@ sub report_unconverted_delivery {
     }
     else {
         report( 'OK', 'every form and schedule names a handler the engine reads' );
+    }
+    return;
+}
+
+# SM1390 (ruling 147): an account named by the preview cookie's marker. Since
+# SM1390 the session verifier refuses a payload beginning with that marker, so
+# such an account signs in and is refused on every request; the creating doors
+# refuse the name now, and this names one that already existed. The marker is
+# the verifier's own constant, never a literal here.
+sub report_preview_marker_account {
+    my $users = "$LZ/auth/users";
+    open my $fh, '<', $users or return; # no store, or unreadable: reported by the auth checks
+    require Lazysite::Auth::Session;
+    my $marker = Lazysite::Auth::Session::PREVIEW_MARKER();
+    my $found  = 0;
+    while ( my $l = <$fh> ) {
+        next if $l =~ /^\s*(?:#|$)/;
+        my ($name) = split /:/, $l, 2;
+        next unless defined $name;
+        $name =~ s/^\s+|\s+$//g;
+        $found = 1 if $name eq $marker;
+    }
+    close $fh;
+    if ($found) {
+        report( 'WARN',
+            "this site has an account named '$marker', the preview cookie's marker: its sessions are "
+                . 'refused as previews, so it cannot sign in',
+            "rename it (users rename $marker NEW-NAME); the users tool refuses the name from now on" );
+    }
+    else {
+        report( 'OK', "no account is named by the preview cookie's marker ('$marker')" );
     }
     return;
 }

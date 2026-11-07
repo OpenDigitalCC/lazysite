@@ -104,8 +104,12 @@ Archive
   other. A session whose timestamp (or `seen` time) is more than 300 seconds ahead of the
   clock is refused; the contract document states the allowance. The payload is split to
   five fields, so the five-field sliding shape the reader was written for - unreachable
-  behind a limit-4 split - is read as itself; nothing issues it. `t/unit/auth/76`,
-  `t/integration/361`; a `docs/SECURITY.md` entry is drafted.
+  behind a limit-4 split - is read as itself; nothing issues it. No account can be named
+  by the marker: `lazysite-users.pl add`, `rename` and `account-create` (the manager's
+  Users add and an import's approval go through add) and an import's `stage_accounts`
+  refuse the name, saying why, from the verifier's constant; `lazysite check` names an
+  account that already carries it. `t/unit/auth/76`, `t/integration/361`,
+  `t/unit/users/71`, `t/tools/333`; a `docs/SECURITY.md` entry is drafted.
 - SM1391 (PENDING) **daemon: a schedule entry under the floor is recorded as refused,
   once (ruling 148).** A hand-written `every:` below 300 seconds in `schedule.conf` was
   passed over in silence. The first tick that meets it records a refusal against the

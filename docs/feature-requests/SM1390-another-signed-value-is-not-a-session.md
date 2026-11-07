@@ -37,8 +37,14 @@ against what it claims, and three things did not hold:
    refuses a payload whose first field is the preview marker (`v1`) before
    reading anything else, as `malformed`; the preview verifier requires exactly
    five fields (a preview is always minted with five, the user possibly empty).
-   An account literally named `v1` can therefore no longer hold a session; the
-   users tool does not refuse the name, which is noted below.
+   An account literally named `v1` can therefore no longer hold a session, so
+   **no account can be named by the marker**: `lazysite-users.pl add`, `rename`
+   and `account-create` (the manager's Users add and an import's approval go
+   through add) refuse it with a reason that says why, and an import's
+   `stage_accounts` refuses the row; each asks the verifier's own constant
+   (`Lazysite::Auth::Session::PREVIEW_MARKER`), never a literal. An account
+   that already carried the name is named by `lazysite check`, with the rename
+   as the remedy.
 2. **A timestamp more than 300 seconds ahead is refused** (`CLOCK_SKEW`), on
    `ts` and on `seen`; the contract document states the allowance.
 3. **The five-field branch is reachable on purpose**: split limit 5. Groups never
@@ -48,14 +54,14 @@ against what it claims, and three things did not hold:
 
 Tests: `t/unit/auth/76` (a preview value as a session, fresh and expired; a
 future `ts` and `seen`, inside and outside the skew; the five-field cookie with
-its sid and its age from `seen`; the two issued shapes still verifying) and
+its sid and its age from `seen`; the two issued shapes still verifying),
 `t/integration/361` (a session-shaped value as a preview, four and three
-fields; a five-field preview with an empty user still previewing). Each part
-reverted fails its test (`tmp/n763-sabotage-2.sh`).
+fields; a five-field preview with an empty user still previewing),
+`t/unit/users/71` (add, rename, account-create and the import's stage refuse the
+name, naming the marker and why) and `t/tools/333` (the check names an
+existing account so named, OK otherwise). Each part reverted fails its test
+(`tmp/n763-sabotage-2.sh`, `tmp/n763-sabotage-3.sh`).
 
 # Left open
 
-- The users tool accepts `v1` as an account name; such an account signs in and
-  is refused on every request. Refusing the name at creation is a one-line
-  candidate.
 - Sliding expiry still has no writer (SM297's subject).

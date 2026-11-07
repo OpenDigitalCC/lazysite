@@ -3343,10 +3343,15 @@ controls
   groundwork assertion now describes a branch that runs.
 
 residual risk
-: An account named `v1` can be created and cannot hold a session; the users tool does
-  not refuse the name. The CSRF token shares the key but never travels with its payload.
+: An account named `v1` cannot be created: every door that creates or renames an
+  account (`lazysite-users.pl add`, `rename`, `account-create`; the manager's Users add
+  and an import's approval go through add; an import's `stage_accounts`) refuses the
+  name with a reason naming the marker, asked of the verifier's own constant
+  (`PREVIEW_MARKER`), never a literal (t/unit/users/71). An existing one, if any, is
+  named by `lazysite check` with the rename as its remedy (t/tools/333); it cannot sign
+  in until renamed. The CSRF token shares the key but never travels with its payload.
   Sliding expiry has a reader and no writer.
 
 verdict
-: drafted, awaiting the release manager. Hardening, not a vulnerability fix; no trigger
-  fired.
+: drafted, awaiting the release manager, to be confirmed with the 0.16.7 walk.
+  Hardening, not a vulnerability fix; no trigger fired.

@@ -95,8 +95,10 @@ cookie.
 A payload whose first field is `v1` is not a session (SM1390, ruling 147). `v1`
 is the marker of the theme-preview cookie, signed with the same key over
 `v1:<expiry>:<layout>:<theme>:<user>`; without this rule a preview verified as
-a legacy session for an account named `v1`. The preview verifier refuses the
-other direction by field count: a preview has exactly five fields, a session
+a legacy session for an account named `v1`. No account may be named `v1`: every
+door that creates or renames one refuses the name, and `lazysite check` names
+one that already exists. The preview verifier refuses the other direction by
+field count: a preview has exactly five fields, a session
 four or three. The CSRF token is the bare HMAC of `csrf:<user>:<hour>` and
 never travels with its payload, so it cannot be presented as either.
 

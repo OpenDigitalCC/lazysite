@@ -126,6 +126,7 @@ BEGIN {
 use Lazysite::Paths ();           # SM293: where this site keeps its engine tree
 use Lazysite::Util qw(log_event const_eq secure_write_perms drop_to_tree_owner cannot_read);
 use Lazysite::Auth::Verify          (); # SM685: the credential path, shared with the CGIs
+use Lazysite::Auth::Session ();    # SM1390: the preview marker no account may be named by
 use Lazysite::Auth::AddressProfiles (); # SM1138: the address-profile store and its one reader
 use Lazysite::Auth::AddressRefs (); # SM1141: where a rule names a list (the delete guard)
 use Lazysite::Audit        qw(audit_log);
@@ -940,6 +941,24 @@ sub _reserved_username {
     return lc($name) eq 'local' ? 1 : 0;
 }
 
+# WHY A NAME CANNOT BE AN ACCOUNT'S, or ''. `local` is the operator sentinel
+# (SM268 C1). SM1390 (ruling 147): the preview cookie's marker, because a session
+# payload beginning with it is refused by the verifier as a preview - an account
+# so named would sign in and be refused on every request. The marker is the
+# verifier's own constant, so the two cannot drift. Every door that creates or
+# renames an account asks this: add, rename, account-create (approve goes
+# through add); the import's stage asks the same constant in
+# Lazysite::Manager::AccountImport.
+sub _reserved_reason {
+    my ($name) = @_;
+    return "'local' is reserved - it is the SYSADMIN identity (the CLI), not an account"
+        if _reserved_username($name);
+    return "'$name' is reserved - it is the preview cookie's marker, and a session for an "
+        . 'account so named would be refused as a preview; choose another name'
+        if defined $name && $name eq Lazysite::Auth::Session::PREVIEW_MARKER();
+    return '';
+}
+
 # SM962: WHAT A USERNAME MAY HOLD, AND THE REFUSAL THAT NAMES WHAT IT MAY NOT.
 #
 # cmd_add used to strip anything else - `jo+hn` became `john` - and say
@@ -984,8 +1003,7 @@ sub cmd_add {
     my ( $user, $pass ) = @_;
     die "Username required\n" unless defined $user && length $user;
     if ( my $why = _username_fault($user) ) { die "$why\n" }
-    die "'local' is reserved - it is the SYSADMIN identity (the CLI), not an account\n"
-        if _reserved_username($user);
+    if ( my $why = _reserved_reason($user) ) { die "$why\n" }
     $pass = '' unless defined $pass;
 
     my %users = read_users();
@@ -1013,8 +1031,7 @@ sub cmd_rename {
         unless defined $old && length $old && defined $new && length $new;
     $new =~ s/[^a-zA-Z0-9_.-]//g;
     die "Invalid new username\n" unless length $new;
-    die "'local' is reserved - it is the SYSADMIN identity (the CLI), not an account\n"
-        if _reserved_username($new);
+    if ( my $why = _reserved_reason($new) ) { die "$why\n" }
     return if $old eq $new;
 
     my %users = read_users();
@@ -2161,8 +2178,7 @@ sub cmd_account_create {
     # SM268 C1: this is the door the reproduction used - a delegate holding only
     # create_sub_users made an account called `local` and inherited operator
     # status from every `ne 'local'` check in the codebase.
-    die "'local' is reserved - it is the SYSADMIN identity (the CLI), not an account\n"
-        if _reserved_username($user);
+    if ( my $why = _reserved_reason($user) ) { die "$why\n" }
 
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};
