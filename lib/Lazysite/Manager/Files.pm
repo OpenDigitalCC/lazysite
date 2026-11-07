@@ -493,9 +493,14 @@ sub action_list {
         path => $dir_path, hidden => $hidden, user => $auth_user )
         if $hidden;
 
+    # SM1404 (triage T-93): the permissions editor's profile choices (SM1139) ride
+    # on the Files page's listing ONLY, asked for by the manager API's list
+    # branch (pickers). On every other door - MCP list_files, a token's list - a
+    # list of `{ name }` beside `entries` read as an entry named after the rule's
+    # address profile, with no type, next to the page.
     return { ok => 1, path => $dir_path, entries => \@entries,
         $served_copy->($canon),    # SM1339: the folder listed, when it is one
-        address_profiles => _address_profile_choices() }; # SM1139: for the permissions editor's pickers
+        ( $opt{pickers} ? ( address_profiles => _address_profile_choices() ) : () ) };
 }
 
 # SM1174: what the editor's status bar says about a page's camera, decided

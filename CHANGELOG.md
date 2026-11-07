@@ -143,6 +143,15 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1404 (PENDING) **A listing carries no entry named after a rule's address profile (triage
+  T-93).** On 0.16.6 an operator's `list_files /zz78-addr` showed, beside the page, an entry
+  named after the folder rule's address profile with no type. Reproduced on a scratch site:
+  what wrote it is SM1139's `address_profiles` (the permissions editor's picker choices, a
+  list of `{ name }`), which `Manager::Files::action_list` returned on every listing answer,
+  so over MCP it sat next to `entries`. The choices now ride on the manager API's listing
+  only (`pickers`, the Files page being their one reader); MCP `list_files` asks without
+  them. `acl-get` carries them as before. `t/unit/manager/477`.
+
 - SM1400 (PENDING) **A layout's backup snapshot is not a layout (triage T-87).** `delete_layout`
   (and an activate) keeps `<name>-backup-<stamp>` beside the layouts, and the listing every
   door draws installed layouts and themes from (`themes-list-all`: the Appearance page, MCP
