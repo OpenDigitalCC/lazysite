@@ -522,7 +522,10 @@ enabled, with its settings saved - and it follows the notice: nothing for a form
 set to `notify: off`, nothing for a quarantined submission. These mails share the
 site's hourly bound on notice mail (`mail.per_hour` in `notify.conf`, 60 unless
 set). When one is not sent, the log says why (the extension off, the bound
-reached, a value that is not exactly one address).
+reached, a value that is not exactly one address). The mail's subject is
+`[Site name] A form was submitted` and its body is the notice as the bell shows
+it - the form, the link to the submission, the fields on `notify: full` - and
+nothing else: no submission layout, no visitor address.
 
 ### Answering the person who filled it in
 

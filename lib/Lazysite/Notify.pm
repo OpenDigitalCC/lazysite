@@ -649,14 +649,23 @@ sub _smtp_script {
 
 # Hand the composed notice to the Form SMTP extension over its --pipe interface.
 # The extension merges its own smtp.conf connection settings into whatever config
-# it is given, so this passes only from/to/subject and never a credential.
+# it is given, so this passes only to and the message and never a credential.
+#
+# SM1405: AS A COMPOSED MESSAGE (the extension's send_message, SM1020's path for a
+# notification rule's mail), not as a form submission. Sent as a form (`form =>
+# { message => $text }` with the subject as `subject_prefix`), the extension laid
+# the notice out as a submission - a "Form submission" heading, the notice under
+# a `message:` label, then Submitted and IP lines - and the subject ended in a
+# bare " - " because nothing followed the prefix. The notice is the mail: its
+# own subject, the rendered notice as the body.
 sub _mail_send {
     my ( $docroot, $script, $addr, $subject, $text ) = @_;
     require IPC::Open2;
     local $ENV{DOCUMENT_ROOT} = $docroot;
     my $payload = JSON::PP::encode_json( {
-            config => { to      => $addr, subject_prefix => "$subject - " },
-            form   => { message => $text },
+            config  => { to => $addr },
+            form    => {},                # the pipe's shape asks for one
+            message => { subject => $subject, text => $text },
     } );
     my ( $out, $in );
     local $SIG{PIPE} = 'IGNORE';    # SM959: a child that exits early must not kill us

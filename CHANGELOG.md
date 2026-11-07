@@ -143,6 +143,17 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1405 (PENDING) **The owner-contact notice mail has its own shape.** `Notify::_mail_send`
+  handed a notice to the Form SMTP extension as a form submission (the subject as
+  `subject_prefix`, the notice as a `message` field), so the owner mail arrived with the
+  subject `[SITE] A form was submitted - ` (nothing after the dash) and a body laid out as a
+  submission: a "Form submission" heading, the notice under a `message:` label, then
+  Submitted and IP lines. It is now sent as a composed message (the extension's
+  `send_message`, SM1020's path): its own subject, the rendered notice as the body, no
+  handler layout, no IP line - still through SM485's send, the Form SMTP extension as the
+  only transport, the same hourly bound. Every notice mail that send makes (SM485's account
+  notices, an import's claim links) takes the same shape. `t/unit/forms/77`.
+
 - SM1401 (PENDING) **Removing an account names the rules it owned (triage T-91).** An access
   rule kept its owner's login after the account went, in force as written and changeable by
   the operator alone, and nothing said so. `lazysite-users.pl remove` and the manager's
