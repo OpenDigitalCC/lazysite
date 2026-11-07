@@ -253,7 +253,8 @@ The grids and the check
 : The Groups and Users pages keep core's capability lists (lint 19) and draw a declared
   capability from the labels `channel-services` serves. The users tool tops up a
   declared capability from what it declares (`top_up_from`), on SM645's trigger and by
-  its rule (absent only). `lazysite check` reads the index's capabilities for the
+  its rule (absent only); the upgrade runs the same top-up itself (ruling 167,
+  `capability-top-up`) and prints one line naming the groups. `lazysite check` reads the index's capabilities for the
   manager-group walk and reports a failed build and an enabled extension whose hooks
   are not indexed.
 
@@ -263,7 +264,9 @@ Tests
   (the capture); lint 76 reads the index; lints 14, 23, 52, 90 and 218 read the merged
   table; 70, 71, odoo/15 and odoo/105 learn X2's facts; odoo/04, 17, 106, 110,
   integration/171 and 114 hand the override capability ruling 71 names; tools/330 reads
-  the declared view the upgrade builds, tools/338 the one a fresh install builds. Each fails with its change reverted.
+  the declared view the upgrade builds, tools/338 the one a fresh install builds
+  (ruling 166); tools/339 the upgrade's top-up (ruling 167). Each fails with its change
+  reverted.
 
 # Choices made
 

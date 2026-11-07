@@ -1019,6 +1019,24 @@ sub cmd_install {
             unless $ok;
     }
 
+    # ---- the declared capabilities' top-up (SM1369 X2, ruling 167) ----
+    #
+    # On an upgrade or reinstall, after the index above: a capability an
+    # extension carved out of a core one (ruling 71's manage_odoo, from
+    # manage_connectors) is topped up for every group holding the one it came
+    # from, where the group has not decided it - a 0 an operator wrote stays.
+    # The users tool does it on next use as well (SM645's trigger); this is so
+    # a site nobody touches after the upgrade keeps every group's reach. The
+    # INSTALLED tool runs it, as the site user. One line names the groups it
+    # topped up; nothing is printed when none.
+    if ( $mode ne 'fresh' ) {
+        my ( $ok, $why ) = run_capability_top_up( $o->{docroot}, \%subs );
+        push @$warnings, 'GROUPS: the declared capabilities were not topped up (' . $why . ') - '
+            . 'they are topped up the next time the site\'s accounts are touched, or run '
+            . 'lazysite-users.pl --docroot ' . $o->{docroot} . ' capability-top-up as the site user'
+            unless $ok;
+    }
+
     # ---- write new state ----
     write_state( $state_path, $manifest->{version}, $state_files, \@once );
 
@@ -1104,6 +1122,39 @@ sub run_hook_index_build {
     my $rc = $? >> 8;
     return ( 1, '' ) if $rc == 0;
     return ( 0, $rc == 1 ? 'the index could not be written' : "the build exited $rc" );
+}
+
+# SM1369 X2 (ruling 167): run the installed users tool's capability-top-up as
+# the site's owner (as run_handler_conversion). Its one line, when it topped a
+# group up, is printed as the step's. A payload without the tool has nothing to
+# top up. Returns ( $ok, $why ).
+sub run_capability_top_up {
+    my ( $docroot, $subs ) = @_;
+    my $tool = resolve_placeholders( '{DOCROOT}/../tools/lazysite-users.pl', $subs );
+    return ( 1, 'no users tool in this payload' ) unless -f $tool;
+    my $pid = open my $fh, '-|';
+    return ( 0, "cannot fork: $!" ) unless defined $pid;
+    if ( !$pid ) {
+        if ( $> == 0 ) {
+            my @st = stat $docroot;
+            if ( @st && $st[4] != 0 ) {
+                POSIX::setgid( $st[5] );
+                POSIX::setuid( $st[4] );
+            }
+        }
+        open( STDERR, '>&', \*STDOUT ) or POSIX::_exit(127);
+        exec( $^X, $tool, '--docroot', $docroot, 'capability-top-up' ) or POSIX::_exit(127);
+    }
+    my @lines = <$fh>;
+    close $fh;
+    my $rc = $? >> 8;
+    chomp @lines;
+    if ( $rc == 0 ) {
+        info("  groups:    $_") for grep { /\Atopped up: / } @lines;
+        return ( 1, '' );
+    }
+    info("  groups:    $_") for @lines;
+    return ( 0, "the users tool exited $rc" );
 }
 
 # old-address-name: begin (SM1343, the upgrade converts the store by its old name)

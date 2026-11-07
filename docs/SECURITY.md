@@ -3167,7 +3167,7 @@ what moves
   `@CAP_KEYS`, the capability map, the check's list and the two grids, and the Odoo
   refusal kinds of `%REFUSAL_STATUS`. Into the extension's descriptor
   (`extensions/odoo.pl`, `owns.hooks`): `capability_info` (two capabilities, one new:
-  `manage_odoo`, topped up from `manage_connectors`), `api_actions` (ten rows, each with
+  `manage_odoo`, topped up from `manage_connectors` by the upgrade and on next use), `api_actions` (ten rows, each with
   its gate, its twin's description and schema, and a handler in
   `extensions/odoo/lib/Lazysite/Odoo/Actions.pm`) and `refusal_kinds`. Into core: the
   validators (`Lazysite::Extensions::Hooks`), a `declared` view of the index built from
@@ -3201,7 +3201,8 @@ threat delta
   method, no new dependency, no new processing of restricted data. The names on the
   wire, the parameters, the hints and the listing are unchanged (t/unit/odoo/136 holds
   them to a 0.16.7 capture). The one grant change is ruling 71's, and the top-up keeps
-  every group's reach as it was. Tampering: a descriptor or an index that declares a
+  every group's reach as it was: the upgrade runs it (ruling 167; absent only, so a 0 an
+  operator set stays, and one line names the groups), and the users tool on next use. Tampering: a descriptor or an index that declares a
   core name, or a handler outside the payload lib - refused at the build and again at
   the mirror and the call. Elevation: a declared ALWAYS row that gates nothing - refused
   without a reason, and the extension's own code still decides (the binding, as before).

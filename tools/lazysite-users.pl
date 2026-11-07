@@ -338,6 +338,8 @@ our %CLI_AUDIT_ACTION = (
     cmd_partner_create => 'user-partner-create',    # + a pairing-key entry
     cmd_onboarding     => 'user-onboarding',
     cmd_key_revoke     => 'user-key-revoke',
+    # Ruling 167: the upgrade's run of the declared top-up, when it changed a group.
+    cmd_capability_top_up => 'user-capability-top-up',
 );
 our %CLI_NO_DIRECT_AUDIT = (
     # read-only commands
@@ -878,6 +880,7 @@ elsif ( $cmd eq 'address-profile-set' )    { cmd_address_profile_set_cli(@args) 
 elsif ( $cmd eq 'address-profile-delete' ) { cmd_address_profile_delete_cli(@args) }
 elsif ( $cmd eq 'groups' )       { cmd_groups() }
 elsif ( $cmd eq 'group-reach' )  { cmd_group_reach(@args) }
+elsif ( $cmd eq 'capability-top-up' )      { cmd_capability_top_up() }
 elsif ( $cmd eq 'reset-groups' ) { cmd_reset_groups(@args) }
 # SM659: setup-sysop, and NO ALIAS for the old name. Keeping `setup-manager`
 # would only teach the way this replaces - and it created a role account by
@@ -1492,11 +1495,13 @@ sub _claim_link_lines {
 # before holds manage_odoo after. Which capabilities, and from which, is the
 # extension's own declaration (`top_up_from` in its capability_info), read from
 # the registry the mirror filled; nothing here names an extension.
+# Ruling 167: the upgrade runs it too (capability-top-up, below). Returns
+# { group => [ capabilities topped up ] }, empty when nothing changed.
 sub _top_up_declared_caps {
     require Lazysite::Capabilities;
     my $gs = Lazysite::Auth::Settings::read_group_settings();
-    return unless ref $gs eq 'HASH' && %$gs;
-    my $changed = 0;
+    return {} unless ref $gs eq 'HASH' && %$gs;
+    my %done;
     for my $cap ( Lazysite::Capabilities::action_keys() ) {
         next unless defined Lazysite::Auth::Settings::capability_declared_by($cap);
         my @from = Lazysite::Capabilities::top_up_from($cap) or next;
@@ -1506,11 +1511,29 @@ sub _top_up_declared_caps {
             next if exists $cfg->{$cap};    # decided already, either way
             next unless grep { $cfg->{$_} } @from;
             $cfg->{$cap} = 1;
-            $changed++;
+            push @{ $done{$g} }, $cap;
             log_event( 'INFO', $g, "topped up with $cap, which " . join( ' / ', @from ) . ' held' );
         }
     }
-    Lazysite::Auth::Settings::write_group_settings($gs) if $changed;
+    Lazysite::Auth::Settings::write_group_settings($gs) if %done;
+    return \%done;
+}
+
+# SM1369 X2 (ruling 167): THE UPGRADE RUNS RULING 71'S TOP-UP ITSELF.
+#
+# The top-up above runs on the users tool's ordinary use (SM645's trigger), so
+# a site nobody touched after the upgrade left a token holding
+# manage_connectors refused what manage_odoo now gates. install.pl runs this
+# after the hook index is built, so the mirror sees what the release declares.
+# Only the declared top-up: the same rule (absent only - a 0 an operator wrote
+# stays), and ONE line naming the groups topped up, nothing when none.
+sub cmd_capability_top_up {
+    my $done = _top_up_declared_caps();
+    my @g    = sort keys %$done;
+    return unless @g;
+    my $line = join ', ', map { "$_ (" . join( ', ', @{ $done->{$_} } ) . ')' } @g;
+    cli_audit( 'user-capability-top-up', 'groups', $line );
+    print "topped up: $line\n";
     return;
 }
 
@@ -6431,6 +6454,11 @@ Commands:
   group-reach [GROUP]         What a group's members can actually CALL on each
                               surface (ui, webdav, api, mcp), derived from the
                               live capability tables through the nesting closure
+  capability-top-up           Give every group holding what an extension's
+                              capability was carved from that capability, where
+                              the group has not decided it (a 0 stays). The
+                              upgrade runs it; prints one line naming the groups
+                              topped up, nothing when none
   group-nest CHILD PARENT     Nest CHILD inside PARENT, so PARENT's members
                               inherit CHILD's capabilities through the closure
   address-profiles [NAME]     List the address profiles (SM1138, SM1343): name and
@@ -6591,7 +6619,9 @@ the user's group in its C<allowed_groups>.
 C<group-add>, C<group-nest>, C<group-remove>, C<groups>, C<group-set>,
 C<group-reach>, C<permissions> - membership, nesting, per-group capabilities,
 what a group's members can actually call on each surface, and the resolved
-channel x capability grid for a user.
+channel x capability grid for a user. C<capability-top-up> gives every group
+holding the capability an extension's capability was carved from that capability
+where the group has not decided it; the upgrade runs it.
 
 =item Bootstrap
 

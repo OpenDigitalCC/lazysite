@@ -73,7 +73,9 @@ Archive
   its two capabilities are its own declaration now; the wire is held to a 0.16.7
   capture (t/unit/odoo/136). Ruling 71: `manage_odoo` is the extension's admin
   capability (status, calls, the keys; the binding override); every group holding
-  manage_connectors is topped up with it on next use. The parity lints read the merged
+  manage_connectors is topped up with it by the upgrade (ruling 167: one line naming
+  the groups, a 0 an operator set stays; `lazysite-users.pl capability-top-up`) and on
+  next use. The parity lints read the merged
   table; the Groups and Users grids draw a declared capability from served labels;
   `lazysite check` reads the index's capabilities and reports a failed build or an
   enabled extension whose hooks are not indexed. Lint 321's allow-list falls from 42

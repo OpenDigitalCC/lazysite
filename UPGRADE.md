@@ -83,14 +83,12 @@ site configures changes.
 and the call record (`odoo-status`, `odoo-calls`, `odoo-secret-set`, `odoo-secret-clear`
 and their tools) were `manage_connectors`' and are now the extension's own capability,
 `manage_odoo`, which also stands in for manage_connectors as the capability that may run
-any Odoo binding. Every group holding `manage_connectors` is topped up with it the next
-time the site's accounts are touched (the users tool's ordinary use: a login, a grant,
-the API's reads), so nothing changes for a group; a group whose operator has set it off
-is left as decided. The Groups and Users pages show it as "Odoo connection" under Site.
-A token holding manage_connectors alone, on a site where no account has been touched
-since the upgrade, is refused the four actions until the top-up runs: run
-`lazysite-users.pl --docroot <docroot> group-reach <group>` once, or grant
-`manage_odoo` by hand.
+any Odoo binding. The upgrade tops up every group holding `manage_connectors` with it
+and prints one line naming them (`groups:    topped up: <group> (manage_odoo), ...`;
+nothing when none), so nothing changes for a group; a group whose operator has set it
+off is left as decided. The same top-up still runs the next time the site's accounts
+are touched, for a group given manage_connectors later. The Groups and Users pages show
+it as "Odoo connection" under Site.
 
 **If the index did not build.** The upgrade prints `declarations indexed: odoo` for a
 site with Odoo installed. Should the build fail (a full disk, an unwritable
