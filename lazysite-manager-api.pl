@@ -131,8 +131,8 @@ $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";   # SM138: site_gran
 # SM1369 X2 (H-7, H-9): the capabilities and actions the site's extensions
 # declare join the tables from the extension index, BEFORE every table below is
 # derived from the declaration (%KNOWN_ACTION, %MUTATING, the gate, the twins).
-use Lazysite::Extensions::Hooks ();
-Lazysite::Extensions::Hooks::mirror($LAZYSITE_DIR);
+use Lazysite::Extensions::Declared ();
+Lazysite::Extensions::Declared::mirror($LAZYSITE_DIR);
 use Lazysite::Auth::Verify ();    # SM685: verify in-process, no subprocess
 $Lazysite::Manager::Upload::LAZYSITE_DIR   = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
@@ -3292,7 +3292,7 @@ sub dispatch_extension_action {
             $p{$n} = exists $params{$n} ? $params{$n} : $req->{$n} if exists $params{$n} || exists $req->{$n};
         }
     }
-    return Lazysite::Extensions::Hooks::run_action(
+    return Lazysite::Extensions::Declared::run_action(
         $DOCROOT, $action, \%p,
         { user => $auth_user,
             caps    => Lazysite::Auth::Settings::caps_for($auth_user) || {},

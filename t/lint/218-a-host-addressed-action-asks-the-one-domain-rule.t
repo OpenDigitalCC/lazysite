@@ -207,6 +207,16 @@ my @parts = split /^    ([a-z_]+) => \{\s*$/m, ( $tools // '' );
 shift @parts;
 while ( my ( $name, $block ) = splice @parts, 0, 2 ) { $TOOL{$name} = $block }
 ok( scalar( keys %TOOL ) > 50, 'the MCP tools were read' );
+# SM1369 X2: and the tools the in-tree extensions declare, which join %TOOLS
+# at the door from the index; their one `run` is the loader (_run_declared),
+# which takes no host and no path, so the per-tool reads below find nothing
+# to ask and the rows' own flags (instance_wide, on the twin) decide.
+{
+    TestHelper::mirror_engine();
+    my %declared = Lazysite::ControlApi::Actions::declared_tools();
+    cmp_ok( scalar keys %declared, '>=', 1, 'an extension declares tools' );
+    $TOOL{$_} //= "        # declared by an extension; run => _run_declared\n" for keys %declared;
+}
 my ( @mcp_asked, @mcp_missing );
 for my $t ( sort keys %TOOL ) {
     my $props = $TOOL{$t} =~ /\b(?:host|content_root)\s*=>\s*\{/;

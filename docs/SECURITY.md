@@ -3185,7 +3185,7 @@ the boundary
   it is the same row in the same tables: the token gate, the CSRF gate, the required-
   parameter check, the instance-wide and scope rules, the audit decision and the parity
   lints (14, 23, 52, 58, 90, 98, 218) all read the merged table. A declared action runs
-  only through `Hooks::run_action`: the extension must be on in `lazysite.conf` at the
+  only through `Lazysite::Extensions::Declared::run_action`: the extension must be on in `lazysite.conf` at the
   call (a stale index answers "this extension is off" and runs nothing), its hooks
   indexed, its handler a file in its own payload lib found nowhere else on `@INC`. A
   capability is grantable while its extension is installed and never shadows a core

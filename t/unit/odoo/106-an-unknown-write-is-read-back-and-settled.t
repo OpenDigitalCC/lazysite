@@ -38,7 +38,7 @@ bind( $d, id => 'open', operation => 'shop.mixed', modes => 'public', apply => '
 
 my %SAM   = ( mode => 'authenticated', actor => 'sam',   groups => ['staff'], caps => {}, ip => '192.0.2.5' );
 my %ALICE = ( mode => 'authenticated', actor => 'alice', groups => ['staff'], caps => {}, ip => '192.0.2.6' );
-my %OPS   = ( mode => 'authenticated', actor => 'ops', groups => [], caps => { settle_odoo_writes => 1, manage_connectors => 1 },
+my %OPS = ( mode => 'authenticated', actor => 'ops', groups => [], caps => { settle_odoo_writes => 1, manage_odoo => 1 },
     ip => '192.0.2.7' );
 
 sub timeout { return Odoo::Error->new( kind => 'transport', sent => 1, write => 1, message => 'Timed out while waiting for socket to become ready for reading' ) }

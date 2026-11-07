@@ -47,7 +47,7 @@ print {$sf} <<'STUB';
 use strict; use warnings; use JSON::PP qw(encode_json decode_json);
 my $r = eval { decode_json( do { local $/; <STDIN> } ) } || {};
 my $u = $r->{username} // '';
-my %caps = ( mcp => 1, ( $u eq 'op' ? ( manage_connectors => 1 ) : () ) );
+my %caps = ( mcp => 1, ( $u eq 'op' ? ( manage_connectors => 1, manage_odoo => 1 ) : () ) );    # SM1369 X2 (ruling 71): the top-up gives a manage_connectors holder manage_odoo
 print encode_json( { ok => 1, settings => \%caps } );
 STUB
 close $sf;
@@ -82,7 +82,7 @@ my $KEY = 'mcp-set-k3y-77';
 subtest 'the tools are listed by grant' => sub {
     my %op = map { $_->{name} => 1 } @{ mcp( 'op', 'tools/list' )->{result}{tools} || [] };
     my %agent = map { $_->{name} => 1 } @{ mcp( 'agent', 'tools/list' )->{result}{tools} || [] };
-    ok( $op{$_}, "manage_connectors sees $_" ) for qw(odoo_status odoo_calls odoo_secret_set odoo_secret_clear);
+    ok( $op{$_}, "manage_odoo (topped up from manage_connectors) sees $_" ) for qw(odoo_status odoo_calls odoo_secret_set odoo_secret_clear);
     ok( !$agent{$_}, "a capless agent does not see $_" ) for qw(odoo_status odoo_secret_set);
     ok( $agent{$_}, "but sees $_ - the binding decides" ) for qw(odoo_bindings odoo_run odoo_confirm);
 };
@@ -114,7 +114,7 @@ subtest 'never as a visitor, never outside the binding\'s callers' => sub {
     my $r = tool( 'agent', 'odoo_run', { binding => 'basket' } );
     like( $r->{error} // '', qr/never a visitor's/, 'a visitor binding is refused' );
     $r = tool( 'op', 'odoo_run', { binding => 'list' } );
-    ok( $r->{ok}, 'manage_connectors is the override, as for a connector' ) or diag explain $r;
+    ok( $r->{ok}, 'manage_odoo is the override, as manage_connectors is for a connector' ) or diag explain $r;
     $r = tool( 'agent', 'odoo_run', { binding => 'list', params => { n => 1, extra => 1 } } );
     like( $r->{error} // '', qr/does not take: extra/, 'an unmapped field is refused' );
 };

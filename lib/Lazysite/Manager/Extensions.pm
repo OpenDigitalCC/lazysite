@@ -702,7 +702,8 @@ sub _hook_problems {
     # SM1369 X2: what the declarations say about each other and about core's
     # names (an owned capability described and vice versa, no core name shadowed,
     # a gate that names capabilities that exist).
-    push @bad, map { $_->{error} } Lazysite::Extensions::Hooks::check_declared( $id, $owns );
+    require Lazysite::Extensions::Declared;
+    push @bad, map { $_->{error} } Lazysite::Extensions::Declared::check_declared( $id, $owns );
     return @bad;
 }
 
@@ -861,9 +862,9 @@ sub engine_hook_index {
 # The engine's index, mirrored into this process's tables (the lints' and
 # tools' way in). Returns the index.
 sub mirror_engine_index {
-    require Lazysite::Extensions::Hooks;
+    require Lazysite::Extensions::Declared;
     my $index = engine_hook_index();
-    Lazysite::Extensions::Hooks::mirror_index( $index, 'engine@' . ( Lazysite::Extensions::engine_root() // '' ) );
+    Lazysite::Extensions::Declared::mirror_index( $index, 'engine@' . ( Lazysite::Extensions::engine_root() // '' ) );
     return $index;
 }
 

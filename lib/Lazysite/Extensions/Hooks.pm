@@ -49,7 +49,7 @@ use Lazysite::Extensions ();
 
 our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
     check_functions index_path read_index enabled_keys call_hook
-    check_declared declared_entry mirror mirror_index unmirror run_action
+    declared_entry mirror mirror_index unmirror mirror_state index_signature
     index_failed_path note_index_failure declared_refusal_status);
 
 # The hook vocabulary. `hook` is the proposal's H-n, `slice` the slice that
@@ -543,12 +543,6 @@ sub _validate_capability_info {
         for my $f (qw(section label title grants)) {
             push @bad, _err( $id, $k, "$cap must carry a plain, non-empty '$f'" ) unless _nonempty( $m->{$f} );
         }
-        if ( _nonempty( $m->{section} ) ) {
-            require Lazysite::Capabilities;
-            push @bad, _err( $id, $k, "$cap: section '$m->{section}' is not one of "
-                    . join( ', ', @Lazysite::Capabilities::SECTIONS ) )
-                unless grep { $_ eq $m->{section} } @Lazysite::Capabilities::SECTIONS;
-        }
         push @bad, _err( $id, $k, "$cap: the label is the grid's short name, at most 40 characters" )
             if _nonempty( $m->{label} ) && length( $m->{label} ) > 40;
         if ( exists $m->{unlocks} ) {
@@ -706,62 +700,6 @@ sub _validate_refusal_kinds {
     return @bad;
 }
 
-# THE CROSS-CHECKS, once the kinds validate on their own: every capability the
-# extension owns is described and every description names an owned capability;
-# nothing declared shadows a core name (a capability, an action, a refusal
-# kind); a gate names capabilities that exist (core's or the extension's own).
-# Returns problems in Owns' shape. Run at the index build and by the lints.
-sub check_declared {
-    my ( $id, $owns ) = @_;
-    return () unless ref $owns eq 'HASH';
-    my $hooks = ref $owns->{hooks} eq 'HASH' ? $owns->{hooks} : {};
-    my @bad;
-    my @caps = ref $owns->{capabilities} eq 'ARRAY' ? grep { _plain($_) } @{ $owns->{capabilities} } : ();
-    my $info  = ref $hooks->{capability_info} eq 'HASH' ? $hooks->{capability_info} : {};
-    my $rows  = ref $hooks->{api_actions} eq 'ARRAY'    ? $hooks->{api_actions}     : [];
-    my $kinds = ref $hooks->{refusal_kinds} eq 'HASH'   ? $hooks->{refusal_kinds}   : {};
-    return () unless @caps || %$info || @$rows || %$kinds;
-
-    my %own = map { $_ => 1 } @caps;
-    if ( %$info || @$rows ) {
-        push @bad, _err( $id, 'capabilities', "'$_' is owned and not described in hooks.capability_info" )
-            for grep { !exists $info->{$_} } @caps;
-    }
-    push @bad, _err( $id, 'hooks.capability_info', "'$_' is described and not in owns.capabilities" )
-        for grep { !$own{$_} } sort keys %$info;
-
-    require Lazysite::Auth::Settings;
-    my %core_cap = map { $_ => 1 } Lazysite::Auth::Settings::core_capability_keys();
-    push @bad, _err( $id, 'capabilities', "'$_' is a core capability, which an extension can never own or shadow" )
-        for grep { $core_cap{$_} } @caps;
-    for my $cap ( sort keys %$info ) {
-        my $m = ref $info->{$cap} eq 'HASH' ? $info->{$cap} : {};
-        push @bad, _err( $id, 'hooks.capability_info', "$cap: top_up_from names '$_', which is no capability" )
-            for grep { !$core_cap{$_} && !$own{$_} } @{ ref $m->{top_up_from} eq 'ARRAY' ? $m->{top_up_from} : [] };
-    }
-
-    require Lazysite::ControlApi::Actions;
-    for my $r ( grep { ref $_ eq 'HASH' } @$rows ) {
-        my $name = _plain( $r->{name} ) ? $r->{name} : next;
-        push @bad, _err( $id, 'hooks.api_actions', "'$name' is a core action, which an extension can never shadow" )
-            if Lazysite::ControlApi::Actions::is_core_action($name);
-        push @bad, _err( $id, 'hooks.api_actions', "'$r->{mcp}' is a core tool, which an extension can never shadow" )
-            if _plain( $r->{mcp} ) && Lazysite::ControlApi::Actions::is_core_tool( $r->{mcp} );
-        if ( ref $r->{gate} eq 'ARRAY' ) {
-            push @bad, _err( $id, 'hooks.api_actions', "'$name' is gated on '$_', which is no capability of core's or this extension's" )
-                for grep { _plain($_) && !$core_cap{$_} && !$own{$_} } @{ $r->{gate} };
-        }
-    }
-
-    if (%$kinds) {
-        require Lazysite::Manager::Common;
-        no warnings 'once';
-        push @bad, _err( $id, 'hooks.refusal_kinds', "'$_' is a core refusal kind, which an extension can never redefine" )
-            for grep { exists $Lazysite::Manager::Common::REFUSAL_STATUS{$_} } sort keys %$kinds;
-    }
-    return @bad;
-}
-
 # The index's `declared` entry for one (validated) descriptor: what the mirror
 # needs and nothing it does not.
 sub declared_entry {
@@ -776,8 +714,16 @@ sub declared_entry {
     return keys %e > 2 ? \%e : undef;
 }
 
-# ---- the mirror ----
-my %MIRROR;     # sig => the index mirrored, ids => the extensions it carried
+# ---- the mirror, LIGHT SCOPE ----
+#
+# The capability names (@CAP_KEYS, through Lazysite::Auth::Settings) and the
+# refusal statuses, from the index's `declared` view: what a grant resolver
+# (caps_for, the group-settings reads) and a page endpoint need, and nothing
+# that would put the capability map or the action tables into the processor's
+# pooled workers (t/lint/269). The FULL scope - those two tables as well, for
+# the doors, the tools and the lints - is Lazysite::Extensions::Declared, which
+# calls this first and fills the rest; nothing here names it.
+my %MIRROR; # sig => the index mirrored, scope => light|full, ids => the extensions it carried
 my %REFUSAL;    # kind => status, from the mirrored declarations
 
 sub declared_refusal_status {
@@ -785,49 +731,33 @@ sub declared_refusal_status {
     return defined $kind ? $REFUSAL{$kind} : undef;
 }
 
-# The api and mcp halves of a capability's `unlocks`, derived from the rows
-# whose gate names it (the gate is what decides, so the map cannot over- or
-# under-claim - lint 90's two directions, by construction).
-sub _unlocks_of {
-    my ( $cap, $info, $rows ) = @_;
-    my ( @api, @mcp );
-    for my $r ( grep { ref $_ eq 'HASH' && ref $_->{gate} eq 'ARRAY' } @$rows ) {
-        next unless grep { $_ eq $cap } @{ $r->{gate} };
-        push @api, $r->{name};
-        push @mcp, $r->{mcp} if defined $r->{mcp};
-    }
-    my %u  = ( api => \@api, mcp => \@mcp );
-    my $ui = ref $info->{unlocks} eq 'HASH' ? $info->{unlocks}{ui} : undef;
-    $u{ui} = [@$ui] if ref $ui eq 'ARRAY' && @$ui;
-    return \%u;
+# The mirror's record, for the full scope to read and widen.
+sub mirror_state { return \%MIRROR }
+
+# The signature a mirror of $lz's index carries: the file's identity, so a
+# rebuilt index (a new inode) is read again and an unchanged one is a stat.
+sub index_signature {
+    my ($lz) = @_;
+    my $path = index_path($lz);
+    return ( $CACHE{$path} ? $CACHE{$path}{sig} : 'none' ) . '@' . $path;
 }
 
-# Fill the runtime tables from an index (its `declared` view). Replaces what an
-# earlier mirror put there, so a rebuilt index is read whole. Returns the ids
-# mirrored. A declaration the build let through that the tables refuse
-# (a core name, from a hand-edited index) is skipped with a WARN: the refusal
-# is the closed side, and the build is where it is said properly.
+# Fill the light tables from an index. Replaces what an earlier mirror put
+# there, so a rebuilt index is read whole. A declaration the build let through
+# that the tables refuse (a core name, from a hand-edited index) is skipped with
+# a WARN: the refusal is the closed side, and the build is where it is said
+# properly. Returns the ids mirrored.
 sub mirror_index {
     my ( $index, $sig ) = @_;
     unmirror();
     my $decl = ref $index eq 'HASH' && ref $index->{declared} eq 'HASH' ? $index->{declared} : {};
     require Lazysite::Auth::Settings;
-    require Lazysite::Capabilities;
-    require Lazysite::ControlApi::Actions;
     my @ids;
     for my $id ( sort keys %$decl ) {
         my $e = $decl->{$id};
         next unless ref $e eq 'HASH';
-        my @caps = ref $e->{capabilities} eq 'ARRAY'   ? @{ $e->{capabilities} } : ();
-        my $info = ref $e->{capability_info} eq 'HASH' ? $e->{capability_info}   : {};
-        my $rows = ref $e->{api_actions} eq 'ARRAY'    ? $e->{api_actions}       : [];
-        my @why;
-        push @why, Lazysite::Auth::Settings::declare_capabilities( $id, \@caps );
-        for my $cap ( grep { ref $info->{$_} eq 'HASH' } sort keys %$info ) {
-            push @why, Lazysite::Capabilities::declare_capability( $id, $cap,
-                { %{ $info->{$cap} }, unlocks => _unlocks_of( $cap, $info->{$cap}, $rows ) } );
-        }
-        push @why, Lazysite::ControlApi::Actions::declare_action( $id, $_ ) for grep { ref $_ eq 'HASH' } @$rows;
+        my @caps  = ref $e->{capabilities} eq 'ARRAY' ? @{ $e->{capabilities} } : ();
+        my @why   = Lazysite::Auth::Settings::declare_capabilities( $id, \@caps );
         my $kinds = ref $e->{refusal_kinds} eq 'HASH' ? $e->{refusal_kinds} : {};
         for my $kind ( sort keys %$kinds ) {
             if ( exists $REFUSAL{$kind} ) { push @why, "refusal kind '$kind' is declared twice"; next }
@@ -837,66 +767,31 @@ sub mirror_index {
             if @why;
         push @ids, $id;
     }
-    %MIRROR = ( sig => $sig, ids => \@ids );
+    %MIRROR = ( sig => $sig, scope => 'light', ids => \@ids );
     return @ids;
 }
 
+# Take the light tables back to core's. The full scope's own undo runs first
+# (Declared::unmirror), where it was mirrored.
 sub unmirror {
     return unless %MIRROR;
     require Lazysite::Auth::Settings;
-    require Lazysite::Capabilities;
-    require Lazysite::ControlApi::Actions;
     Lazysite::Auth::Settings::undeclare_capabilities();
-    Lazysite::Capabilities::undeclare_capabilities();
-    Lazysite::ControlApi::Actions::undeclare_actions();
     %REFUSAL = ();
     %MIRROR  = ();
     return;
 }
 
-# Mirror a site's index into this process, once per index: a second call with
-# the same file is a stat. Returns 1 when the tables changed.
+# Mirror a site's index into this process, light scope, once per index: a
+# second call with the same file is a stat. Returns 1 when the tables changed.
 sub mirror {
     my ($lz) = @_;
     return 0 unless defined $lz && length $lz;
     my $index = read_index($lz);
-    my $path  = index_path($lz);
-    my $sig   = ( $CACHE{$path} ? $CACHE{$path}{sig} : 'none' ) . '@' . $path;
+    my $sig   = index_signature($lz);
     return 0 if defined $MIRROR{sig} && $MIRROR{sig} eq $sig;
     mirror_index( $index, $sig );
     return 1;
-}
-
-# RUN ONE DECLARED ACTION, from either door. $name is the control-API action
-# (the twin's row is the same row); \%params are its declared parameters as the
-# door read them; \%ctx is who is asking (user, caps, groups, ip, channel,
-# reach), to which the docroot, the extension and the action are added. The
-# extension must be on NOW and its hooks indexed; call_hook checks the rest.
-# Answers a result hash in the doors' shape, always.
-sub run_action {
-    my ( $docroot, $name, $params, $ctx ) = @_;
-    require Lazysite::ControlApi::Actions;
-    no warnings 'once';
-    my $spec = $Lazysite::ControlApi::Actions::ACTION{ $name // '' };
-    my $id   = ref $spec eq 'HASH' ? $spec->{extension} : undef;
-    return { ok => 0, kind => 'not-found', error => 'Unknown action: ' . ( $name // '' ) } unless defined $id;
-    my $lz    = Lazysite::Paths::lazysite_dir($docroot);
-    my $index = read_index($lz);
-    my $decl  = ref $index->{declared} eq 'HASH' ? $index->{declared}{$id}     : undef;
-    my $key   = ref $decl eq 'HASH'              ? $decl->{key}                : undef;
-    my $label = ref $decl eq 'HASH' && _plain( $decl->{name} ) ? $decl->{name} : $id;
-    unless ( defined $key && enabled_keys($lz)->{$key} ) {
-        return { ok => 0, kind => 'disabled',
-            error => "This extension ($label) is off, so $name cannot run - a sysop can enable it on the Extensions page." };
-    }
-    my ( $ok, @out ) = call_hook( $docroot, $id, $spec->{handler}, $params // {},
-        { %{ $ctx || {} }, docroot => $docroot, extension => $id, action => $name } );
-    unless ($ok) {
-        return { ok => 0, kind => 'cannot-tell',
-            error => "$name cannot run now: $out[0]. Enabling, saving or upgrading the extension rebuilds its index." };
-    }
-    return $out[0] if ref $out[0] eq 'HASH';
-    return { ok => 0, kind => 'internal', error => "$name answered nothing this door can send" };
 }
 
 1;

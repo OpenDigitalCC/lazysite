@@ -85,7 +85,7 @@ subtest 'the control API rows are what 0.16.7 published, declared by the extensi
     is( $map->{settle_odoo_writes}{extension}, 'odoo', 'and settle_odoo_writes' );
     is_deeply( $map->{settle_odoo_writes}{unlocks}{api}, [qw(odoo-unknown-runs odoo-dismiss)], 'with the unlocks the gate gives' );
     ok( !( grep { /\Aodoo/ } @{ $map->{manage_connectors}{unlocks}{api} } ), 'and manage_connectors no longer names an Odoo action' );
-    Lazysite::Extensions::Hooks::unmirror();
+    Lazysite::Extensions::Declared::unmirror();
 };
 
 # A site with Odoo on, its index built as the upgrade builds it, and a group

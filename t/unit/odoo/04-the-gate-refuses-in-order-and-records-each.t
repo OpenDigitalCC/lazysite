@@ -54,7 +54,7 @@ subtest 'then the extension switch' => sub {
     my ( $ok, $r ) = Lazysite::Odoo::gate( $binding, mode => 'authenticated', groups => ['staff'] );
     is( $r->{kind}, 'disabled', 'a permitted caller meets the off switch' );
     ( $ok, $r ) = Lazysite::Odoo::gate( $binding, mode => 'authenticated', groups => [],
-        caps => { manage_connectors => 1 } );
+        caps => { manage_odoo => 1 } ); # SM1369 X2 (ruling 71): the override is manage_odoo
     is( $r->{kind}, 'disabled', 'the override capability passes the mode gate, not the switch' );
 };
 

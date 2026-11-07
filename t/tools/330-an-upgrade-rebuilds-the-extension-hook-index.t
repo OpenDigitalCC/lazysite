@@ -21,6 +21,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
+use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
@@ -36,8 +37,15 @@ my $index = "$docroot/lazysite/extensions.index.json";
 
 ( $rc, $out ) = install( $docroot, $cgibin, 'reinstall' );
 is( $rc, 0, 'a site with no hooks is reinstalled' ) or diag $out;
-ok( !-e $index, 'and has no hook index' );
-unlike( $out, qr/hook/i, 'and the summary says nothing about hooks' );
+# SM1369 X2: a site with no hooks still has an index when an installed
+# extension DECLARES (Odoo ships with the engine): the `declared` view, and
+# nothing in `extensions`, so no hook runs.
+ok( -e $index, 'and has an index for what is installed' );
+my $built = decode_json( slurp($index) );
+is_deeply( $built->{extensions}, {}, 'with no hooks indexed' );
+ok( $built->{declared}{odoo}, 'and the installed extension\'s declaration' );
+unlike( $out, qr/hooks (?:indexed|refused)/, 'and the summary says nothing about hooks' );
+like( $out, qr/declarations indexed: odoo/, 'but names the declaration' );
 
 # An extension of the site's own that declares a hook X1 does not build.
 make_path("$root/extensions/hookdemo/lib/Hookdemo");
@@ -54,6 +62,9 @@ spit( $index, '{"format":1,"extensions":{"ghost":{"key":"extensions/ghost.pl","f
 is( $rc, 0, 'the reinstall succeeds' ) or diag $out;
 like( $out, qr/hooks refused: hookdemo \(hook 'checks' \(H-6\) is not built in this engine yet - it lands in slice X6/,
     'the summary names the hook it refused, and its slice' );
-ok( !-e $index, 'the old index is gone: nothing is indexed now' );
+$built = decode_json( slurp($index) );
+ok( !exists $built->{extensions}{ghost}, 'the old index is gone: the ghost is not indexed' );
+is_deeply( $built->{extensions}, {}, 'and nothing else runs' );
+ok( !exists $built->{declared}{hookdemo}, 'the refused extension declares nothing either' );
 
 done_testing();

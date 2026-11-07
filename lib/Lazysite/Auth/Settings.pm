@@ -104,12 +104,16 @@ sub capability_declared_by { return $DECLARED_BY{ $_[0] // '' } }
 
 # The mirror, reached from the reads every door makes: the site is the one
 # $AUTH_DIR names, and the index is read once per process (a stat afterwards).
+# The LIGHT scope: the capability names and the refusal statuses, which this
+# module and the page endpoints need, and never the action tables - a pooled
+# processor worker resolves grants and must not carry those (t/lint/269). The
+# doors mirror the full scope themselves before they derive their tables.
 sub _mirror_declared {
     return unless defined $AUTH_DIR && length $AUTH_DIR;
     ( my $lz = $AUTH_DIR ) =~ s{/auth/?\z}{};
     return if $lz eq $AUTH_DIR;
     require Lazysite::Extensions::Hooks;
-    Lazysite::Extensions::Hooks::mirror($lz);
+    Lazysite::Extensions::Hooks::mirror( $lz, 'light' );
     return;
 }
 

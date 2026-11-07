@@ -38,10 +38,11 @@ use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper                    qw(site_tempdir repo_root run_child);
 use Lazysite::Manager::Extensions qw(action_extension_enable action_extension_disable extension_enabled);
-use Lazysite::Extensions::Hooks   qw(read_index mirror unmirror run_action);
-use Lazysite::Auth::Settings      ();
-use Lazysite::Capabilities        ();
-use Lazysite::ControlApi::Actions ();
+use Lazysite::Extensions::Hooks    qw(read_index);
+use Lazysite::Extensions::Declared qw(mirror unmirror run_action);
+use Lazysite::Auth::Settings       ();
+use Lazysite::Capabilities         ();
+use Lazysite::ControlApi::Actions  ();
 
 $ENV{LAZYSITE_LOG_LEVEL} = 'ERROR';
 my $root = repo_root();
@@ -369,14 +370,14 @@ subtest 'a declaration the build refuses is not enabled, each fault by name' => 
     # extension whose id is a core action's own prefix (data) declaring that
     # core action (data-tables) as its own is refused as a shadow, and so is a
     # core tool (list_data_tables is core's twin of data-tables).
-    my @why = map { $_->{error} } Lazysite::Extensions::Hooks::check_declared( 'data',
+    my @why = map { $_->{error} } Lazysite::Extensions::Declared::check_declared( 'data',
         { capabilities => [], hooks => { api_actions => [ { %$row_ok, name => 'data-tables', mcp => 'data_tables', gate => 'ALWAYS', always_reason => 'x' x 50, handler => 'Data::X::f', params => [], input_schema => { type => 'object', properties => {}, additionalProperties => $F }, description => 'x' } ] } } );
     ok( ( grep { /'data-tables' is a core action/ } @why ), 'a core action spelled with the extension\'s own prefix is refused as a shadow' )
         or diag explain \@why;
-    my @t = map { $_->{error} } Lazysite::Extensions::Hooks::check_declared( 'list',
+    my @t = map { $_->{error} } Lazysite::Extensions::Declared::check_declared( 'list',
         { capabilities => [], hooks => { api_actions => [ { %$row_ok, name => 'list-x', mcp => 'list_data_tables', gate => 'ALWAYS', always_reason => 'x' x 50, handler => 'List::X::f', params => [], input_schema => { type => 'object', properties => {}, additionalProperties => $F }, description => 'x' } ] } } );
     ok( ( grep { /'list_data_tables' is a core tool/ } @t ), 'and a core tool' ) or diag explain \@t;
-    my @c = map { $_->{error} } Lazysite::Extensions::Hooks::check_declared( 'x',
+    my @c = map { $_->{error} } Lazysite::Extensions::Declared::check_declared( 'x',
         { capabilities => [], hooks => { refusal_kinds => { 'not-found' => '404 Not Found' } } } );
     ok( ( grep { /'not-found' is a core refusal kind/ } @c ), 'and a core refusal kind' ) or diag explain \@c;
 };

@@ -136,7 +136,7 @@ sub _refusal_pair {
     require Lazysite::Extensions::Hooks;
     require Lazysite::Paths;
     my $docroot = $ENV{DOCUMENT_ROOT} // '';
-    Lazysite::Extensions::Hooks::mirror( Lazysite::Paths::lazysite_dir($docroot) ) if length $docroot;
+    Lazysite::Extensions::Hooks::mirror( Lazysite::Paths::lazysite_dir($docroot), 'light' ) if length $docroot;
     return ( Lazysite::Manager::Common::refusal_status( $r->{kind} ), $r );
 }
 

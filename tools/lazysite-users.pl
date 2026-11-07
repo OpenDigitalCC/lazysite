@@ -260,8 +260,8 @@ $Lazysite::Auth::AddressProfiles::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 # SM1369 X2 (H-7): the capabilities this site's extensions declare join
 # @CAP_KEYS from the extension index, before any grant is read or written.
-require Lazysite::Extensions::Hooks;
-Lazysite::Extensions::Hooks::mirror($LAZYSITE_DIR);
+require Lazysite::Extensions::Declared;
+Lazysite::Extensions::Declared::mirror($LAZYSITE_DIR);
 
 # Verbs (API actions and CLI commands) that ONLY read the auth store - they take
 # NO store lock, so the hot per-request read (verify-credential) never serialises

@@ -38,7 +38,7 @@ subtest 'the bindings a caller may run, and only those' => sub {
     is_deeply( [ sort keys %{ $ids{order}{params} } ], ['product'], 'with the fields it takes' );
     is( $ids{list}{summary}, 'The products on sale', 'and what it does' );
     is_deeply( act( 'action_odoo_bindings', %EVE )->{bindings}, [], 'a caller in no binding\'s callers sees none' );
-    is( scalar @{ act( 'action_odoo_bindings', %EVE, caps => { manage_connectors => 1 } )->{bindings} }, 2,
+    is( scalar @{ act( 'action_odoo_bindings', %EVE, caps => { manage_odoo => 1 } )->{bindings} }, 2,
         'the override capability sees what it may run' );
 };
 

@@ -219,7 +219,7 @@ The index
   failed write leaves `extensions.index.failed` beside the index; the check reports it.
 
 The mirror
-: `Hooks::mirror($lz)` reads the site's index once per process (a stat afterwards) and
+: `Declared::mirror($lz)` (the full scope; `Hooks::mirror` is the light one a grant resolver uses) reads the site's index once per process (a stat afterwards) and
   fills `@CAP_KEYS` (the literal is now `@CORE_CAP_KEYS`), Capabilities' `%ACTION_INFO`,
   `%GATE` and `%ACTION` (each row marked `extension`), and the refusal statuses, refusing
   a core name a second time. The doors and the tools call it before they derive their
@@ -230,7 +230,7 @@ The mirror
 
 The dispatch
 : One branch per door. The manager API reads each declared parameter from where its
-  row says and hands `Hooks::run_action` the caller's identity, capabilities, groups,
+  row says and hands `Declared::run_action` the caller's identity, capabilities, groups,
   address and door; MCP builds its tool row from the declaration (description, schema,
   the gate as `cap`/`cap_also`) and does the same with the arguments. `run_action`
   requires the extension on in `lazysite.conf` now and its hooks indexed, and runs the
@@ -260,8 +260,9 @@ Tests
 : `t/unit/extensions/72` (a fixture extension declares a capability and two actions;
   the index, the mirror, both doors, the refusals, off and stale); `t/unit/odoo/136`
   (the capture); lint 76 reads the index; lints 14, 23, 52, 90 and 218 read the merged
-  table; 70, 71, odoo/15 and odoo/105 learn X2's facts. Each fails with its change
-  reverted.
+  table; 70, 71, odoo/15 and odoo/105 learn X2's facts; odoo/04, 17, 106, 110,
+  integration/171 and 114 hand the override capability ruling 71 names; tools/330 reads
+  the declared view the upgrade builds. Each fails with its change reverted.
 
 # Choices made
 
@@ -288,6 +289,8 @@ C-11 | When a toggle builds (X2) | When the extension in hand declares hooks, an
 C-12 | A capability's api and mcp unlocks (X2) | Derived from the gate rows that name it; only `ui` is declared | Declared, and held equal to the gate by a lint, as core's are
 C-13 | Which refusal kinds move (X2) | The kinds only Odoo produces (thirty) go to its declaration; `expired`, `internal`, `unavailable`, `busy`, `maintenance` stay core's | All of the block, and core redeclares what it uses
 C-14 | The handler type's capability | `Handlers.pm`'s `odoo` type stays `manage_connectors`' until X3 declares the type (its file is n769's); the top-up keeps the reach equal | Changed here to manage_odoo
+C-15 | The older extensions' capabilities (data, briefs, daemon) | Stay mirrored in the core literal: each owns its capabilities (`owns.capabilities`) and describes none, and a fresh install builds no index yet, so moving them would leave a new site unable to grant `manage_data` until its first upgrade or toggle. Lint 76 holds one state each: described and indexed, or owned and literal. Each moves when it describes its own and the fresh install builds | Describe all three here and build the index on a fresh install too
+C-16 | What a grant resolver mirrors | The light scope - the capability names and the refusal statuses, from `Auth::Settings` alone - so the processor's pooled workers carry no action table (lint 269); the doors, the tools and the lints mirror the full scope before deriving their tables | One scope everywhere, and the action tables resident in the processor
 ```
 
 # ADR 0007

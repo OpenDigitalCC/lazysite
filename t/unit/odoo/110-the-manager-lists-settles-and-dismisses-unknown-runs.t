@@ -25,7 +25,7 @@ bind( $d, id => 'mix', operation => 'shop.mixed', modes => 'authenticated', call
     apply => 'immediate', params => 'title=title' );
 
 my %SAM = ( mode => 'authenticated', actor => 'sam', groups => ['staff'], caps => {}, ip => '192.0.2.5' );
-my %OPS = ( user => 'ops', groups => [], caps => { settle_odoo_writes => 1, manage_connectors => 1 }, ip => '192.0.2.7',
+my %OPS = ( user => 'ops', groups => [], caps => { settle_odoo_writes => 1, manage_odoo => 1 }, ip => '192.0.2.7',
     channel => 'api', reach => {} );
 my %NOBODY = ( user => 'eve', groups => ['staff'], caps => {}, ip => '192.0.2.8', channel => 'api', reach => {} );
 

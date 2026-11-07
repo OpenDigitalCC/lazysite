@@ -33,6 +33,7 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
+use JSON::PP                 ();
 use TestHelper               qw(mirror_engine);
 use Lazysite::Auth::Settings ();
 use Lazysite::Capabilities   ();
@@ -48,10 +49,27 @@ my @core_literal = Lazysite::Auth::Settings::core_capability_keys();
 my $index    = mirror_engine();
 my $declared = $index->{declared} || {};
 
-# Every capability every extension declares, and who declares it.
-my %claimed_by;
+# Every capability every extension declares, and who declares it: from the
+# index's declared view for an extension that describes its capabilities
+# (hooks.capability_info), and from --describe for one that only owns them
+# (`owns.capabilities` alone: data, briefs and the daemon, until each describes
+# its own and leaves the literal). The two states are told apart below.
+my ( %claimed_by, %described );
 for my $id ( sort keys %$declared ) {
-    push @{ $claimed_by{$_} }, $id for @{ $declared->{$id}{capabilities} || [] };
+    for my $c ( @{ $declared->{$id}{capabilities} || [] } ) {
+        push @{ $claimed_by{$c} }, $id;
+        $described{$c} = $id if ref $declared->{$id}{capability_info}{$c} eq 'HASH';
+    }
+}
+for my $f ( sort glob "$extensions/*.pl" ) {
+    # SM666: SCALAR FIRST - in list context backticks return lines and
+    # decode_json would see the first line only.
+    my $raw = `$^X \Q$f\E --describe 2>/dev/null`;
+    my $d   = eval { JSON::PP::decode_json($raw) };
+    next unless ref $d eq 'HASH' && ref $d->{owns} eq 'HASH';
+    my $id = $d->{id} // ( $f =~ s{.*/}{}r );
+    next if $declared->{$id};    # read from the index above
+    push @{ $claimed_by{$_} }, $id for @{ $d->{owns}{capabilities} || [] };
 }
 
 subtest 'the index refused no declaration' => sub {
@@ -66,41 +84,47 @@ subtest 'no capability is claimed by two extensions' => sub {
         map { "$_ is claimed by: " . join( ', ', @{ $claimed_by{$_} } ) } @twice );
 };
 
-subtest 'every declared capability is described, and grantable once mirrored' => sub {
-    my %cap_key   = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
-    my $described = Lazysite::Capabilities::describe()->{capabilities} || {};
+subtest 'every declared capability is grantable and described' => sub {
+    my %cap_key = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
+    my $map     = Lazysite::Capabilities::describe()->{capabilities} || {};
     for my $c ( sort keys %claimed_by ) {
         my $id = $claimed_by{$c}[0];
-        ok( ref $declared->{$id}{capability_info}{$c} eq 'HASH',
-            "$c (declared by $id) is described in its hooks.capability_info" )
-            or diag( 'An owned capability its extension does not describe has no section, '
-                . 'label, title or grant sentence; the index build refuses the declaration.' );
-        ok( $cap_key{$c}, "$c is in \@CAP_KEYS after the mirror" )
+        ok( $cap_key{$c}, "$c (declared by $id) is in \@CAP_KEYS" )
             or diag( 'A capability that is not in @CAP_KEYS cannot be granted '
                 . 'to anybody, so the extension\'s actions are unreachable and '
                 . 'nothing says why.' );
-        ok( $described->{$c}, "$c is described in Lazysite::Capabilities" )
+        ok( $map->{$c}, "$c is described in Lazysite::Capabilities" )
             or diag( 'describe-capabilities is how a partner learns what it '
                 . 'holds. An undescribed capability is one an agent cannot '
                 . 'discover.' );
-        is( $described->{$c}{extension}, $id, "and the map says it is ${id}'s" );
+        next unless $described{$c};
+        is( $map->{$c}{extension}, $id, "and the map says $c is ${id}'s" );
         is( Lazysite::Auth::Settings::capability_declared_by($c), $id, "as \@CAP_KEYS does" );
     }
 };
 
-subtest 'the core literal carries no declared capability' => sub {
-    my %core = map  { $_ => 1 } @core_literal;
-    my @both = grep { $core{$_} } sort keys %claimed_by;
-    is_deeply( \@both, [], 'no declared capability is also a core literal' )
-        or diag( join "\n  ", '',
-        map { "$_ is declared by $claimed_by{$_}[0] and written in \@CAP_KEYS" } @both,
-        '', 'The mirror is filled from the index; a literal for it is the copy X2 removed.' );
+# SM1369 X2: ONE STATE EACH. A capability its extension describes
+# (hooks.capability_info) is mirrored from the index and is not a core literal;
+# one its extension only owns is mirrored in the literal, as before X2, until
+# the extension describes it - never both, never neither.
+subtest 'a described capability is mirrored from the index, an undescribed one in the literal' => sub {
+    my %core    = map { $_ => 1 } @core_literal;
     my %section = map { $_ => 1 } @Lazysite::Capabilities::SECTIONS;
     for my $c ( sort keys %claimed_by ) {
-        my $info = $declared->{ $claimed_by{$c}[0] }{capability_info}{$c} || {};
-        ok( $section{ $info->{section} // '' }, "$c declares a section the grids know ($info->{section})" );
-        ok( length( $info->{label} // '' ), "$c declares the grid's label" );
+        if ( my $id = $described{$c} ) {
+            ok( !$core{$c}, "$c is described by $id, and is not a core literal" )
+                or diag('The mirror is filled from the index; a literal for it is the copy X2 removed.');
+            my $info = $declared->{$id}{capability_info}{$c};
+            ok( $section{ $info->{section} // '' }, "$c declares a section the grids know ($info->{section})" );
+            ok( length( $info->{label} // '' ), "$c declares the grid's label" );
+        }
+        else {
+            ok( $core{$c}, "$c is owned by $claimed_by{$c}[0] and not described, so the literal still mirrors it" )
+                or diag( 'An owned capability nobody describes and no literal carries cannot be granted. '
+                    . 'Describe it in the extension\'s hooks.capability_info, or keep the literal.' );
+        }
     }
+    cmp_ok( scalar( grep { $described{$_} } keys %claimed_by ), '>=', 1, 'at least one capability is described' );
 };
 
 # The other direction is the one that catches a stale mirror. It needs to know
@@ -125,8 +149,9 @@ subtest 'no capability is grantable with nobody implementing it' => sub {
             . 'that reads as a broken permission, and there is no error '
             . 'anywhere to lead them to the cause. Either an extension should be '
             . 'declaring it, or the mirror is stale and should be removed.' );
-    my @literal_orphan = grep { !$CORE{$_} } @core_literal;
-    is_deeply( \@literal_orphan, [], 'and the core literal is exactly what core implements' );
+    my @literal_orphan = grep { !$CORE{$_} && !( $claimed_by{$_} && !$described{$_} ) } @core_literal;
+    is_deeply( \@literal_orphan, [],
+        'and the core literal is what core implements plus the owned-and-undescribed mirrors' );
 };
 
 subtest 'the check can actually see something' => sub {

@@ -336,8 +336,27 @@ my %T = (
         # verifier's own stages.
         '$STORE_FAULT'    => [ reset  => 'reset_request_state' ],
     },
+    # SM1369 X2: reached through Manager::Extensions' index build
+    # (Extensions::Declared), which a worker does not run; were it loaded, its
+    # tables are core's literals plus the site's extension index, one site per
+    # worker, replaced whole when the index changes - never a visitor's.
+    'lib/Lazysite/Capabilities.pm' => {
+        '@CHANNELS'   => [ exempt => 'the four channel names, constant' ],
+        '%IS_CHANNEL' => [ exempt => 'derived from @CHANNELS, constant' ],
+        '%ACTION_INFO' => [ exempt => 'core\'s capability metadata plus the site\'s extension index (SM1369 X2), replaced whole' ],
+        '%DECLARED_INFO' => [ exempt => 'which extension declared each capability, from the site\'s index, replaced whole (SM1369 X2)' ],
+    },
+    'lib/Lazysite/ControlApi/Actions.pm' => {
+        '%GATE' => [ exempt => 'the gate table: core\'s literal plus the site\'s extension index (SM1369 X2), replaced whole' ],
+        '%ACTION' => [ exempt => 'the action table: core\'s literal plus the site\'s extension index (SM1369 X2), replaced whole' ],
+        '%CORE_ACTION' => [ exempt => 'core\'s action names, fixed at load (SM1369 X2)' ],
+        '%CORE_TOOL'   => [ exempt => 'core\'s twin names, fixed at load (SM1369 X2)' ],
+        '%DECLARED' => [ exempt => 'which extension declared each row, from the site\'s index, replaced whole (SM1369 X2)' ],
+    },
     'lib/Lazysite/Auth/Settings.pm' => {
-        '@CAP_KEYS'                    => [ exempt => 'the list of capability names, constant' ],
+        '@CAP_KEYS' => [ exempt => 'the list of capability names: core\'s, plus what the site\'s extension index declares (SM1369 X2), replaced whole when the index changes' ],
+        '@CORE_CAP_KEYS' => [ exempt => 'the core capability names, constant (SM1369 X2)' ],
+        '%DECLARED_BY' => [ exempt => 'which extension declared each capability in @CAP_KEYS, from the site\'s index; one site per worker, replaced whole with @CAP_KEYS (SM1369 X2)' ],
         '$USERS_UNREADABLE'            => [ exempt => $STATUS ],
         '$GROUPS_UNREADABLE'           => [ exempt => $STATUS ],
         '$GROUP_SETTINGS_UNREADABLE'   => [ exempt => $STATUS ],

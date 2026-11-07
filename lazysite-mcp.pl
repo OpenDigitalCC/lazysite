@@ -63,7 +63,7 @@ use Lazysite::Handlers         ();               # SM842: handlers, bindings, th
 use Lazysite::Lang             qw(set_members);
 use Lazysite::Validate         ();               # SM887 F2: the engine owns validation
 use Lazysite::ControlApi::Actions ();            # SM943: the twins' annotations
-use Lazysite::Extensions::Hooks (); # SM1369 X2: the declared tools, and the loader that runs them
+use Lazysite::Extensions::Declared (); # SM1369 X2: the declared tools, and the runner that loads them
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -80,7 +80,7 @@ Lazysite::Timing::configure($LAZYSITE_DIR);
 # SM1369 X2 (H-7, H-9): the capabilities and actions the site's extensions
 # declare join the tables from the extension index, before %TOOLS takes their
 # twins and %ANNOTATE is derived.
-Lazysite::Extensions::Hooks::mirror($LAZYSITE_DIR);
+Lazysite::Extensions::Declared::mirror($LAZYSITE_DIR);
 # SM929: THE request address for this request - the visitor, not the front proxy.
 # One reader, cached, because everything below asks the same question about one
 # request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
@@ -559,7 +559,7 @@ sub _run_declared {
     my $spec = $Lazysite::ControlApi::Actions::ACTION{$action};
     my %p = map { $_->{name} => $a->{ $_->{name} } } grep { exists $a->{ $_->{name} } } @{ $spec->{params} || [] };
     no warnings 'once';
-    return Lazysite::Extensions::Hooks::run_action(
+    return Lazysite::Extensions::Declared::run_action(
         $DOCROOT, $action, \%p,
         { user => $user, caps => $caps || {}, groups => [@Lazysite::Auth::Acl::user_groups],
             ip => _request_ip(), channel => 'mcp', reach => { _grant_reach($caps) } } );

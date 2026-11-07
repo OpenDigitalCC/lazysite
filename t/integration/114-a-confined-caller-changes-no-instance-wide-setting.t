@@ -35,7 +35,9 @@ plan skip_all => 'manager api missing' unless -f "$root/lazysite-manager-api.pl"
 local $ENV{LAZYSITE_PROCESSOR} = "$root/lazysite-processor.pl";
 
 my @ALL = qw(api ui mcp manage_domains manage_users manage_config manage_content manage_themes
-    manage_layouts manage_connectors manage_forms manage_data audit_switch purge manage_briefs);
+    manage_layouts manage_connectors manage_odoo manage_forms manage_data audit_switch purge manage_briefs);
+# SM1369 X2 (ruling 71): manage_odoo beside manage_connectors, as the top-up gives it; the
+# site's extension index is built as the upgrade builds it, so the doors know Odoo's rows.
 my @WORK = grep { !/^(?:api|ui|mcp|manage_users)$/ } @ALL;
 my %CHAN = ( cku => 'ui', cks => 'ui', tku => 'api', tks => 'api', mcu => 'mcp', mcs => 'mcp' );
 
@@ -45,6 +47,7 @@ my $s = new_site( root => $root,
     conf => "control_api_enabled: true\nmcp_enabled: true\nlayout: base\ntheme: one\n"
         . "layouts_repo: invalid\nextensions:\n  - extensions/remap.pl\n" );
 my $d = $s->docroot;
+TestHelper::build_site_index($d);
 make_path( "$d/sites/mine", "$d/sites/other" );
 spit( "$d/sites/$_/index.md", "# $_\n" ) for qw(mine other);
 for my $l (qw(base spare gone)) {
@@ -156,6 +159,7 @@ my %CALL = (
     'address-profile-set'    => [ { name => 'probe', entries => ['192.0.2.7'] } ],
     'address-profile-delete' => [ { name => 'probe' } ],
 );
+TestHelper::mirror_engine();    # SM1369 X2: the declared rows are in the tables too
 my %IW = Lazysite::ControlApi::Actions::instance_wide();
 is_deeply( [ sort keys %CALL ], [ sort keys %IW ], 'this file calls every instance-wide action' );
 my %GATE = %Lazysite::ControlApi::Actions::GATE;
