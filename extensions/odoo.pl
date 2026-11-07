@@ -433,6 +433,13 @@ sub _handler_type {
                     . 'maker confirms it. immediate: applied in the same request, with '
                     . 'nobody confirming - the ruled basket case (Q1). Odoo\'s rights for '
                     . 'the connection user still bound what it can do.' },
+            # SM1395 (ruling 154): a public write that keeps no join between what
+            # was sent and where it came from.
+            { key => 'anonymous', label => 'Anonymous (public bindings)', type => 'text',
+                note => '1 on a public binding: once a call is applied its parameters leave the '
+                    . 'plan and run records, and the call record carries no visitor hash and no '
+                    . 'IP address (the rate caps still count by the visitor). Refused on a '
+                    . 'binding with no public mode. Empty or 0: the records are kept as usual.' },
             { key => 'credential', label => 'Whose Odoo account runs it', type => 'text',
                 default => 'connection',
                 note => 'connection: the connection user. session: the person signed in '

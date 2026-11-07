@@ -380,6 +380,21 @@ says what a request may set and who may cause it:
   helper draws each `note` into a `<div data-ls-odoo-not-kept>` when the page has
   one.
 
+`anonymous`
+: `1` on a binding with `public` in `modes`: the call keeps no join between
+  what a visitor sent and where it came from. Once the call is applied (an
+  immediate apply as it answers; a confirmed plan when it is confirmed,
+  withdrawn or dismissed) the parameters leave the plan and run records - in
+  `plan.json`, `run.json` and the journal each value is redacted to `null` and
+  the field names stay, with the fingerprint, the counts and the ids made - and
+  the call line (and its audit row) is written without `ip` and without
+  `visitor`; the binding, the time, the phase and the outcome stay. The
+  per-visitor rate cap still counts by the visitor's hash, in the rolling
+  counter (`recent.jsonl`) no call line joins to, and an `Idempotency-Key`
+  still works (it is hashed with its scope). Refused on a binding with no
+  `public` mode, naming why. Default `0`: the records are kept as described
+  under *The call record*.
+
 `rate_per_visitor_hour`, `rate_per_hour`
 : The rate caps. **The default depends on what the binding does** - see
   *Rate caps: reads and writes* below. Leave them out to take the default.
@@ -767,7 +782,9 @@ which OOM enforces before any call leaves. The engine adds:
   2,000 and 20,000; see *Rate caps: reads and writes*). An attempt counts when it is
   admitted, whether Odoo then accepts it or not. When the count cannot be
   read, the call is refused. Over a cap the answer is `429` (`rate`).
-- **The record names a hash of the key**, never the key.
+- **The record names a hash of the key**, never the key. With `anonymous: 1`
+  on the binding it names neither the hash nor the address, and the plan's
+  parameters leave its records once the call is applied (see *Bindings*).
 
 ## A grant's own Odoo account
 
@@ -965,7 +982,8 @@ refusal kind, the duration, and, for a call that carried an `Idempotency-Key`, t
 key OOM holds (`idem`) and whether the answer was a repeat (`repeat`). Never a parameter value, a report or a key.
 Kept 90 days. `odoo-calls` / `odoo_calls` (`manage_connectors`) reads it,
 optionally for one `binding`. Each call is also one `odoo-call` line in the
-audit trail.
+audit trail. A binding with `anonymous: 1` writes its lines, and their audit
+rows, without the visitor hash and without the IP.
 
 ## Refusals
 

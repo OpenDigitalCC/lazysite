@@ -261,6 +261,21 @@ sub parse {
         unless $apply =~ /\A(?:confirm|immediate)\z/;
     $b{apply} = $apply;
 
+    # SM1395 (ruling 154): ANONYMOUS. A public write kept two records that
+    # together tied what a visitor sent to where it came from - the plan store
+    # (the parameters, the owner visitor:<hash>) and the call record (the IP and
+    # the same hash). `anonymous: 1` drops the join: once the call is applied
+    # the parameters leave the plan and run records, and the call line carries
+    # no ip and no visitor. Only a public binding has a visitor to leave out.
+    my $anon = lc( $h->{anonymous} // '' );
+    $anon =~ s/\A\s+|\s+\z//g;
+    return ( undef, "anonymous must be 1 or 0 (got '$anon')", 'anonymous' )
+        unless $anon =~ /\A(?:|0|1|true|false|yes|no|on|off)\z/;
+    $b{anonymous} = ( $anon =~ /\A(?:1|true|yes|on)\z/ ) ? 1 : 0;
+    return ( undef, 'anonymous: 1 leaves the visitor out of the record of a public call, and this binding has '
+            . 'no public mode - add public to the modes, or take anonymous off', 'anonymous' )
+        if $b{anonymous} && !$modes{public};
+
     # B: WHOSE CREDENTIAL RUNS IT. `connection` (the default) is the connection
     # user; `session` is the person signed in to Odoo through the page, whose
     # own session carries the call. A person's session exists only in a request

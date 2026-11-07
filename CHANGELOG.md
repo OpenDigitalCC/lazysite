@@ -143,6 +143,21 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1395 (PENDING) **An anonymous public write binding keeps no join (ruling 154).** A
+  binding with `modes: public`, `apply: immediate` and a write operation kept two records
+  that together tied what a visitor sent to where it came from: the plan store (the
+  parameters, the owner `visitor:<hash>`) and the call record (the IP and the same hash on
+  every line). The Odoo binding setting `anonymous: 1`, allowed only with `modes: public`
+  (refused otherwise, naming why; a field on the Handlers page): once the call is applied
+  (an immediate apply as it answers; a confirmed plan when confirmed, withdrawn, settled or
+  dismissed) the parameters leave the plan and run records - `plan.json`, `run.json`, the
+  journal, here and in the daemon's run folder, each value redacted to null with the field
+  names kept - and the call line, its refusals and its audit row are written without `ip`
+  and without `visitor` (binding, time, phase, outcome and the idempotency key stay). The
+  per-visitor rate cap still counts by the hash in `recent.jsonl`, which no call line joins
+  to. Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md
+  entry drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/136`.
+
 - SM1405 (PENDING) **The owner-contact notice mail has its own shape.** `Notify::_mail_send`
   handed a notice to the Form SMTP extension as a form submission (the subject as
   `subject_prefix`, the notice as a `message` field), so the owner mail arrived with the

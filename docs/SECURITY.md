@@ -3980,3 +3980,71 @@ verdict
 : drafted: no trigger fires; recorded because a browser now keeps a person's data
   across pages under a label the server gives, and the identity cookie's contents
   changed by one key.
+### 2026-11-07 - SM1395 (0.16.8): an anonymous public write binding keeps no join
+
+Assessment drafted by the developer agent (n771) for the release manager's confirmation
+at the 0.16.8 walk; ruling 154 asked for the setting.
+
+what changed
+: A binding setting `anonymous: 1` on the Odoo extension's bindings
+  (`Lazysite::Odoo::Binding::parse`), allowed only with `public` in `modes` and refused
+  otherwise naming why. Under it: (1) the call record's line for the call, its
+  refusals and its confirm, withdraw and resume (`Lazysite::Odoo::_rec_base`, and
+  `_anon_rec` for a record built before its binding is known) is written without
+  `ip` and without `visitor`; the binding, the time, the phase, the outcome and the
+  idempotency key OOM holds stay, and the shared audit row, read from the same
+  record, carries no address either; (2) once the plan is spent - an immediate apply
+  as it answers, a confirmed plan when it is confirmed, withdrawn, settled or
+  dismissed - the parameters leave the plan and run records
+  (`_redact_spent_plan`: in `plan.json`, `run.json`, `result.json` and the journal,
+  here and in the daemon's run folder, every value under `params`, `vals`, `before`,
+  `after` and `values` is set to null and the keys stay). The per-visitor rate cap is
+  unchanged: it counts by the visitor's hash in `recent.jsonl`, a rolling hour's
+  counter no call line now joins to. The plan's `meta.json` keeps its owner
+  (`visitor:<hash>`) so a plan is still confirmed by its maker and nobody else.
+  Default off: a binding without the setting records as before.
+
+threat delta
+: Information disclosure, narrowed: less processing of personal data, which is the
+  point of the ruling. Before, a public write binding kept, for the plan's retention
+  (`$PLAN_KEEP_DAYS`) and the call record's 90 days, two records that together said
+  who sent what from where: the parameters and the owner hash in the plan store, the
+  address and the same hash on every call line. The hash was the join. After, on an
+  anonymous binding, no stored record holds the address, and the parameters are gone
+  once nothing will read them again; what remains is the owner hash in the plan
+  store beside redacted field names, and the hash in the rate counter for an hour -
+  a pseudonymous key joined to a binding and a time, and to nothing a person sent.
+  Nothing is widened: the setting takes nothing away from the gate (mode, switch,
+  OOM, connection), the caps, the CSRF token or the plan's ownership; a confirm is
+  still refused to anyone but the maker. Repudiation, slightly widened by design: an
+  operator reading the record of an anonymous binding can no longer say which
+  visitor made which call or from where - the trade the ruling makes, taken only
+  where the operator sets it, per binding. ADR 0007: no trigger fires - no new
+  interface, sign-in method, dependency or data; a setting on an existing door that
+  stores less.
+
+controls
+: t/unit/odoo/136: after an anonymous immediate apply the call line and its audit
+  row carry no address and no hash; the plan, run and journal records hold no
+  parameter value and keep their field names, fingerprint and outcomes; the setting
+  is refused on a non-public binding and for a value that is neither 0 nor 1; the
+  per-visitor cap still trips and is counted by the hash in `recent.jsonl`; a
+  confirmed plan keeps its parameters until the confirm and loses them after, with
+  both lines bare; a binding without the setting records the address and the hash as
+  before. Fails with the setting reverted (the binding cannot be saved) and with the
+  record and redaction reverted (the lines carry both, the records keep the values).
+  t/unit/odoo/03 (the record takes fixed fields only), 11 (the caps), 12 and 69 (a
+  plan's life) still pass.
+
+residual risk
+: The owner hash stays in `meta.json` for the plan's retention, and OOM's own records
+  (`run.json`'s `planned.by`, the journal's `actor`) name the same `visitor:<hash>`;
+  it is joined to no address and no values. The engine's event log carries the
+  binding and the operation for a refusal, never the parameters, as before. A page
+  that puts personal data into a parameter the operation writes to Odoo puts it in
+  Odoo, which this does not touch. A binding switched from anonymous to not keeps the
+  records it wrote while anonymous as they are (bare), and vice versa.
+
+verdict
+: drafted by the developer agent: accept as a hardening (less processing of personal
+  data), no trigger fired. For the release manager to confirm at the 0.16.8 walk.

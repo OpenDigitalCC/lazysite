@@ -739,19 +739,35 @@ sub domain_refusal {
 
 sub _rec_base {
     my ( $binding, %ctx ) = @_;
+
+    # SM1395 (ruling 154): an anonymous binding's record carries no visitor hash
+    # and no address - the two fields that joined the call line to the plan store
+    # and to the person. The audit row (_audit_line) reads the same record.
+    my $anon = ref $binding eq 'HASH' && $binding->{anonymous} ? 1 : 0;
     return (
         call_id => $ctx{call_id} // new_call_id(),
 
         # SM1161: a scheduled run on its binding's own key is `scheduled:<binding>`
         # in the record and the audit, not the job account that fired it.
         actor => ( length( $ctx{scheduled_as} // '' ) ? "scheduled:$ctx{scheduled_as}" : $ctx{actor} // '' ),
-        ( defined $ctx{visitor} ? ( visitor => $ctx{visitor} ) : () ),
-        ip        => $ctx{ip}    // '',
+        ( defined $ctx{visitor} && !$anon ? ( visitor => $ctx{visitor} ) : () ),
+        ( $anon ? () : ( ip => $ctx{ip} // '' ) ),
         mode      => $ctx{mode}  // '',
         phase     => $ctx{phase} // 'run',
         binding   => ( ref $binding eq 'HASH' ? $binding->{id}        // '' : '' ),
         operation => ( ref $binding eq 'HASH' ? $binding->{operation} // '' : '' ),
     );
+}
+
+# SM1395: a record built before its binding was known (a confirm's, a withdraw's,
+# a resume's early refusals), with the visitor and the address left out when the
+# binding it names is anonymous. A copy; the caller's hash is not changed.
+sub _anon_rec {
+    my ( $rec, $bid ) = @_;
+    my %r = %$rec;
+    my ($b) = length( $bid // '' ) ? find_binding($bid) : ();
+    delete @r{qw(ip visitor)} if ref $b eq 'HASH' && $b->{anonymous};
+    return \%r;
 }
 
 sub _refusal {
@@ -1231,7 +1247,13 @@ sub call {
 
     my $t0  = _now_hires();
     my $res = eval { _run( $b, $class, $conn, $params, \%c ) };
-    my $out = _finish( \%rec, $res, $@, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' );
+    my $err = $@;
+    my $out = _finish( \%rec, $res, $err, $t0, $class->writes ? ( $b->{apply} eq 'immediate' ? 'apply' : 'plan' ) : 'run' );
+    # SM1395: an anonymous binding's immediate apply is spent as it answers - the
+    # parameters leave its records now (a confirm's and a resume's leave with the
+    # blobs, below).
+    _redact_spent_plan( $b, $res->{plan} )
+        if $class->writes && ref $res eq 'HASH' && $res->{applied} && _plan_spent( $res, $err );
     # SM1275: an immediate apply that left a change unknown is a run its maker may resume
     $out = _note_unknown( $out, $b, $conn, cap => _holds_settle(%c), may_assume => 1 ) if $class->writes;
     return _session_end( $b, $out );
@@ -1348,7 +1370,7 @@ sub confirm {
         unless ref $meta eq 'HASH' && !$meta->{withdrawn}
         && ( ( length $who && ( $meta->{owner} // '' ) eq $who )
         || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
-    return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'expired',
+    return ( _refusal( { %{ _anon_rec( \%base, $meta->{binding} ) }, binding => $meta->{binding} // '' }, 'expired',
             'this plan is more than an hour old - make it again' ) )[1]
         if time - ( $meta->{created} // 0 ) > $PLAN_TTL;
 
@@ -1431,7 +1453,10 @@ sub confirm {
     # SM1162 (release manager, 2026-10-19: "When the plan is applied or withdrawn"): a
     # plan that has been applied (fully or partly) or refused as no longer
     # applicable will never run again, so the file bytes it holds go now.
-    purge_plan_blobs( $pid, $meta ) if _plan_spent( $res, $err );
+    if ( _plan_spent( $res, $err ) ) {
+        purge_plan_blobs( $pid, $meta );
+        _redact_spent_plan( $b, $pid );    # SM1395
+    }
     my $out = _finish( \%rec, $res, $err, $t0, 'apply' );
     # SM1275: a confirm that left a change unknown is a run its maker may resume
     $out = _note_unknown( $out, $b, $conn, cap => _holds_settle(%c), may_assume => 1 );
@@ -1487,6 +1512,82 @@ sub purge_plan_blobs {
     return $n;
 }
 
+# SM1395 (ruling 154): THE PARAMETERS LEAVE A SPENT PLAN'S RECORDS when the
+# binding is anonymous. OOM keeps what a visitor sent in the plan (plan.json:
+# params, each change's vals), in the run record (run.json: params) and in the
+# journal (each change's vals, before and after), here and, for a plan the
+# daemon made, in the daemon's run folder; with the owner visitor:<hash> beside
+# them, and the hash and the address on the call line, the three records
+# together said who sent what from where. Once the plan is spent - applied,
+# withdrawn, or refused for good - nothing reads the values again, so each is
+# redacted to its field name: the keys stay, the values are null. The fingerprint,
+# the counts, the ids made and the journal's outcomes stay. Returns how many
+# values went.
+sub _redact_spent_plan {
+    my ( $b, $pid ) = @_;
+    return 0 unless ref $b eq 'HASH' && $b->{anonymous};
+    return 0 unless defined $pid && $pid =~ /\A[0-9a-f]{32}\z/;
+    my $meta = _read_json_file( plans_dir() . "/$pid/meta.json" );
+    my @dirs = ( plans_dir() . "/$pid" );
+    my $run  = ref $meta eq 'HASH' ? ( $meta->{run_id} // '' ) : '';
+    push @dirs, store_dir() . "/runs/$run" if $run =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/;
+    my $n = 0;
+    for my $dir (@dirs) {
+        for my $f ( map { "$dir/$_" } qw(plan.json run.json result.json) ) {
+            next unless -f $f;
+            my $d = _read_json_file($f) or next;
+            my $k = _redact_values($d);
+            next unless $k;
+            eval { _write_json_file( $f, $d ); 1 } or next;
+            secure_write_perms( $f, 0660 );
+            $n += $k;
+        }
+        my $j = "$dir/journal.jsonl";
+        next unless -f $j;
+        open my $in, '<:raw', $j or next;
+        my ( @lines, $k );
+        while ( my $l = <$in> ) {
+            my $r = eval { JSON::PP::decode_json($l) };
+            if ( ref $r eq 'HASH' && ( my $c = _redact_values($r) ) ) {
+                $k += $c;
+                $l = JSON::PP->new->canonical->encode($r) . "\n";
+            }
+            push @lines, $l;
+        }
+        close $in;
+        next unless $k;
+        open my $out, '>:raw', "$j.tmp.$$" or next;
+        print {$out} @lines;
+        close $out;
+        secure_write_perms( "$j.tmp.$$", 0660 );
+        rename "$j.tmp.$$", $j or unlink "$j.tmp.$$";
+        $n += $k;
+    }
+    log_event( 'INFO', 'odoo', 'the parameters of an anonymous call left its records', plan => $pid, values => $n )
+        if $n;
+    return $n;
+}
+
+# The values under a params / vals / before / after / values map, anywhere in the
+# structure, to null; the keys stay. How many were set.
+sub _redact_values {
+    my ($v) = @_;
+    my $n = 0;
+    if ( ref $v eq 'HASH' ) {
+        for my $k ( keys %$v ) {
+            if ( $k =~ /\A(?:params|vals|before|after|values)\z/ && ref $v->{$k} eq 'HASH' ) {
+                for my $f ( keys %{ $v->{$k} } ) {
+                    $n++ if defined $v->{$k}{$f};
+                    $v->{$k}{$f} = undef;
+                }
+            }
+            else { $n += _redact_values( $v->{$k} ) }
+        }
+    }
+    elsif ( ref $v eq 'ARRAY' ) { $n += _redact_values($_) for @$v }
+    return $n;
+}
+
 # withdraw( $plan_id, %ctx ) -> { ok, withdrawn } or a refusal
 #
 # SM1162: the maker of an unapplied plan gives it up. Its file bytes go at once, it
@@ -1509,12 +1610,15 @@ sub withdraw {
     return ( _refusal( \%base, 'not-found', $nf ) )[1]
         unless ref $meta eq 'HASH' && !$meta->{withdrawn}
         && ( ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
-    return ( _refusal( { %base, binding => $meta->{binding} // '' }, 'applied', 'this plan has already been applied' ) )[1]
+    my $wrec = _anon_rec( \%base, $meta->{binding} );    # SM1395
+    return ( _refusal( { %$wrec, binding => $meta->{binding} // '' }, 'applied', 'this plan has already been applied' ) )[1]
         if -e "$dir/journal.jsonl";
     $meta->{withdrawn} = time;
     _write_json_file( "$dir/meta.json", $meta );
     my $n = purge_plan_blobs( $pid, $meta );
-    record_call( %base, binding => $meta->{binding} // '', operation => $meta->{operation} // '',
+    my ($wb) = find_binding( $meta->{binding} );
+    _redact_spent_plan( $wb, $pid ) if $wb;    # SM1395: withdrawn is spent too
+    record_call( %$wrec, binding => $meta->{binding} // '', operation => $meta->{operation} // '',
         outcome => 'answered' );
     return { ok => 1, withdrawn => 1, plan => $pid };
 }
@@ -1698,7 +1802,8 @@ sub resume {
     my $dir  = plans_dir() . "/$pid";
     my $meta = _read_json_file("$dir/meta.json");
     return ( _refusal( \%base, 'not-found', $nf ) )[1] unless ref $meta eq 'HASH' && $meta->{unknown};
-    %base = ( %base, binding => $meta->{binding} // '', operation => $meta->{operation} // '', run => $pid );
+    %base = ( %{ _anon_rec( \%base, $meta->{binding} ) },    # SM1395
+        binding => $meta->{binding} // '', operation => $meta->{operation} // '', run => $pid );
     return ( _refusal( \%base, 'invalid', $dwhy // $nwhy ) )[1] unless $done && $not;
     my $who = _owner(%c);
     my $own = ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) ? 1 : 0;
@@ -1757,8 +1862,12 @@ sub resume {
             or log_event( 'WARN', 'odoo', 'a settled run could not be recorded as settled', plan => $pid );
     # SM1279: the settled run's file bytes go now, and the resumed plan's once it is spent
         purge_plan_blobs( $pid, $meta );
+        _redact_spent_plan( $b, $pid );    # SM1395
         my $nmeta = _read_json_file( plans_dir() . "/$res->{plan}/meta.json" );
-        purge_plan_blobs( $res->{plan}, $nmeta ) if _plan_spent( $res, undef );
+        if ( _plan_spent( $res, undef ) ) {
+            purge_plan_blobs( $res->{plan}, $nmeta );
+            _redact_spent_plan( $b, $res->{plan} );
+        }
         $out = _note_unknown( $out, $b, $conn, cap => $cap, may_assume => ( $own || $cap ) );
     }
     elsif ( ( $out->{kind} // '' ) eq 'unknown-outcome' ) {
@@ -3435,6 +3544,8 @@ sub action_odoo_dismiss {
         ( defined $reason && length $reason ? ( reason => $reason ) : () ) };
     _write_json_file( "$dir/meta.json", $meta );
     purge_plan_blobs( $pid, $meta );
+    my ($db) = find_binding( $meta->{binding} );
+    _redact_spent_plan( $db, $pid ) if $db;    # SM1395: dismissed is spent too
     record_call( %base, outcome => 'answered' );
     return { ok => 1, dismissed => 1, run => $pid };
 }
