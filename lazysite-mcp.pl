@@ -1395,7 +1395,7 @@ my %TOOLS = (
     },
     # SM1387: the twin of group-delete, on the same module.
     delete_group => {
-        description => 'Delete a group you created with set_group, once nothing uses it. Refused while the group has a member (an account or a nested group) or anything names it - an access rule (set_permissions), a page\'s auth_groups, a domain\'s allowed_groups, a data table\'s writable_by, a form or handler, a lazysite.conf setting or another group - and the refusal names each. Remove those first. The operator group is never deleted. A grant confined to some domains deletes only the groups it created.',
+        description => 'Delete a group you created with set_group, once nothing uses it. Refused while the group has a member (an account or a nested group) or anything names it - an access rule (set_permissions), a page\'s auth_groups, a domain\'s allowed_groups, a data table\'s writable_by, a form or handler, a lazysite.conf setting or another group - and the refusal names each. Remove those first. The operator group is never deleted. A token deletes only the groups it created with set_group, whatever domains its grant reaches; the operator deletes any group from the manager\'s Groups page.',
         cap         => 'manage_users',
         inputSchema => { type => 'object',
             properties => {

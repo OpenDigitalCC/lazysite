@@ -306,6 +306,13 @@ Archive
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.
+- SM1408 (PENDING) **a token's group refusal says what it is.** Every token deletes and
+  changes only the groups it created, and the refusal called it "a domain-confined
+  caller", which a token confined to no domain read as wrong. The rule stands; the
+  group-delete and group-set refusals (delete_group, set_group over MCP) and
+  delete_group's description now say a token is bound by it and the operator deletes or
+  changes any group from the manager's Groups page (t/integration/368).
+
 - SM1407 (PENDING) **`analysts` and `lead-readers` reach a site bootstrapped before
   them.** The two roles shipped with the bundle layer (0.11.2) in the seed only, and no
   adoption named them, so an older site got the agent roles and the bundles and never

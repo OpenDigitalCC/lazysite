@@ -45,6 +45,15 @@ our @EXPORT_OK = qw(groups_list group_set group_delete relevant_groups existing_
 # Group names the users tool accepts (cmd_group_create, cmd_group_settings_set).
 my $NAME_RE = qr/\A[A-Za-z0-9_-]{1,64}\z/;
 
+# SM1408: who the created-by rule binds, in the words a caller recognises.
+# `confined` is every token (whatever its grant's domains) and a cookie account
+# whose groups bind a domain; "a domain-confined caller" read as wrong to a
+# token confined to no domain. And who is not bound: the operator, on the
+# manager's Groups page.
+my $CONFINED_RULE = 'A token, or an account whose groups confine it to a domain,';
+my $OPERATOR_ANY  = "the operator %s any group from the manager's Groups page";
+my $CREATED_WITH  = 'group-set, or set_group over MCP';
+
 # The store, read once per call: ( settings hashref, membership hashref ).
 sub _store {
     local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
@@ -209,10 +218,12 @@ sub group_set {
 
     # A domain-confined caller changes the groups it made, and makes new ones.
     # Any other group is another domain's, or the instance's.
+    # SM1408: the words say who that is. `confined` is set for EVERY token, so a
+    # token confined to no domain read "a domain-confined caller" as wrong.
     return { ok => 0, kind => 'forbidden',
-        error => "'$group' exists and was not created by this account. A domain-confined "
-            . 'caller changes only the groups it created with group-set; choose another '
-            . 'name, or ask the operator.' }
+        error => "'$group' exists and was not created by this account. $CONFINED_RULE "
+            . "changes only the groups it created ($CREATED_WITH); choose another name, or "
+            . sprintf( $OPERATOR_ANY, 'changes' ) . '.' }
         if $exists && $who{confined} && ( $rec->{created_by} // '' ) ne $actor;
 
     # THE DELEGATION LIMIT (ruled: "holds AND may grant"). Turning a capability
@@ -293,8 +304,8 @@ sub group_delete {
         if $rec->{manager} || Lazysite::Auth::Acl::group_confers_operator($group);
 
     return { ok => 0, kind => 'forbidden',
-        error => "'$group' was not created by this account. A domain-confined caller deletes "
-            . 'only the groups it created with group-set; ask the operator.' }
+        error => "'$group' was not created by this account. $CONFINED_RULE deletes only "
+            . "the groups it created ($CREATED_WITH); " . sprintf( $OPERATOR_ANY, 'deletes' ) . '.' }
         if $who{confined} && ( $rec->{created_by} // '' ) ne $actor;
 
     my $r = Lazysite::Manager::Common::users_api(
