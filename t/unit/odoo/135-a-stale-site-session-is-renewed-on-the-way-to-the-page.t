@@ -286,4 +286,31 @@ subtest 'without the Odoo session cookie nothing is ended, and next stays on the
 };
 
 diag $logs if $ENV{T135_LOGS};
+# ================================================================================
+subtest 'a site with its own sign-in page: the step falls back there, next kept' => sub {
+    spit( "$d/signin.md", "---\ntitle: Sign in\nauth: none\n---\nSIGNIN\n" );
+    my $conf = do { open my $fh, '<', "$LZ/lazysite.conf" or die $!; local $/; <$fh> };
+    spit( "$LZ/lazysite.conf", $conf . "auth_redirect: /signin\n" );
+
+    my $sid = sign_in();
+    age();
+    my $p = page( '/members', "lazysite_auth=$JAR{lazysite_auth}; lzs_session=1" );
+    is( $p->{location}, "$RENEW&next=%2Fmembers", 'the stale page goes to the renewal step' );
+    $http->expire($sid);
+    my $r = request( 'GET', 'renew=1&next=%2Fmembers', undef, HTTP_COOKIE => jar() );
+    is( $r->{location}, '/signin?next=%2Fmembers', 'Odoo ended it: on to the site\'s sign-in page, next kept' );
+
+    sign_in();
+    age();
+    $r = request( 'GET', 'renew=1&next=%2Fmembers', undef, HTTP_COOKIE => jar('lzs_odoo_session') );
+    is( $r->{location}, '/signin?next=%2Fmembers', 'no Odoo cookie: the same page' );
+    $p = page( '/members', "lazysite_auth=$JAR{lazysite_auth}; lzs_session=1; lzs_renewed=1" );
+    is( $p->{location}, '/signin?next=%2Fmembers', 'and the gate\'s own fallback, after the guard, is the same page' );
+
+    spit( "$LZ/lazysite.conf", $conf . "auth_redirect: //evil.example/x\n" );
+    $r = request( 'GET', 'renew=1&next=%2Fmembers', undef, HTTP_COOKIE => jar('lzs_odoo_session') );
+    is( $r->{location}, '/login?next=%2Fmembers', 'an auth_redirect that is not a same-site path: /login' );
+    spit( "$LZ/lazysite.conf", $conf );
+};
+
 done_testing();

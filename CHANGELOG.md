@@ -72,7 +72,7 @@ Archive
   out, although their Odoo session was still good. The page gate now sends such a session
   to a renewal step on the Odoo endpoint (`?renew=1&next=`). The step asks Odoo once and
   returns the person to the page. If Odoo has ended the session, it sends them to `/login`
-  with `next` kept. `?action=session` goes through the same step. A cookie,
+  with `next` kept (a site's own `auth_redirect` page where one is set). `?action=session` goes through the same step. A cookie,
   `lzs_renewed`, guards against a loop: one renewal a minute, then the sign-in. The
   refusal is logged at INFO. t/unit/odoo/135.
 

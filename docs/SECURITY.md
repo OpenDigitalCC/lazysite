@@ -3198,7 +3198,8 @@ what changed
   to the sign-in. The auth CGI's `?action=session` redirects to `?renew=1&answer=session`.
   The step runs the renewal `?csrf=1` already runs (`_site_state`), once, then answers.
   Renewed: back to `next`, or `signed_in: true`. Odoo has ended the session: both
-  sessions end, as on `?csrf=1`, and the step goes to `/login?next=` or answers
+  sessions end, as on `?csrf=1`, and the step goes to the site's sign-in page
+  (`auth_redirect`, else `/login`) with `next`, or answers
   `signed_in: false`. Every answer sets `lzs_renewed=1` (60 s), and a gate that meets
   the verdict while that cookie is held goes to the sign-in instead. The refusal is
   logged at INFO.
@@ -3240,8 +3241,8 @@ residual risk
 : A visitor holding a stale session can make one Odoo call per request to the step,
   as they could already with `?csrf=1`. The rate is no higher than today's. A client
   can set `lzs_renewed` itself, which only skips its own renewal. The step's sign-in
-  target is `/login`, not a site's own `auth_redirect`: a site that moved its sign-in
-  page gets `/login` from the step (the gate's own redirect is unchanged). The pool
+  target is the site's `auth_redirect` (held to a same-site path, else `/login`), as
+  the gate's own refusal goes. The pool
   path (the front door's verdict, `renew`) is held by t/integration/293, the plain-CGI
   wrapper's (the gate re-asks the verifier) by t/unit/odoo/135.
 

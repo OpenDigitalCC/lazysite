@@ -80,16 +80,22 @@ out), `/cgi-bin/lazysite-odoo.pl`, `/assets/lazysite-odoo.js`, `/odoo-signin`, t
 actions, the MCP tools, the capabilities and oomd's socket all stay as they are.
 
 If a site **edited** one of the old module files, the upgrade keeps that file and
-names it as an orphan in its summary. Odoo then stops loading, with an error naming
-the file, rather than running the stale copy. Remove the named file and Odoo answers
-again.
+names it in its summary, under `Orphans: N (edited post-install, left in place):`,
+as `- {DOCROOT}/../lib/Lazysite/Odoo/<Name>.pm`. Odoo then refuses to load rather
+than run the stale copy, and the error the web server logs names the file:
+`Lazysite/Odoo/<Name>.pm is in the payload lib .../extensions/odoo/lib and also at
+.../lib/Lazysite/Odoo/<Name>.pm - a copy an earlier release left outside the
+extension; remove it`. Keep any change you need from that file (the released copy
+is in `extensions/odoo/lib/`), delete the named file, and Odoo answers again; no
+restart is needed.
 
 Odoo still ships in the same package as the engine. The separate package is 0.16.9.
 
 **A stale Odoo site session is renewed, not refused (SM1381).** On a site with
 `odoo_site_signin: on`, a person idle past `odoo_identity_ttl` who opens a protected
 page now passes through `/cgi-bin/lazysite-odoo.pl?renew=1` and back to the page. If
-Odoo has ended their session they reach `/login` instead. The step needs no
+Odoo has ended their session they reach the site's sign-in page instead
+(`auth_redirect`, else `/login`), with `next` kept. The step needs no
 configuration. A front end that sends `/cgi-bin/lazysite-odoo.pl` to the engine already
 sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a loop.
 

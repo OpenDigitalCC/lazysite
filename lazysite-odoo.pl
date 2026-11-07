@@ -806,7 +806,9 @@ sub _renew {
         push @EXTRA, "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure" unless $renewed;
         return reply( '200 OK', { ok => JSON::PP::true(), signed_in => $renewed ? JSON::PP::true() : JSON::PP::false() } );
     }
-    my $to = $renewed ? $next : '/login?next=' . ( $next =~ s/([^A-Za-z0-9._-])/sprintf( '%%%02X', ord $1 )/ger );
+    # Not renewed: to the site's own sign-in page (lazysite.conf `auth_redirect`, as the
+    # page gate's refusal goes), `next` kept.
+    my $to = $renewed ? $next : _signin_page($lz) . '?next=' . ( $next =~ s/([^A-Za-z0-9._-])/sprintf( '%%%02X', ord $1 )/ger );
     binmode STDOUT;
     print "Status: 303 See Other\r\n";
     print "Location: $to\r\n";
@@ -814,6 +816,17 @@ sub _renew {
     print "$_\r\n" for @EXTRA;
     print "Content-Length: 0\r\n\r\n";
     return 0;
+}
+
+# The site's sign-in page: lazysite.conf's `auth_redirect`, held to the shape a
+# sign-in return has (a same-site path), else /login - what the page gate and the
+# auth CGI fall back to.
+sub _signin_page {
+    my ($lz) = @_;
+    my $text = '';
+    if ( open my $fh, '<:utf8', "$lz/lazysite.conf" ) { local $/; $text = <$fh> // ''; close $fh }
+    my $p = Lazysite::Util::conf_text_value( $text, 'auth_redirect' );
+    return ( defined $p && length $p && $p ne '/' && Lazysite::Util::sanitise_next($p) eq $p ) ? $p : '/login';
 }
 
 sub _identity_cookie_out {

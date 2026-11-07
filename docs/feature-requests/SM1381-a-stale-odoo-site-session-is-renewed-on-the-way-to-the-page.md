@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "developer agent (0.16.7 brief, n762)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n762: the odoo-stale verdict names the renewal path; the page gate and ?action=session send the visitor to ?renew=1 on the Odoo endpoint, which renews once and returns them, or sends them to /login with next. Loop guard lzs_renewed. Register entry drafted. t/unit/odoo/135, t/unit/auth/74."
+status-note: "SHIPPED (PENDING) on n762: the odoo-stale verdict names the renewal path; the page gate and ?action=session send the visitor to ?renew=1 on the Odoo endpoint, which renews once and returns them, or sends them to the site's sign-in (auth_redirect, else /login) with next. Loop guard lzs_renewed. Register entry drafted. t/unit/odoo/135, t/unit/auth/74."
 ---
 
 # What happened
@@ -44,7 +44,9 @@ The page gate
 The renewal step
 : `GET /cgi-bin/lazysite-odoo.pl?renew=1&next=/path` runs the renewal `?csrf=1` runs,
   once. Renewed: `303` to `next`. If Odoo has ended the session, both sessions end, as on
-  `?csrf=1`, and the step sends the person to `/login?next=/path`. It does the same if
+  `?csrf=1`, and the step sends the person to the site's sign-in page with `next`:
+  lazysite.conf's `auth_redirect`, held to a same-site path, else `/login`, as the
+  page gate's own refusal goes. It does the same if
   Odoo could not be asked. A session that is not stale goes back to the page without
   asking anything. `next` is a same-site path by the sign-in's own rule
   (`sanitise_next`). The step takes GET only.
@@ -77,7 +79,8 @@ Odoo endpoint and OOM's session transport:
 
 - a stale session on a protected page goes through the step and back to the page, which
   is served;
-- a session Odoo has ended goes on to `/login` with `next` kept;
+- a session Odoo has ended goes on to the sign-in with `next` kept, and to a site's
+  own `auth_redirect` page where one is set;
 - `?action=session` renews through the step;
 - the loop guard sends the visitor to the sign-in;
 - without the Odoo cookie nothing is ended;
