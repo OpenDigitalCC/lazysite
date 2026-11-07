@@ -1580,6 +1580,20 @@ sub action_form_notify_save {
     my $text = _slurp( $path, "forms/$form.conf" );
     return { ok => 0, error => _unreadable("$form.conf") . '; nothing was written' }
         unless defined $text;
+
+    # SM1402 (triage T-92): A FORM THAT DOES NOT EXIST TAKES NO SETTING. The
+    # doors (form-notify-save, set_form_notify) asked only whether the caller
+    # reaches the form, and this wrote lazysite/forms/<name>.conf for any name -
+    # a conf for a form nobody made, holding one notify: line. A name that is
+    # neither registered (its conf exists) nor bound on a page is refused,
+    # naming create_form; a form a page binds and no conf registers yet is a
+    # form, and its conf is made here as it was.
+    if ( !-e $path && !_form_is_bound($form) ) {
+        return { ok => 0, kind => 'not-found', field => 'form',
+            error => "no form '$form': forms/$form.conf is not registered and no page binds it "
+                . "(form: $form in its front matter), so there is no form to set a notice for - "
+                . 'create it with create_form first' };
+    }
     my ( $ids, undef, $other ) = parse_form_conf($text);
 
     # Every notify: line goes and one is written. The reader takes the FIRST, so
@@ -1598,6 +1612,18 @@ sub action_form_notify_save {
         $r{announces} = Lazysite::Notify::route_report( $DOCROOT, 'submission', $read );
     }
     return \%r;
+}
+
+# SM1402: whether any page binds the form (`form: NAME` in its front matter), by
+# the walk the manager already makes for a form's pages (Manager::Common
+# form_pages), over this module's docroot.
+sub _form_is_bound {
+    my ($form) = @_;
+    require Lazysite::Manager::Common;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT = $DOCROOT;
+    my @pages = Lazysite::Manager::Common::form_pages($form);
+    return @pages ? 1 : 0;
 }
 
 # Why a form cannot use this handler, or ''. A connector that refuses public

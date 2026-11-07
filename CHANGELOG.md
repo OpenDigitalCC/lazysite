@@ -143,6 +143,14 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1402 (PENDING) **A notify setting for a form that does not exist is refused (triage
+  T-92).** `set_form_notify` (MCP) and `form-notify-save` (API) asked only whether the
+  caller reaches the form, and `action_form_notify_save` wrote `lazysite/forms/<name>.conf`
+  for any name - a conf for a form nobody made. A name that is neither registered (its conf
+  exists) nor bound on a page (`form: NAME` in its front matter) is refused (`kind:
+  not-found`, `field: form`), naming `create_form`; a registered form still saves, and a form
+  a page binds whose conf is not there yet is made as before. `t/unit/forms/76`.
+
 - SM1404 (PENDING) **A listing carries no entry named after a rule's address profile (triage
   T-93).** On 0.16.6 an operator's `list_files /zz78-addr` showed, beside the page, an entry
   named after the folder rule's address profile with no type. Reproduced on a scratch site:

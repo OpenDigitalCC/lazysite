@@ -494,6 +494,9 @@ The form's own setting can be changed there too: **This form's notice** is Off
 written to the form's conf as `notify:`. Over the API the same change is
 `form-notify-save` (`{ "form": "contact", "notify": "off" }`), or
 `set_form_notify` over MCP; the reply says where a submission notice now goes.
+The form must exist: a name that is neither registered (its conf under
+`lazysite/forms/`) nor bound on a page (`form: NAME` in its front matter) is
+refused (`kind: not-found`), naming `create_form`.
 
 A notice for a form that keeps its submissions in a file **links to that
 submission**: following it from the bell opens the one row that arrived, with a
