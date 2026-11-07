@@ -543,7 +543,7 @@ recipients: [{"groups":["site-owners"]}]
 
 Each member gets one message at the address on their account. It needs the
 Form SMTP extension enabled with its settings saved, and the daemon running
-(see `notify` under [Handler types](#handler-types)).
+(see `notify` under [Handler types](#handlertypes)).
 
 The site's owner need not be its operator: give them an account with their
 address and put it in the group the handler names. (0.16.6's `owner_contact:`
