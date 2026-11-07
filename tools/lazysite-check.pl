@@ -3827,8 +3827,14 @@ sub report_extensions_list {
 # extension that declares hooks have its entry (an index built before it was
 # enabled by hand, or whose build failed, runs none of its actions); and which
 # capabilities the index declares, which the manager-group walk above reads.
+# The index and its failure note, by the names Lazysite::Extensions::Hooks gives
+# them ($INDEX_FILE, $INDEX_FAILED), in the site's lazysite/ tree. Subs, not
+# file-scope variables: this file's main program runs and exits above them.
+sub _hook_index_file        { return 'extensions.index.json' }
+sub _hook_index_failed_file { return 'extensions.index.failed' }
+
 sub _read_hook_index {
-    my $p = "$LZ/extensions.index.json";
+    my $p = "$LZ/" . _hook_index_file();
     return undef unless -f $p;
     open my $fh, '<:raw', $p or return undef;
     my $raw = do { local $/; <$fh> };
@@ -3846,11 +3852,12 @@ sub declared_capabilities {
         next unless ref $e eq 'HASH' && ref $e->{capabilities} eq 'ARRAY';
         $c{$_} = 1 for grep { defined && !ref && /\A[a-z][a-z0-9_]*\z/ } @{ $e->{capabilities} };
     }
-    return sort keys %c;
+    my @caps = sort keys %c;
+    return @caps;
 }
 
 sub report_hook_index {
-    my $failed = "$LZ/extensions.index.failed";
+    my $failed = "$LZ/" . _hook_index_failed_file();
     if ( -f $failed ) {
         my $why = '';
         if ( open my $fh, '<', $failed ) { $why = <$fh> // ''; close $fh; chomp $why }

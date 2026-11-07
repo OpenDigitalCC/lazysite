@@ -162,8 +162,15 @@ cmp_ok( scalar keys %seen, '>=', 60, 'refusal kinds were found to check' )
 
 my %STATUS = %Lazysite::Manager::Common::REFUSAL_STATUS;
 
+# SM1369 X2 (H-9): and the kinds the in-tree extensions declare (hooks.refusal_kinds),
+# which refusal_status reads from the index after core's - so a kind Odoo emits is
+# decided by its declaration, mirrored here as a door mirrors it.
+TestHelper::mirror_engine();
+my $declared = sub { Lazysite::Extensions::Hooks::declared_refusal_status( $_[0] ) };
+cmp_ok( scalar( grep { defined $declared->($_) } keys %seen ), '>=', 5, 'the declared kinds were read' );
+
 for my $kind ( sort keys %seen ) {
-    my $mapped     = exists $STATUS{$kind};
+    my $mapped     = exists $STATUS{$kind} || defined $declared->($kind);
     my $deliberate = $DELIBERATE_400{$kind};
 
     ok( $mapped || $deliberate, "'$kind' has a decided status" )

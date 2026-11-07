@@ -123,7 +123,15 @@ my %T       = (
     'lib/Lazysite/Daemon/Service/Scheduler.pm' => { '%JOBS' => 'the job table: names, intervals and code references' },
     'lib/Lazysite/Data/Descriptor.pm' => { '%TYPE' => $DERIVED, '%TRUE' => $DERIVED, '%FALSE' => $DERIVED },
     'lib/Lazysite/Data/Owned.pm' => { '%RESERVED' => $DERIVED, '%STAMPED' => $DERIVED },
-    'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED },
+    # SM1369 X2: core's names, constant at load; the site's declarations are added
+    # per process from its extension index, never in the warm-fork parent's compile.
+    'lib/Lazysite/Auth/Settings.pm' => { '@CORE_CAP_KEYS' => 'a copy of the constant core capability list' },
+    'lib/Lazysite/Capabilities.pm' => { '%IS_CHANNEL' => $DERIVED },
+    'lib/Lazysite/ControlApi/Actions.pm' => { '%FIELD' => $DERIVED, '%DECLARED_FIELD' => $DERIVED,
+        '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load' },
+    'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED,
+        '%KINDS' => 'the constant hook vocabulary, with code references to its validators',
+        '%ROW_KEY' => $DERIVED, '%FLAG' => $DERIVED },
     'lib/Lazysite/Handlers.pm'   => { '%RESERVED_FORM' => $DERIVED },
     'lib/Lazysite/Lifecycle.pm'  => { '%IS_VERDICT'    => $DERIVED },
     'lib/Lazysite/Manager/Common.pm' => { '$DANGEROUS_RE' => $PATTERN, '%REFUSAL_STATUS' => $DERIVED },
