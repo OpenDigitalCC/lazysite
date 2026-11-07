@@ -780,7 +780,7 @@ sub rebuild_hook_index {
         # SM1369 X5: a declaration that names files to serve or render is indexed
         # with its payload directory, functions or none.
         my ($payload) = Lazysite::Extensions::Hooks::check_payload_files( $id, $x->{full}, $owns->{hooks} );
-        next unless @$fns || defined $payload;    # an empty map names nothing to call or serve
+        next unless @$fns || defined $payload; # an empty map names nothing to call or serve
         my @req = @{ $owns->{requires} || [] };
         $entries{$id} = {
             key           => $x->{key},

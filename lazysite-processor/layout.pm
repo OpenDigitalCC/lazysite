@@ -563,7 +563,7 @@ sub render_template {
         # template that does not know what the body contains.
         $output = _inject_data_helper($output);
         $output = _inject_account_helper($output);    # SM1043
-        $output = _inject_extension_assets($output);   # SM1369 X5
+        $output = _inject_extension_assets($output);    # SM1369 X5
         $output = _inject_app( $output, $vars );      # SM1155
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
@@ -692,7 +692,7 @@ sub render_template {
     $output = _inject_auth_sync($output);
     $output = _inject_data_helper($output);
     $output = _inject_account_helper($output);    # SM1043
-    $output = _inject_extension_assets($output);   # SM1369 X5
+    $output = _inject_extension_assets($output);    # SM1369 X5
     $output = _inject_app( $output, $vars );      # SM1155
     $output = _inject_form_base($output);         # SM1289
 

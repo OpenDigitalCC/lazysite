@@ -65,7 +65,7 @@ sub convert_fenced_components {
     return $text
         unless ( defined $layout_dir && -d "$layout_dir/components" )
         || -d "$LAZYSITE_DIR/templates/components"
-        || _extension_component_dirs();    # SM1369 X5: or an enabled extension declares one
+        || _extension_component_dirs();  # SM1369 X5: or an enabled extension declares one
     return $text unless $text =~ /^:::[ \t]+[\w-]+/m;    # fast bail
 
     my @lines = split /\n/, $text, -1;

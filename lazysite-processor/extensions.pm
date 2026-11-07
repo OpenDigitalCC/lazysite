@@ -158,10 +158,10 @@ sub _extension_asset {
 # would have refused it - and the reason is logged.
 sub _serve_extension_asset {
     my ($uri) = @_;
-    my $hit = _extension_asset($uri) or return 0;
-    my $real = $hit->{path};
+    my $hit   = _extension_asset($uri) or return 0;
+    my $real  = $hit->{path};
     my ($ext) = $real =~ /\.([A-Za-z0-9]+)\z/;
-    my $ct = $STATIC_CT{ lc( $ext // '' ) };
+    my $ct    = $STATIC_CT{ lc( $ext // '' ) };
     unless ($ct) {
         log_event( 'WARN', $uri, 'a declared asset is of a type the engine does not serve',
             extension => $hit->{id}, file => $hit->{asset}{file} );
@@ -247,7 +247,7 @@ sub _inject_extension_assets {
             next unless _extension_file_ok( $a->{file} ) && $a->{file} =~ /\.js\z/;
             my $when = $a->{inject_when};
             next unless defined $when && !ref $when && $when =~ /\Adata-[a-z0-9-]+\z/;
-            next unless $html =~ m{\b\Q$when\E\b};
+            next if $html !~ m{\b\Q$when\E\b};
             my $alias = defined $a->{alias} && !ref $a->{alias} && $a->{alias} =~ m{\A/assets/[^/]+\z} ? $a->{alias} : undef;
             my $src = $alias // "/assets/$id-$a->{file}";
             next if $html =~ m{\Q$src\E} || $html =~ m{/assets/\Q$id-$a->{file}\E};
