@@ -618,9 +618,11 @@ sub _front_session {
         cookie_sent => length $cookie ? 1 : 0 );
     log_event( $line[0], $uri, @line[ 1 .. $#line ] ) if @line;
 
+    # SM1381: renew - where a session refused only as stale is renewed (the verdict's)
     $REQUEST_IDENT = $ident || {
         user => '', groups => [], name   => '', email => '', sid => '', no_password => 0,
-        odoo => 0,  stale  => 0,  source => 'anonymous', why => $why // '' };
+        odoo  => 0,  stale  => 0, source => 'anonymous', why => $why // '',
+        renew => $detail{renew} // '' };
     return;
 }
 

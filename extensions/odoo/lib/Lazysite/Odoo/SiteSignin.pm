@@ -49,6 +49,16 @@ sub enabled {
     return ( lc( conf($dir)->{odoo_site_signin} // '' ) =~ /\A(?:on|yes|true|1)\z/ ) ? 1 : 0;
 }
 
+# SM1381: WHERE A STALE SITE SESSION IS RENEWED. A session past odoo_identity_ttl holds
+# nothing until Odoo is asked again, and only the Odoo endpoint holds the person's Odoo
+# session (its cookie is scoped to the endpoint's path), so the page gate sends the
+# visitor here with `next`, and `?action=session` with `answer=session`. The verifier
+# hands this path to core with its `odoo-stale` verdict (Auth::Session, `renew`), so
+# core names no endpoint of its own. A path with a query, nothing else.
+our $RENEW_PATH = '/cgi-bin/lazysite-odoo.pl?renew=1';
+
+sub renew_path { return $RENEW_PATH }
+
 # 60..86400 seconds, else the default - the rule Identity::configured_ttl applies.
 sub identity_ttl {
     my ($dir) = @_;

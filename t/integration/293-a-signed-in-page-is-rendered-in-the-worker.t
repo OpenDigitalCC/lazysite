@@ -345,7 +345,12 @@ subtest 'SM1160: an Odoo site sign-in sees its pages, and nothing past odoo_iden
         'its record is now older than odoo_identity_ttl' );
     my $stale = req( '/wholesale', HTTP_COOKIE => "lazysite_auth=$cookie" );
     unlike( $stale, qr/TRADE WHO=/, 'past the TTL it grants nothing' );
-    ok( to_login($stale), 'the request is anonymous until Odoo is asked again' );
+    # SM1381: and the worker's gate sends it to the Odoo endpoint's renewal step, with
+    # next, from the front door's own verdict; once that was tried, to the sign-in.
+    like( $stale, qr{^Location: /cgi-bin/lazysite-odoo\.pl\?renew=1&next=%2Fwholesale\r?$}mi,
+        'the request is anonymous until Odoo is asked again, and goes to be renewed' );
+    my $tried = req( '/wholesale', HTTP_COOKIE => "lazysite_auth=$cookie; lzs_renewed=1" );
+    ok( to_login($tried), 'renewal already tried: to the sign-in' );
 };
 
 ok( kill( 0, $pid ), 'the one worker served every request above and is still running' );

@@ -9,9 +9,10 @@
 # asks GET /cgi-bin/lazysite-auth.pl?action=session, which answers request_session's
 # verdict and clears the marker when it is no.
 #
-#   - the server: a valid session is yes; none, an expired, a mis-signed, an unknown
-#     account's and a stale Odoo session are no, and clear the marker; a fresh Odoo
-#     session is yes. The answer is never cached.
+#   - the server: a valid session is yes; none, an expired, a mis-signed and an unknown
+#     account's are no, and clear the marker; a fresh Odoo session is yes; a stale one
+#     goes through the Odoo endpoint's renewal step (SM1381), which answers. The
+#     answer is never cached.
 #   - the script (under node, t/lib/auth-check-harness.js): a no clears the marker and
 #     shows the sign-in; a yes, an error and no answer leave the page as drawn; a page
 #     without data-ls-auth-check, or a visitor without the marker, asks nothing.
@@ -110,10 +111,15 @@ subtest 'an Odoo session gone stale is refused, a fresh one honoured' => sub {
     my $f = ask("lazysite_auth=$fresh; lzs_session=1");
     ok( $f->{body}{signed_in}, 'checked within odoo_identity_ttl: signed in' ) or diag( $f->{raw} );
     unlike( $f->{head}, $CLEAR, '...marker kept' );
+    # SM1381: checked longer ago than odoo_identity_ttl, it is not answered signed out:
+    # it goes through the Odoo endpoint's renewal step, which gives this same answer
+    # once it has asked Odoo (t/unit/odoo/135).
     my $s = ask("lazysite_auth=$stale; lzs_session=1");
-    ok( exists $s->{body}{signed_in} && !$s->{body}{signed_in}, 'checked longer ago than odoo_identity_ttl: not signed in' )
+    like( $s->{head}, qr/^Status: 303/mi, 'checked longer ago than odoo_identity_ttl: sent to be renewed' )
         or diag( $s->{raw} );
-    like( $s->{head}, $CLEAR, '...and the marker is cleared' );
+    like( $s->{head}, qr{^Location: /cgi-bin/lazysite-odoo\.pl\?renew=1&answer=session\r?$}mi,
+        '...at the Odoo endpoint, for this answer' );
+    unlike( $s->{head}, $CLEAR, '...the marker is left to the renewal step' );
     unlike( $s->{head}, qr/^Set-Cookie:\s*lazysite_auth=/mi, '...the session cookie is left to the Odoo endpoint' );
 };
 

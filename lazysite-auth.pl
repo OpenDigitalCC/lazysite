@@ -667,6 +667,19 @@ sub handle_session {
         cookie_sent => length( $ENV{HTTP_COOKIE} // '' ) ? 1 : 0 );
     log_event( $line[0], $uri, @line[ 1 .. $#line ] ) if @line;
 
+    # SM1381: a session refused only until its provider is asked again (the verdict
+    # carries the provider's renewal path) is renewed there rather than answered as
+    # signed out: the provider's endpoint holds what renewing needs, and gives this
+    # same answer. A same-origin fetch follows the redirect with its cookies.
+    my $renew = $ident ? '' : ( $detail{renew} // '' );
+    if ( length $renew && $renew =~ m{\A/[\w/.-]*\?[\w=&]+\z} && $renew !~ m{//} ) {
+        log_event( 'INFO', $uri, 'auth: session not accepted - sent to be renewed', why => $why // '' );
+        print "Status: 303 See Other\r\n";
+        print "Location: $renew&answer=session\r\n";
+        print "Cache-Control: no-store\r\n\r\n";
+        return;
+    }
+
     require JSON::PP;
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
     binmode( STDOUT, ':utf8' );

@@ -238,6 +238,7 @@ sub main {
     my $device  = Lazysite::Odoo::Session::device_from_cookie( $ENV{HTTP_COOKIE}  // '' );
 
     my $q = _query();
+    return _renew( $docroot, $q, $user, $odoo_session ) if $method eq 'GET' && ( $q->{renew} // '' ) eq '1';
     if ( ( $q->{csrf} // '' ) eq '1' ) {
         unless ($visitor) {
             my ( $key, $cookie ) = Lazysite::Odoo::Visitor::mint();
@@ -761,6 +762,58 @@ sub _site_state {
         return ( '', undef, undef );
     }
     return ( '', undef, undef );
+}
+
+# SM1381: THE RENEWAL STEP. A site session the Odoo sign-in minted holds nothing once
+# odoo_identity_ttl has passed without Odoo being asked (Auth::Session, `odoo-stale`),
+# and only this endpoint receives the person's Odoo session (its cookie is scoped to
+# this path), so the page gate sends a refused protected page here:
+#
+#   GET ?renew=1&next=/path          a page: 303 back to `next` once renewed, else to
+#                                    /login?next=/path
+#   GET ?renew=1&answer=session      the auth CGI's ?action=session, redirected: the
+#                                    same answer, { ok, signed_in }, after renewing
+#
+# It runs the renewal ?csrf=1 runs (_site_state), once, and nothing else. Only a
+# session that is the Odoo sign-in's, stale, with the Odoo session cookie beside it is
+# renewed: Odoo is asked once, and if Odoo has ended the session both are ended, as on
+# ?csrf=1. Without the Odoo cookie nothing is ended - a cross-site request does not
+# carry it (SameSite=Strict), so it cannot sign anybody out - and the visitor is sent
+# to sign in. A session that is not stale is answered as signed in and asks nothing.
+#
+# THE LOOP GUARD: every answer sets lzs_renewed=1 for 60 seconds (path /), and the page
+# gate does not send a visitor who holds it here again, so a renewal that does not take
+# (Odoo could not be asked, a clock out of step) ends at the sign-in, not in a loop.
+# `next` is a same-site path by the sign-in's own rule (Lazysite::Util::sanitise_next).
+sub _renew {
+    my ( $docroot, $q, $user, $odoo_session ) = @_;
+    require Lazysite::Util;
+    my $next = Lazysite::Util::sanitise_next( $q->{next} );
+    my $lz   = Lazysite::Paths::lazysite_dir($docroot);
+    my ( $renewed, $why ) = ( 0, 'no site session from the Odoo sign-in' );
+    if ( !Lazysite::Odoo::SiteSignin::enabled($lz) ) { $why = 'the Odoo site sign-in is off' }
+    elsif ( $SITE_SESSION && !$SITE_SESSION->{stale} ) { ( $renewed, $why ) = ( 1, 'not stale' ) }
+    elsif ( $SITE_SESSION && !$odoo_session ) { $why = 'no Odoo session with it' }
+    elsif ($SITE_SESSION) {
+        my ($u) = _site_state( $docroot, $user, undef, $odoo_session );
+        ( $renewed, $why ) = length( $u // '' ) ? ( 1, 'renewed' ) : ( 0, $SITE_SESSION ? 'Odoo could not be asked' : 'Odoo ended the session' );
+    }
+    Lazysite::Util::log_event( 'INFO', $ENV{REQUEST_URI} // '', 'odoo: a stale site session at the renewal step',
+        renewed => $renewed, why => $why );
+    my $secure = $ENV{HTTPS} ? '; Secure' : '';
+    push @EXTRA, "Set-Cookie: lzs_renewed=1; Path=/; Max-Age=60; HttpOnly; SameSite=Lax$secure";
+    if ( ( $q->{answer} // '' ) eq 'session' ) {
+        push @EXTRA, "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure" unless $renewed;
+        return reply( '200 OK', { ok => JSON::PP::true(), signed_in => $renewed ? JSON::PP::true() : JSON::PP::false() } );
+    }
+    my $to = $renewed ? $next : '/login?next=' . ( $next =~ s/([^A-Za-z0-9._-])/sprintf( '%%%02X', ord $1 )/ger );
+    binmode STDOUT;
+    print "Status: 303 See Other\r\n";
+    print "Location: $to\r\n";
+    print "Cache-Control: no-store\r\n";
+    print "$_\r\n" for @EXTRA;
+    print "Content-Length: 0\r\n\r\n";
+    return 0;
 }
 
 sub _identity_cookie_out {

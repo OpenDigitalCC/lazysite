@@ -19,7 +19,7 @@ package main;
 # CALLS   uri_encode, _groups_grant_cap, _esc_html, output_page, _access_keys_read,
 #         _request_croot, _system_page_md, process_md, _sanitise_not_found,
 #         _rewrite_if_changed, _chrome_lang, _chrome, _draft_is, _draft_stat,
-#         _pp_page_may_ask, log_event (the script and its parts); JSON::PP::decode_json by its
+#         _pp_page_may_ask, log_event, _lazy_lib, _proxy_identity (the script and its parts); JSON::PP::decode_json by its
 #         full name (loaded by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES (SM1030: the peek reads a
 #         draft from memory) and $REQUEST_IDENT (SM1181: the held identity value); SETS %ACCESS_REC (the script's, declared `our`
@@ -338,6 +338,10 @@ sub check_auth {
 
     if ( !$authenticated && $auth_level eq 'required' ) {
         my $next = uri_encode($uri);
+        # SM1381: a session its provider can renew goes there first, once.
+        if ( my $renew = _session_renewal($uri) ) {
+            return { redirect => "$renew&next=$next" };
+        }
         return { redirect => "$redirect_path?next=$next" };
     }
 
@@ -364,6 +368,51 @@ sub check_auth {
         auth_groups   => [@auth_groups],
         authenticated => $authenticated,
     };
+}
+
+# SM1381: A SESSION THE SITE REFUSED ONLY UNTIL ITS PROVIDER IS ASKED AGAIN.
+#
+# A session the verifier refuses with a `renew` path in its verdict (an Odoo-minted
+# one past odoo_identity_ttl: Auth::Session's `odoo-stale`) is not ended, it is
+# waiting for the provider to say the person is still signed in - and only the
+# provider's own endpoint holds what it needs to ask. So a protected page sends the
+# visitor there, with `next`, rather than to the sign-in; the endpoint renews and
+# returns them to the page, or sends them on to the sign-in with `next` kept. The
+# gate makes no call to the provider and grants nothing: the redirect target is the
+# only thing that changes, and the page is served only once the verifier accepts.
+#
+# THE LOOP GUARD. The endpoint sets `lzs_renewed=1` (path /, 60 seconds) on every
+# answer. A gate that meets the same refusal while that cookie is held sends the
+# visitor to the sign-in instead: one renewal round trip per minute at most,
+# whatever the endpoint answered.
+#
+# The verdict is the front door's when it decided this request (the pool), else it
+# is asked here, on this refusal path only (ADR 0001: lazily). The path must be a
+# same-site path with a query, or it is no path. Logged at INFO with the verdict.
+sub _session_renewal {
+    my ($uri) = @_;
+    my $cookie = $ENV{HTTP_COOKIE} // '';
+    return '' unless length $cookie;
+    my ( $why, $renew ) = ( '', '' );
+    if ( ref $REQUEST_IDENT eq 'HASH' ) {
+        ( $why, $renew ) = ( $REQUEST_IDENT->{why} // '', $REQUEST_IDENT->{renew} // '' );
+    }
+    else {
+        eval {
+            _lazy_lib('Lazysite::Auth::Session');
+            my ( $id, $w, %d ) = Lazysite::Auth::Session::request_session(
+                lazysite_dir => $LAZYSITE_DIR, proxy => _proxy_identity(), cookie => $cookie );
+            ( $why, $renew ) = ( $w // '', $d{renew} // '' ) unless $id;
+            1;
+        };
+    }
+    return '' unless length $renew && $renew =~ m{\A/[\w/.-]*\?[\w=&]+\z} && $renew !~ m{//};
+    if ( $cookie =~ /(?:\A|;)\s*lzs_renewed=1\s*(?:;|\z)/ ) {
+        log_event( 'INFO', $uri, 'auth: session not accepted, renewal already tried - sent to sign in', why => $why );
+        return '';
+    }
+    log_event( 'INFO', $uri, 'auth: session not accepted - sent to be renewed', why => $why );
+    return $renew;
 }
 
 # SM1131: THE PROCESSOR'S WAY TO THE ONE IDENTITY READER. Lazysite::Auth::Identity

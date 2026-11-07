@@ -748,7 +748,8 @@ sub _verify_odoo_session {
     my $now = time();
     my $age = $now - ( $rec->{checked} // 0 );
     my $stale = ( $age >= Lazysite::Odoo::SiteSignin::identity_ttl($dir) || $age < -60 ) ? 1 : 0;
-    return ( undef, 'odoo-stale', user => $user, sid => $sid ) if $stale && !$opt{odoo_stale_ok};
+    # SM1381: the stale verdict says where the session is renewed (the provider's path)
+    return ( undef, 'odoo-stale', user => $user, sid => $sid, renew => Lazysite::Odoo::SiteSignin::renew_path() ) if $stale && !$opt{odoo_stale_ok};
 
     # the record's groups, less any the current map no longer grants
     my ($map)   = Lazysite::Odoo::SiteSignin::group_map($dir);
