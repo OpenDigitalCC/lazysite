@@ -1341,6 +1341,66 @@ only over TLS. No Odoo is in it.
   which is not; `auth_required_groups` is escaped where the stash is built, as SM709
   escapes the other auth values, and `%AUTH_CONTEXT` stays raw for access control.
 
+## Odoo's payload lib, the renewal step, the cookie contract and group deletion (0.16.7)
+
+- **Odoo's modules load from the extension's payload lib** (SM1369 X7 part one, ruling
+  135; trust boundary 12). `Lazysite::Odoo`, the twelve `Lazysite::Odoo::*` modules and
+  the two Odoo-only daemon services live in `extensions/odoo/lib/`, beside the
+  descriptor, with their names unchanged. Core loads them only through
+  `Lazysite::Extensions::require_payload`, which puts the payload lib beside core's own
+  lib on `@INC` (appended, the X1 rule) and loads a module only as a regular file in
+  exactly one payload lib that resolves nowhere else on `@INC`: a stale copy an earlier
+  release left in core's lib, a module in two payloads or a linked payload is refused by
+  name and nothing loads. The upgrade removes the old copies; an edited one is kept as a
+  named orphan and refused until removed. The rule gates nothing: whether Odoo is on
+  stays each caller's question. The tests and the OOM snapshot stay in `t/`, and the
+  separate package is 0.16.9.
+- **A stale site session is renewed through the endpoint** (SM1381). A session the Odoo
+  sign-in minted and idle past `odoo_identity_ttl` is sent by the page gate to
+  `GET /cgi-bin/lazysite-odoo.pl?renew=1&next=`, a tokenless step that runs the renewal
+  `?csrf=1` runs, once: renewed, back to `next`; ended by Odoo, both sessions end and
+  the visitor goes to the site's sign-in page (`auth_redirect`, held to a same-site
+  path, else `/login`) with `next`. Nothing is renewed or ended without the
+  `lzs_odoo_session` cookie (`SameSite=Strict`, scoped to the endpoint), `next` passes
+  `sanitise_next`, core accepts the renewal path only as a same-site path with a query,
+  and `lzs_renewed` (60 seconds) bounds the round trips to one a minute. The auth CGI's
+  `?action=session` goes through the same step. The refusal is logged at INFO.
+- **The session cookie is an external contract** (SM1383, ruling 146).
+  `docs/architecture/session-cookie-contract.md` states the `lazysite_auth` format an
+  outside process on the same host verifies read-only: the payload shapes, the key as
+  text, constant-time comparison, expiry, `revoked.json` and fresh groups. The key is
+  symmetric, so a process that can verify can mint: such a process is trusted as far as
+  the web server is. The format changes only versioned, reader before writer;
+  `t/unit/auth/75` holds the agreement between the document and the engine.
+- **One signed value means one thing** (SM1390, ruling 147). The session verifier
+  refuses a payload beginning with the preview cookie's marker `v1`, and a timestamp or
+  `seen` time more than 300 seconds ahead of its clock; the preview verifier refuses a
+  payload without exactly five fields; the payload is split to five fields so the sliding
+  shape is read as itself (nothing issues it). No account may be named `v1` on any door
+  that creates or renames one, and `lazysite check` names one that exists.
+- **A group is deleted on every door, once nothing uses it** (SM1387). Control API
+  `group-delete`, MCP `delete_group` and the Groups page go through the users tool, the
+  store's one writer, which refuses the operator group, a group with a member and a group
+  anything names - `Lazysite::Auth::GroupRefs` walks pages' `auth_groups`, `acls.json`,
+  the domain rows and `auth_group_map` in `lazysite.conf`, tables' `writable_by`, Odoo
+  bindings' and connectors' `callers`, and `odoo_group_map` - naming each; a confined
+  caller deletes only a group it created with `group-set`; audited as `@group`.
+- **The roles reach a site the mark never reached** (SM1393). Both adoptions in the users
+  tool run on any bootstrapped site; what counts as shipped is read from the manager
+  group, which no adoption writes. A role is adopted with no member; a bundle is nested
+  only into roles present under their shipped names; each once, through
+  `bundles-adopted.json`.
+- **A form's conf in the editor and over MCP** (SM1392). The editor's client-side
+  reservation exempts `lazysite/forms/<name>.conf`, so the server's gate (`manage_forms`,
+  SM1371) decides; MCP `read_file` and `write_file` on that path ask `manage_forms`, the
+  path's own capability, as a layout path asks the design capabilities. `smtp.conf`,
+  `handlers.conf` and `schedule.conf` stay closed to every grant.
+- **Smaller** (SM1385, SM1389, SM1391). A theme is deleted by its path under any layout,
+  with the same refusals as by name (the active theme, a theme a domain serves, another
+  account's theme, a path into a served copy). `lazysite check`'s stray-copy walk prunes
+  the protected-history repository and nothing else. A schedule entry under the
+  300-second floor is recorded as refused once and named by the check.
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

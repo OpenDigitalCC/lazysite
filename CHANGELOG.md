@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1394 (PENDING) **docs: the compliance records cover 0.16.7.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.7 stack and stamped 0.16.7. The seven
+  register entries the branches wrote are walked against the code, each gaining a "walked"
+  note: SM1383 is confirmed (ruling 146); SM1381's new-external-interface (the renewal
+  step, a tokenless GET on the Odoo endpoint) and the five with no trigger await the
+  release manager, SM1390 a hardening by ruling 147, so 0.16.7 is edge and not
+  security-critical. Drafted at the walk, for confirmation: an entry for SM1385, SM1389
+  and SM1391, trust boundary 12 restated for Odoo's payload lib and the renewal step, four
+  STRIDE rows and four operate-side rows. UPGRADE.md's 0.16.7 notes are one section. Docs
+  only; nothing is signed.
+
 - SM1369 (PENDING) **Odoo's modules move out of core's lib into the extension's own (X7,
   part one).** Ruling 135: a hook may name only a module in its extension's payload lib, so
   `Lazysite::Odoo`, its twelve `Lazysite::Odoo::*` modules and the oomd and warm-endpoint
