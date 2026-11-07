@@ -129,10 +129,18 @@ my %T       = (
     'lib/Lazysite/Capabilities.pm' => { '%IS_CHANNEL' => $DERIVED },
     'lib/Lazysite/ControlApi/Actions.pm' => { '%FIELD' => $DERIVED, '%DECLARED_FIELD' => $DERIVED,
         '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load' },
+    # SM1369 X3: the live kinds carry a name pattern and a code reference to
+    # their vocabulary check; the table is constant, declared with those in it.
     'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED,
-        '%KINDS' => 'the constant hook vocabulary, with code references to its validators',
+        '%KINDS' => 'the constant hook vocabulary: each kind\'s shape, a name pattern (qr) and code references to its validators',
         '%ROW_KEY' => $DERIVED, '%FLAG' => $DERIVED },
-    'lib/Lazysite/Handlers.pm'   => { '%RESERVED_FORM' => $DERIVED },
+    'lib/Lazysite/Handlers.pm' => {
+        '%RESERVED_FORM' => $DERIVED,
+        # SM1369 X3: the catalogue starts as core's five types and is merged per
+        # site from the hook index at every read (_sync_hook_types).
+        '@TYPE_ORDER' => 'the core type names, copied from @CORE_ORDER at load; a site\'s extension types are appended by _sync_hook_types',
+        '%CORE_TYPES' => 'the five core types, a copy of %TYPES at load, from which the catalogue is reset before a merge',
+    },
     'lib/Lazysite/Lifecycle.pm'  => { '%IS_VERDICT'    => $DERIVED },
     'lib/Lazysite/Manager/Common.pm' => { '$DANGEROUS_RE' => $PATTERN, '%REFUSAL_STATUS' => $DERIVED },
     'lib/Lazysite/Manager/Connectors.pm' => { '$MODES' => 'a reference to Lazysite::Egress\'s constant list of modes' },

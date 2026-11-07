@@ -667,7 +667,7 @@ sub _check_source_bindings {
     my @sources = grep { defined $_->{check} } Lazysite::Extensions::Hooks::page_sources($lz);
     return unless @sources;
     for my $line ( split /\n/, ( $fm // '' ) ) {
-        next unless $line =~ /\A\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([a-z][a-z0-9-]*):(?!\/\/)\s*(.*?)\s*\z/i;
+        next unless $line =~ m{\A \s* [A-Za-z_][A-Za-z0-9_]* \s* : \s* ([a-z][a-z0-9-]*) : (?!//) \s* (.*?) \s* \z}ix;
         my ( $prefix, $spec ) = ( lc $1, $2 );
         my ($src) = grep { lc( $_->{prefix} ) eq $prefix } @sources or next;
         my ( $ok, $found ) = Lazysite::Extensions::Hooks::call_hook( $docroot, $src->{extension}, $src->{check},

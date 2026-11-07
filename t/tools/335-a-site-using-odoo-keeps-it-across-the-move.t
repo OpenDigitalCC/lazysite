@@ -68,6 +68,11 @@ make_path("$LZ/auth");
 spit( "$LZ/auth/.secret", ( 'b' x 64 ) . "\n" ) unless -s "$LZ/auth/.secret";
 grant_caps( $docroot, 'boss', 'ui' );    # a secured site: Odoo makes nobody on an unsecured one
 set_key($docroot);
+# SM1369 X3: the binding's type is a hook the extension declares, so the site is
+# indexed before a binding is saved - here from the checkout's descriptor (the
+# dev server's directory rule, as every in-process test does), and by the real
+# upgrade below from the installed one, which is what the installed code reads.
+OdooTest::build_hook_index($docroot);
 bind( $docroot, id => 'list', operation => 'shop.products', modes => 'public' );
 spit( "$docroot/members.md", "---\ntitle: Members\nauth: required\n---\nMEMBERS-AREA\n" );
 spit( "$docroot/shop.md", "---\ntitle: Shop\ntt_page_var:\n  shop: odoo:list\n---\nSHOP-ROWS=[% shop.rows.size %]\n" );
@@ -81,6 +86,10 @@ my $cookie;
 ok( $cookie, 'a person is signed in through Odoo' );
 
 # ---- the last release's layout ----
+# From here the installed tree is the only one: the children below find the
+# installed descriptor beside the docroot, as a deployed site does.
+delete $ENV{LAZYSITE_DEV_SERVER};
+delete $ENV{LAZYSITE_EXTENSION_DIRS};
 my @MOVED = qw(Lazysite/Odoo.pm Lazysite/Odoo Lazysite/Daemon/Service/Oomd.pm Lazysite/Daemon/Service/OdooEndpoint.pm);
 for my $m (@MOVED) {
     move( "$root/extensions/odoo/lib/$m", "$root/lib/$m" ) or die "move $m: $!";

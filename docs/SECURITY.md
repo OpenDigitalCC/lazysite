@@ -3781,7 +3781,7 @@ what changed
   the timer, and keeps handlers.conf, the schema check that refuses an unknown key, the
   cap gate, the schedule and the delivery record. `origins` is where the type may run;
   a delivery from any other origin is refused by core before the extension's code loads.
-  Odoo's type is declared this way, with its schema. The `address_list` field type lets
+  Odoo's type is declared this way, with its schema. The `address_profiles` field type lets
   `AddressRefs` find the profiles a handler names by the field's type and `slot`, not by
   the type name `odoo` (I-13).
 : The validator refuses, by name and before anything is indexed: a prefix core owns or

@@ -23,13 +23,13 @@
 #   * deliver: from a form, with the visible fields only, the host, the
 #     origin; from the timer, REFUSED by core before the extension runs, naming
 #     the origins; a `deliver` that dies is a failed delivery with its reason;
-#   * `address_list` (I-13): the profiles a handler names are found by the
+#   * `address_profiles` (I-13): the profiles a handler names are found by the
 #     field's type and slot, whichever type carries them;
 #   * off: with the extension disabled the type leaves the catalogue, a saved
 #     handler of it is a named problem and is not delivered.
 #
 # Sabotage: drop the origin test in Handlers::_to_extension and the timer
-# delivers - this fails. Drop `address_list` from AddressRefs' field walk and the
+# delivers - this fails. Drop `address_profiles` from AddressRefs' field walk and the
 # profile walk finds nothing.
 use strict;
 use warnings;
@@ -72,8 +72,8 @@ sub type_decl {
         origins => ['form'],
         schema  => [
             { key => 'target',        label => 'Target', type => 'text', required => 1 },
-            { key => 'from_profiles', label => 'From', type => 'address_list', slot => 'allow' },
-            { key => 'never_from', label => 'Never from', type => 'address_list', slot => 'deny' },
+            { key => 'from_profiles', label => 'From', type => 'address_profiles', slot => 'allow' },
+            { key => 'never_from', label => 'Never from', type => 'address_profiles', slot => 'deny' },
         ],
         parse     => 'Probe::Handler::parse',
         on_save   => 'Probe::Handler::on_save',
@@ -151,7 +151,7 @@ subtest 'the vocabulary is checked before it is indexed' => sub {
         'a schema key every handler carries' =>
             { probe => type_decl( schema => [ { key => 'id', label => 'T', type => 'text' } ] ) },
         'a slot that is not one' =>
-            { probe => type_decl( schema => [ { key => 'x', label => 'T', type => 'address_list', slot => 'maybe' } ] ) },
+            { probe => type_decl( schema => [ { key => 'x', label => 'T', type => 'address_profiles', slot => 'maybe' } ] ) },
         'no deliver' => { probe => do { my $t = type_decl(); delete $t->{deliver}; $t } },
         'a function that is not one' => { probe => type_decl( deliver => 'main::system' ) },
         'a note that is not plain'   => { probe => type_decl( note => [] ) },
@@ -200,7 +200,7 @@ subtest 'save: core checks the schema, the extension checks the shape and the de
     $r = save( id => 'h1', target => 'inbox', from_profiles => ' office , hq ' );
     ok( $r->{ok}, 'a sound handler saves' ) or diag explain $r;
     is( slurp("$d/lazysite/probe/h1.saved"), 'inbox', 'and on_save kept its own record' );
-    is( $r->{handler}{from_profiles}, 'office,hq', 'an address_list is kept as one trimmed list' );
+    is( $r->{handler}{from_profiles}, 'office,hq', 'an address_profiles is kept as one trimmed list' );
     $r = save( id => 'h2', target => 'inbox', from_profiles => 'not a name!' );
     like( $r->{error}, qr/from_profiles: 'not a name!' is not the name of an address profile/, 'and its names are checked' );
     like( slurp("$d/lazysite/forms/handlers.conf"), qr/^\s+type: probe$/m, 'handlers.conf holds the type as any other' );
@@ -244,10 +244,10 @@ subtest 'deliver: from a form, with the visible fields; from the timer, refused 
     like( $r->{why}, qr/deliver did not run: .*died/, 'with the reason, never an exception' );
 };
 
-subtest 'address_list: the profiles a handler names are found by the field type' => sub {
+subtest 'address_profiles: the profiles a handler names are found by the field type' => sub {
     my ( $base, $d ) = fixture();
     ok( save( id => 'h1', target => 'inbox', from_profiles => 'office,hq', never_from => 'bad' )->{ok}, 'saved' );
-    is_deeply( Lazysite::Handlers::address_list_fields(),
+    is_deeply( Lazysite::Handlers::address_profile_fields(),
         { probe => [ { key => 'from_profiles', slot => 'allow' }, { key => 'never_from', slot => 'deny' } ] },
         'the catalogue says which fields of which types name profiles' );
     my $rules = Lazysite::Auth::AddressRefs::rules($d);

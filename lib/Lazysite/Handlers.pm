@@ -70,12 +70,12 @@ our $DOCROOT = '';
 #
 # Field types: text, email, boolean, number, and three that name something the
 # engine already knows - `table` (a declared data table), `connector` (a
-# configured connector) and `address_list` (SM1369 X3: names of address
+# configured connector) and `address_profiles` (SM1369 X3: names of address
 # profiles, comma separated, which Lazysite::Auth::AddressRefs finds by this
 # type; the field's `slot` says whether the names are allowed, denied or
 # matched). Tables and connectors are chosen from a list on every surface that
 # draws a form, never typed (SM806).
-our @FIELD_TYPES = qw(text email boolean number table connector address_list);
+our @FIELD_TYPES = qw(text email boolean number table connector address_profiles);
 
 # SM1369 X3 (ruling 55): THE CATALOGUE IS THE ENGINE'S TYPES AND THE TYPES THE
 # ENABLED EXTENSIONS DECLARE. The five below are core's. An extension's own
@@ -302,14 +302,14 @@ sub field_types   { my @t = @FIELD_TYPES; return @t }
 
 # SM1369 X3 (I-13): WHERE A HANDLER NAMES ADDRESS PROFILES, by field type rather
 # than by any type's name: { type => [ { key, slot } ] } for every type in the
-# catalogue with an `address_list` field. `slot` is allow (the default), deny or
+# catalogue with an `address_profiles` field. `slot` is allow (the default), deny or
 # match, as the field declares it. Lazysite::Auth::AddressRefs reads it.
-sub address_list_fields {
+sub address_profile_fields {
     _sync_hook_types();
     my %out;
     for my $t (@TYPE_ORDER) {
         my @f = map { { key => $_->{key}, slot => ( $_->{slot} // 'allow' ) } }
-            grep { ( $_->{type} // '' ) eq 'address_list' } @{ $TYPES{$t}{schema} || [] };
+            grep { ( $_->{type} // '' ) eq 'address_profiles' } @{ $TYPES{$t}{schema} || [] };
         $out{$t} = \@f if @f;
     }
     return \%out;
@@ -967,7 +967,7 @@ sub validate_handler {
             return ( undef, "$k must be a connector id", $k )
                 unless $v =~ /\A[a-z0-9][a-z0-9_-]{0,63}\z/;
         }
-        elsif ( $f->{type} eq 'address_list' ) {
+        elsif ( $f->{type} eq 'address_profiles' ) {
             # SM1369 X3: names of address profiles, comma separated, kept as
             # one trimmed list. Whether each names a profile in the store is
             # the check's question (AddressRefs finds them by this type).

@@ -18,10 +18,10 @@ package Lazysite::Auth::AddressRefs;
 #                         signin_addresses, signin_addresses_deny
 #                         bad_url_exempt (SM1321: profile names only, ruling 84; the
 #                         blocker asks membership only, so slot 'match')
-#   handlers.conf         a handler's fields of type `address_list` (SM1369 X3, I-13):
+#   handlers.conf         a handler's fields of type `address_profiles` (SM1369 X3, I-13):
 #                         the handler catalogue says which fields of which types
 #                         name profiles, and in which slot (Lazysite::Handlers::
-#                         address_list_fields) - a session binding's sign-in limit
+#                         address_profile_fields) - a session binding's sign-in limit
 #                         (SM1229; SM1159 held it on the binding's calls) and the
 #                         profile its operation is told about (SM1280) are the
 #                         extension's own declaration now, found by type, not by name
@@ -114,7 +114,7 @@ sub _conf_names {
 
 # SM1229: a handler's own address-profile fields. The records are read straight
 # from lazysite/forms/handlers.conf; which fields name profiles, and in which slot,
-# is the handler catalogue's answer (SM1369 X3: by the field type `address_list`,
+# is the handler catalogue's answer (SM1369 X3: by the field type `address_profiles`,
 # so a type an extension declares is found as a core one would be). A field
 # carrying names uses them exactly as lazysite.conf's keys do, so deleting one it
 # names would leave a session binding refusing every call (a rule allowing a
@@ -125,7 +125,7 @@ sub _binding_rules {
     require Lazysite::Handlers;
     no warnings 'once';
     local $Lazysite::Handlers::DOCROOT = $docroot;
-    my $fields = Lazysite::Handlers::address_list_fields();
+    my $fields = Lazysite::Handlers::address_profile_fields();
     return unless %$fields;
     open my $fh, '<:utf8', $path or do {
         push @{$faults}, "handlers.conf could not be read ($!)" unless $!{ENOENT};

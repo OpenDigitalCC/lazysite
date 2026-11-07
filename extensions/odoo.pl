@@ -396,10 +396,10 @@ sub _handler_type {
                 note => 'The parameter that receives the visitor\'s own key (a basket, say). '
                     . 'The server mints the key; a visitor cannot choose or see another\'s.' },
             # SM1280 (ruling 3): whether the call came from inside an address profile.
-            # An address_list field (slot match): the engine's address-profile check
+            # An address_profiles field (slot match): the engine's address-profile check
             # finds the name here by the type, not by this extension's name (I-13).
             { key => 'address_profile', label => 'Address profile the operation is told about',
-                type => 'address_list', slot => 'match',
+                type => 'address_profiles', slot => 'match',
                 note => 'Optional: the name of an address profile (Access, Address profiles). With an address '
                     . 'parameter, the operation is told whether the call came from inside it - yes or no, '
                     . 'never the address. Needs trusted_proxies to cover your front end.' },
@@ -426,12 +426,12 @@ sub _handler_type {
             # SM1229: a session binding's own sign-in limit, names of address
             # profiles (SM1159 held them on the binding's calls) - found by type.
             { key => 'signin_addresses', label => 'Session binding: only from (address profiles)',
-                type => 'address_list', slot => 'allow',
+                type => 'address_profiles', slot => 'allow',
                 note => 'Optional, session bindings only: names of address profiles to allow, comma '
                     . 'separated. A call of this binding from any other address is refused. It can '
                     . 'only narrow the site\'s signin_addresses, never widen it.' },
             { key => 'signin_addresses_deny', label => 'Session binding: never from (address profiles)',
-                type => 'address_list', slot => 'deny',
+                type => 'address_profiles', slot => 'deny',
                 note => 'Optional, session bindings only: names of address profiles to deny. A call of '
                     . 'this binding from one of these addresses is refused.' },
             { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',

@@ -60,6 +60,7 @@ sub oomd_site {
         odoo_daemon_workers => 2,
         %over );
     set_key($d);
+    OdooTest::build_hook_index($d);    # SM1369 X3: the extension's sources and type are hooks, indexed
     return $d;
 }
 

@@ -304,6 +304,20 @@ my %T = (
         '$_scan_user'    => [ reset => '_reset_scan_identity' ],
         '@_scan_groups'  => [ reset => '_reset_scan_identity' ],
     },
+    # SM1369 X3: the handler catalogue is core's types plus the types the enabled
+    # extensions declare, read from the hook index of the site $DOCROOT names (one
+    # pool per site) and re-merged whenever that index changes: it is a function of
+    # the site's configuration, never of a request.
+    'lib/Lazysite/Handlers.pm' => {
+        '@TYPE_ORDER'   => [ exempt => 'the handler catalogue\'s order: core\'s types, then the site\'s extension types, re-merged when the site\'s hook index changes (_sync_hook_types)' ],
+        '%TYPES'        => [ exempt => 'the handler catalogue: core\'s types plus the site\'s extension types, re-merged when the site\'s hook index changes (_sync_hook_types)' ],
+        '%CORE_TYPES'   => [ exempt => 'the five core types, a constant copy taken at load' ],
+        '$SYNCED_LZ'    => [ exempt => 'the key of the merge above: the site it was done for' ],
+        '$SYNCED_INDEX' => [ exempt => 'the key of the merge above: the index it was done from (a new file is a new reference)' ],
+    },
+    'lib/Lazysite/Extensions/Hooks.pm' => {
+        '%CACHE' => [ exempt => 'the hook index decoded, keyed on the file\'s device, inode, size and mtime, so a rebuilt index misses' ],
+    },
     'lib/Lazysite/Audit.pm' => {
         '$write_warned' => [ exempt => 'warn-once latch for a failing audit write, per process on purpose' ],
         '%_TRAIL_MEMO'  => [ exempt => $KEYED ],

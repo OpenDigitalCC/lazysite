@@ -198,7 +198,13 @@ setup( 'acl-set', query => 'path=secret.md', body => { read => ['admin'] } );
 setup( 'odoo-secret-set', body => { secret => 'k3y-set-before' } );    # SM747: so a clear lands
 # SM747 E: a binding for odoo-run to name. Running it reaches the gate, which
 # records its refusal (the extension is off here) - that record is the landing.
-setup( 'handler-save', body => { id => 'ob', type => 'odoo', name => 'OB', operation => 'shop.products' } );
+# SM1369 X3: the type is the extension's, so with the extension off handler-save
+# refuses it; the record is written as the store holds it.
+{
+    open my $fh, '>>', "$lz/forms/handlers.conf" or die $!;
+    print {$fh} "  - id: ob\n    type: odoo\n    name: OB\n    enabled: true\n    operation: shop.products\n";
+    close $fh;
+}
 $S{backup} = setup('backup-create')->{name} // '';
 setup( 'data-table-save', body => { table => 'notes', descriptor => "title: Notes\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-migrate',       query => 'table=notes' );

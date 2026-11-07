@@ -312,9 +312,9 @@ Handler types (H-3)
   leaves the catalogue: a saved handler of it is listed with its problem and not
   delivered. The MCP save_handler schema reads the merged catalogue.
 
-address_list (I-13)
+address_profiles (I-13)
 : A schema field type for names of address profiles, comma separated, with a
-  `slot` (allow, deny, match). `Handlers::address_list_fields` says which fields
+  `slot` (allow, deny, match). `Handlers::address_profile_fields` says which fields
   of which types carry them, and `AddressRefs` walks handlers.conf by that answer,
   so the profiles a session binding's sign-in limit and an operation's address
   profile name are found by type, not by the type name `odoo`. The describe label
@@ -349,7 +349,7 @@ Tests
   WARN line each, `live`, `check` at save, one owner per prefix, and the index
   file's spelling pinned between sources.pm and `Hooks::index_path`.
   `t/unit/extensions/73`: a fixture handler type - the vocabulary, the catalogue,
-  save and delete through the extension, the origin gate, `address_list` by
+  save and delete through the extension, the origin gate, `address_profiles` by
   type, off means off. Odoo's tests assert what they asserted; `OdooTest::
   enable_odoo` builds the index from the checkout's descriptor (through the dev
   server's directory rule, so the loader sees the one payload lib TestHelper put
@@ -389,6 +389,8 @@ C-18 | X3: `odoo-identity:` on a site whose Odoo extension is off | The literal,
 C-19 | X3: a handler of a type whose extension is off | Listed with its problem (`unknown type`) and not delivered, as a retired type's record is; saving one is refused | Delivered through the extension's code regardless, which would run a disabled extension
 C-20 | X3: the dying source's log | Two lines: the loader's, naming the extension and function with the reason where it happened, and the page's one line in the one shape, carrying the reason | One line, which would lose the record of which extension died for a caller that does not log (a check)
 C-21 | X3: `AddressRefs` loads the handler catalogue | It asks `Lazysite::Handlers` which fields of which types name profiles, so an extension's type is found as a core one is | A second, hand-kept list of fields, which is the drift the module's own header refuses
+C-22 | X3: the field type's name | `address_profiles`: the proposal and the brief say `address_list` (I-13, written before SM1343), and ruling 56 (lint 320) refuses that vocabulary in a functional file | `address_list`, exempted in lint 320 by name
+C-23 | X3: the pool's preload | The pool preloads `Lazysite::Extensions::Hooks` and no Odoo module (lint 269: the list is what the processor's parts name); a hook's modules load in a worker on first use | Keep Odoo's four modules preloaded for the warm path, which lint 269 refuses as modules nothing names
 ```
 
 # ADR 0007

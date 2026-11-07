@@ -16,7 +16,8 @@ use lib "$FindBin::Bin/../../../lib";
 use OdooTest qw(oom_or_skip shop_ready bind quiet);
 
 BEGIN { oom_or_skip() }
-use Lazysite::Odoo ();
+use Lazysite::Odoo        ();
+use Lazysite::Odoo::Hooks ();
 use Odoo::Error;
 
 my ( $d, $fake ) = shop_ready();
@@ -97,7 +98,9 @@ subtest 'a form is not delivered on an unknown change, and is told the outcome i
     no warnings 'once';
     local $Lazysite::Handlers::DOCROOT = $d;
     no_answer();
-    my ( undef, $v ) = quiet( sub { Lazysite::Handlers::_to_odoo( { id => 'quick', operation => 'shop.mixed', modes => 'public', apply => 'immediate', params => 'title=title' }, { title => 'x' }, { origin => 'form' } ) } );
+    # SM1369 X3: the type's deliver is the extension's own (Lazysite::Odoo::Hooks),
+    # with the context core hands it.
+    my ( undef, $v ) = quiet( sub { Lazysite::Odoo::Hooks::handler_deliver( { id => 'quick', operation => 'shop.mixed', modes => 'public', apply => 'immediate', params => 'title=title' }, { title => 'x' }, { origin => 'form', docroot => $Lazysite::Handlers::DOCROOT } ) } );
     ok( !$v->{ok}, 'not a delivery' ) or diag explain $v;
     like( $v->{why}, qr/not known whether Odoo made it/, 'and says the outcome is not known' );
 };

@@ -92,7 +92,7 @@ Archive
   label, cap, schema and `origins`; core runs its `parse` and `on_save` at save,
   `on_delete` at delete and `deliver` from a form or the timer, and keeps handlers.conf,
   the schema check, the cap gate, the schedule and the delivery record; a delivery from an
-  origin the type did not list is refused by core. The `address_list` schema field type
+  origin the type did not list is refused by core. The `address_profiles` schema field type
   lets the address-profile check find the profiles a handler names by the field's type
   and slot, whichever type carries them. Odoo's `odoo:` and `odoo-identity:` sources and
   its handler type move onto the hooks (`Lazysite::Odoo::Hooks`); its bindings, page
