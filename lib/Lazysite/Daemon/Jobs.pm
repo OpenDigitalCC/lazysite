@@ -142,14 +142,41 @@ sub schedule_run {
     my $runs = _read_schedule_runs($root);
     return { ok => 0, error => 'the schedule run record could not be read; see the log' }
         unless defined $runs;
+
+    # SM1391 (ruling 148): AN ENTRY UNDER THE FLOOR IS REFUSED, ONCE. due_entries
+    # passed over a hand-written `every: 60` in silence, and silence is what a
+    # job with nothing to do looks like (found at the SM1382 spike). The
+    # refusal is recorded against the entry the first time the job meets it,
+    # naming the floor, and logged then; a later tick that finds the same
+    # refusal already recorded writes nothing, so the record is not rewritten
+    # every five minutes for an entry nobody has touched. `lazysite check`
+    # names such an entry from the file (report_schedule_floor).
+    my @floor_refused;
+    for my $e ( @{ Lazysite::Handlers::below_floor_entries($schedule) } ) {
+        my $why = "every: " . ( $e->{every} // '' ) . " is below the floor of "
+            . "$Lazysite::Handlers::SCHEDULE_FLOOR seconds, so this entry never runs - "
+            . 'the save path refuses it; it was written by hand';
+        my $prev = ( ref $runs->{ $e->{id} } eq 'HASH' ? $runs->{ $e->{id} }{refusal_reason} : '' ) // '';
+        next if $prev eq $why;
+        $runs->{ $e->{id} } = { %{ $runs->{ $e->{id} } || {} },
+            outcome => 'refused', refused_at => $now, refusal_reason => $why };
+        Lazysite::Util::log_event( 'WARN', 'scheduler', 'schedule entry refused',
+            entry => $e->{id}, reason => $why );
+        push @floor_refused, "$e->{id}: $why";
+    }
+
     my $due = Lazysite::Handlers::due_entries( $schedule, $runs, $now );
-    return { ok => 1, detail => { entries => scalar @$schedule, due => 0 } } unless @$due;
+    unless (@$due) {
+        _write_schedule_runs( $root, $runs ) if @floor_refused;
+        return { ok => 1, detail => { entries => scalar @$schedule, due => 0,
+                ( @floor_refused ? ( refused => \@floor_refused ) : () ) } };
+    }
 
     my $handlers = Lazysite::Handlers::read_handlers();
     return { ok => 0, error => 'lazysite/forms/handlers.conf could not be read; see the log' }
         unless defined $handlers;
 
-    my ( @ran, @failed, @refused );
+    my ( @ran, @failed, @refused ) = ( (), (), @floor_refused );
     for my $e (@$due) {
         my $h   = Lazysite::Handlers::find_handler( $handlers, $e->{handler} // '' );
         my $cap = $h ? Lazysite::Handlers::cap_for_type( $h->{type} ) : undef;

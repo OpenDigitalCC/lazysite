@@ -2508,6 +2508,23 @@ sub due_entries {
     return \@due;
 }
 
+# SM1391 (ruling 148): the entries due_entries passes over because their
+# interval is below the floor, or is not a number. The save path refuses such
+# an entry, so one exists only when it was written by hand - and until now it
+# ran never and said nothing, which reads exactly like a job with nothing to
+# do. Enabled, valid-payload entries only: a disabled entry is off on purpose,
+# and an invalid payload is already reported on the entry.
+sub below_floor_entries {
+    my ($schedule) = @_;
+    my @below;
+    for my $e (@$schedule) {
+        next unless enabled($e) && !$e->{invalid};
+        my $every = $e->{every} // '';
+        push @below, $e unless $every =~ /\A\d+\z/ && $every >= $SCHEDULE_FLOOR;
+    }
+    return \@below;
+}
+
 # --- the conversion (SM842, run once on upgrade) -----------------------------
 #
 # Brings a site written for the old shapes to the one shape, and says what it

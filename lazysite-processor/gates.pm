@@ -284,7 +284,16 @@ sub check_preview {
     return undef
         unless preview_const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
 
-    my ( $ver, $exp, $layout, $theme, $user ) = split /:/, $payload, 5;
+    # SM1390 (ruling 147): A PREVIEW HAS EXACTLY FIVE FIELDS. The session cookie
+    # is signed with the same key over `user:ts:sid:groups`, so a session for an
+    # account named `v1` read here as a preview of layout <sid>, theme <groups>
+    # until its issue time passed. The field count tells the two apart: a
+    # preview is minted with all five (the user may be empty, its colon is
+    # not), a session has four or three. The session verifier refuses the
+    # preview marker in turn (Lazysite::Auth::Session).
+    my @f = split /:/, $payload, -1;
+    return undef unless @f == 5;
+    my ( $ver, $exp, $layout, $theme, $user ) = @f;
     return undef unless defined $ver && $ver eq 'v1';
     return undef unless defined $exp && $exp =~ /^\d+$/ && time() < $exp;
     $layout //= '';

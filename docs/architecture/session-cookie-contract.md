@@ -76,10 +76,29 @@ It carries no sid. It stays valid until it expires naturally, and a per-user
 `not_before` ends it; a sid revocation cannot reach it.
 
 Telling them apart
-: split the decoded payload on `:` into at most four fields. When there are four
+: split the decoded payload on `:` into at most five fields. When there are four
   and the third is exactly 16 lowercase hex characters, it is the current shape;
+  when there are five and the fourth is, it is the sliding shape below;
   otherwise it is read as legacy: the first field is the user, the second the
   timestamp, and the sid is empty. Groups contain commas, never colons.
+
+Sliding shape, read but not yet issued (SM1390 made the reader reachable):
+
+    username:timestamp:seen:sid:groups
+
+`seen` is a last-seen time that will move while `timestamp` stays the issue
+time; the cookie's age is counted from `seen`. Nothing issues it today; when a
+writer does, this page says so. An outside process may read it as above or
+refuse five fields; a five-field value it does not expect is not a current
+cookie.
+
+A payload whose first field is `v1` is not a session (SM1390, ruling 147). `v1`
+is the marker of the theme-preview cookie, signed with the same key over
+`v1:<expiry>:<layout>:<theme>:<user>`; without this rule a preview verified as
+a legacy session for an account named `v1`. The preview verifier refuses the
+other direction by field count: a preview has exactly five fields, a session
+four or three. The CSRF token is the bare HMAC of `csrf:<user>:<hour>` and
+never travels with its payload, so it cannot be presented as either.
 
 An account name beginning `odoo=` is a session the Odoo sign-in minted (SM1160).
 Its groups and freshness are in the session registry
@@ -117,17 +136,23 @@ and for nothing else.
 2. **Signature.** Recompute the HMAC over the decoded payload and compare it with
    the cookie's in **constant time** (the engine's `const_eq`: equal lengths, then
    an OR of every byte's XOR). A plain string comparison leaks how much matched.
-3. **Expiry.** The timestamp is whole seconds, and the cookie has expired when
-   `now - timestamp >= lifetime`. The lifetime is `session_lifetime:` in
-   `lazysite.conf`, honoured from 300 to 31,536,000 seconds; any other value, or
-   none, means 86,400 (24 hours). The browser drops the cookie at the same age
-   (`Max-Age`), but the server's check is the one that counts.
-4. **The account exists.** A line `username:` in `lazysite/auth/users`. A
+3. **Purpose.** A payload beginning `v1:` is refused: it is a preview, not a
+   session (above).
+4. **Not yet valid.** The timestamp (and `seen`, when present) is whole seconds
+   and may not be more than **300 seconds** ahead of the verifier's clock - the
+   allowance for a cookie minted on another host of the same site whose clock
+   runs ahead (SM1390, ruling 147). Further ahead is refused.
+5. **Expiry.** The cookie has expired when `now - seen >= lifetime`, where `seen`
+   is the timestamp for the issued shapes. The lifetime is `session_lifetime:`
+   in `lazysite.conf`, honoured from 300 to 31,536,000 seconds; any other value,
+   or none, means 86,400 (24 hours). The browser drops the cookie at the same
+   age (`Max-Age`), but the server's check is the one that counts.
+6. **The account exists.** A line `username:` in `lazysite/auth/users`. A
    removed account's cookie is not an identity.
-5. **Not disabled.** `lazysite/auth/user-settings.json` gives the account
+7. **Not disabled.** `lazysite/auth/user-settings.json` gives the account
    `"disabled"` true: refused.
-6. **Not revoked**, by `lazysite/auth/revoked.json` (below).
-7. **Groups**, fresh from `lazysite/auth/groups`: each line is
+8. **Not revoked**, by `lazysite/auth/revoked.json` (below).
+9. **Groups**, fresh from `lazysite/auth/groups`: each line is
    `group: member, member`, and the account's groups are the lines that name it.
 
 A store that exists and cannot be read or decoded is not an empty store. The
@@ -181,5 +206,7 @@ process sends a visitor without a valid cookie to the site's `/login`.
 
 # Where it is recorded
 
-The register entry is in `docs/SECURITY.md` (SM1383). The live-data pattern that
+The register entries are in `docs/SECURITY.md` (SM1383, confirmed by ruling 146;
+SM1390, the three verifier rules above, ruling 147). `t/unit/auth/76` and
+`t/integration/361` hold those rules. The live-data pattern that
 an outside process sits beside is in the building-sites briefing (`Live data`).

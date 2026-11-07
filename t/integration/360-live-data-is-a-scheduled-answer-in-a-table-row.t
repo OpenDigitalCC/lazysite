@@ -224,7 +224,7 @@ subtest 'an interval rounds UP to a multiple of the 300 s job' => sub {
     is( scalar @{ asked() }, $n + 2, 'but at t+600: a 450 s entry polls every 600 s' );
 };
 
-subtest 'an entry under the floor written by hand never runs, and says nothing' => sub {
+subtest 'an entry under the floor written by hand never runs, and is recorded as refused' => sub {
     reset_clock();
     my $t = $T + 20_000;
     schedule( entry( 'hand', 'quote', 60, { symbol => 'HND' } ) );
@@ -233,7 +233,10 @@ subtest 'an entry under the floor written by hand never runs, and says nothing' 
     tick( $t + 300 );
     is( scalar @{ asked() }, $n, 'a hand-written every: 60 is never called' );
     my $runs = decode_json( slurp("$lz/daemon/schedule-runs.json") || '{}' );
-    ok( !exists $runs->{hand}, 'and the run record holds no refusal for it - it is skipped in silence' );
+    # SM1391 (ruling 148): the spike found this skipped in silence; it is a
+    # recorded refusal now (t/unit/daemon/17 holds the once-only rule).
+    is( $runs->{hand}{outcome}, 'refused', 'and the run record holds a refusal for it' );
+    like( $runs->{hand}{refusal_reason}, qr/below the floor of 300/, 'naming the floor' );
 };
 
 # --- 3. fixed fields ---------------------------------------------------------

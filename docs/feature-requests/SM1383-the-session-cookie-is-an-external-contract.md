@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 132)"
 area: auth
-status-note: "SHIPPED (PENDING) on n763, ruling 132 E: docs/architecture/session-cookie-contract.md states the format, key, expiry and revocation; t/unit/auth/75 mints through the real sign-in and verifies as an outside process would, agreeing with the engine. SECURITY.md entry drafted. Found: the preview cookie verifies as a session for an account named v1."
+status-note: "SHIPPED (PENDING) on n763, ruling 132 E: docs/architecture/session-cookie-contract.md states the format, key, expiry and revocation; t/unit/auth/75 mints through the real sign-in and verifies as an outside process would, agreeing with the engine. SECURITY.md entry confirmed (ruling 146). The three verifier gaps found at the walk are closed as SM1390 (ruling 147)."
 ---
 
 # What was asked
@@ -32,11 +32,14 @@ SM297) waits for X4.
   Digest::SHA and file reads alone, agreeing with `verify_session_cookie` on
   every case the document names. It fails when `_mint_session`'s sid length or
   separator changes, and when the legacy shape stops verifying.
-- A `docs/SECURITY.md` entry: new-external-interface fires in a narrow form.
+- A `docs/SECURITY.md` entry: new-external-interface fires in a narrow form;
+  confirmed as contained by the release manager (ruling 146).
 
-# Found while verifying
+# Found at the walk
 
-These are recorded for the release manager; none is changed here.
+Three gaps in the verifier, found while checking the document's statements
+against the code. Ruled on as SM1390 (ruling 147) and closed on the same branch
+as hardening; recorded here as what the walk found.
 
 1. **The key is symmetric.** A process that can verify can mint a cookie for any
    account. The document says so; "read-only" is a promise, not a limit.
@@ -50,11 +53,9 @@ These are recorded for the release manager; none is changed here.
    cookie written as its comments describe would verify today as legacy, with no
    sid. The "readers before writers" groundwork does not hold.
 
-# Questions for ruling
+# Ruled (147, SM1390)
 
-1. Should the session payload gain a domain prefix (versioned, reader first), or
-   should the preview and CSRF payloads, so no other signed value can parse as a
-   session?
-2. Should the verifier refuse a timestamp in the future?
-3. Should the five-field branch be fixed (limit 5) before any writer issues it,
-   or removed until sliding expiry is built?
+1. No prefix in the signed text: the session verifier refuses the preview marker
+   as a first field, and the preview verifier refuses a session by field count.
+2. A timestamp more than 300 seconds ahead of the clock is refused.
+3. The five-field branch is made reachable on purpose (split limit 5).

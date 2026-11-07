@@ -328,8 +328,9 @@ these rows: at the floor one entry adds 288 a day, so delete old ones yourself
 
 ### The limits, plainly
 
-**The cadence floor is 300 seconds.** An entry below it is refused when saved,
-and one written by hand into `schedule.conf` never runs and records nothing.
+**The cadence floor is 300 seconds.** An entry below it is refused when saved;
+one written by hand into `schedule.conf` never runs, is recorded as refused in
+the daemon's run record the first time it is met, and `lazysite check` names it.
 The schedule is run by an engine job that itself runs every 300 seconds, so an
 interval rounds **up** to a multiple of 300: `every: 450` polls every 600
 seconds. On the wall clock add up to one daemon tick (`daemon_tick_seconds`,

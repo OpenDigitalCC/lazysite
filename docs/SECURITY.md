@@ -3252,7 +3252,7 @@ verdict
 
 ### 2026-11-07 - SM1383 (0.16.7): the session cookie is an externally relied-on credential format
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (ruling 146).
 
 what changed
 : No code. Ruling 132 lets an outside process on the same host share a lazysite
@@ -3288,18 +3288,65 @@ controls
   and when the legacy shape stops verifying.
 
 residual risk
-: Found while verifying, recorded for the release manager rather than fixed here. The
-  same key signs the theme-preview cookie (`v1:<exp>:<layout>:<theme>:<user>`) and the
-  CSRF tokens (`csrf:<user>:<hour>`), with no domain separation from the session
-  payload. A preview value parses as a legacy session cookie for an account named `v1`
-  with the preview's future expiry as its timestamp; measured on 792a0413b with
-  `tmp/n763-preview-as-session.pl`, it verifies as that account, with that account's
-  groups, when such an account exists. A preview is minted only for a signed-in manager.
-  The verifier also accepts a timestamp in the future. Separately, the five-field
-  "sliding" shape the verifier's comments describe is unreachable (a limit-4 split never
-  yields five fields): such a cookie would verify today as legacy, by its first two
-  fields, with no sid.
+: Found while verifying: the same key signs the theme-preview cookie
+  (`v1:<exp>:<layout>:<theme>:<user>`) and the CSRF tokens, with no domain separation
+  from the session payload. A preview value parsed as a legacy session cookie for an
+  account named `v1` with the preview's future expiry as its timestamp; measured on
+  792a0413b with `tmp/n763-preview-as-session.pl`, it verified as that account, with
+  that account's groups, when such an account existed. The verifier also accepted a
+  timestamp in the future, and its five-field "sliding" branch was unreachable. All
+  three are closed on the same branch under SM1390 (ruling 147, the next entry).
 
 verdict
-: drafted, awaiting the release manager. Documentation and a test; the format is
-  unchanged.
+: accepted, confirmed by the release manager on 2026-11-07 (ruling 146): contained.
+  Documentation and a test; the format is unchanged.
+
+### 2026-11-07 - SM1390 (0.16.7): another signed value is not a session, a future timestamp is refused, and the sliding reader is reachable
+
+Assessment drafted by the developer agent, for the release manager's confirmation (ruling 147 named the fixes).
+
+what changed
+: Hardening of `Lazysite::Auth::Session::verify_session_cookie` and
+  `lazysite-processor/gates.pm` `check_preview`, both reading values signed with
+  `auth/.secret`. (1) A session payload whose first field is `v1`, the preview cookie's
+  marker, is refused as `malformed` before anything else is read; a preview payload
+  without exactly five fields is refused as not a preview. (2) A session whose issue
+  time, or `seen` time, is more than 300 seconds ahead of the verifier's clock is
+  refused as `expired`. (3) The payload is split to five fields, not four, so the
+  five-field sliding shape the reader was written for is read as itself (sid, age from
+  `seen`) rather than as a legacy cookie with no sid. Nothing issues it.
+
+threat delta
+: Spoofing, narrowed. Before: a preview cookie - minted only for a signed-in manager,
+  for a layout and theme that exist - was also a session for an account named `v1`,
+  carrying that account's groups, valid for the preview's hour; and a session for such
+  an account was a preview. Neither crosses a trust boundary a manager is not already
+  past, and no site is known to hold an account named `v1`; the fix is that one signed
+  value now means one thing. A future timestamp let a forged-key or key-holder-minted
+  cookie outlive the lifetime; with the key the holder can mint at will anyway, so the
+  refusal bounds a leaked cookie's life, not the holder's power. The reachable
+  five-field branch adds a shape the verifier accepts; its fields are checked as the
+  four-field shape's are, groups never contain colons, and the two issued shapes parse
+  as before (t/unit/auth/76). No trigger of ADR 0007's four fires: no interface,
+  sign-in method, dependency or data is added. Chosen over a purpose prefix in the
+  signed text, which would change the format every cookie in flight carries and every
+  outside reader (SM1383) was just told; the verifiers can tell the shapes apart as
+  they are, and the contract document states the rules.
+
+controls
+: t/unit/auth/76: a preview value as a session (fresh and expired), a future `ts` and
+  `seen` outside and inside the 300 s skew, the five-field cookie with its sid and its
+  age from `seen`, and the current and legacy shapes still verifying; t/integration/361:
+  a four- and a three-field value as a preview refused, a five-field preview with an
+  empty user still previewing. Each part reverted fails its test
+  (tmp/n763-sabotage-2.sh). t/unit/auth/75 (the contract) still passes; t/unit/auth/16's
+  groundwork assertion now describes a branch that runs.
+
+residual risk
+: An account named `v1` can be created and cannot hold a session; the users tool does
+  not refuse the name. The CSRF token shares the key but never travels with its payload.
+  Sliding expiry has a reader and no writer.
+
+verdict
+: drafted, awaiting the release manager. Hardening, not a vulnerability fix; no trigger
+  fired.

@@ -68,7 +68,7 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.16.7): Odoo's modules move into the extension, and a stale Odoo session is renewed
+## Unreleased (0.16.7)
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl
 modules now install beside its descriptor, in `{DOCROOT}/../extensions/odoo/lib/`, and
@@ -98,6 +98,16 @@ Odoo has ended their session they reach the site's sign-in page instead
 (`auth_redirect`, else `/login`), with `next` kept. The step needs no
 configuration. A front end that sends `/cgi-bin/lazysite-odoo.pl` to the engine already
 sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a loop.
+
+- **An account named `v1` cannot hold a session (SM1390).** `v1` is the theme-preview
+  cookie's marker, and a session payload beginning with it is refused, so a site with an
+  account of that exact name has it sign in and be refused on every request: rename the
+  account. A session cookie whose issue time is more than 300 seconds ahead of the
+  server's clock is refused as well; a host whose clock runs that far ahead of the one
+  that minted the cookie sees sign-ins refused until the clocks agree.
+- **A hand-written schedule entry under the 300-second floor is now reported (SM1391).**
+  It never ran before and still does not; `lazysite check` names it, and the daemon's
+  run record holds a refusal for it. Set `every:` to 300 or more.
 
 ## The primary's content leaves out the other domains, and the rest of 0.16.6
 

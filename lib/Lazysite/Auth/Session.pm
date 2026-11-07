@@ -40,6 +40,13 @@ our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
 # staying exportable.
 sub SESSION_COOKIE_NAME { return 'lazysite_auth' }
 
+# SM1390: the first field of the preview cookie's payload (Manager::Preview
+# mints `v1:...`, gates.pm's check_preview reads it), which a session payload
+# may never begin with; and how far ahead of this host's clock a session's
+# issue time may be before it is refused as not yet valid.
+sub PREVIEW_MARKER { return 'v1' }
+sub CLOCK_SKEW     { return 300 }
+
 our $LAZYSITE_DIR;    # the engine tree (Lazysite::Paths::lazysite_dir), set by the script
 
 # SM614: the session lifetime is a SETTING, and this is the one place it is
@@ -384,12 +391,27 @@ sub verify_session_cookie {
         unless length($secret)
         && const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
 
+    # SM1390 (ruling 147): A VALUE SIGNED FOR ANOTHER PURPOSE IS NOT A SESSION.
+    # The preview cookie is signed with the same key over
+    # `v1:<exp>:<layout>:<theme>:<user>`, and that parsed here as a legacy
+    # session for an account named `v1` with the preview's expiry as its issue
+    # time (found at the SM1383 walk). The preview marker is refused as a first
+    # field before anything else is read; the preview verifier refuses a
+    # session shape the same way (lazysite-processor/gates.pm check_preview).
+    # Chosen over a purpose prefix in the signed text because a prefix changes
+    # the format every cookie in flight carries; this changes nothing a
+    # sign-in issues.
+    return ( undef, 'malformed' ) if $payload =~ /\A\Q${\ PREVIEW_MARKER()}\E:/;
+
     # SM141: two payload shapes are valid. Current cookies are
     # user:ts:sid:groups (sid exactly 16 hex); legacy cookies minted before
     # the session registry are user:ts:groups and stay valid until natural
-    # expiry. Groups can contain commas but never colons, so a limit-4 split
-    # plus the sid shape check disambiguates.
-    my @f = split /:/, $payload, 4;
+    # expiry. Groups can contain commas but never colons, so the split plus
+    # the sid shape check disambiguates. SM1390: the limit is 5, not 4, so the
+    # five-field branch below is REACHABLE - with a limit of 4 it never ran,
+    # and the sliding cookie it was written for verified as legacy with no
+    # sid (found at the SM1383 walk; t/unit/auth/76 drives it).
+    my @f = split /:/, $payload, 5;
     my ( $user, $ts, $sid );
     # SM614: THE READER UNDERSTANDS THREE SHAPES, and only two are ever issued
     # today. This is deliberate groundwork, not speculation.
@@ -429,6 +451,15 @@ sub verify_session_cookie {
     # did. One expression answers for both shapes rather than two branches that
     # can drift.
     $seen = $ts unless defined $seen;
+
+    # SM1390 (ruling 147): A TIMESTAMP IN THE FUTURE IS REFUSED. The lifetime
+    # check below only asks whether the cookie is too OLD, so a value stamped
+    # years ahead verified for years; the preview cookie's expiry was one such
+    # value. CLOCK_SKEW is the allowance for a cookie minted on another host of
+    # the same site whose clock runs ahead; it is stated in the contract
+    # (docs/architecture/session-cookie-contract.md).
+    return ( undef, 'expired', ts => $ts )
+        if $ts > time() + CLOCK_SKEW() || $seen > time() + CLOCK_SKEW();
 
     return ( undef, 'expired', ts => $ts )
         if ( time() - $seen ) >= session_lifetime();

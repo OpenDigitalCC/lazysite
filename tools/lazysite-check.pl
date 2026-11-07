@@ -1455,6 +1455,7 @@ sub run_checks {
     report_double_escaped_db_templates();
     report_uncompilable_form_patterns();
     report_unconverted_delivery();
+    report_schedule_floor();            # SM1391
     report_retired_conf_keys();
     report_app_settings();              # SM1155
     report_maintenance();               # SM1118
@@ -3019,6 +3020,40 @@ sub report_unconverted_delivery {
     }
     else {
         report( 'OK', 'every form and schedule names a handler the engine reads' );
+    }
+    return;
+}
+
+# SM1391 (ruling 148): a schedule entry whose interval is under the floor. The
+# save path refuses one (Lazysite::Handlers, "at least 300"), so it exists only
+# when it was written into lazysite/forms/schedule.conf by hand - and the
+# scheduler never runs it. The daemon records the refusal once (Daemon::Jobs);
+# this names it from the file, so an operator without the run record is told.
+# A text scan of the records format, as the scans above: id, then every, inside
+# one `- id:` record. The floor is the one Lazysite::Handlers declares.
+sub report_schedule_floor {
+    my $floor = 300;
+    my @found;
+    if ( open my $fh, '<', "$LZ/forms/schedule.conf" ) {
+        my $text = do { local $/; <$fh> };
+        close $fh;
+        while ( $text =~ /^[ \t]*-[ \t]+id:[ \t]*(\S+)((?:(?!^[ \t]*-[ \t]+id:).)*)/gmsx ) {
+            my ( $id, $body ) = ( $1, $2 );
+            next if $body =~ /^[ \t]+enabled:[ \t]*(?:false|no|off|0)[ \t]*$/mi;
+            my ($every) = $body =~ /^[ \t]+every:[ \t]*(.*?)[ \t]*$/m;
+            next unless defined $every;
+            push @found, "'$id' (every: $every)" unless $every =~ /\A\d+\z/ && $every >= $floor;
+        }
+    }
+    if (@found) {
+        report( 'WARN',
+            scalar(@found) . " schedule entr" . ( @found == 1 ? 'y' : 'ies' )
+                . " under the $floor-second floor, which the scheduler never runs: " . join( '; ', @found ),
+            "set every: to $floor or more on the Handlers page or with schedule-save, "
+                . 'which refuses less; the daemon records the refusal once in lazysite/daemon/schedule-runs.json' );
+    }
+    else {
+        report( 'OK', "every schedule entry is at or above the $floor-second floor" );
     }
     return;
 }

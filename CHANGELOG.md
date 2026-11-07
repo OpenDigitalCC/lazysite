@@ -95,7 +95,23 @@ Archive
   through the real sign-in and verifies it as the document says, agreeing with the engine.
   The format does not change silently. A `docs/SECURITY.md` entry is drafted; it records,
   for ruling, that the preview cookie's value verifies as a session for an account named
-  `v1`.
+  `v1`; confirmed as contained (ruling 146).
+- SM1390 (PENDING) **auth: another signed value is not a session, a future timestamp is
+  refused, and the sliding reader is reachable (ruling 147).** Three gaps found at the
+  SM1383 walk, closed as hardening. The session verifier refuses a payload whose first
+  field is the preview cookie's marker `v1`, and the preview verifier refuses a payload
+  without exactly five fields, so a value signed for one purpose no longer reads as the
+  other. A session whose timestamp (or `seen` time) is more than 300 seconds ahead of the
+  clock is refused; the contract document states the allowance. The payload is split to
+  five fields, so the five-field sliding shape the reader was written for - unreachable
+  behind a limit-4 split - is read as itself; nothing issues it. `t/unit/auth/76`,
+  `t/integration/361`; a `docs/SECURITY.md` entry is drafted.
+- SM1391 (PENDING) **daemon: a schedule entry under the floor is recorded as refused,
+  once (ruling 148).** A hand-written `every:` below 300 seconds in `schedule.conf` was
+  passed over in silence. The first tick that meets it records a refusal against the
+  entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
+  it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
+  names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
 
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 
