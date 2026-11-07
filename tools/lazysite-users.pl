@@ -4357,12 +4357,15 @@ sub _default_group_nesting {
 #   - only the shipped bundles - not "whatever the seed has that the site lacks",
 #     which would invent role groups on a site that never had the role layer;
 #   - only when the roles that draw on the bundle exist as shipped groups on this
-#     site (the `seeded` mark), so a pre-roles site is left as it is, and only
-#     those roles are nested in it;
+#     site (_shipped_groups: the `seeded` mark where the store carries it), so a
+#     pre-roles site is left as it is, and only those roles are nested in it;
 #   - only on a site that already has the bundle layer (one shipped bundle is
 #     there). A site seeded between SM608 and SM631 has shipped roles that hold
 #     their capabilities directly and no bundle; nesting them in every bundle
 #     would re-home its live grants, which SM631 left to a sysop on purpose;
+#   - SM1393: only on a BOOTSTRAPPED site (a manager group is there), which is
+#     what the roles below ask too; the mark alone was the guard, and a store
+#     the mark never reached adopted nothing, for ever (see _shipped_groups);
 #   - only when the bundle is ABSENT. A bundle that exists, edited or not, is never
 #     rewritten, no role's own record is touched, and the nesting is written only
 #     with the record, so a site that later took the role out of the bundle stays
@@ -4402,12 +4405,49 @@ sub _write_bundles_had {
     return $ok;
 }
 
+# SM1393: WHAT THE `seeded` MARK CAN SAY ON THIS SITE, decided once for both
+# adoptions below.
+#
+# The mark (SM608) is written at seed time and means "this record shipped";
+# absent, it means "an operator made this" - ON A STORE THE MARK REACHED. A site
+# bootstrapped before SM608, or whose manager group was written by the conf
+# migration (_migrate_conf_manager_groups writes no mark), carries the mark on
+# no record at all, and there "absent" says nothing. Both adoptions read it as
+# "nothing shipped here": the edge site of 0.16.6 had loaded its Users page
+# many times and had neither SM1371's roles nor the bundles SM1241 and SM1262
+# adopt everywhere else, which is the one cause the two share.
+#
+# WHETHER THE STORE CARRIES THE MARK IS READ FROM THE MANAGER GROUP, not from
+# any record: the manager group is the record every bootstrap writes first
+# (setup-sysop, marked since SM608), and nothing adopted here ever touches it -
+# so the answer is the same before an adoption and after it. Reading "any
+# marked record" instead would flip a pre-mark store to "marked" the moment one
+# role was adopted onto it (the adopted record carries the mark), and the next
+# release's bundle would then take every pre-mark role for operator-made.
+#
+# On a marked store, shipped = marked, SM608's reading unchanged: a group an
+# operator made under a shipped name is never nested into or taken for a
+# bundle. On a store with no marked manager group, shipped = present by its
+# shipped name, which is all such a store can say.
+sub _bootstrapped {
+    my ($gs) = @_;
+    return scalar grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} } keys %{ $gs || {} };
+}
+
+sub _shipped_groups {
+    my ($gs) = @_;
+    my $marked = grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} && $gs->{$_}{seeded} } keys %$gs;
+    return { map { $_ => 1 } grep { ref $gs->{$_} eq 'HASH' && ( !$marked || $gs->{$_}{seeded} ) } keys %$gs };
+}
+
 sub _adopt_added_bundles {
     my $gs = Lazysite::Auth::Settings::read_group_settings();
     return unless ref $gs eq 'HASH';
     my $seed    = _default_group_seed();
     my $nesting = _default_group_nesting();
-    return unless grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } keys %{$nesting};
+    return unless _bootstrapped($gs);
+    my $shipped = _shipped_groups($gs);
+    return unless grep { $shipped->{$_} } keys %{$nesting};
     my ( $had, $readable ) = _bundles_had();
     return unless $readable;
     my $was = join ',', sort keys %$had;
@@ -4416,7 +4456,7 @@ sub _adopt_added_bundles {
     for my $bundle ( sort keys %{$nesting} ) {
         next if $gs->{$bundle} || $had->{$bundle};
         next unless ref $seed->{$bundle} eq 'HASH';
-        my @roles = grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } @{ $nesting->{$bundle} || [] };
+        my @roles = grep { $shipped->{$_} } @{ $nesting->{$bundle} || [] };
         next unless @roles;
         $gs->{$bundle}  = { %{ $seed->{$bundle} }, seeded => 1 };
         $had->{$bundle} = 1;
@@ -4442,15 +4482,18 @@ sub _adopt_added_bundles {
 # SM1371: THE AGENT ROLES REACH A SITE SEEDED BEFORE THEY SHIPPED, ONCE.
 #
 # The same narrow rules as the bundles above, for the same reasons: only on a
-# site that has the shipped role layer (a `seeded` group), only a role that is
-# ABSENT, never rewriting one that exists, and only once - the names go into the
-# same had-record (bundles-adopted.json), so a role an operator deleted stays
-# deleted. A role is added with NO MEMBERS: it grants nothing to anyone until an
-# operator puts an account in it, so adopting it changes no one's access.
+# BOOTSTRAPPED site (a manager group is there - SM1393; it was "a `seeded`
+# group", which a store the mark never reached could not answer, so the roles
+# never arrived on an older site), only a role that is ABSENT, never rewriting
+# one that exists, and only once - the names go into the same had-record
+# (bundles-adopted.json), so a role an operator deleted stays deleted. A role is
+# added with NO MEMBERS: it grants nothing to anyone until an operator puts an
+# account in it, so adopting it changes no one's access, on a site with the
+# shipped role layer or without it.
 sub _adopt_agent_roles {
     my $gs = Lazysite::Auth::Settings::read_group_settings();
     return unless ref $gs eq 'HASH';
-    return unless grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{seeded} } keys %{$gs};
+    return unless _bootstrapped($gs);
     my ( $had, $readable ) = _bundles_had();
     return unless $readable;
     my $seed = _default_group_seed();
@@ -4505,6 +4548,14 @@ sub _ensure_groups_seeded {
         # twice. Every manager group is topped up, not only the one setup-manager
         # happened to name: an operator may have made a second one.
         _migrate_admins_to_sysops();
+        # SM1393: the SM576 backfill BEFORE the adoptions. Every record the
+        # adoptions write carries `assignable`, and the backfill fires only on
+        # a store where NO record does - so on a store that predates the flag
+        # (which, since SM1393, is adopted onto) an adoption ran first, the
+        # backfill then saw the flag and stayed quiet, and every group the
+        # operator had was left a backend group nobody could be assigned to
+        # (t/unit/users/34). A store the flag has reached is a no-op here.
+        _migrate_group_assignable();
         _adopt_added_bundles();
         _adopt_agent_roles();
         my $gs = Lazysite::Auth::Settings::read_group_settings();

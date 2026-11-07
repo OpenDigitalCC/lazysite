@@ -3402,3 +3402,53 @@ residual risk
 verdict
 : proposed accepted, for the release manager's confirmation; new-external-interface
   assessed as contained (above).
+
+### 2026-11-07 - SM1393 (0.16.7): the agent roles and the shipped bundles reach a site the mark never reached
+
+Assessment drafted by the developer agent for the release manager's confirmation.
+
+what changed
+: The two adoptions in the users tool (`_adopt_added_bundles`, SM1118/SM1241/SM1262;
+  `_adopt_agent_roles`, SM1371) ran only where some group record carried `seeded`. A
+  site bootstrapped before 0.11.3 wrote the mark, or whose manager group
+  `_migrate_conf_manager_groups` wrote without it, carries the mark on no record and
+  adopted nothing from any release. Both now run on a bootstrapped site (a record with
+  the `manager` flag, `_bootstrapped`). Which records count as shipped
+  (`_shipped_groups`) is read from the manager group, which no adoption writes: where a
+  manager group carries the mark, shipped is marked, SM608's reading; where none does,
+  shipped is present under a shipped name. The bundles still need the bundle layer (one
+  shipped bundle present), are nested only into shipped roles present, and every
+  adoption is once, through `bundles-adopted.json`, which an unreadable record stops.
+
+threat delta
+: Elevation of privilege is the question. A role is adopted with no member, so no
+  account's capabilities change (t/unit/users/72 holds the groups file). A bundle is
+  nested into the roles that draw on it: on a marked store, only marked ones, as before;
+  on an unmarked store, roles present under the shipped names - which on such a store
+  are the roles the tool seeded, the mark having not existed to be written. The case a
+  name alone could get wrong - an operator's own group under a shipped name - is kept
+  where it can be told (the marked store, t/unit/users/72 subtest 4); on an unmarked
+  store it cannot be told, and the bundle a role of that name would gain is the one a
+  fresh site nests into it. No trigger of ADR 0007's four fires: no interface, method,
+  dependency or data is added; the stores and their modes are unchanged.
+
+controls
+: t/unit/users/72: a site with manager groups and no mark adopts the four roles and the
+  three bundles once, as shipped, with no member; a deleted role and a deleted bundle
+  stay deleted; an unreadable record adopts nothing; on a marked store an operator's
+  unmarked `analysts` is not nested into; a site with a manager group and no role layer
+  gets the roles and no bundle; a store with no manager group adopts nothing. With the
+  guard as on main, subtests 1, 2 and 5 fail. t/unit/users/56, 70, 39 and
+  t/integration/321 pass unchanged; t/unit/users/34 and t/unit/manager/159 hold that the
+  SM576 `assignable` backfill, now run before the adoptions, still reaches a store that
+  predates the flag.
+
+residual risk
+: `reset-groups` and `group-reset` restore only a marked group, and the Groups page's
+  "shipped" badge reads the mark, so on a pre-mark site those still answer as before;
+  reported in SM1393's filing, not changed here. A store first written by `group-create`
+  or `group-set` before any seeding read never seeds (the seed runs only where the file
+  is absent); such a store has no manager group until `setup-sysop`, which marks it.
+
+verdict
+: proposed accepted, for the release manager's confirmation; no trigger fired.

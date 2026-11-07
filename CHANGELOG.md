@@ -118,6 +118,7 @@ Archive
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+
 - SM1389 (PENDING) **`lazysite check` no longer reports the protected-history repository as
   stray public copies.** The stray-copy walk read the whole private store, so the SM1324
   history repository (`<store>/lazysite/git`) matched the docroot's content-history repository
@@ -161,6 +162,19 @@ Archive
   serves, and a theme another account made (over MCP or a token) are refused by path as by
   name; a path into a served copy is refused naming its source. The Themes page offers
   Delete under every layout.
+
+- SM1393 (PENDING) **The agent roles and the shipped bundles reach a site the `seeded` mark
+  never reached.** SM1371's four agent roles, and the bundles SM1241 and SM1262 adopt on an
+  existing site, were adopted only where some group record carried `seeded`. A site
+  bootstrapped before SM608 wrote the mark, or whose manager group the conf migration wrote
+  without it, carries it on no record and adopted nothing from any release, for ever: the
+  0.16.6 edge site had loaded its Users page many times and had neither. Now a bootstrapped
+  site (a manager group is there) adopts once, on the next Users or Groups page load or any
+  other use of the users tool that reads the group store; the CLI `groups` listing does not.
+  Whether the store carries the mark is read from the manager group, which no adoption
+  touches: where it does, an unmarked record is operator-made as SM608 reads it; where it
+  does not, a group present under its shipped name is what the store can say. SM1262's record
+  keeps the rest: a deleted role or bundle never returns, an unreadable record adopts nothing.
 
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 

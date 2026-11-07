@@ -117,6 +117,20 @@ sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a
   names, and say which: remove the group from those first. The operator group is never
   deleted, even when there is more than one (before, only the last was kept).
 
+**The agent roles and the shipped bundles appear on an older site (SM1393).** 0.16.6's
+note said the four agent roles appear on a site's first Users or Groups page load after
+the upgrade. On a site bootstrapped before the `seeded` mark existed (before 0.11.3, or
+whose manager group came from `lazysite.conf`'s `manager_groups`) they did not, and nor did any
+bundle a release had added since (`cap-tidy`, `cap-services`, `cap-maintenance`,
+`cap-audit-switch`, `ch-files`, as the site's roles draw on them). After this release,
+the first Users or Groups page load (or any users-tool command that reads the group
+store, such as `group-add`; the CLI `groups` listing is not one) adds the four
+roles and, on a site that has the bundle layer, the bundles it lacks, nested into the
+roles present under their shipped names. The roles have no members and the bundles are
+nested only into roles already there, so nobody's access changes; delete any you do not
+want and it stays deleted. A group an operator made under a shipped name on a site that
+carries the mark is left alone, as before. The site's audit log records each adoption.
+
 ## The primary's content leaves out the other domains, and the rest of 0.16.6
 
 **The primary site's content leaves out the other domains' folders (SM1372).** On an
