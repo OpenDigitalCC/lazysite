@@ -11,13 +11,14 @@ package main;
 #         _render_fallback_layout; generate_theme_css (the processor's theme
 #         token generator, lint 61); the injectors that edit the finished
 #         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_app, _inject_form_base, _inject_meta,
-#         _inject_canonical, and the admin bar (_inject_admin_bar,
+#         _inject_canonical, _inject_structured_data with _organisation_entry and
+#         _structured_data_declared (SM1357), and the admin bar (_inject_admin_bar,
 #         _admin_bar_choice, _inject_admin_bar_live); _enabled_extensions,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
 #         _lazysite_version with their per-process memos.
 # OWNS    which layout and theme a page renders in; the theme's custom
 #         properties as CSS; what the engine adds to a finished page (auth
-#         sync, data helper, generator meta, canonical link, admin bar); the
+#         sync, data helper, generator meta, canonical link, JSON-LD, admin bar); the
 #         engine version and install time a render is keyed and stamped with.
 # CALLS   render_content, _tt_render, _cgi_can_write, _content_abs, _draft_requested,
 #         _content_rel, _esc_html, _is_manager, _json_filter, _markdown_filter,
@@ -554,6 +555,7 @@ sub render_template {
         # site would silently lose its generator meta and its canonical link.
         $output = _inject_meta( $output, $vars );
         $output = _inject_canonical( $output, $vars );
+        $output = _inject_structured_data( $output, $vars );    # SM1357
 
         # DP-3b, for the reason stated immediately above and worth stating
         # once more because it caught me: a no-layout site would otherwise
@@ -685,6 +687,7 @@ sub render_template {
     # per-host page cache. Skipped when a layout already emitted a canonical or
     # site_url is unset.
     $output = _inject_canonical( $output, $vars );
+    $output = _inject_structured_data( $output, $vars, $layout );    # SM1357
 
     # SM099: client-side sign-in/out so a shared cached page never shows the wrong
     # auth control. Toggles [data-ls-auth-in]/[data-ls-auth-out] from the lzs_session
@@ -1019,6 +1022,106 @@ sub _inject_canonical {
     my $tag = qq{\n    <link rel="canonical" href="$href">};
     $html =~ s/(<head[^>]*>)/$1$tag/i;
     return $html;
+}
+
+# SM1357: STRUCTURED DATA FOR SEARCH, in the head of the pages that carry it.
+#
+# Two sources, and both publish only what the site already serves publicly:
+#
+#   the ORGANISATION ENTRY, on the home page, from the site's own details in
+#     lazysite.conf (site_name and site_url, and site_type, site_address,
+#     site_phone, site_email, site_hours) - emitted once the site states one of
+#     the details beyond its name, so a site that has said nothing about itself
+#     publishes nothing new. site_hours names a schedule table (SM1356).
+#   a table's MAPPING (structured_data: in its descriptor), on the pages it
+#     names, from the rows an anonymous visitor may read now.
+#
+# Every table read is recorded (its change stamp) and the soonest moment the
+# output stops being true is the render's expiry, so a row changed or an
+# opening passed refreshes the page. The module is loaded only on a site that
+# states organisation details or declares a mapping: the render path stays
+# module-free for every other site (ADR 0001). Never on a manager page.
+sub _inject_structured_data {
+    my ( $html, $vars, $layout ) = @_;
+    return $html if defined $layout && $layout eq $MANAGER_LAYOUT;
+    return $html unless $html =~ m{</head>}i;
+    return $html if _draft_requested();
+    my $path = _request_path();
+    $path = "/$path" unless $path =~ m{^/};
+    $path =~ s{\.(?:html|md)$}{};
+    $path =~ s{/index$}{/};
+    $path = '/' if $path eq '' || $path eq '/index';
+
+    my @graph;
+    if ( $path eq '/' ) {
+        my $org = _organisation_entry($vars);
+        push @graph, $org if $org;
+    }
+    if ( _unit_enabled('extensions/data.pl') && _structured_data_declared() ) {
+        my $r = eval {
+            _lazy_lib('Lazysite::Data::StructuredData');
+            Lazysite::Data::StructuredData::for_page( $DOCROOT, $path );
+        };
+        if ($r) {
+            _tt_dep( @{ $r->{files} } );
+            _tt_dep_stamp($_) for @{ $r->{tables} };
+            _tt_dep_expires( $r->{expires} );
+            push @graph, @{ $r->{graph} };
+        }
+        else {
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                'structured data could not be built for this page', error => ( $@ || 'unknown' ) );
+        }
+    }
+    return $html unless @graph;
+    my $block = eval {
+        _lazy_lib('Lazysite::Data::StructuredData');
+        Lazysite::Data::StructuredData::script_block(@graph);
+    } // '';
+    $html =~ s{(</head>)}{    $block\n$1}i if length $block;
+    return $html;
+}
+
+# The organisation entry from the site's own details, or undef when the site
+# states none beyond its name. Values come from the conf as written (the stash
+# holds them unescaped); JSON-LD encoding makes them inert.
+sub _organisation_entry {
+    my ($vars) = @_;
+    my @detail = qw(site_type site_address site_phone site_email site_hours);
+    return undef unless grep { length( $vars->{$_} // '' ) } @detail;
+    my %site = map { ( $_ => ( $vars->{$_} // '' ) ) } ( 'site_name', @detail );
+    $site{site_url} = length( $vars->{canonical_url} // '' ) ? $vars->{canonical_url} : ( $vars->{site_url} // '' );
+    delete $site{site_hours} unless _unit_enabled('extensions/data.pl');
+    my ( $org, $tables, $expires ) = eval {
+        _lazy_lib('Lazysite::Data::StructuredData');
+        Lazysite::Data::StructuredData::organisation( $DOCROOT, \%site );
+    };
+    unless ($org) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'the organisation entry could not be built',
+            error => $@ )
+            if $@;
+        return undef;
+    }
+    _tt_dep_stamp($_) for @{ $tables || [] };
+    _tt_dep_expires($expires);
+    return $org;
+}
+
+# Does any table's descriptor declare a mapping? A line scan of the descriptor
+# files, so a site with tables and no mapping loads no module to find out.
+sub _structured_data_declared {
+    my $dir = "$LAZYSITE_DIR/db/tables";
+    opendir my $dh, $dir or return 0;
+    my @files = grep { /\A[a-z][a-z0-9_]*\.ya?ml\z/ } readdir $dh;
+    closedir $dh;
+    for my $f (@files) {
+        open my $fh, '<', "$dir/$f" or next;
+        while ( my $l = <$fh> ) {
+            if ( $l =~ /^structured_data\s*:/ ) { close $fh; return 1 }
+        }
+        close $fh;
+    }
+    return 0;
 }
 
 sub _inject_admin_bar {

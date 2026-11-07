@@ -118,6 +118,19 @@ Directory scan
   feeds and `llms.txt`. Default unset: the manual is served at `/docs/` but
   is not listed as the site's content.
 
+`llms_txt`
+: The AI-readable summary `/llms.txt`, generated beside the sitemap from the
+  site's public pages: on by default; `off` neither generates nor serves it.
+
+`time_zone`
+: The zone schedules and dated rows are read in (`Europe/London`). Default
+  UTC; a name the host does not know is UTC, and `lazysite check` says so.
+
+`site_type`, `site_address`, `site_phone`, `site_email`, `site_hours`
+: The site's own details for the organisation entry (the home page's JSON-LD,
+  the summary's *About*). `site_hours` names a schedule table. Published once
+  one is set; unset publishes nothing new.
+
 `design_guide`
 : A same-site path (`/guides/design`) the engine's layouts doc and layouts
   briefing link as "This site's design guide". Default unset: no line. A full URL

@@ -5,15 +5,17 @@ package main;
 # HOLDS   resolve_tt_vars(): the conf's and a page's tt_page_var definitions
 #         resolved - literals, ${VAR} env interpolation through the allowlist
 #         (interpolate_env, _env_value: the SM926 copy t/lint/203 pins), the
-#         url:, json:, db: and scan: sources (resolve_json, resolve_db with
-#         _db_empty and _escape_db_rows, _resolve_content_path, _language_set)
+#         url:, json:, db:, schedule: and scan: sources (resolve_json, resolve_db
+#         with _db_empty and _escape_db_rows, resolve_schedule with
+#         _schedule_inert, _resolve_content_path, _language_set)
 #         and the sources the enabled extensions declare (SM1369 X3:
 #         _hook_sources, _hook_source_for, _per_viewer_prefixes, resolve_source
 #         with _source_inert);
 #         _canonical_of, the domain an alias host renders from (P14, the marked
 #         copy t/lint/224 drives);
 #         the dependency record a cached page is checked against (_tt_dep,
-#         deps_cache_path, write_deps, deps_fresh); the nav file and its parse
+#         _tt_dep_stamp and _tt_dep_expires (SM1356/SM1357), deps_cache_path,
+#         write_deps, deps_fresh, deps_stamps_fresh, deps_expires); the nav file and its parse
 #         (_nav_file_for, _site_path: the module-free copy t/lint/37 drives,
 #         parse_nav); the conf peeks (peek_conf_key, peek_search_default); and
 #         the scan's identity and visibility tests (_scan_identity,
@@ -27,8 +29,8 @@ package main;
 #         rest of the script and its parts; realpath, decode_json, make_path
 #         (imported by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $CT_CACHE_DIR, $REQUEST_CROOT,
-#         $TT_DEP_LIVE, @TT_DEPS, %ENV_ALLOWLIST, %RENDER_QUERY (the script's,
-#         declared `our` there).
+#         $TT_DEP_LIVE, @TT_DEPS, @TT_DEP_STAMPS, $TT_DEP_EXPIRES, %ENV_ALLOWLIST,
+#         %RENDER_QUERY (the script's, declared `our` there).
 #
 # NOT HERE: resolve_site_vars and reset_request_state, which sit between the two
 # blocks this part holds, stay in the script with the memo they close over.
@@ -40,6 +42,7 @@ use strict;
 use warnings;
 
 our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $CT_CACHE_DIR, $REQUEST_CROOT, $TT_DEP_LIVE, @TT_DEPS, %ENV_ALLOWLIST, %RENDER_QUERY );
+our ( @TT_DEP_STAMPS, $TT_DEP_EXPIRES );    # SM1356/SM1357: see _tt_dep_stamp
 
 # --- Sources and site vars ---
 #
@@ -270,6 +273,42 @@ sub _tt_dep {
     return;
 }
 
+# SM1357: A TABLE THIS RENDER READ. The table's change stamp (every write the
+# data layer makes touches it - Lazysite::Data::Tables::touch_stamp), recorded
+# with a leading '=' so the cache path checks it on BOTH branches: a row changed
+# refreshes the page carrying it, as a saved page refreshes its own render,
+# whatever the page's ttl:. A stamp that does not exist yet is made, older than
+# any render, so a table never written since stays provably unchanged; one that
+# cannot be made leaves the page unprovable (live), the safe direction.
+sub _tt_dep_stamp {
+    my ($table) = @_;
+    return unless defined $table && $table =~ /\A[a-z][a-z0-9_]*\z/;
+    my $p = "$LAZYSITE_DIR/db/stamps/$table";
+    unless ( -e $p ) {
+        my $made = eval {
+            make_path("$LAZYSITE_DIR/db/stamps") unless -d "$LAZYSITE_DIR/db/stamps";
+            open my $sh, '>', $p or die "$!\n";
+            close $sh;
+            utime( 1, 1, $p );
+            1;
+        };
+        unless ($made) { $TT_DEP_LIVE = 1; return }
+    }
+    push @TT_DEP_STAMPS, $p;
+    return;
+}
+
+# SM1356: WHEN WHAT THIS RENDER SHOWS STOPS BEING TRUE - the next opening or
+# closing of a schedule, the moment a dated row enters or leaves its window.
+# The soonest one wins. Recorded as '@<epoch>'; past it the render is stale on
+# both branches of the cache path and the response's max-age never reaches it.
+sub _tt_dep_expires {
+    my ($at) = @_;
+    return unless defined $at && $at =~ /\A\d+\z/;
+    $TT_DEP_EXPIRES = $at if !defined $TT_DEP_EXPIRES || $at < $TT_DEP_EXPIRES;
+    return;
+}
+
 sub deps_cache_path {
     my ($base) = @_;
     my $key = $base;
@@ -285,7 +324,7 @@ sub write_deps {
     return if _draft_requested();    # SM1030: a draft render writes nothing
     my $path = deps_cache_path($base);
 
-    unless ( @TT_DEPS || $TT_DEP_LIVE ) {
+    unless ( @TT_DEPS || $TT_DEP_LIVE || @TT_DEP_STAMPS || defined $TT_DEP_EXPIRES ) {
         unlink $path if -f $path;    # the page stopped declaring sources
         return;
     }
@@ -293,6 +332,7 @@ sub write_deps {
     make_path($CT_CACHE_DIR) unless -d $CT_CACHE_DIR;
     my %seen;
     my @uniq = grep { !$seen{$_}++ } @TT_DEPS;
+    my @stamps = grep { !$seen{"=$_"}++ } @TT_DEP_STAMPS;
 
     open my $fh, '>:utf8', "$path.tmp.$$" or do {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
@@ -300,6 +340,8 @@ sub write_deps {
         return;
     };
     print {$fh} "!\n" if $TT_DEP_LIVE;
+    print {$fh} "\@$TT_DEP_EXPIRES\n" if defined $TT_DEP_EXPIRES;
+    print {$fh} "=$_\n" for @stamps;
     print {$fh} "$_\n" for @uniq;
     close $fh;
     rename "$path.tmp.$$", $path;
@@ -322,6 +364,12 @@ sub deps_fresh {
         chomp $line;
         next unless length $line;
         if ( $line eq '!' ) { close $fh; return 0 }    # url:, unprovable
+        if ( $line =~ /\A\@(\d+)\z/ ) {                # SM1356: past its expiry
+            next if time() < $1;
+            close $fh;
+            return 0;
+        }
+        $line =~ s/\A=//;                              # SM1357: a table's stamp
         my $dep_mtime = ( stat $line )[9];
         if ( !defined $dep_mtime || $dep_mtime > $html_mtime ) {
             close $fh;
@@ -330,6 +378,48 @@ sub deps_fresh {
     }
     close $fh;
     return 1;
+}
+
+# SM1356/SM1357: the two lines of the record a page's ttl: does NOT outlast - a
+# table's stamp ('=') newer than the render, and the expiry ('@') - for the ttl
+# branch of the cache path, which deliberately reads nothing else of the record
+# (see try_serve_cache). 1 when neither says stale, or there is no record.
+sub deps_stamps_fresh {
+    my ( $base, $html_mtime ) = @_;
+    open my $fh, '<:utf8', deps_cache_path($base) or return 1;
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        if ( $line =~ /\A\@(\d+)\z/ ) {
+            next if time() < $1;
+            close $fh;
+            return 0;
+        }
+        next unless $line =~ s/\A=//;
+        my $m = ( stat $line )[9];
+        if ( !defined $m || $m > $html_mtime ) { close $fh; return 0 }
+    }
+    close $fh;
+    return 1;
+}
+
+# The expiry a cached render carries, or undef: the response's max-age is held
+# under it, so a browser or a proxy keeps the page no longer than the engine.
+sub deps_expires {
+    my ($base) = @_;
+    open my $fh, '<:utf8', deps_cache_path($base) or return undef;
+    my $line = <$fh>;
+    $line = <$fh> if defined $line && $line eq "!\n";
+    close $fh;
+    return ( defined $line && $line =~ /\A\@(\d+)\n?\z/ ) ? $1 : undef;
+}
+
+# A page's ttl: held under an expiry: the seconds left, never fewer than one.
+sub _ttl_until {
+    my ( $ttl, $expires ) = @_;
+    return $ttl unless defined $ttl && defined $expires;
+    my $left = $expires - time();
+    $left = 1 if $left < 1;
+    return $left < $ttl ? $left : $ttl;
 }
 
 # SM833: A FAILED SCALAR BINDING MUST FAIL SCALAR-SHAPED.
@@ -489,6 +579,8 @@ sub resolve_db {
     # for its declared ttl, which is what "snapshot's freshness is the page's
     # ttl" always meant.
     $TT_DEP_LIVE = 1;
+    _tt_dep_stamp($table);               # SM1357: a row write refreshes the page
+    _tt_dep_expires( $r->{expires} );    # SM1356: a dated row enters or leaves
 
     # A SLOW READ SAYS SO, with the page, the binding and what to do about it.
     # This is what replaced refusing an unindexed filter or order: the refusal
@@ -769,6 +861,78 @@ sub _source_inert {
     return _data_inert( _esc_html($v) );
 }
 
+# SM1356: A PAGE SHOWS A SCHEDULE.
+#
+#   tt_page_var:
+#     hours: schedule:opening
+#
+# `opening` is a table whose descriptor says `schedule: true`. The page gets
+# what Lazysite::Data::Schedule::state says now, in the site's zone
+# (time_zone: in lazysite.conf): hours.label ("Open now until 17:00", "Opens
+# at 12:00"), hours.open, hours.week (each day's periods), hours.today,
+# hours.next_exception and hours.exceptions. Read as the visitor, through the
+# same gate as db:, so a schedule that is not public shows nothing.
+#
+# NOT LIVE. Unlike db:, a schedule page is cacheable, and that is the point of
+# computing `expires`: it is cached until the next change of state (an opening,
+# a closing, local midnight) and a row write (its stamp), and no longer - so it
+# never serves a stale "open now" and never re-renders for nothing in between.
+sub resolve_schedule {
+    my ( $table, $key ) = @_;
+    return {} unless defined $table && $table =~ /\A[a-z][a-z0-9_]*\z/;
+    if ( !_unit_enabled('extensions/data.pl') ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'schedule: page variable needs the data extension, which is switched off', key => $key );
+        return {};
+    }
+    my $ok = eval {
+        _lazy_lib('Lazysite::Data::Tables');
+        _lazy_lib('Lazysite::Data::Schedule');
+        1;
+    };
+    unless ($ok) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'schedule: page variable needs the data modules', key => $key );
+        return {};
+    }
+    my $d = Lazysite::Data::Tables::load_table( $DOCROOT, $table );
+    unless ( $d->{ok} && $d->{schedule} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'schedule: page variable names a table that is not a schedule (schedule: true)',
+            key => $key, table => $table );
+        return {};
+    }
+    _tt_dep_stamp($table);
+    my $r = Lazysite::Data::Tables::resolve_binding( $DOCROOT, "$table(limit=500)",
+        do { my $i = _request_identity(); +{ user => $i->{user}, groups => $i->{groups} } } );
+    unless ( $r->{ok} ) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'schedule: page variable read nothing - if the table exists, it may not be published '
+                . '(set public: true) or this visitor may not be allowed to read it',
+            key => $key, table => $table );
+        return {};
+    }
+    my ( $tz, $tz_why ) = Lazysite::Data::Schedule::site_zone($DOCROOT);
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-', $tz_why, key => $key ) if length $tz_why;
+    my $s = Lazysite::Data::Schedule::state( $r->{rows}, $tz );
+    _tt_dep_expires( $s->{expires} );
+    _tt_dep_expires( $r->{expires} );
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+        "schedule: $s->{unreadable_rows} row(s) of the schedule could not be read and were left out",
+        key => $key, table => $table )
+        if $s->{unreadable_rows};
+    return _schedule_inert($s);
+}
+
+# Every scalar of the schedule escaped as a db: value is (SM786): a note is a
+# row's text, and a row's text never reaches a page as markup.
+sub _schedule_inert {
+    my ($v) = @_;
+    return [ map { _schedule_inert($_) } @$v ] if ref $v eq 'ARRAY';
+    return { map { ( $_ => _schedule_inert( $v->{$_} ) ) } keys %$v } if ref $v eq 'HASH';
+    return $v if ref $v || !defined $v;
+    return _data_inert( _esc_html($v) );
+}
+
 sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
@@ -800,6 +964,10 @@ sub resolve_tt_vars {
             # page can say "showing 200 of 250". Scalar bindings (.count,
             # .field) answer a value and carry no companion.
             $vars{ $key . '_total' } = 0 + $total if defined $total;
+        }
+        elsif ( $val =~ s/^schedule://i ) {    # SM1356
+            $val =~ s/^\s+|\s+$//g;
+            $vars{$key} = resolve_schedule( $val, $key );
         }
         elsif ( my $src = _hook_source_for($val) ) { # SM1369 X3: a source an extension declares
             $val =~ s/^\Q$src->{prefix}\E://i;

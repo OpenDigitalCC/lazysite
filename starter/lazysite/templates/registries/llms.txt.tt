@@ -6,7 +6,23 @@ Each link below is the page's Markdown source rather than its rendered HTML -
 the same words without the markup, and the same access rules (SM825). A page
 that needs a sign-in to read answers these the way it answers any other
 request.
+[%- # SM1357: the organisation entry, from the site's own details in
+    # lazysite.conf (site_type, site_address, site_phone, site_email, and
+    # site_hours naming a schedule). Absent on a site that states none. %]
+[% IF organisation %]
+## About
 
+- Name: [% organisation.name %]
+[% IF organisation.type != 'Organization' %]- Kind: [% organisation.type %]
+[% END %][% IF organisation.url %]- Website: [% organisation.url %]
+[% END %][% IF organisation.address %]- Address: [% organisation.address %]
+[% END %][% IF organisation.telephone %]- Telephone: [% organisation.telephone %]
+[% END %][% IF organisation.email %]- Email: [% organisation.email %]
+[% END %][% IF organisation.hours.size %]
+### Opening hours
+
+[% FOREACH line IN organisation.hours %]- [% line %]
+[% END %][% END %][% END %]
 ## Pages
 
 [% FOREACH page IN pages %]

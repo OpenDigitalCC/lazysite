@@ -630,6 +630,26 @@ and what to do in each case:
   seconds to reach returning visitors, and `?v=` bumping makes them immediate
   again.
 
+## Opening hours and structured data (SM1356, SM1357)
+
+**Opening hours are a schedule table, and a layout renders its blocks.** A page
+(or `lazysite.conf`, for every page) binds `hours: schedule:<table>`, and the
+layout gets `hours.label` ("Open now until 17:00", "Opens at 12:00"),
+`hours.week` (seven days, each with its `periods`), `hours.today` and
+`hours.next_exception` - the whole shape, with an example, is in
+[Data tables - Schedules](/docs/data-tables#schedules). Values are escaped like
+any `db:` value: no `| html`. Do not compute "open now" in the layout's own
+script or from `now` in a template: the engine caches the page only until the
+next change of state, so the engine's label is right and a hand-rolled one is
+the cached one.
+
+**A layout writes no JSON-LD.** The engine puts one
+`<script type="application/ld+json">` before `</head>` on the pages a table's
+`structured_data:` mapping names, and the organisation entry on the home page,
+from the site's own details. A layout that also hard-codes schema.org markup
+publishes a second, disagreeing description of the same thing. Keep `</head>` in
+the layout; that is where it goes.
+
 ## A layout cannot open the camera, the microphone or the visitor's location
 
 Every response sends a `Permissions-Policy` header that denies these browser

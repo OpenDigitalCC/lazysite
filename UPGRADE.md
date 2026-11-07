@@ -164,6 +164,33 @@ descriptor names an `availability` field, and wizards exist only where
 `lazysite/db/wizards/` holds them, so an upgraded site's tables and pages behave as
 before.
 
+**The sitemap and llms.txt list every public page (SM1357, ruling 165).** Until now they
+listed only pages whose front matter said `register: [sitemap.xml]` (or `llms.txt`).
+From this release a page with no `register:` key is in both, so on upgrade the sitemap
+and the summary grow to the site's whole public content. A page that has a `register:`
+list keeps what it says; a protected, draft, copied, `api:`/`raw:`, redirect or starter
+demonstration page and the engine's sign-in and error pages are never listed. To keep a
+page out, give it `search: false`, or a `register:` list that does not name the
+registry. `llms.txt` is on by default (a site that had no page registered for it now
+has one listing its pages); `llms_txt: off` in `lazysite.conf` turns it off. An existing
+site's `llms.txt.tt` is its own and is not replaced: the *About* section the new
+template prints from the organisation details appears on a site only once its template
+is taken from the starter (`starter/lazysite/templates/registries/llms.txt.tt`).
+
+**A row written refreshes the pages that show it (SM1357).** A page binding a table with
+`db:` and carrying a `ttl:` used to show a changed row only when the ttl ran out; it now
+renders again on its next request after any row write the engine makes (each table has a
+change stamp in `lazysite/db/stamps/`, made on first use). A row changed outside the
+engine (an `sqlite3` shell) touches no stamp and still waits for the ttl.
+
+**Schedules and the site's time zone (SM1356).** New and opt-in: a table is a schedule
+only when its descriptor says `schedule: true`, and `time_zone:` defaults to UTC, which
+is what every date in the engine already was. A site with dated rows or a schedule sets
+`time_zone:` to its zone (the host needs the `tzdata` package; `lazysite check` names a
+zone it cannot find). Passed exceptions are removed by the daemon's new
+`schedule-exceptions` job, which runs as the job account and needs `manage_data` on it;
+without that grant the job records a refusal and the exceptions stay, harmlessly.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

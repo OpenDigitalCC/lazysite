@@ -10,7 +10,10 @@ package main;
 #         _front_matter_private, _front_matter_custom and _page_tags (what a
 #         scan and a registry object carry of a page's front matter, P12) and
 #         _scan_page_unreadable (the log line
-#         for a page a walk leaves out, SM976 Q15h); scan_pages(), the walk
+#         for a page a walk leaves out, SM976 Q15h); _listed_by_default,
+#         _registry_lists, _llms_txt_on and _registry_organisation (SM1357, ruling
+#         165: the sitemap and the summary list every public page, the summary
+#         has a switch and carries the organisation entry); scan_pages(), the walk
 #         the registries are built from; update_registries() and its P-3 memo of whether any
 #         registry template exists; _feed_dates; the registry serving path -
 #         _serve_registry, _registry_cache_path, _registry_ct, _registry_stale
@@ -156,6 +159,101 @@ sub _scan_parse_modifiers {
 # of resolve_scan verbatim: same roots, same walk, same private-wins dedupe,
 # the cap the caller passes (P9: the site's scan_limit, 200 by default) in the
 # same order, and the same _tt_dep calls on the way.
+# SM1357 (ruling 165): THE SITEMAP AND THE AI-READABLE SUMMARY LIST EVERY PUBLIC
+# PAGE. They used to list only the pages that said `register: [sitemap.xml]`, so a
+# page an author never thought to register was invisible to search engines and
+# to an AI client reading llms.txt, on every site, by default.
+#
+# A page with no `register:` key is now listed in both. A page that has one keeps
+# what it says - its list is the author's choice of registries, and a page that
+# names only a feed has said it is not for the sitemap. Left out whatever its
+# register says, because it is not a page for a search engine or a reader:
+#
+#   search: false            the author has kept it out of search
+#   api: / raw: true         an endpoint or a data file, not a page
+#   redirect:                an address that sends the visitor elsewhere
+#   starter_role: demonstration   the starter's showroom pages (SM486: four live
+#                            sites advertised /lazysite-demo in their sitemap)
+#
+# and, as before and for every registry, a draft, a gated or protected page and
+# anything under lazysite/ - which holds SM1354's page copies - never reach a
+# registry at all (_registry_hidden, scan_pages).
+sub _listed_by_default {
+    my ( $meta, $url ) = @_;
+    return 0 if exists $meta->{register};
+    return 0 if defined $url && _registry_system_page($url);
+    return _registry_listable($meta);
+}
+
+# The engine's own pages at a content root - sign-in, sign-out, the error pages -
+# which a site may keep its own copy of (SM201). Not content, so not listed by
+# default; a copy that registers itself keeps what it says. The names are the
+# script's %SYSTEM_PAGES (t/unit/processor/187 holds the two lists equal): a sub
+# with its own literal, because a file-scoped hash in a part is empty when a
+# request is served (the SM522 shape).
+sub _registry_system_page {
+    my ($url) = @_;
+    my %sys = map { ( "/$_" => 1 ) } qw(login claim forgot logout account maintenance odoo-signin 402 403 404);
+    return $sys{$url} ? 1 : 0;
+}
+
+sub _registry_listable {
+    my ($meta) = @_;
+    return 0 if ( $meta->{search}         // '' ) =~ /\A\s*["']?false["']?\s*\z/i;
+    return 0 if ( $meta->{api}            // '' ) =~ /\A\s*true\s*\z/i;
+    return 0 if ( $meta->{raw}            // '' ) =~ /\A\s*true\s*\z/i;
+    return 0 if length( $meta->{redirect} // '' );
+    return 0 if ( $meta->{starter_role}   // '' ) =~ /\A\s*demonstration\s*\z/i;
+    return 1;
+}
+
+# Which pages a registry lists: its own registrants, and for the sitemap and the
+# summary every public page (above) - an api or raw page never, even registered.
+sub _registry_lists {
+    my ( $name, $page ) = @_;
+    my $registered = grep { $_ eq $name } @{ $page->{register} || [] };
+    return $registered ? 1 : 0 unless $name eq 'sitemap.xml' || $name eq 'llms.txt';
+    return 0                   unless $page->{_listable};
+    return ( $registered || $page->{_default} ) ? 1 : 0;
+}
+
+# Ruling 165: the summary is ON by default; `llms_txt: off` in lazysite.conf
+# turns it off - it is then neither generated nor served (a 404, as on a site
+# that never had one). A hand-written llms.txt in the content is the site's own
+# and is served as content either way.
+sub _llms_txt_on {
+    my $v = peek_conf_key('llms_txt') // '';
+    return $v =~ /\A["']?(?:off|false|no|0|disabled)["']?\z/i ? 0 : 1;
+}
+
+# The organisation entry for the summary: { name, type, url, address,
+# telephone, email, hours => [lines] }, or undef when the site states no
+# details beyond its name (_organisation_entry, the same rule as the home
+# page's JSON-LD).
+sub _registry_organisation {
+    my ($sv) = @_;
+    my @detail = qw(site_type site_address site_phone site_email site_hours);
+    return undef unless grep { length( $sv->{$_} // '' ) } @detail;
+    my %site = map { ( $_ => ( $sv->{$_} // '' ) ) } ( 'site_name', @detail );
+    $site{site_url} = $sv->{site_url} // '';
+    delete $site{site_hours} unless _unit_enabled('extensions/data.pl');
+    my $lines;
+    my ($org) = eval {
+        _lazy_lib('Lazysite::Data::StructuredData');
+        Lazysite::Data::StructuredData::organisation( $DOCROOT, \%site, lines => \$lines );
+    };
+    return undef unless $org;
+    return {
+        name      => $org->{name},
+        type      => $org->{'@type'},
+        url       => ( $org->{url}       // '' ),
+        address   => ( $org->{address}   // '' ),
+        telephone => ( $org->{telephone} // '' ),
+        email     => ( $org->{email}     // '' ),
+        hours     => ( $lines || [] ),
+    };
+}
+
 # SM1284: does this request's scan read the engine's docs? An engine page's
 # render does; a site page's only on a site that put them in (ruling 35).
 sub _scan_sees_engine_docs {
@@ -692,6 +790,7 @@ sub _registry_stale {
         opendir( my $dh, $REGISTRY_DIR ) or return;
         my @templates = grep { /\.tt$/ } readdir($dh);
         closedir($dh);
+        @templates = grep { $_ ne 'llms.txt.tt' } @templates unless _llms_txt_on(); # ruling 165
 
         return unless @templates;
 
@@ -764,10 +863,7 @@ sub _registry_stale {
 
             # Filter pages registered for this registry
             my $registry_name = $output_name;
-            my @registered    = grep {
-                my $page = $_;
-                grep { $_ eq $registry_name } @{ $page->{register} || [] }
-            } @pages;
+            my @registered = grep { _registry_lists( $registry_name, $_ ) } @pages; # SM1357
 
             # SM179 P3: for a language set, attach each page's hreflang alternates
             # so the sitemap can advertise its siblings (xhtml:link). Copy each
@@ -869,9 +965,14 @@ sub _registry_stale {
 
             my $vars = {
                 %site_vars,
-                pages        => \@registered,
+                pages => [ map { my %p = %$_; delete @p{qw(_listable _default)}; \%p } @registered ],
                 feed_updated => $feed_updated,    # SM942: '' for every non-feed registry
             };
+            # SM1357: the summary's organisation entry, from the site's own details.
+            if ( $registry_name eq 'llms.txt' ) {
+                my $org = _registry_organisation( \%site_vars );
+                $vars->{organisation} = $org if $org;
+            }
 
             my $output = '';
             $tt->process( $tmpl_path, $vars, \$output ) or do {
@@ -1025,6 +1126,7 @@ sub _serve_registry {
     # request for /sitemap.xml on a site with no registries should 404 as it
     # always did, not answer with an empty document.
     return 0 unless -f "$REGISTRY_DIR/$name.tt";
+    return 0 if $name eq 'llms.txt' && !_llms_txt_on();    # ruling 165: off is a 404
 
     my %sv   = resolve_site_vars();
     my $root = $DOCROOT;
@@ -1247,7 +1349,10 @@ sub scan_pages {
                     _scan_page_unreadable( $path, $why );
                     next;
                 }
-                next unless $meta->{register};
+                # SM1357: a page with no register: key is listed in the sitemap
+                # and the summary by default; see _listed_by_default.
+                my $default = _listed_by_default( $meta, _page_url( $path, $root ) );
+                next unless $meta->{register} || $default;
 
                 # SM181 + SM268 H13: a registry (sitemap.xml, llms.txt, the
                 # feeds) is a STATIC artefact written to disk and served to
@@ -1278,7 +1383,9 @@ sub scan_pages {
                     subtitle => $meta->{subtitle} || '',
                     date     => $date,
                     tags     => _page_tags($meta),
-                    register => $meta->{register} || [],
+                    register => ( ref $meta->{register} eq 'ARRAY' ? $meta->{register} : [] ),
+                    _listable => _registry_listable($meta),
+                    _default  => $default,
 
                     # SM300: the description a registry publishes - the explicit
                     # meta_desc when the author set one, the subtitle otherwise.

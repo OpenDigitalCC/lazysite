@@ -72,6 +72,31 @@ works on staging and production.
   which are about the site's own content. For a site that is the product's
   documentation. See [The /docs manual](#thedocsmanual).
 
+`llms_txt`
+: The AI-readable summary, `/llms.txt`: on by default. It is generated beside
+  the sitemap and lists the site's public pages - never a protected page, a
+  draft, a page copy or an `api:`/`raw:` page - with their titles and
+  descriptions, and the organisation entry below. `off` turns it off: it is then
+  neither generated nor served (a request for it is a 404). A `llms.txt` you
+  wrote yourself in the content is the site's own and is served either way. See
+  [Structured data for search](/docs/data-tables#structureddataforsearch).
+
+`time_zone`
+: The site's time zone, a name from the host's zoneinfo such as
+  `Europe/London`. Schedules and dated rows (`shows_from`, `shows_until`) are
+  read in it, summer time included. Default unset: UTC. A name the host does not
+  know is read as UTC and `lazysite check` says so (the `tzdata` package
+  provides the names).
+
+`site_type`, `site_address`, `site_phone`, `site_email`, `site_hours`
+: The site's own details, for the organisation entry search engines read: the
+  home page's JSON-LD and the summary's *About* section. `site_type` is a
+  schema.org type (default `Organization`; `LocalBusiness`, `Restaurant`,
+  `Store` ...), `site_hours` names a schedule table (`schedule: true`) whose
+  opening hours it publishes. The entry is published once one of these is set,
+  with `site_name` and `site_url`; a site that sets none publishes nothing new.
+  Each is published as written - set only what the site means to make public.
+
 `design_guide`
 : A path on this site, such as `/guides/design`, to the site's own guide for
   whoever designs for it. The manual's [Layouts and themes](/docs/layouts) page

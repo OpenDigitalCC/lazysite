@@ -1470,6 +1470,9 @@ sub run_checks {
     report_uncompilable_form_patterns();
     report_unconverted_delivery();
     report_schedule_floor();            # SM1391
+    report_time_zone();                 # SM1356
+    report_page_titles();               # SM1357
+    report_structured_data();           # SM1357
     report_retired_conf_keys();
     report_retired_notify_keys();       # SM1412
     report_app_settings();              # SM1155
@@ -3238,6 +3241,138 @@ sub report_app_settings {
             'add app_icon_192 and app_icon_512 (png files the site serves); app_icon_maskable and app_icon_64 are optional' );
     }
     report( 'OK', "app '$name' is declared at $scope with a valid scope, start page and icons" ) unless @bad || @missing || !$icons;
+    return;
+}
+
+# SM1356: THE SITE'S TIME ZONE, which every schedule and dated row is read in. A
+# name the host cannot find is read as UTC, so a site in Europe/London would say
+# "open now" an hour early all summer and nothing on the page would show why.
+# Silent when the key is absent (UTC is then what the site asked for).
+sub report_time_zone {
+    my $raw = conf_value( "$LZ/lazysite.conf", 'time_zone' );
+    return unless defined $raw && length $raw;
+    my $dir = $ENV{TZDIR} && -d $ENV{TZDIR} ? $ENV{TZDIR} : '/usr/share/zoneinfo';
+    if ( $raw eq 'UTC'
+        || ( $raw =~ m{\A[A-Za-z][A-Za-z0-9_+-]*(?:/[A-Za-z0-9_+-]+){0,2}\z} && -f "$dir/$raw" ) )
+    {
+        report( 'OK', "time_zone is $raw; schedules and dated rows are read in it" );
+    }
+    else {
+        report( 'WARN', "time_zone '$raw' is not a zone this host knows, so schedules and dated rows are read in UTC",
+            "name a zone from $dir such as Europe/London (the tzdata package provides them)" );
+    }
+    return;
+}
+
+# SM1357: EVERY PUBLIC PAGE HAS A TITLE AND A DESCRIPTION, and no two share a
+# title. The sitemap and the AI-readable summary list every public page, and a
+# search engine shows a page by its title and description: a page with neither is
+# listed as its address. A text scan of the front matter, as the rest of this
+# tool reads pages; "public" is the registries' rule (no auth: beyond none, no
+# auth_groups, not api/raw, not search: false, not a redirect, not a starter
+# demonstration page). The description is meta_desc, else subtitle.
+sub report_page_titles {
+    my $d = $opt{docroot};
+    my ( @untitled, @undescribed, %by_title, $n );
+    find_noting( 'the page title check',
+        { no_chdir => 1, wanted => sub {
+                my $p = $File::Find::name;
+                if ( -d $p ) {
+                    $File::Find::prune = 1
+                        if $p eq Lazysite::Paths::internal_lazysite_dir($d) || ( -l $p && $p ne $d );
+                    return;
+                }
+                return unless $p =~ /\.md\z/;
+                open my $fh, '<', $p or return;
+                my $text = do { local $/; <$fh> };
+                close $fh;
+                my ($fm) = $text =~ /\A---\s*\n(.*?)\n---\s*\n/s;
+                $fm //= '';
+                my %m;
+                while ( $fm =~ /^([a-z_]+)[ \t]*:[ \t]*(.*?)[ \t]*$/mg ) { $m{$1} //= $2 }
+                s/\A(["'])(.*)\1\z/$2/ for values %m;
+                return if length( $m{auth} // '' ) && $m{auth} !~ /\Anone\z/i;
+                return if exists $m{auth_groups};
+                return if ( $m{api} // '' ) =~ /\Atrue\z/i || ( $m{raw} // '' ) =~ /\Atrue\z/i;
+                return if ( $m{search}         // '' ) =~ /\Afalse\z/i;
+                return if length( $m{redirect} // '' );
+                return if ( $m{starter_role}   // '' ) eq 'demonstration';
+                $n++;
+                my $rel   = $p =~ s{\A\Q$d\E/}{}r;
+                my $title = $m{meta_title} // $m{title} // '';
+                push @untitled, $rel unless length $title;
+                push @undescribed, $rel unless length( $m{meta_desc} // '' ) || length( $m{subtitle} // '' );
+                push @{ $by_title{ lc $title } }, $rel if length $title;
+        } }, $d );
+    my $list = sub {
+        my @show = sort @_;
+        my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
+        splice @show, 8 if @show > 8;
+        return join( ', ', @show ) . $more;
+    };
+    report( 'WARN', scalar(@untitled) . ' public page(s) have no title: ' . $list->(@untitled)
+            . ' - a search engine and the sitemap list such a page by its address',
+        'give each a title: in its front matter (meta_title: sets the one search engines see, if it should differ)' )
+        if @untitled;
+    report( 'WARN', scalar(@undescribed) . ' public page(s) have no description: ' . $list->(@undescribed)
+            . ' - a search result and the AI-readable summary (llms.txt) show nothing under the title',
+        'give each a subtitle: or a meta_desc: of a sentence or two' )
+        if @undescribed;
+    my @dup = grep { @{ $by_title{$_} } > 1 } sort keys %by_title;
+    report( 'WARN', scalar(@dup) . ' title(s) are shared by more than one public page: '
+            . join( '; ', map { join( ' and ', sort @{ $by_title{$_} } ) } @dup[ 0 .. ( $#dup < 7 ? $#dup : 7 ) ] )
+            . ' - a search engine cannot tell them apart',
+        'give each page its own title (or meta_title)' )
+        if @dup;
+    report( 'OK', ( $n // 0 ) . ' public page(s), each with a title and a description of its own' )
+        unless @untitled || @undescribed || @dup;
+    return;
+}
+
+# SM1357: THE JSON-LD THE ENGINE EMITS, checked against each mapping's type - built
+# from the rows a visitor may read now, exactly as a page would carry it, by the
+# engine's own module (the only reader of a mapping; a second one here would be the
+# copy that drifts). A required property empty on a row, a date that is not ISO
+# 8601, a page the mapping names that the site does not have, a table no visitor
+# may read: each is named. Needs the data modules; a site without mappings is told
+# so in one line.
+sub report_structured_data {
+    my $d   = $opt{docroot};
+    my $dir = "$LZ/db/tables";
+    my $any = 0;
+    if ( opendir my $dh, $dir ) {
+        for my $f ( grep { /\.ya?ml\z/ } readdir $dh ) {
+            open my $fh, '<', "$dir/$f" or next;
+            $any = 1 if grep { /^structured_data\s*:/ } <$fh>;
+            close $fh;
+        }
+        closedir $dh;
+    }
+    unless ($any) {
+        report( 'OK', 'no data table declares structured_data, so no page carries mapped JSON-LD' );
+        return;
+    }
+    my $r = eval {
+        require Lazysite::Data::StructuredData;
+        Lazysite::Data::StructuredData::validate_site($d);
+    };
+    unless ($r) {
+        report( 'WARN', 'structured_data is declared but could not be checked: '
+                . ( ( $@ // '' ) =~ s/\s+at \S+ line \d+.*//sr || 'the data modules did not load' ),
+            'install the data extension\'s dependencies (lazysite check --dependencies lists them)' );
+        return;
+    }
+    my @f = @{ $r->{findings} };
+    if (@f) {
+        my $more = @f > 12 ? ' (and ' . ( @f - 12 ) . ' more)' : '';
+        report( 'WARN', scalar(@f) . ' finding(s) in the emitted JSON-LD: '
+                . join( '; ', @f[ 0 .. ( $#f < 11 ? $#f : 11 ) ] ) . $more,
+            'fill the rows named, or change the mapping in the table\'s descriptor (save_data_table)' );
+    }
+    else {
+        report( 'OK', "the JSON-LD of $r->{mappings} mapping(s) holds against each mapping's type" );
+    }
+    report( 'OK', $_ ) for @{ $r->{notes} };
     return;
 }
 

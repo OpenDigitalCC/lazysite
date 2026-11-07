@@ -13,6 +13,15 @@ from page metadata. Pages opt in by listing registry names in their
 `register:` front matter. Registry templates in
 `lazysite/templates/registries/` define the output format.
 
+**`sitemap.xml` and `llms.txt` list every public page** (from 0.16.8). A page
+with no `register:` key is in both; a page with one keeps what it says, so a
+page that registers only for a feed is in neither. Never listed, whatever they
+register: a protected or draft page, a page copy, an `api:` or `raw:` page, a
+page with `search: false`, a redirect, a starter demonstration page and the
+engine's sign-in and error pages. `llms.txt` also carries the site's
+organisation entry, and `llms_txt: off` in `lazysite.conf` turns it off. See
+[Structured data for search](/docs/data-tables#structureddataforsearch).
+
 ### Syntax
 
 In page front matter:

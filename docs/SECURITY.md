@@ -4332,3 +4332,110 @@ residual risk
 verdict
 : proposed: accepted, no trigger fired; recorded because new actions write rows on
   existing doors and the store keeps rows' earlier values.
+
+### 2026-11-07 - SM1356 (0.16.8, PENDING): schedules, dated rows, and a daemon job that deletes rows
+
+Assessment drafted by the developer agent (n773) for the release manager's confirmation.
+
+what changed
+: A table whose descriptor says `schedule: true` gets the engine's schedule fields
+  (`Lazysite::Data::Schedule::schedule_fields`) and its rows are checked at every write
+  (`Tables::_write_prep`, `import_rows`). A page or the conf may bind `schedule:<table>`
+  (`resolve_schedule`, sources.pm), read through `Tables::resolve_binding` as the visitor,
+  as `db:` is. Any table may declare `shows_from` / `shows_until`; `resolve_binding` (the
+  page bindings and the data endpoint) leaves out a row outside its window
+  (`SQLite::_where`, bound values). The site's `time_zone:` is read from the host's
+  zoneinfo (`valid_zone`: a zoneinfo-shaped name that exists there). The render records an
+  expiry (`@<epoch>` in the dependency record) and the cache serves no render past it. A
+  new daemon job, `schedule-exceptions` (hourly, `needs => manage_data`), deletes passed
+  exceptions after writing each to the audit trail with the row (ruling 164), and deletes
+  nothing when the trail is off.
+
+threat delta
+: No ADR 0007 trigger fired. `schedule:` is a new page source on the existing render,
+  reading through the existing table gate; no new interface, sign-in method or
+  dependency (POSIX and Time::Local are core), and the data is the site's own schedule.
+: Information disclosure: a schedule is read as the visitor, so a table that is not
+  `public: true` shows nothing (tested), and every value is HTML-escaped and made inert
+  as a `db:` value is (`_schedule_inert`; a note carrying `<script>` renders as text,
+  tested). A dated row outside its window is withheld from the anonymous surfaces; the
+  `manage_data` surfaces still list it, which is intended.
+: Tampering / elevation: the daemon job deletes rows, which no job did before. It runs
+  under the scheduler's existing identity gate (`run_jobs`, then `manage_data`, the grant
+  that deletes a row through the manager) and deletes only exception rows of schedule
+  tables whose last day is before today in the site's zone; the zone name cannot name a
+  file outside zoneinfo. `TZ` is set and restored around each computation in-process.
+: Repudiation: each removal is an audit line naming the job account, the table and key,
+  with the removed row as JSON (`|` escaped), read back by `removed_exceptions`; with the
+  trail off nothing is removed (tested).
+: Denial of service: the schedule is read with `limit=500` and computed over fifteen days;
+  a page showing it is cached until its next change of state rather than live.
+
+controls
+: t/unit/data/85 (fields, write refusals, open-now across boundaries, exceptions, the
+  zone across both clock changes, an unknown zone), t/unit/data/86 (the dated-row window
+  on bindings and counts, the expiry), t/unit/data/87 (the removal, its record, the trail
+  off, the job's grant), t/unit/processor/185 (escaped output, the expiry on both cache
+  branches and in max-age).
+
+residual risk
+: A site whose host lacks the named zone reads its schedule in UTC until `lazysite check`
+  is read. The schedule's state is only as fresh as the clock of the host.
+
+verdict
+: proposed: accepted, no trigger fired; recorded because a daemon job now deletes rows
+  and the data endpoint now withholds rows by date.
+
+### 2026-11-07 - SM1357 (0.16.8, PENDING): JSON-LD, every public page in the sitemap, llms.txt on by default
+
+Assessment drafted by the developer agent (n773) for the release manager's confirmation.
+
+what changed
+: The engine adds a `<script type="application/ld+json">` block to the pages a table's
+  `structured_data:` mapping names (checked at descriptor load,
+  `Lazysite::Data::StructuredData::check_mapping`) and an organisation entry to the home
+  page from `site_type`, `site_address`, `site_phone`, `site_email` and `site_hours`
+  (`layout.pm _inject_structured_data`). `sitemap.xml` and `llms.txt` list every public
+  page, not only registered ones (`registries.pm _registry_lists`); `llms.txt` is on by
+  default with an organisation section, and `llms_txt: off` stops it being generated or
+  served (ruling 165). Every engine write to a table touches a change stamp
+  (`Tables::touch_stamp`) that a render records and the cache honours on both branches.
+
+threat delta
+: No ADR 0007 trigger fired, and the two that come closest are named. new-external-
+  interface: `llms.txt` and `sitemap.xml` were already served registries; JSON-LD is new
+  markup on pages already served. new-processing-of-restricted-data: none - **the
+  summary file and the JSON-LD publish only data the site already serves publicly**:
+  the registries list a page only when `_registry_hidden` finds it neither draft, ACL
+  governed nor gated (identity plays no part), and the JSON-LD reads rows as an anonymous
+  visitor through `resolve_binding`, so a non-public table, a `where:` condition and the
+  dated window all apply, exactly as at the data endpoint.
+: Information disclosure: tested that a protected page (auth:, auth_groups:, a read
+  rule), a draft section, an api/raw page, a page copy under `lazysite/copies/` and the
+  engine's system pages are in neither the sitemap nor `llms.txt` (t/unit/processor/187),
+  and that a non-public table's rows appear nowhere on a mapped page
+  (t/unit/processor/186). The organisation entry publishes only conf values an operator
+  set for the purpose, and only once one is set.
+: Tampering (script injection through a row): every JSON-LD value goes through one
+  encoder - ASCII JSON with `<`, `>` and `&` as `<`, `>`, `&` - so no row
+  value can close the script element, open a comment or start markup; a link property
+  with a script-capable scheme is dropped (`unsafe_link_scheme`). Tested with a row
+  spelling `</script><script>alert(1)</script>` and a `javascript:` URL.
+: Denial of service: one mapping emits at most 100 objects; the descriptor scan is a
+  line grep before any module loads, so a site with no mapping loads nothing.
+
+controls
+: t/unit/processor/186 (mapped pages only, public rows only, inert encoding, refresh on
+  a row write, the organisation entry, mapping refusals), t/unit/processor/187 (the
+  listing rule, the summary's content and its off switch), t/unit/processor/185 (a
+  db: page with a ttl: refreshes on a row write), t/tools/340 (check's findings).
+
+residual risk
+: On upgrade the sitemap and `llms.txt` grow to every public page; a page an operator
+  meant to keep out of search engines but left public and unmarked is now listed (the
+  UPGRADE note says how to keep one out: `search: false`). A row changed outside the
+  engine touches no stamp.
+
+verdict
+: proposed: accepted, no trigger fired; recorded because the summary and the sitemap now
+  list by default and pages gain machine-readable copies of table rows.

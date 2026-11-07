@@ -254,11 +254,15 @@ observable difference. `mode=live` is accepted and parses; it does not change
 behaviour today. Do not choose between them on the strength of caching: choose
 a `ttl:`.
 
-A snapshot is **snapshot at render**: a row you change now appears when the
-page's `ttl:` next expires, not on the next request. Nothing depends on the
-database file's timestamp, because the store is written through WAL and a row
-can change without that timestamp moving -- so a dependency on it would report
-a freshness it never established.
+**A row you change refreshes the pages that show it, at once** (from 0.16.8).
+Every write the engine makes to a table - a row saved, deleted or imported, on
+any door - touches the table's change stamp (`lazysite/db/stamps/<table>`), and
+a page that read the table is rendered again on its next request, whatever its
+`ttl:`: the same as saving the page itself. Nothing depends on the database
+file's timestamp, because the store is written through WAL and a row can change
+without that timestamp moving. A row changed outside the engine (an `sqlite3`
+shell on the store) touches no stamp, and such a page refreshes when its
+`ttl:` runs out, as before.
 
 ## Available today: a switch per row
 
@@ -1071,6 +1075,184 @@ nobody scrolls costs nothing. Nothing polls unless you set `data-ls-db-every`.
 The helper reads through the same endpoint and the same rules as anything else:
 an unpublished table returns nothing to it, exactly as it does to anyone.
 
+## Rows that show between two dates
+
+A table may declare **`shows_from`** and **`shows_until`** (either or both, each
+a `date` or a `datetime`). A row outside its window is **not shown** - by a page
+binding, its `_total` and `.count()`, and the data endpoint - with no update
+needed when the date comes:
+
+```yaml
+fields:
+  title:
+    type: text
+  shows_from:
+    type: date
+  shows_until:
+    type: date
+```
+
+- A **date** is a whole day in the site's time zone (`time_zone:` in
+  lazysite.conf): the row shows from the start of `shows_from` and through the
+  end of `shows_until`.
+- A **datetime** is an instant, in UTC: the row shows from it, and until it.
+- An empty value is no bound: a row with neither shows always.
+
+A page showing such a table **expires when the next row enters or leaves its
+window**, so the offer that ends tonight is gone from the cached page at
+midnight. The manager's data page, the control API and MCP - the `manage_data`
+surfaces - list every row, so an editor finds the one that has not started yet.
+
+## Schedules
+
+A **schedule** is the site's opening hours: weekly **periods** (several a day if
+it closes for lunch) and **exceptions** (a date or a date range, closed or with
+other hours). It is a table whose descriptor says **`schedule: true`** - the
+engine gives it its fields, so every schedule reads the same way:
+
+```yaml
+title: Opening hours
+schedule: true
+public: true
+```
+
+```datatable
+columns: Field | Holds
+widths: 3.2cm | X
+bold: 1
+tone: medium
+---
+`kind` | `period` or `exception`
+`day` | a period's day: `mon` ... `sun`
+`opens`, `closes` | `HH:MM`, 00:00 to 24:00; a period closing before it opens runs past midnight (`18:00` to `01:00`)
+`date_from`, `date_until` | an exception's date, or its range (`date_until` empty for one day)
+`closed` | an exception that closes the day; otherwise its `opens` and `closes` replace the week's hours for those days
+`note` | an exception's note ("Stocktake")
+```
+
+The rows are written through the doors every table has - the manager's data
+page, `save_data_row` (MCP), `data-row-save` (control API), the data endpoint -
+and a row the schedule could not read (a time that is not `HH:MM`, a period with
+no day, an exception neither closed nor with hours) is refused at the write, by
+name. The descriptor may declare fields of its own beside these; it may not
+redeclare them. Times are in the site's zone (`time_zone:`), summer time
+included: the zone's own rules decide when 09:00 is.
+
+A page shows it with **`schedule:`**:
+
+```yaml
+tt_page_var:
+  hours: schedule:opening
+```
+
+and the layout has these blocks to render:
+
+```datatable
+columns: Variable | Is
+widths: 5.2cm | X
+bold: 1
+tone: medium
+---
+`hours.label` | "Open now until 17:00", "Opens at 12:00", "Opens tomorrow at 09:00", "Opens Monday at 09:00", or "Closed"
+`hours.open`, `hours.until` | 1 when open now, and until when (`HH:MM`)
+`hours.next_open` | `date`, `day`, `time` and `when` (`today`, `tomorrow`, `later`) of the next opening
+`hours.week` | seven days from Monday: `name`, `periods` (each `opens`, `closes`), `closed`, `today`
+`hours.today` | today's `periods` with any exception applied, `closed`, `exception`
+`hours.next_exception` | the next exception still in force: `label` ("Closed Friday 25 December"), `date_from`, `date_until`, `closed`, `opens`, `closes`, `note`
+`hours.exceptions` | every exception still to come, in date order, the same shape
+```
+
+```
+<p class="status">[% hours.label %]</p>
+<table>[% FOREACH d IN hours.week %]
+  <tr[% IF d.today %] class="today"[% END %]><th>[% d.name %]</th>
+  <td>[% IF d.closed %]Closed[% ELSE %][% FOREACH p IN d.periods %][% p.opens %]-[% p.closes %] [% END %][% END %]</td></tr>
+[% END %]</table>
+[% IF hours.next_exception %]<p>[% hours.next_exception.label %][% IF hours.next_exception.note %] - [% hours.next_exception.note %][% END %]</p>[% END %]
+```
+
+Every value is escaped as a `db:` value is. A page showing "open now" is
+**cached only until the next change of state** - the next opening or closing,
+or the next local midnight, whichever is sooner - and a row changed refreshes it
+at once: it never serves a stale "open now", and it does not re-render in
+between. Its `ttl:` and the response's `max-age` never reach past that moment.
+
+A `schedule:` line in `lazysite.conf` puts the same blocks on every page for a
+layout to use, at the cost of a read of the table on every request; on the page
+that shows the hours it costs nothing between changes.
+
+**An exception is removed once its date has passed** (the release manager's
+ruling). The daemon's `schedule-exceptions` job does it hourly, under the job
+account's `manage_data`, and writes each removal to the audit trail with the
+exception it removed (action `data-schedule-exception-removed`, the row as JSON
+in the line's detail), so the history reads back. **With the audit trail off
+(`audit_trail: off`) nothing is removed**: the removal is kept only where the
+trail can hold it. A passed exception changes nothing a visitor sees either way
+- the schedule reads from today on.
+
+## Structured data for search
+
+A table can be published to search engines and AI search as **schema.org
+JSON-LD**: its descriptor says what the rows are and which pages carry them,
+under **`structured_data:`**, and the engine adds the JSON-LD to those pages
+from the rows an anonymous visitor may read now. The engine ships no mapping for
+any market; an app ships the mapping for its own with its tables.
+
+```yaml
+title: Events
+public: true
+fields:
+  title:    { type: text }
+  starts:   { type: date }
+  venue:    { type: text }
+structured_data:
+  type: Event                   # a schema.org type
+  pages: [/events]              # the pages that carry it
+  properties:
+    name: title                 # property: a field of the table
+    startDate: starts
+    eventStatus: "=https://schema.org/EventScheduled"   # =text is literal
+    location:                   # a nested object
+      type: Place
+      properties:
+        name: venue
+```
+
+The mapping is checked when the descriptor is saved, and refused by name: a
+type or property that is not a schema.org name, a field the table does not
+have, a page that is not a site path. On a `schedule: true` table it describes
+one place - its properties are literals - and the engine adds
+`openingHoursSpecification` from the schedule.
+
+**What is published is what the site already serves publicly.** The rows are
+read as an anonymous visitor reads them: a table that is not `public: true`
+publishes nothing, a `where:` row condition and `shows_from`/`shows_until`
+apply, and a link property (`url`, `image`, `logo` ...) whose value is not a web
+or mail address is left out. Every value is encoded so it cannot leave the
+`<script>` element that holds it. A row changed refreshes the pages carrying it,
+as for any page that shows a table.
+
+**The organisation entry** is the site's own: its name and address from
+`lazysite.conf` (`site_name`, `site_url`, and `site_type`, `site_address`,
+`site_phone`, `site_email`, `site_hours` naming a schedule), on the home page,
+published once one of the details is set. See
+[Configuration](/docs/configuration).
+
+**The sitemap and the AI-readable summary list every public page.** A page with
+no `register:` key is in `sitemap.xml` and `llms.txt`; a page with one keeps
+what it says. Left out whatever they register: a protected or draft page, a page
+copy, an `api:` or `raw:` page, a page that says `search: false`, a redirect,
+a starter demonstration page and the engine's sign-in and error pages. The
+summary (`llms.txt`) carries each page's title and description and the
+organisation entry; `llms_txt: off` turns it off.
+
+**`lazysite check`** names a public page with no title or no description, a
+title two pages share, and every finding in the JSON-LD the mappings emit - a
+row missing what its type needs (an Event's `name` and `startDate`), a date that
+is not ISO 8601, a page the mapping names that the site does not have, a table
+no visitor may read. A type it does not know is emitted as mapped and said to
+be unchecked.
+
 ## Where things live
 
 `lazysite/db/tables/<name>.yaml`
@@ -1083,3 +1265,7 @@ an unpublished table returns nothing to it, exactly as it does to anyone.
 
 `lazysite/db/rebuilds/`
 : Safety exports written before a destructive rebuild.
+
+`lazysite/db/stamps/<table>`
+: Each table's change stamp, touched by every write; a page that showed the
+  table is rendered again when it is newer than the render.

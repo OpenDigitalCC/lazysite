@@ -423,7 +423,31 @@ sub load_descriptor {
     return _err( 'descriptor', "table '$name': descriptor must be a mapping" )
         unless ref $raw eq 'HASH';
 
+    # SM1356: a SCHEDULE is a table whose fields are the engine's - the weekly
+    # periods and the exceptions Lazysite::Data::Schedule reads - so every
+    # schedule reads the same way and a layout learns one shape. The descriptor
+    # may declare more fields beside them, never one of their names.
+    my ( $schedule, $sch_why ) = _bool( $raw->{schedule} );
+    return _err( 'descriptor', "table '$name': schedule $sch_why", rule => 'schedule' )
+        if $sch_why;
+
     my $fields = $raw->{fields};
+    if ($schedule) {
+        return _err( 'descriptor', "table '$name': fields must be a mapping of field definitions" )
+            if defined $fields && ref $fields ne 'HASH';
+        require Lazysite::Data::Schedule;
+        my $own = Lazysite::Data::Schedule::schedule_fields();
+        for my $f ( sort keys %{ $fields || {} } ) {
+            return _err( 'descriptor',
+                "table '$name': '$f' is one of a schedule's own fields (schedule: true gives it)",
+                field => $f, rule => 'schedule' )
+                if $own->{$f};
+        }
+        return _err( 'descriptor', "table '$name': a schedule's key is its automatic id",
+            rule => 'schedule' )
+            if defined $raw->{key} && $raw->{key} ne 'id';
+        $fields = { %{ $fields || {} }, %$own };
+    }
     return _err( 'descriptor', "table '$name': no fields declared" )
         unless ref $fields eq 'HASH' && %{$fields};
 
@@ -496,6 +520,34 @@ sub load_descriptor {
 
     my ( $where, $where_err ) = _check_where( $name, $raw, $fields );    # SM982
     return $where_err if $where_err;
+
+    # SM1356: DATED ROWS. A field named shows_from or shows_until is the row's
+    # own window: outside it the row is not shown on a page or by the data
+    # endpoint, with no update needed. A date is a day in the site's zone, a
+    # datetime an instant (UTC); anything else could not be compared with now.
+    my %shows;
+    for my $f (qw(shows_from shows_until)) {
+        next unless $fields->{$f};
+        my $t = $fields->{$f}{type} // '';
+        return _err( 'descriptor',
+            "table '$name': $f must be a date or a datetime - it is when the row shows, compared with today",
+            field => $f, rule => 'shows' )
+            unless $t eq 'date' || $t eq 'datetime';
+        $shows{ $f eq 'shows_from' ? 'from' : 'until' } = $t;
+    }
+
+    # SM1357: the table's schema.org mapping, checked here so a wrong one is
+    # refused at the door that saves it, by name.
+    my $sd;
+    if ( defined $raw->{structured_data} ) {
+        require Lazysite::Data::StructuredData;
+        my ( $m, $why ) = Lazysite::Data::StructuredData::check_mapping(
+            $raw->{structured_data}, $fields, $key,
+            sub { is_owned( { timestamps => $timestamps, row_policy => $row_policy }, $_[0] ) },
+            $schedule );
+        return _err( 'descriptor', "table '$name': $why", rule => 'structured_data' ) if $why;
+        $sd = $m;
+    }
 
     # SM593: which DOMAIN declared this table, on an instance carrying several.
     #
@@ -582,6 +634,9 @@ sub load_descriptor {
         ( defined $availability ? ( availability => $availability ) : () ),    # SM1355
         ( defined $history_days ? ( row_history_days => 0 + $history_days ) : () ), # ruling 170
         ( $where ? ( where => $where ) : () ),   # SM982: the rows a visitor surface shows
+        ( $schedule ? ( schedule        => 1 )       : () ),    # SM1356
+        ( %shows    ? ( shows           => \%shows ) : () ),
+        ( $sd       ? ( structured_data => $sd )     : () ),    # SM1357
     };
 }
 

@@ -356,6 +356,13 @@ my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host p
 # reasoning is beside _tt_dep and write_deps.
 our @TT_DEPS;        # absolute paths this render read
 our $TT_DEP_LIVE;    # a source with no local mtime (url:) was used
+# SM1356/SM1357: the tables a render read (their change stamps) and when what it
+# shows stops being true. REQUEST-scoped, not render-scoped: a site-wide
+# `schedule:` is resolved with the site vars, before process_md starts the
+# record, and its stamp and expiry belong to the page all the same. Cleared in
+# reset_request_state.
+our @TT_DEP_STAMPS;
+our $TT_DEP_EXPIRES;
 
 # SM293 step 3: the generated registries (sitemap.xml, llms.txt, the feeds) are
 # CACHED here and served by the engine, instead of being written as files at the
@@ -1005,7 +1012,7 @@ sub try_serve_cache {
         $ACCESS_REC{c} = 1;    # SM140: served from the page cache
         log_event( 'DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit' );
         my $ct  = read_ct($base);
-        my $ttl = peek_ttl($md_path);
+        my $ttl = _ttl_until( peek_ttl($md_path), deps_expires($base) );    # SM1356
         output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
             $ct, $ttl, undef, undef, undef, _peek_md($md_path)->{permissions} ); # SM1174, SM1266
         return 1;
@@ -1028,12 +1035,21 @@ sub try_serve_cache {
     # merely compatible with a live source, it is the only freshness mechanism
     # such a page has. That is why `deps_fresh` reports a live source as unproven
     # rather than as an error: the answer belongs here, not there.
+    #
+    # SM1356/SM1357: TWO LINES OF THE RECORD ARE THE EXCEPTION, and both are
+    # facts rather than guesses. A table's change stamp newer than the render is
+    # a row the site's own editor changed, which refreshes the page carrying it
+    # as a saved page refreshes its own render; and an expiry is the moment the
+    # render stops being true ("open now" after closing time). Neither is the
+    # unprovable kind a ttl: is there to wait out.
     my $ttl = peek_ttl($md_path);
     if ( defined $ttl
         && $html_stat->[9] >= $conf_mtime
-        && is_fresh_ttl_val_stat( $html_stat, $ttl ) )
+        && is_fresh_ttl_val_stat( $html_stat, $ttl )
+        && deps_stamps_fresh( $base, $html_stat->[9] ) )
     {
         my $ct = read_ct($base);
+        $ttl = _ttl_until( $ttl, deps_expires($base) );
         output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
             $ct, $ttl, undef, undef, undef, _peek_md($md_path)->{permissions} ); # SM1174, SM1266
         return 1;
@@ -1700,7 +1716,7 @@ sub main {
         # visitor's own (process_md has already kept it out of the cache).
         $protected = 1 if $main::RENDER_BY_ADDRESS;
         my $ct   = peek_content_type($md_path);
-        my $ttl  = $protected ? undef : peek_ttl($md_path);
+        my $ttl = $protected ? undef : _ttl_until( peek_ttl($md_path), $TT_DEP_EXPIRES ); # SM1356
         write_ct( $base, $ct ) unless $protected;
         # SM311: record what this render read, beside the render itself. Written
         # AFTER process_md, because that is what resolved the sources - a `scan:`
@@ -2148,6 +2164,8 @@ sub _lazy_lib {
         undef $DRAFT_BYTES;          # SM1030
         undef $DRAFT_MD;
         undef $PREVIEW_THEME;        # SM1290
+        @TT_DEP_STAMPS = ();         # SM1357
+        undef $TT_DEP_EXPIRES;       # SM1356
         undef $PREVIEW_THEME_STATE;
         _reset_peek_cache();
         # SM1169 (t/lint/269): three more a pooled worker kept from the last visitor.

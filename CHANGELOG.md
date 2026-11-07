@@ -270,6 +270,36 @@ Archive
   price, choice, choices, yes/no; required, help, `when`) and builds or edits one row:
   `run_wizard` / `data-wizard-run` and the data page's wizard buttons. A required
   question cannot be skipped.
+- SM1356 (PENDING) **Schedules: weekly hours, exceptions, and rows that show between two
+  dates.** A table whose descriptor says `schedule: true` is a schedule: weekly periods
+  (several a day, one may run past midnight) and exceptions (a date or a range, closed or
+  other hours), with fields the engine gives it, written through the doors every table
+  has and refused at the write when a row could not be read. `schedule:<table>` gives a
+  page or layout its blocks - "Open now until 17:00 / Opens at 12:00", the week, today,
+  the next exception - in the site's `time_zone:` (new; summer time from the zone's own
+  rules). Such a page is cached until the next change of state (an opening, a closing,
+  local midnight) and never past it, on both cache branches and in its `max-age`. Any
+  table may declare `shows_from` / `shows_until` (date or datetime): a row outside its
+  window is not shown by a page binding, its counts or the data endpoint, and the page
+  expires when the next row enters or leaves it. Ruling 164: the daemon's
+  `schedule-exceptions` job (hourly, `manage_data`) removes a passed exception and writes
+  the removal to the audit trail with the row it removed; with the audit trail off it
+  removes nothing. `lazysite check` names a `time_zone` the host does not know.
+
+- SM1357 (PENDING) **Structured data for search: JSON-LD, every public page in the
+  sitemap, and the AI-readable summary.** A table's descriptor may map it to a schema.org
+  type (`structured_data:` - type, pages, properties: a field, a `=literal` or a nested
+  object), checked at save; the engine puts JSON-LD on the pages it names from the rows an
+  anonymous visitor may read now, encoded inert. The organisation entry, on the home page,
+  comes from the site's own details (`site_type`, `site_address`, `site_phone`,
+  `site_email`, `site_hours` naming a schedule), published once one is set. A row written
+  through any door refreshes the pages that show its table at once, `ttl:` or not (each
+  table's change stamp). `sitemap.xml` and `llms.txt` list every public page - a page with
+  no `register:` key is in both - and never a protected, draft, copied, `api:`/`raw:`,
+  `search: false`, demonstration or system page. Ruling 165: `llms.txt` is on by default
+  with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
+  `lazysite check` names a public page with no title or description, a shared title, and
+  the findings in the emitted JSON-LD against each mapping's type.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

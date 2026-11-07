@@ -331,4 +331,27 @@ sub sessions_sweep {
     };
 }
 
+# --- schedule-exceptions ------------------------------------------------------
+
+# SM1356 (ruling 164): remove the schedule exceptions whose dates have passed,
+# each recorded in the audit trail with the exception it removed. The rule and
+# its condition (no removal with the trail off) are in
+# Lazysite::Data::Schedule::sweep_passed; this is the clock calling it, under
+# manage_data, the grant that deletes a row.
+sub schedule_exceptions {
+    my (%ctx) = @_;
+    require Lazysite::Data::Schedule;
+    my $r = Lazysite::Data::Schedule::sweep_passed( $ctx{docroot}, actor => $ctx{actor}, now => $ctx{now} );
+    return $r unless $r->{ok};
+    return {
+        ok     => 1,
+        detail => {
+            removed => $r->{removed},
+            kept    => $r->{kept},
+            tables  => $r->{tables},
+            ( $r->{reason} ? ( reason => $r->{reason} ) : () ),
+        },
+    };
+}
+
 1;

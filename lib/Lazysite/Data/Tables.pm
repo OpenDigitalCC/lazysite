@@ -37,7 +37,9 @@ use Lazysite::Data::Value  qw(coerce_row coerce_field);
 use Lazysite::Data::Owned  ();
 use Lazysite::Data::SQLite
     qw(select_sql count_sql insert_sql update_sql delete_sql observed_schema last_insert_key
-    key_list_sql history_table_sql history_insert_sql history_rows_sql drop_table_sql);
+    key_list_sql history_table_sql history_insert_sql history_rows_sql drop_table_sql
+    shows_next_sql);
+use Time::Local     ();
 use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
@@ -322,7 +324,8 @@ sub _read_rows_loaded {
     return { ok => 1, table => $name, rows => $rows || [] }
         unless $want_total;
 
-    my ( $csql, $cbinds ) = count_sql( $d, where => $opt{where}, condition => $opt{condition} );
+    my ( $csql, $cbinds ) = count_sql( $d, where => $opt{where}, condition => $opt{condition},
+        shown => $opt{shown} );
     my ($total) = eval { $dbh->selectrow_array( $csql, undef, @{$cbinds} ) };
     $total = scalar @{ $rows || [] } unless defined $total;
 
@@ -342,6 +345,38 @@ sub _read_rows_loaded {
 # D2 decision removed. NEVER FATAL: history is a record of the change, and
 # a broken record must not block the change it records - failures are
 # logged and the operation proceeds.
+# SM1357: A TABLE'S CHANGE STAMP. A page that shows a table cannot prove itself
+# current by the store's mtime (WAL writes leave it alone), so every write this
+# layer makes - a row saved, deleted or imported, the shape applied, rebuilt or
+# dropped - touches one small file per table, and the processor records that
+# file among what a render read. A row changed is then a page refreshed, on
+# every door, the way a saved page refreshes its own render: the cache sees the
+# stamp newer than the render and renders again.
+#
+# NEVER FATAL: the write it follows has happened. A stamp that cannot be
+# touched is logged; the page refreshes when its own ttl: runs out, as before.
+sub stamp_path {
+    my ( $docroot, $name ) = @_;
+    return Lazysite::Paths::lazysite_dir($docroot) . "/db/stamps/$name";
+}
+
+sub touch_stamp {
+    my ( $docroot, $name ) = @_;
+    return unless defined $name && $name =~ /\A[a-z][a-z0-9_]*\z/;
+    my $p   = stamp_path( $docroot, $name );
+    my $dir = $p =~ s{/[^/]+\z}{}r;
+    my $ok  = eval {
+        mkdir $dir unless -d $dir;
+        if ( -e $p ) { utime( undef, undef, $p ) or die "$!\n" }
+        else         { open my $sh, '>', $p or die "$!\n"; close $sh }
+        1;
+    };
+    log_event( 'WARN', $name, 'the table\'s change stamp could not be touched - pages showing it '
+            . 'refresh when their ttl runs out', path => $p, error => ( $@ || 'unknown' ) )
+        unless $ok;
+    return;
+}
+
 sub _record_history {
     my ( $dbh, $actor, $table, $op, $detail ) = @_;
     eval {
@@ -631,6 +666,7 @@ sub apply_schema {
     _record_history( $dbh, $opt{actor}, $name, 'apply',
         { applied => \@done, blocked => $plan->{blocked} } )
         if @done;
+    touch_stamp( $docroot, $name ) if @done;
     return { ok => 1, table => $name, applied => \@done,
         blocked => $plan->{blocked} };
 }
@@ -772,6 +808,15 @@ sub _write_prep {
     return ( $d, undef, undef ) unless $d->{ok};
     my $c = coerce_row( $d, $input, %opt );
     return ( $c, undef, undef ) unless $c->{ok};
+    # SM1356: a schedule row the schedule could not read is refused here, by
+    # name, at every door - a time that is not HH:MM, a period with no day.
+    if ( $d->{schedule} ) {
+        require Lazysite::Data::Schedule;
+        my $why = Lazysite::Data::Schedule::row_refusal( $c->{values}, $opt{partial} );
+        return ( _err( "table '$name': $why", table => $name, kind => 'validation', rule => 'schedule' ),
+            undef, undef )
+            if defined $why;
+    }
     my ( $dbh, $nowrite ) = _writer( $docroot, $name );
     return ( $nowrite, undef, undef ) if $nowrite;
     return ( undef, $d, $dbh, _stamp( $d, $c->{values}, %opt ) );
@@ -814,6 +859,7 @@ sub insert_row {
         = $d->{auto_key}
         ? last_insert_key( $dbh, $name )
         : $values->{ $d->{key} };
+    touch_stamp( $docroot, $name );
     return { ok => 1, table => $name, key => $key };
 }
 
@@ -910,6 +956,7 @@ sub update_row {
     return _err( "table '$name': no row with that key", table => $name,
         kind => 'no_such_row' )
         unless $n && $n > 0;
+    touch_stamp( $docroot, $name );
     return { ok => 1, table => $name, key => $key_value, changed => 0 + $n };
 }
 
@@ -936,6 +983,7 @@ sub delete_row {
     return _err( "table '$name': no row with that key", table => $name,
         kind => 'no_such_row' )
         unless $n && $n > 0;
+    touch_stamp( $docroot, $name );
     return { ok => 1, table => $name, key => $key_value, deleted => 0 + $n };
 }
 
@@ -1020,6 +1068,14 @@ sub resolve_binding {
     $opt{limit}    = $q->{limit}    if defined $q->{limit};
     $opt{offset}   = $q->{offset}   if defined $q->{offset};
 
+    # SM1356: a dated row shows only inside its window, on every visitor
+    # surface - the page binding and the data endpoint both arrive here.
+    my $shown;
+    if ( ref $d->{shows} eq 'HASH' ) {
+        $shown = _shown_now($docroot);
+        $opt{shown} = $shown;
+    }
+
     my $scalar = $q->{scalar} // '';
 
     # SM857: (mine) - THE ONE FILTER THE SERVER WRITES.
@@ -1069,6 +1125,7 @@ sub resolve_binding {
 
     my $r = _read_rows_loaded( $docroot, $d, %opt );
     return $r unless $r->{ok};
+    $r = { %{$r}, expires => _shows_next( $docroot, $d, $shown ) } if $shown;
 
     # `.count` is the TRUE count of what the filters select - before any
     # limit. It used to count after the limit, on the reasoning that two
@@ -1086,6 +1143,56 @@ sub resolve_binding {
         { %{$r}, mode => $q->{mode},
             ( $q->{warnings} ? ( warnings => $q->{warnings} ) : () ),
             ( $q->{writable} ? ( writable => $q->{writable} ) : () ) } );
+}
+
+# SM1356: now, as the dated-row window compares it - today in the site's zone
+# for a date field, the instant in UTC for a datetime one.
+our $NOW;    # a test's clock; undef is the real one
+
+sub _shown_now {
+    my ($docroot) = @_;
+    require Lazysite::Data::Schedule;
+    my ($tz) = Lazysite::Data::Schedule::site_zone($docroot);
+    my $now  = $NOW // time;
+    my $date = Lazysite::Data::Schedule::_in_zone( $tz, sub {
+            my @lt = localtime($now);
+            sprintf( '%04d-%02d-%02d', $lt[5] + 1900, $lt[4] + 1, $lt[3] );
+    } );
+    my @g = gmtime($now);
+    return { date => $date, tz => $tz, now => $now,
+        at => sprintf( '%04d-%02d-%02dT%02d:%02d:%02dZ', $g[5] + 1900, $g[4] + 1, @g[ 3, 2, 1, 0 ] ) };
+}
+
+# The next moment any row of the table enters or leaves its window, as an
+# epoch, or undef: a date's window opens at its local midnight and closes at
+# the midnight after shows_until. A read that fails answers undef - the page
+# then keeps the freshness it had.
+sub _shows_next {
+    my ( $docroot, $d, $shown ) = @_;
+    my $dbh = read_handle($docroot) or return undef;
+    my @at;
+    for my $edge (qw(from until)) {
+        my $t = $d->{shows}{$edge} or next;
+        my $v = eval {
+            ( $dbh->selectrow_array( shows_next_sql( $d, $edge ), undef,
+                    $t eq 'date' ? $shown->{date} : $shown->{at} ) )[0];
+        };
+        next unless defined $v && length $v;
+        if ( $t eq 'date' ) {
+            require Lazysite::Data::Schedule;
+            my $day = $edge eq 'until' ? Lazysite::Data::Schedule::_add_days( $v, 1 ) : $v;
+            next unless defined $day;
+            push @at, Lazysite::Data::Schedule::_in_zone( $shown->{tz},
+                sub { Lazysite::Data::Schedule::_local_epoch( $day, 0 ) } );
+        }
+        elsif ( $v =~ /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z\z/ ) {
+            my $e = eval { Time::Local::timegm( $6, $5, $4, $3, $2 - 1, $1 ) };
+            push @at, $e if defined $e;
+        }
+    }
+    return undef unless @at;
+    my ($min) = sort { $a <=> $b } @at;
+    return $min;
 }
 
 # The threshold, in milliseconds, above which a read is worth a word. A package
@@ -1243,6 +1350,13 @@ sub import_rows {
                 ( $c->{field} ? ( field => $c->{field} ) : () ),
                 ( $c->{rule}  ? ( rule  => $c->{rule} )  : () ) );
         }
+        if ( $d->{schedule} ) {    # SM1356, as _write_prep
+            require Lazysite::Data::Schedule;
+            my $why = Lazysite::Data::Schedule::row_refusal( $c->{values}, $is_update );
+            return _err( "row $n: $why", table => $name, kind => 'validation', row => $n,
+                rule => 'schedule' )
+                if defined $why;
+        }
         if ($is_update) { push @updates, [ $kv, _stamp( $d, $c->{values}, partial => 1, actor => $opt{actor} ), $n ] }
         else { push @inserts, [ _stamp( $d, $c->{values}, actor => $opt{actor} ), $n ] }
     }
@@ -1277,6 +1391,7 @@ sub import_rows {
                 . "nothing was written. $why", table => $name );
     }
     $plan->{applied} = 1;
+    touch_stamp( $docroot, $name );
     return $plan;
 }
 
@@ -1400,6 +1515,7 @@ sub drop_table {
         error => ( $@ || 'unknown' ),
         hint  => 'acl-remove it, or a table recreated under this name inherits it' );
 
+    touch_stamp( $docroot, $name );
     _record_history( $dbh, $opt{actor}, $name, 'drop',
         { rows_dropped => scalar @{ $rows->{rows} || [] },
             safety_export => $safe->{rel} } );
@@ -1633,6 +1749,7 @@ sub rebuild_table {
             table => $name, safety_export => $safety_rel );
     }
 
+    touch_stamp( $docroot, $name );
     _record_history( $dbh, $opt{actor}, $name, 'rebuild',
         { lost => $plan->{lost}, rows => scalar @{ $rows->{rows} },
             safety_export => $safety_rel } );

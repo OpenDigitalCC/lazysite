@@ -54,7 +54,7 @@ our @EXPORT_OK = qw(create_table_sql index_sql column_type dsn_for add_reserved_
     insert_sql update_sql delete_sql select_sql key_list_sql
     null_count_sql column_values_sql drop_table_sql
     observed_schema add_column_sql backfill_sql table_has_rows
-    last_insert_key count_sql MAX_ROWS
+    last_insert_key count_sql MAX_ROWS shows_next_sql
 );
 
 # Re-assert the identifier rule at the point of interpolation.
@@ -436,7 +436,7 @@ sub MAX_ROWS { return 500 }
 #
 # Returns ( '' or ' WHERE ...', \@binds ).
 sub _where {
-    my ( $d, $filter, $caller, $cond ) = @_;
+    my ( $d, $filter, $caller, $cond, $shown ) = @_;
     my $fields = $d->{fields};
     my ( @where, @binds );
     # SM857: AND THE COLUMNS THE TABLE'S FLAGS GIVE IT, as select_sql's ORDER
@@ -470,14 +470,44 @@ sub _where {
         else                                 { push @where, "$col = ?" }
         push @binds, $cond->{value};
     }
+    # SM1356: a dated row's window, when the caller passes `now` - the visitor
+    # surfaces do. { date => today in the site's zone, at => now as the value
+    # layer spells a UTC datetime }. An empty bound is no bound. A date field
+    # is a whole day: shown from the start of shows_from, through the end of
+    # shows_until; a datetime is an instant, shown from it and until it.
+    if ( ref $shown eq 'HASH' && ref $d->{shows} eq 'HASH' ) {
+        for my $edge (qw(from until)) {
+            my $t   = $d->{shows}{$edge} or next;
+            my $col = _ident("shows_$edge");
+            my $now = $t eq 'date' ? $shown->{date} : $shown->{at};
+            next unless defined $now;
+            my $op = $edge eq 'from' ? '<=' : ( $t eq 'date' ? '>=' : '>' );
+            push @where, "($col IS NULL OR $col = '' OR $col $op ?)";
+            push @binds, $now;
+        }
+    }
     return ( @where ? ' WHERE ' . join( ' AND ', @where ) : '', \@binds );
 }
 
 sub count_sql {
     my ( $d, %opt ) = @_;
     _loaded( $d, 'count_sql' );
-    my ( $where, $binds ) = _where( $d, $opt{where}, 'count_sql', $opt{condition} );
+    my ( $where, $binds ) = _where( $d, $opt{where}, 'count_sql', $opt{condition}, $opt{shown} );
     return ( 'SELECT COUNT(*) FROM ' . _ident( $d->{table} ) . $where, $binds );
+}
+
+# SM1356: the next moment a dated row enters or leaves its window - the
+# smallest shows_from still to come, or the smallest shows_until not yet past -
+# for the page that shows the table to expire then. One statement per edge;
+# the value is bound, the column is the descriptor's own name.
+sub shows_next_sql {
+    my ( $d, $edge ) = @_;
+    _loaded( $d, 'shows_next_sql' );
+    my $t = ref $d->{shows} eq 'HASH' ? $d->{shows}{$edge} : undef;
+    die "shows_next_sql: '$d->{table}' has no shows_$edge" unless $t;
+    my $col = _ident("shows_$edge");
+    my $op  = $edge eq 'from' || $t ne 'date' ? '>' : '>=';
+    return 'SELECT MIN(' . $col . ') FROM ' . _ident( $d->{table} ) . " WHERE $col <> '' AND $col $op ?";
 }
 
 sub select_sql {
@@ -486,7 +516,7 @@ sub select_sql {
     my $table  = _ident( $d->{table} );
     my $fields = $d->{fields};
 
-    my ( $where, $bref ) = _where( $d, $opt{where}, 'select_sql', $opt{condition} );
+    my ( $where, $bref ) = _where( $d, $opt{where}, 'select_sql', $opt{condition}, $opt{shown} );
     my @binds = @{$bref};
     my $sql   = "SELECT * FROM $table" . $where;
 

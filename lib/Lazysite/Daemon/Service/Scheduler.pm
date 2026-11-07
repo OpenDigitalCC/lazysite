@@ -142,6 +142,17 @@ our %JOBS = (
         needs => 'manage_notifications',
         run   => \&Lazysite::Daemon::Jobs::notify_outbox,
     },
+
+    # SM1356 (ruling 164): a schedule's passed exceptions are removed, each one
+    # recorded in the audit trail with the row it removed. Hourly: a passed
+    # exception changes nothing a visitor sees (the schedule reads from today
+    # on), so this is housekeeping, and manage_data is the grant that deletes
+    # a row.
+    'schedule-exceptions' => {
+        every => 3600,
+        needs => 'manage_data',
+        run   => \&Lazysite::Daemon::Jobs::schedule_exceptions,
+    },
 );
 
 sub jobs { return \%JOBS }
