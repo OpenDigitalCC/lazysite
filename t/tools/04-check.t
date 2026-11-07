@@ -399,6 +399,45 @@ subtest 'a stray public copy of protected content is a FAIL' => sub {
     unlink "$doc/members/secret.md";
 };
 
+# --- SM1389: the protected-folder history repository is not a stray copy ----
+# Since SM1324 the store holds a second git repository at <store>/lazysite/git;
+# its HEAD, config, refs and identical objects share relative paths with the
+# docroot's content-history repository at lazysite/git, and the walk reported
+# them as public copies of protected files (the 0.16.6 edge deploy: NOT
+# SERVICEABLE). A layout a rule moved into <store>/lazysite/layouts is content,
+# and a copy beside it is still reported.
+subtest 'the protected history repository is not reported as a stray copy' => sub {
+    my $store = "$base/public_html-lazysite-private";
+    my @repo  = qw(HEAD config description info/exclude refs/heads/main logs/HEAD
+        objects/ab/cdef0123456789);
+    for my $tree ( "$store/lazysite/git", "$doc/lazysite/git" ) {
+        for my $f (@repo) {
+            ( my $dir = "$tree/$f" ) =~ s{/[^/]+\z}{};
+            make_path($dir);
+            open my $fh, '>', "$tree/$f" or die $!;
+            print {$fh} "ref: refs/heads/main\n";
+            close $fh;
+        }
+    }
+    my $out = run();
+    like( $out, qr/protected content is held outside the document root/,
+        'both history repositories present: the OK line' );
+    unlike( $out, qr/ALSO present in the document root/, 'and no stray copy reported' );
+
+    make_path( "$store/lazysite/layouts/old", "$doc/lazysite/layouts/old" );
+    for my $p ( "$store/lazysite/layouts/old/layout.tt", "$doc/lazysite/layouts/old/layout.tt" ) {
+        open my $fh, '>', $p or die $!;
+        print {$fh} "<html></html>\n";
+        close $fh;
+    }
+    $out = run();
+    like( $out, qr/ALSO present in the document root.*lazysite\/layouts\/old\/layout\.tt/,
+        'a moved layout\'s copy beside it is still reported' );
+    unlike( $out, qr/lazysite\/git\//, '...and the history repository is not' );
+
+    File::Path::remove_tree( "$store/lazysite", "$doc/lazysite/git", "$doc/lazysite/layouts/old" );
+};
+
 
 # --- SM293: where the engine tree is, and a FAIL if it is in two places ------
 subtest 'the engine tree layout is reported, and a half-migration FAILs' => sub {

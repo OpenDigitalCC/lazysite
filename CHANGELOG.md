@@ -118,6 +118,14 @@ Archive
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+- SM1389 (PENDING) **`lazysite check` no longer reports the protected-history repository as
+  stray public copies.** The stray-copy walk read the whole private store, so the SM1324
+  history repository (`<store>/lazysite/git`) matched the docroot's content-history repository
+  at `lazysite/git` file for file (HEAD, config, refs, identical objects) and the 0.16.6 edge
+  deploy reported the site NOT SERVICEABLE. The walk now skips that repository, found by
+  `ProtectedHistory`'s own path helper. Only the repository: a layout a rule moved into the
+  store's `lazysite/layouts` is content, and a copy beside it is still reported.
+
 - SM1387 (PENDING) **A group is deleted once nothing uses it, on every door.** No token or
   MCP surface deleted a group. `group-delete` (control API), `delete_group` (MCP) and the
   manager's Groups page (which now calls `group-delete`) need `manage_users`, are audited

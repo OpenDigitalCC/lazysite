@@ -4232,11 +4232,26 @@ sub report_stray_public {
     my $root = Lazysite::Private::private_root($d);
     return unless defined $root && -d $root;
 
+    # SM1389: the protected folders' history repository (SM1324,
+    # <store>/lazysite/git) is the engine's, never moved content, and its HEAD,
+    # config, refs and identical objects share relative paths with the docroot's
+    # content-history repository at lazysite/git. Walking it reported those as
+    # public copies of protected files, and the site as not serviceable. Its path
+    # is ProtectedHistory's own helper, so the two cannot drift.
+    #
+    # THE REPOSITORY ONLY, not the whole <store>/lazysite/: a rule on a path
+    # under lazysite/layouts (which the file surfaces write) moves it into the
+    # store there (measured, tmp/n764-layout-move-probe.pl), so a copy left
+    # beside such a layout is still a stray copy and is still reported.
+    require Lazysite::ProtectedHistory;
+    my $history = Lazysite::ProtectedHistory::_git_dir_in($root);
+
     my @stray;
     find_noting( 'the protected-content check',
         { no_chdir => 1,
             wanted => sub {
                 my $p = $File::Find::name;
+                if ( -d $p && !-l $p && $p eq $history ) { $File::Find::prune = 1; return }
                 return if -l $p || !-f $p;
                 my $rel = substr $p, length($root) + 1;
                 push @stray, $rel if -e "$d/$rel";
