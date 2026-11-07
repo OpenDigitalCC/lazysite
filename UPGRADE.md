@@ -68,6 +68,31 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased (0.16.7): Odoo's modules move into the extension, and a stale Odoo session is renewed
+
+**Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl
+modules now install beside its descriptor, in `{DOCROOT}/../extensions/odoo/lib/`, and
+no longer in `{DOCROOT}/../lib/Lazysite/`. The upgrade does it: it installs the new
+copies, removes the old ones and the directories they leave empty, and rebuilds the
+extension hook index. Nothing a site configures changes: the extension's conf entry,
+`odoo.conf`, the `lazysite/odoo/` store, the bindings, the cookies (nobody is signed
+out), `/cgi-bin/lazysite-odoo.pl`, `/assets/lazysite-odoo.js`, `/odoo-signin`, the
+actions, the MCP tools, the capabilities and oomd's socket all stay as they are.
+
+If a site **edited** one of the old module files, the upgrade keeps that file and
+names it as an orphan in its summary. Odoo then stops loading, with an error naming
+the file, rather than running the stale copy. Remove the named file and Odoo answers
+again.
+
+Odoo still ships in the same package as the engine. The separate package is 0.16.9.
+
+**A stale Odoo site session is renewed, not refused (SM1381).** On a site with
+`odoo_site_signin: on`, a person idle past `odoo_identity_ttl` who opens a protected
+page now passes through `/cgi-bin/lazysite-odoo.pl?renew=1` and back to the page. If
+Odoo has ended their session they reach `/login` instead. The step needs no
+configuration. A front end that sends `/cgi-bin/lazysite-odoo.pl` to the engine already
+sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a loop.
+
 ## The primary's content leaves out the other domains, and the rest of 0.16.6
 
 **The primary site's content leaves out the other domains' folders (SM1372).** On an

@@ -53,6 +53,29 @@ Archive
 
 ## Unreleased
 
+- SM1369 (PENDING) **Odoo's modules move out of core's lib into the extension's own (X7,
+  part one).** Ruling 135: a hook may name only a module in its extension's payload lib, so
+  `Lazysite::Odoo`, its twelve `Lazysite::Odoo::*` modules and the oomd and warm-endpoint
+  services move from `lib/` to `extensions/odoo/lib/` before X2. Their names do not change.
+  They still ship in the same package and install, and every URL, cgi-bin link, asset,
+  conf key, store, cookie, action, MCP tool, capability and the oomd socket stay as they
+  are. Core reaches them through `Lazysite::Extensions::require_payload`, which loads the
+  copy beside core's own lib by the X1 rule and refuses one found anywhere else. An
+  upgrade lays the payload out, removes the old copies and the directories they emptied,
+  and rebuilds the hook index. Lint 321's allow-list is 42 files. The tests and the OOM
+  snapshot stay in `t/` until 0.16.9. New: t/lint/335, t/unit/extensions/75, and the
+  upgrade journey t/tools/335.
+
+- SM1381 (PENDING) **A site session that is only stale is renewed on the way to the
+  page.** A person signed in through Odoo and idle past `odoo_identity_ttl` was sent to
+  `/login` by every protected page, and `/login`'s `?action=session` said they were signed
+  out, although their Odoo session was still good. The page gate now sends such a session
+  to a renewal step on the Odoo endpoint (`?renew=1&next=`). The step asks Odoo once and
+  returns the person to the page. If Odoo has ended the session, it sends them to `/login`
+  with `next` kept. `?action=session` goes through the same step. A cookie,
+  `lzs_renewed`, guards against a loop: one renewal a minute, then the sign-in. The
+  refusal is logged at INFO. t/unit/odoo/135.
+
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 
 - SM1380 (0e503772) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and

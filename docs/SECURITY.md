@@ -3141,3 +3141,110 @@ residual risk
 verdict
 : accepted, confirmed by the release manager on 2026-11-06 (ruling 141). No trigger
   fired; 0.16.6 stays edge and not security-critical (ruling 142).
+
+### 2026-11-07 - SM1369 X7 part one (0.16.7): Odoo's modules load from the extension's payload lib
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+Ruling 135; the design is the extension-hooks proposal's Packaging and "Upgrade for a
+site already using Odoo".
+
+what changed
+: Odoo's modules (`Lazysite::Odoo`, `Lazysite::Odoo::*`, `Daemon::Service::Oomd`,
+  `Daemon::Service::OdooEndpoint`) move from `lib/` to the extension's payload lib,
+  `extensions/odoo/lib`, installed at `{DOCROOT}/../extensions/odoo/lib`. Core's lines
+  that call them now load them with `Lazysite::Extensions::require_payload`: the copy in
+  the payload lib beside the lib core was loaded from, put on `@INC` by the X1 rule
+  (appended). The processor's `_lazy_lib` and the manager's config validator fall back
+  to it for a module that is not core's. The upgrade removes the old copies and the
+  directories they emptied.
+
+threat delta
+: None of ADR 0007's four triggers fires. The same code runs in the same processes as
+  before, from a new directory. No interface, sign-in method, dependency or data is
+  added, and nothing is gated differently: whether Odoo is on stays each caller's
+  question. The questions are Tampering and Elevation of privilege by a module found in
+  the wrong place. One is a stale copy an earlier release left in core's lib, which
+  would shadow the payload's. Another is a module planted in a second payload lib, or a
+  payload linked in from elsewhere.
+
+controls
+: `require_payload` loads only a regular file in exactly one payload lib. Each payload
+  lib is a real directory at each step, beside a descriptor, under the engine's own
+  `extensions/`. The module must resolve nowhere else on `@INC`, or it is refused by
+  name and nothing loads. The payload lib is appended to `@INC`, so it cannot replace a
+  core module. The name must be a module name. t/unit/extensions/75 covers a stale copy
+  in core's lib, two payloads, a linked payload, a missing descriptor and a bad name.
+  t/lint/335 holds that core's `lib/` holds no extension module and that no core file
+  loads one but through the rule. t/tools/335 upgrades a site from the old layout and
+  checks the old copies are gone.
+
+residual risk
+: An edited old copy is kept by the upgrade (its orphan warning). Odoo then refuses to
+  load until it is removed: fail closed, an outage rather than stale code. Whoever can
+  write the engine tree can change either copy, as before.
+
+verdict
+: drafted, for the release manager's confirmation: no trigger fires and the change is
+  contained.
+
+### 2026-11-07 - SM1381 (0.16.7): a stale Odoo site session is renewed through the Odoo endpoint
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: The `odoo-stale` verdict (a site session the Odoo sign-in minted, past
+  `odoo_identity_ttl`) carries the extension's renewal path. A protected page that
+  meets it redirects to `GET /cgi-bin/lazysite-odoo.pl?renew=1&next=/path` instead of
+  to the sign-in. The auth CGI's `?action=session` redirects to `?renew=1&answer=session`.
+  The step runs the renewal `?csrf=1` already runs (`_site_state`), once, then answers.
+  Renewed: back to `next`, or `signed_in: true`. Odoo has ended the session: both
+  sessions end, as on `?csrf=1`, and the step goes to `/login?next=` or answers
+  `signed_in: false`. Every answer sets `lzs_renewed=1` (60 s), and a gate that meets
+  the verdict while that cookie is held goes to the sign-in instead. The refusal is
+  logged at INFO.
+
+threat delta
+: ADR 0007's new-external-interface trigger fires. `?renew=1` is a new GET action on a
+  public endpoint. With no token, it can cause one Odoo call and the renewal or end of
+  a site session. The other three do not fire. No sign-in method is added: this is the
+  existing renewal, reached from a new place. No dependency is added, and no
+  restricted data is processed in a new way. The questions:
+  - Spoofing and Elevation of privilege: could the step make a session hold more than
+    Odoo says?
+  - Tampering: could a cross-site request end a victim's session (a forced sign-out),
+    or could `next` or the renewal path be an open redirect?
+  - Denial of service: could a redirect loop, or repeated renewal requests, drive
+    calls to Odoo?
+
+controls
+: The step grants only what `_site_state` grants on `?csrf=1`: the record is renewed
+  with the groups Odoo now holds, under the group map's capability refusal (SM1160). The
+  page gate grants nothing. It changes only where a refusal redirects, and serves the
+  page only once the verifier accepts the session.
+: Nothing is renewed or ended without the Odoo session cookie. That cookie is
+  SameSite=Strict and scoped to the endpoint, so a cross-site request does not carry it.
+  Such a request is sent to the sign-in and the session is left as it was.
+: `next` passes the sign-in's `sanitise_next`, so a foreign one becomes `/`. The renewal
+  path comes from the extension's constant, and core accepts it only as a same-site path
+  with a query (the gate and the auth CGI each check its shape).
+: The step is GET only, and it calls Odoo only for a session that is stale. Once
+  renewed, nothing calls Odoo until the ttl passes again, as with `?csrf=1`.
+: The loop guard bounds the redirects to one renewal a minute per browser.
+  `?action=session` is answered by the step directly and cannot loop.
+: t/unit/odoo/135 covers each of these: renewal and the page served; an ended session
+  to `/login` with `next`; `?action=session`; the guard; no Odoo cookie, nothing ended
+  and no call; a foreign `next`; POST refused. t/unit/auth/74 covers the auth CGI's
+  redirect.
+
+residual risk
+: A visitor holding a stale session can make one Odoo call per request to the step,
+  as they could already with `?csrf=1`. The rate is no higher than today's. A client
+  can set `lzs_renewed` itself, which only skips its own renewal. The step's sign-in
+  target is `/login`, not a site's own `auth_redirect`: a site that moved its sign-in
+  page gets `/login` from the step (the gate's own redirect is unchanged). The pool
+  path (the front door's verdict, `renew`) is held by t/integration/293, the plain-CGI
+  wrapper's (the gate re-asks the verifier) by t/unit/odoo/135.
+
+verdict
+: drafted, for the release manager's confirmation: the trigger fires and the change is
+  contained.
