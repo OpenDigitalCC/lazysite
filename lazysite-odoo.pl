@@ -271,7 +271,7 @@ sub main {
             { ok => 1, visitor_token => Lazysite::Odoo::Visitor::csrf_token($visitor),
                 odoo_signed_in => ( $odoo_session ? 1 : 0 ),
                 ( $who ? ( identity => $who ) : () ),
-                ( defined $owner && length $owner ? ( owner => $owner ) : () ),
+                ( defined $owner && length $owner ? ( owner => $owner )  : () ),
                 ( length $user ? ( token => Lazysite::Auth::Session::generate_csrf_token($user) ) : () ) } );
     }
 

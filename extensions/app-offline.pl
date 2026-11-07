@@ -50,7 +50,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             owns => {
                 requires => ['odoo'],
                 hooks    => {
-                    assets        => [ { file => 'kit.js' } ],
+                    assets => [ { file => 'kit.js' } ],
                     template_vars => [ { name => 'app_offline_kit', render => 'Lazysite::Ext::AppOffline::kit_tag' } ],
                 },
             },

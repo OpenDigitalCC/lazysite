@@ -308,7 +308,7 @@ sub _serve_favicon_fallback {
     print "Status: 200 OK\n";
     print "Content-Type: $ct\n";
     print "$_\n" for _security_headers();
-    print "$_\n" for _timing_header();    # SM1144
+    print "$_\n" for _timing_header();      # SM1144
     print "Cache-Control: public, max-age=3600\n";
     print 'Content-Length: ' . length($body) . "\n";
     print "\n";
@@ -337,16 +337,16 @@ sub _favicon_ico {
     my $fold  = pack( 'C4', 0xdb, 0xd5, 0xd1, 0xff );    # #d1d5db
     my $clear = pack( 'C4', 0,    0,    0,    0 );
     my $px    = '';
-    for my $y ( reverse 0 .. $h - 1 ) {                   # bottom row first
+    for my $y ( reverse 0 .. $h - 1 ) {                  # bottom row first
         for my $x ( 0 .. $w - 1 ) {
             my $corner = ( $x <= 1 || $x >= 14 ) && ( $y <= 1 || $y >= 14 ) && ( $x == 0 || $x == 15 || $y == 0 || $y == 15 );
-            my $page   = $x >= 4 && $x <= 11 && $y >= 3 && $y <= 12;
-            my $foldp  = $x >= 9 && $y >= 3 && $y <= 5 && $page;
+            my $page  = $x >= 4 && $x <= 11 && $y >= 3 && $y <= 12;
+            my $foldp = $x >= 9 && $y >= 3  && $y <= 5 && $page;
             $px .= $corner ? $clear : $foldp ? $fold : $page ? $white : $grey;
         }
     }
-    my $mask = "\0" x ( $h * 4 );                          # 16 rows, 4 bytes each
-    my $dib  = pack( 'VVVvvVVVVVV', 40, $w, $h * 2, 1, 32, 0, length($px) + length($mask), 0, 0, 0, 0 ) . $px . $mask;
+    my $mask = "\0" x ( $h * 4 );                        # 16 rows, 4 bytes each
+    my $dib = pack( 'VVVvvVVVVVV', 40, $w, $h * 2, 1, 32, 0, length($px) + length($mask), 0, 0, 0, 0 ) . $px . $mask;
     $FAVICON_ICO = pack( 'vvv', 0, 1, 1 ) . pack( 'CCCCvvVV', $w, $h, 0, 0, 1, 32, length($dib), 22 ) . $dib;
     return $FAVICON_ICO;
 }
