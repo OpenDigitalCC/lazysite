@@ -64,8 +64,10 @@ subtest 'one parser, and absent `enabled` means on everywhere' => sub {
     is( $en{store},  1, 'an absent enabled lists as ON - the old MCP listing said off' );
     is( $en{tabbed}, 0, 'an explicit false lists as off' );
     ok( Lazysite::Handlers::enabled( $all->[0] ), 'and delivery reads it the same way' );
-    ok( ref $list->{types} eq 'ARRAY' && @{ $list->{types} } == 6,
-        'the listing carries the six types and their fields (SM1019 added notify, SM747 odoo)' );
+    # SM1369 X3: the Odoo type is the extension's own, offered only on a site that
+    # has it on and indexed; a bare site lists core's five.
+    ok( ref $list->{types} eq 'ARRAY' && @{ $list->{types} } == 5,
+        'the listing carries the five core types and their fields (SM1019 added notify; SM747\'s odoo is the extension\'s since SM1369 X3)' );
 };
 
 subtest 'the destination decides who may configure a handler' => sub {
