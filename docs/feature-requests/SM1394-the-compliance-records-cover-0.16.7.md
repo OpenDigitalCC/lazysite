@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the compliance check run alone for 0.16.7 (tmp/n767-compliance-check.sh): two blocking findings, as the 0.16.2 to 0.16.6 gates had (SM1306, SM1337, SM1367, SM1368, SM1380)"
 area: release
-status-note: "SHIPPED (0.16.7) on n767. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.7; seven entries walked (SM1383 confirmed, ruling 146; six drafts); SM1385/SM1389/SM1391 entry, boundary 12 restated and four STRIDE rows drafted; four operate-side rows; UPGRADE.md's 0.16.7 section; no code changes."
+status-note: "SHIPPED (0.16.7) on n767. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.7; seven entries walked (SM1383 confirmed, ruling 146; the six others confirmed 2026-11-07, rulings 149-152); SM1385/SM1389/SM1391 entry, boundary 12 restated and four STRIDE rows confirmed (ruling 149); four operate-side rows; UPGRADE.md's 0.16.7 section; no code changes."
 ---
 
 # What was asked
@@ -30,17 +30,20 @@ SM1385-SM1389, SM1393 and SM1392).
   SM1381, SM1383, SM1390, SM1387, SM1393, SM1392), walked against the code on the tip,
   each with a "walked" note. SM1383 fires new-external-interface in a narrow form and is
   confirmed contained (ruling 146); SM1381 fires it (the renewal step, a tokenless GET on
-  the Odoo endpoint) and is its assessment, a draft; the other five fire none, drafts.
-  The "drafted ... for confirmation" wording stays: the release manager confirms after
-  the walk's report, and a follow-up commit records the rulings.
+  the Odoo endpoint) and is its assessment, confirmed contained (ruling 150); the other
+  five fire none, confirmed (ruling 149; SM1387's new action on an existing door is not
+  a new external interface, ruling 151; SM1392's listing, ruling 152). The rulings were
+  given after the walk's report and recorded by a follow-up commit, as for 0.16.6.
 - docs/SECURITY.md, a new entry dated 2026-11-07 for SM1385, SM1389 and SM1391 (a theme
   deleted by its path; the check's walk past the history repository; a schedule entry
-  under the floor), no trigger, drafted at the walk.
+  under the floor), no trigger, written at the walk and confirmed by the release
+  manager on 2026-11-07 (ruling 149).
 - docs/SECURITY.md, trust boundary 12 restated (Odoo's modules in the extension's
   payload lib; the renewal step), the assets line restated (a session cookie as a format
   an outside process may verify) and four STRIDE rows (an Odoo module found in the wrong
   place; the renewal step reached with no token; one key signing three payloads; a group
-  deleted while something names it), drafts.
+  deleted while something names it), confirmed by the release manager on 2026-11-07
+  (ruling 149).
 - docs/compliance/OBLIGATIONS.md, stamped 0.16.7: the register, threat-model, SBOM
   (strict, exit 0, 463 components, the one more being `lib/Lazysite/Auth/GroupRefs.pm`;
   Odoo's fifteen modules renamed, counted as before; sbom-deps.json unchanged) and

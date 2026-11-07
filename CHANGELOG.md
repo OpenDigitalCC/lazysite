@@ -57,11 +57,13 @@ Archive
   TECHNICAL-FILE.md are walked against the 0.16.7 stack and stamped 0.16.7. The seven
   register entries the branches wrote are walked against the code, each gaining a "walked"
   note: SM1383 is confirmed (ruling 146); SM1381's new-external-interface (the renewal
-  step, a tokenless GET on the Odoo endpoint) and the five with no trigger await the
-  release manager, SM1390 a hardening by ruling 147, so 0.16.7 is edge and not
-  security-critical. Drafted at the walk, for confirmation: an entry for SM1385, SM1389
-  and SM1391, trust boundary 12 restated for Odoo's payload lib and the renewal step, four
-  STRIDE rows and four operate-side rows. UPGRADE.md's 0.16.7 notes are one section. Docs
+  step, a tokenless GET on the Odoo endpoint) is confirmed contained (ruling 150) and
+  the five with no trigger are confirmed (ruling 149; SM1387's new action on an existing
+  door is not a new interface, ruling 151; SM1392's listing, ruling 152), SM1390 a
+  hardening by ruling 147, so 0.16.7 is edge and not security-critical (ruling 149).
+  Written at the walk and confirmed by the release manager (ruling 149): an entry for
+  SM1385, SM1389 and SM1391, trust boundary 12 restated for Odoo's payload lib and the
+  renewal step and four STRIDE rows, with four operate-side rows. UPGRADE.md's 0.16.7 notes are one section. Docs
   only; nothing is signed.
 
 - SM1369 (PENDING) **Odoo's modules move out of core's lib into the extension's own (X7,
@@ -121,7 +123,8 @@ Archive
   Users add and an import's approval go through add) and an import's `stage_accounts`
   refuse the name, saying why, from the verifier's constant; `lazysite check` names an
   account that already carries it. `t/unit/auth/76`, `t/integration/361`,
-  `t/unit/users/71`, `t/tools/333`; a `docs/SECURITY.md` entry is drafted.
+  `t/unit/users/71`, `t/tools/333`; a `docs/SECURITY.md` entry is drafted, confirmed
+  (ruling 149).
 
 - SM1391 (PENDING) **daemon: a schedule entry under the floor is recorded as refused,
   once (ruling 148).** A hand-written `every:` below 300 seconds in `schedule.conf` was

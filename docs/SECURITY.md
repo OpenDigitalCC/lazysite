@@ -73,7 +73,8 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     connection to an ERP on the operator's URL, a connection user's key, a person's
     own Odoo session, an anonymous visitor's bounded write path, and (opt-in) the
     person's Odoo login as the site sign-in under an `odoo:<login>` identity. From
-    0.16.7 (SM1369 X7 part one) its modules live in the extension's own payload lib,
+    0.16.7 (SM1369 X7 part one; confirmed by the release manager on 2026-11-07,
+    ruling 149) its modules live in the extension's own payload lib,
     `extensions/odoo/lib`, and core loads them only through
     `Lazysite::Extensions::require_payload`, the X1 rule: the same code in the same
     processes, from one place; and the endpoint carries a renewal step (SM1381,
@@ -134,10 +135,10 @@ Denial of service | The bad-URL blocker exempting loopback always (SM1321, rulin
 Elevation of privilege | An extension's own Perl run inside a core process (SM1369 X1): code that is not the extension's - core's, a system module's, a planted file's - run under its name, a disabled extension's entry or an edited index still honoured, a hook that dies taking the process with it | The declaration is validated before it is indexed; each module must be a regular file in the extension's payload lib, a real directory, found nowhere else on `@INC`, checked at the build and at the call; the payload lib is appended to `@INC`, never prepended; the extension and what it requires must be on at the call, read fresh; a dying hook is a failure, never an exception into core | 0.16.6 (t/unit/extensions/70, 71; t/tools/330; row confirmed, ruling 142): built with no caller and no live kind; in process a hook is a contract, not a sandbox, so trust is what is installed (ADR 0009); each later slice that adds a caller is assessed against boundary 15
 Information disclosure | An account reaching the primary - one granted nothing, or the primary's row - reading and writing every secondary domain's folder under the docroot through the primary's content (SM1372, the residual risk SM1332-SM1334 recorded) | The primary's content is the docroot less the other domains' content roots, one rule (`DomainAccess::foreign_root_of`) asked by the manager API, MCP and WebDAV, on reads, writes and walks; a listing leaves those folders out for a caller refused them (ruling 137) | Closed in 0.16.6 (t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74; row confirmed, ruling 142); the operator group and an account granted a domain keep it; a secondary with no content root of its own serves the primary's content
 Denial of service | The site used as a mailer: a visitor typing a stranger's address in a form whose conf opts in to an acknowledgement, so the site mails it (SM1362) | The message is the form's fixed text with nothing of the submission in it; 3 an hour per address and 60 per site across every form and smtp handler, one record; the form's own per-address limit, render timestamp and honeypot first; a quarantined submission is never answered; an unreadable cap record refuses | 0.16.6 (t/unit/forms/68; row confirmed, ruling 142); opt-in per form; a visitor can still have the fixed text sent to an address they name, within the caps
-Tampering | An Odoo module loaded from the wrong place now that the extension's modules live in its payload lib (SM1369 X7 part one): a stale copy an earlier release left in core's `lib/`, an edited one the upgrade kept as an orphan, a module planted in a second payload lib, or a payload linked in from elsewhere, run in place of the extension's own | `require_payload` loads only a regular file in exactly one payload lib - a real directory beside a descriptor under the engine's own `extensions/`, appended to `@INC`, never prepended - and refuses by name a module that also resolves anywhere else on `@INC`, so nothing loads; the upgrade removes the old copies and the directories they emptied, and keeps an edited copy only as a named orphan, which is then refused, never run | 0.16.7 (t/unit/extensions/75, t/lint/335, t/tools/335; row drafted at the 0.16.7 walk, for the release manager's confirmation): an edited old copy stops Odoo until it is removed, fail closed; whoever can write the engine tree can write either copy, as before
-Tampering | The renewal step on the Odoo endpoint, `GET /cgi-bin/lazysite-odoo.pl?renew=1`, reached with no token (SM1381): a cross-site request ending a person's site session (a forced sign-out), `next` or the renewal path as an open redirect, a redirect loop, or repeated requests driving calls to Odoo | Nothing is renewed or ended without the `lzs_odoo_session` cookie, `SameSite=Strict` and scoped to the endpoint, which a cross-site request does not carry; the step grants only what `?csrf=1` grants, under the group map's capability refusal; `next` and the site's `auth_redirect` pass `sanitise_next`, and core accepts the renewal path only as a same-site path with a query; GET only, one Odoo call per stale session, and one renewal a minute per browser (`lzs_renewed`) | 0.16.7 (t/unit/odoo/135, t/unit/auth/74, t/integration/293; row drafted at the 0.16.7 walk, for the release manager's confirmation): a holder of a stale session can make one Odoo call per request to the step, as with `?csrf=1`; a client that sets `lzs_renewed` itself skips only its own renewal
-Spoofing | One key signing three payloads with no domain separation (SM1383, found; SM1390, closed): a theme-preview cookie `v1:<expiry>:<layout>:<theme>:<user>` read as a legacy session for an account named `v1`, a session read as a preview, a timestamp in the future outliving the lifetime, and the key itself in the hands of an outside process on the same host that verifies `lazysite_auth` | The session verifier refuses a payload beginning `v1:` before anything else is read, and a timestamp or `seen` time more than 300 seconds ahead of its clock; the preview verifier refuses a payload without exactly five fields; no account may be named `v1` on any door that creates or renames one, and `lazysite check` names one that exists; the contract document puts an outside reader in the web server's trust, forbids it the groups in the cookie and every write, and the format changes only versioned, reader before writer | 0.16.7 (t/unit/auth/75, 76; t/integration/361; t/unit/users/71; t/tools/333; row drafted at the 0.16.7 walk, for the release manager's confirmation): the key stays symmetric, so a process that can verify can mint, and "read-only" is that process's promise; the CSRF token shares the key and never travels with its payload
-Elevation of privilege | A group deleted while an access rule, a page, a domain, a data table, an Odoo binding, a connector or a group map still names it, so a group made later under that name - by any `manage_users` holder, a token included - inherits every grant those references make (SM1387; the cookie Groups page did this) | `group-delete`, MCP `delete_group` and the Groups page all go through the users tool, the store's one writer, which refuses the operator group, a group with a member and a group anything names (`Lazysite::Auth::GroupRefs`, the twelve places), naming each; a confined caller deletes only a group it created with `group-set`; audited as `@group` | 0.16.7 (t/integration/357; row drafted at the 0.16.7 walk, for the release manager's confirmation): a store naming groups that GroupRefs does not read is not refused, so a new one is added there; a reference left by a deletion before 0.16.7 admits nobody through the name until it is reused
+Tampering | An Odoo module loaded from the wrong place now that the extension's modules live in its payload lib (SM1369 X7 part one): a stale copy an earlier release left in core's `lib/`, an edited one the upgrade kept as an orphan, a module planted in a second payload lib, or a payload linked in from elsewhere, run in place of the extension's own | `require_payload` loads only a regular file in exactly one payload lib - a real directory beside a descriptor under the engine's own `extensions/`, appended to `@INC`, never prepended - and refuses by name a module that also resolves anywhere else on `@INC`, so nothing loads; the upgrade removes the old copies and the directories they emptied, and keeps an edited copy only as a named orphan, which is then refused, never run | 0.16.7 (t/unit/extensions/75, t/lint/335, t/tools/335; row confirmed by the release manager on 2026-11-07, ruling 149): an edited old copy stops Odoo until it is removed, fail closed; whoever can write the engine tree can write either copy, as before
+Tampering | The renewal step on the Odoo endpoint, `GET /cgi-bin/lazysite-odoo.pl?renew=1`, reached with no token (SM1381): a cross-site request ending a person's site session (a forced sign-out), `next` or the renewal path as an open redirect, a redirect loop, or repeated requests driving calls to Odoo | Nothing is renewed or ended without the `lzs_odoo_session` cookie, `SameSite=Strict` and scoped to the endpoint, which a cross-site request does not carry; the step grants only what `?csrf=1` grants, under the group map's capability refusal; `next` and the site's `auth_redirect` pass `sanitise_next`, and core accepts the renewal path only as a same-site path with a query; GET only, one Odoo call per stale session, and one renewal a minute per browser (`lzs_renewed`) | 0.16.7 (t/unit/odoo/135, t/unit/auth/74, t/integration/293; row confirmed by the release manager on 2026-11-07, ruling 149): a holder of a stale session can make one Odoo call per request to the step, as with `?csrf=1`; a client that sets `lzs_renewed` itself skips only its own renewal
+Spoofing | One key signing three payloads with no domain separation (SM1383, found; SM1390, closed): a theme-preview cookie `v1:<expiry>:<layout>:<theme>:<user>` read as a legacy session for an account named `v1`, a session read as a preview, a timestamp in the future outliving the lifetime, and the key itself in the hands of an outside process on the same host that verifies `lazysite_auth` | The session verifier refuses a payload beginning `v1:` before anything else is read, and a timestamp or `seen` time more than 300 seconds ahead of its clock; the preview verifier refuses a payload without exactly five fields; no account may be named `v1` on any door that creates or renames one, and `lazysite check` names one that exists; the contract document puts an outside reader in the web server's trust, forbids it the groups in the cookie and every write, and the format changes only versioned, reader before writer | 0.16.7 (t/unit/auth/75, 76; t/integration/361; t/unit/users/71; t/tools/333; row confirmed by the release manager on 2026-11-07, ruling 149): the key stays symmetric, so a process that can verify can mint, and "read-only" is that process's promise; the CSRF token shares the key and never travels with its payload
+Elevation of privilege | A group deleted while an access rule, a page, a domain, a data table, an Odoo binding, a connector or a group map still names it, so a group made later under that name - by any `manage_users` holder, a token included - inherits every grant those references make (SM1387; the cookie Groups page did this) | `group-delete`, MCP `delete_group` and the Groups page all go through the users tool, the store's one writer, which refuses the operator group, a group with a member and a group anything names (`Lazysite::Auth::GroupRefs`, the twelve places), naming each; a confined caller deletes only a group it created with `group-set`; audited as `@group` | 0.16.7 (t/integration/357; row confirmed by the release manager on 2026-11-07, ruling 149): a store naming groups that GroupRefs does not read is not refused, so a new one is added there; a reference left by a deletion before 0.16.7 admits nobody through the name until it is reused
 ```
 
 ## Five priority entries (from the review)
@@ -3155,7 +3156,7 @@ verdict
 
 ### 2026-11-07 - SM1369 X7 part one (0.16.7): Odoo's modules load from the extension's payload lib
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (ruling 149).
 Ruling 135; the design is the extension-hooks proposal's Packaging and "Upgrade for a
 site already using Odoo".
 
@@ -3195,8 +3196,8 @@ residual risk
   write the engine tree can change either copy, as before.
 
 verdict
-: drafted, for the release manager's confirmation: no trigger fires and the change is
-  contained.
+: accepted, confirmed by the release manager on 2026-11-07 (ruling 149): no trigger
+  fires and the change is contained.
 
 walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
@@ -3212,11 +3213,11 @@ walked
   modules moved, the tests and the OOM snapshot kept in `t/` for 0.16.9, no separate
   deb yet (ruling 143). No trigger fires, as the entry says. The walk restates trust
   boundary 12 for the payload lib and adds a STRIDE row (a module found in the wrong
-  place), both drafts for the release manager's confirmation.
+  place), both confirmed by the release manager on 2026-11-07 (ruling 149).
 
 ### 2026-11-07 - SM1381 (0.16.7): a stale Odoo site session is renewed through the Odoo endpoint
 
-Assessment drafted by the developer agent, for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (ruling 150).
 
 what changed
 : The `odoo-stale` verdict (a site session the Odoo sign-in minted, past
@@ -3274,8 +3275,8 @@ residual risk
   wrapper's (the gate re-asks the verifier) by t/unit/odoo/135.
 
 verdict
-: drafted, for the release manager's confirmation: the trigger fires and the change is
-  contained.
+: accepted, confirmed by the release manager on 2026-11-07 (ruling 150): the trigger
+  fires and the change is contained, so the ADR 0007 waiver stands.
 
 walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
@@ -3289,8 +3290,8 @@ walked
   `SiteSignin::renew_path` is the one place the path is written, and core names no
   endpoint (lint 321's list is unchanged). ADR 0007's new-external-interface trigger
   fires as the entry says, and the entry is its assessment. The walk adds the step to
-  trust boundary 12 and a STRIDE row (the renewal step reached with no token), drafts
-  for the release manager's confirmation with this entry.
+  trust boundary 12 and a STRIDE row (the renewal step reached with no token), confirmed
+  by the release manager with this entry (rulings 149, 150).
 
 ### 2026-11-07 - SM1383 (0.16.7): the session cookie is an externally relied-on credential format
 
@@ -3353,12 +3354,12 @@ walked
   holds the rest. No code changed under this entry, and nothing more is asked of the
   release manager for it. The walk restates the assets line (a session cookie as a
   format an outside process may verify) and records the residual risk's three
-  findings, closed by SM1390, in one STRIDE row with that entry, a draft for the
-  release manager's confirmation.
+  findings, closed by SM1390, in one STRIDE row with that entry, confirmed by the
+  release manager on 2026-11-07 (ruling 149).
 
 ### 2026-11-07 - SM1390 (0.16.7): another signed value is not a session, a future timestamp is refused, and the sliding reader is reachable
 
-Assessment drafted by the developer agent, for the release manager's confirmation (ruling 147 named the fixes).
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (ruling 149; ruling 147 named the fixes).
 
 what changed
 : Hardening of `Lazysite::Auth::Session::verify_session_cookie` and
@@ -3408,8 +3409,8 @@ residual risk
   Sliding expiry has a reader and no writer.
 
 verdict
-: drafted, awaiting the release manager, to be confirmed with the 0.16.7 walk.
-  Hardening, not a vulnerability fix; no trigger fired.
+: accepted, confirmed by the release manager on 2026-11-07 with the 0.16.7 walk
+  (ruling 149). Hardening, not a vulnerability fix; no trigger fired.
 
 walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
@@ -3423,12 +3424,12 @@ walked
   (OBLIGATIONS.md): a preview cookie is minted only for a signed-in manager, no site is
   known to hold an account named `v1`, and a holder of the key can mint at will, so the
   walk records 0.16.7 as edge and not security-critical, SM1390 a hardening by ruling
-  147, for the release manager to confirm with this entry. The walk's STRIDE row (one
-  key, three payloads) is drafted with the SM1383 entry.
+  147, confirmed by the release manager with this entry (ruling 149). The walk's STRIDE
+  row (one key, three payloads) is confirmed with the SM1383 entry (ruling 149).
 
 ### 2026-11-07 - SM1387 (0.16.7): a group is deleted on every door, once nothing uses it
 
-Assessment drafted by the developer agent for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (rulings 149, 151).
 
 what changed
 : A new action deletes access state. Control API `group-delete` (in %GATE behind
@@ -3470,8 +3471,9 @@ residual risk
   of the account's groups is not counted; the session refreshes at the next sign-in.
 
 verdict
-: proposed accepted, for the release manager's confirmation; new-external-interface
-  assessed as contained (above).
+: accepted, confirmed by the release manager on 2026-11-07 (rulings 149, 151): a new
+  action on an existing authenticated door is not a new external interface, and the
+  assessment above holds.
 
 walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
@@ -3485,13 +3487,14 @@ walked
   Groups page calls `group-delete`. The audit row carries `@group`. On the trigger the
   entry leaves to be weighed: the walk reads a new action on an existing authenticated
   door, under the existing gate, as no new external interface, as the actions of
-  SM1332-SM1334 and SM1240 were recorded; the release manager says which, and the
-  entry's assessment holds either way. The walk adds a STRIDE row (a group deleted
-  while something names it), a draft for the release manager's confirmation.
+  SM1332-SM1334 and SM1240 were recorded; the release manager ruled it so on
+  2026-11-07 (ruling 151), and the entry's assessment holds. The walk adds a STRIDE row
+  (a group deleted while something names it), confirmed by the release manager (ruling
+  149).
 
 ### 2026-11-07 - SM1393 (0.16.7): the agent roles and the shipped bundles reach a site the mark never reached
 
-Assessment drafted by the developer agent for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (ruling 149).
 
 what changed
 : The two adoptions in the users tool (`_adopt_added_bundles`, SM1118/SM1241/SM1262;
@@ -3537,7 +3540,8 @@ residual risk
   is absent); such a store has no manager group until `setup-sysop`, which marks it.
 
 verdict
-: proposed accepted, for the release manager's confirmation; no trigger fired.
+: accepted, confirmed by the release manager on 2026-11-07 (ruling 149); no trigger
+  fired.
 
 walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
@@ -3550,7 +3554,7 @@ walked
 
 ### 2026-11-07 - SM1392 (0.16.7): the editor opens a form's own conf, and every door names manage_forms for it
 
-Assessment drafted by the developer agent for the release manager's confirmation.
+Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (rulings 149, 152).
 
 what changed
 : `starter/manager/edit.md`'s `isReservedPath` exempts `lazysite/forms/<name>.conf`
@@ -3596,7 +3600,8 @@ residual risk
   the editor now included.
 
 verdict
-: proposed accepted, for the release manager's confirmation; no trigger fired.
+: accepted, confirmed by the release manager on 2026-11-07 (rulings 149, 152); no
+  trigger fired.
 
 walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
@@ -3612,14 +3617,15 @@ walked
 
 ### 2026-11-07 - SM1385, SM1389, SM1391 (0.16.7): a theme deleted by its path, the check's walk past the history repository, and a schedule entry under the floor, with no trigger
 
-Assessment drafted by the developer agent at the 0.16.7 compliance walk, for the
-release manager's confirmation. The rest of 0.16.7 moves no control: SM1382 is a
+Assessment drafted by the developer agent at the 0.16.7 compliance walk; confirmed by
+the release manager on 2026-11-07 (ruling 149). The rest of 0.16.7 moves no control: SM1382 is a
 spike and a documented recipe (live data), SM1383 has its own entry, SM1384 is a
 filing (a connector cannot express a job protocol, a candidate), SM1386 adds a warning
 to a theme install and SM1388 a sentence to a refusal; SM1394 is this walk. The other
 changes of 0.16.7 have their own entries: SM1369 X7 part one, SM1381 (firing
-new-external-interface), SM1383 (ruling 146), SM1390 (ruling 147), SM1387, SM1393 and
-SM1392.
+new-external-interface, ruling 150), SM1383 (ruling 146), SM1390 (ruling 147), SM1387
+(ruling 151), SM1393 and SM1392 (ruling 152). 0.16.7 is edge and not security-critical
+(ruling 149).
 
 what changed
 : SM1385, a theme deleted by its path. `delete_theme` (MCP), `theme-delete` (control
@@ -3677,6 +3683,6 @@ residual risk
   floor and runs.
 
 verdict
-: drafted at the 0.16.7 compliance walk, for the release manager's confirmation. No
-  trigger fired; recorded because SM1385 widens where a destructive action reaches and
+: accepted, confirmed by the release manager on 2026-11-07 (ruling 149). No trigger
+  fired; recorded because SM1385 widens where a destructive action reaches and
   SM1389 narrows what a check reports.
