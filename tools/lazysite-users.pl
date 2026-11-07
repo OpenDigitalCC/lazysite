@@ -137,7 +137,9 @@ use Lazysite::Auth::Credential
     password_min_length password_policy_refusal);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
     caps_for write_group_settings resolve_user_scopes resolve_home_domain
-    resolve_token_ttl @CAP_KEYS group_settings_unreadable);
+    resolve_token_ttl @CAP_KEYS group_settings_unreadable @OFF_BY_DEFAULT);
+# SM1354: the capabilities a seed or top-up never gives (Settings says why).
+my %OFF_BY_DEFAULT = map { $_ => 1 } @OFF_BY_DEFAULT;
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -1622,7 +1624,7 @@ sub _ensure_manager_group_caps {
         return unless $gs->{$group}{manager};
         my $cfg     = $gs->{$group};
         my $changed = 0;
-        for my $c ( grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS ) {
+        for my $c ( grep { $_ ne q(api) && $_ ne q(mcp) && !$OFF_BY_DEFAULT{$_} } @CAP_KEYS ) {
             next if exists $cfg->{$c};    # decided already, either way
             $cfg->{$c} = 1;
             $changed++;
@@ -1652,7 +1654,7 @@ sub _ensure_manager_group_caps {
         return;
     }
 
-    my %caps = map { $_ => 1 } grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
+    my %caps = map { $_ => 1 } grep { $_ ne q(api) && $_ ne q(mcp) && !$OFF_BY_DEFAULT{$_} } @CAP_KEYS;
 
     # SM467: HOLDING is not CONFERRING, and SM127 only bounds the first.
     #
@@ -4691,7 +4693,7 @@ sub _ensure_groups_seeded {
             . 'it the ability to delegate.';
         $seed->{$g}{assignable} = 1;    # SM576: a manager group is a role
             # SM127: manager groups are interactive-only - no remote api/mcp channels.
-        $seed->{$g}{$_} = 1 for grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
+        $seed->{$g}{$_} = 1 for grep { $_ ne q(api) && $_ ne q(mcp) && !$OFF_BY_DEFAULT{$_} } @CAP_KEYS;
 
         # SM467 established that HOLDING and CONFERRING are different questions,
         # and answered it for the two channels a manager group deliberately does
@@ -4819,7 +4821,7 @@ sub _migrate_conf_manager_groups {
         next if $gs->{$g}{manager};    # already a manager group - grant complete
         $gs->{$g}{manager}    = 1;
         $gs->{$g}{assignable} = 1;     # SM576: a manager group is a role
-        $gs->{$g}{$_}         = 1 for grep { $_ ne q(api) && $_ ne q(mcp) } @CAP_KEYS;
+        $gs->{$g}{$_} = 1 for grep { $_ ne q(api) && $_ ne q(mcp) && !$OFF_BY_DEFAULT{$_} } @CAP_KEYS;
         $changed              = 1;
     }
     write_group_settings($gs) if $changed;

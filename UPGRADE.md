@@ -145,6 +145,15 @@ submission. Then delete the `owner_contact` line. `lazysite check` names a site 
 still sets it. A form's acknowledgement to the submitter (`acknowledge_field`) is
 unchanged.
 
+**A new capability, `publish_copies`, held by nobody (SM1354).** Pages can be copied,
+changed and published over the original. A person in the manager publishes with
+`manage_content`, as they save today. An agent publishes over MCP or the control API
+only with `publish_copies` as well, which the upgrade grants to no group: the manager
+groups' top-up and `lazysite check` leave it out by design, and a manager group is
+offered it to grant. Grant it to an agent's group only where the site has decided an
+agent may publish its own change. The copies live in `lazysite/copies/`, which content
+history leaves out; nothing else changes on upgrade.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

@@ -338,6 +338,38 @@ restore_version `{ path, version }`
   A version that is not valid UTF-8 is refused (`kind: page-encoding-refused`,
   with the offset) and the file is left as it is.
 
+### Copy, change, publish a page (SM1354)
+
+Prepare a change to a live page on a private copy, look at it, then put it over the
+page in one move. Content history is the way back.
+
+copy_page `{ path }`
+: Take a copy of a page. It is written at `lazysite/copies/pages/<page path>` (the
+  answer names it as `copy`). Change it with `write_file` or `replace_text` at that
+  path; see it with `preview_page` at that path. Only those who may change the page
+  read or write its copy; it has no public address and is in no navigation, search,
+  sitemap, cache or content history. One open copy per page: a second is refused as
+  `copy-open`, naming the first. Needs `manage_content`.
+
+publish_copy `{ path, via }`
+: Put the page's open copy over the page as one recorded version naming you, this
+  connector as where the change came from, `via` when given (a lower-case word, such
+  as `wizard`) and who prepared the copy. Refused as `stale-copy`, nothing written,
+  when the page changed after the copy was taken; the answer carries both versions
+  (`taken_from`, `current`). The answer's `undo.version` is the version before the
+  publish: `restore_version` with it puts the page back. Needs `publish_copies`
+  (off by default; no shipped role holds it, the site grants it) and
+  `manage_content`. Without `publish_copies`, ask a person to publish the copy in
+  the manager.
+
+discard_copy `{ path }`
+: Throw the page's open copy away. The page and its content history are untouched.
+  Needs `manage_content`.
+
+A copy cannot be moved, deleted, uploaded over or made by `copy_file`: each is
+refused naming the tool to use. A save to the copies folder with no open copy is
+refused as `no-copy`.
+
 Remote sync of the history (push/pull to a git host) is **operator-only** by
 design - it is configured and driven from the manager UI (Remote sync extension)
 and is not exposed over the connector or the control API.

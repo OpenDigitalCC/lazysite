@@ -14,6 +14,7 @@ use Lazysite::Auth::Identity ();    # SM1131: the one reader of the request's gr
 use Lazysite::Util ();    # SM289: secure_write_perms - root must not own this store
 use Exporter 'import';
 use Lazysite::Paths ();
+use Lazysite::PageCopy ();    # SM1354: a page's copy answers to the page's write rule
 
 # DA-19: loaded once at the top rather than `require`d in four subs.
 # Settings depends only on Lazysite::Util, so there is no cycle back here.
@@ -777,6 +778,13 @@ sub root_gating {
 
 sub _acl_allows {
     my ( $rel, $mode, $user ) = @_;
+    # SM1354 (ruling 155): A PAGE'S COPY IS READ AND WRITTEN BY WHOEVER MAY EDIT
+    # THE PAGE, and by nobody else - so a reader of a page who may not change it
+    # does not see a change being prepared for it. Both modes ask the page's
+    # write rule; the copies folder carries no rule of its own.
+    if ( defined( my $page = Lazysite::PageCopy::original_of($rel) ) ) {
+        ( $rel, $mode ) = ( $page, 'write' );
+    }
     my $map = load_acls();
     return 0 if $ACLS_FAULT;    # SM1024: a broken store is not "no rules"
     my $a = _acl_entry_for( $map, $rel, $mode );
@@ -1032,6 +1040,10 @@ sub address_denial {
 # _is_operator - see there.
 sub _acl_denied {
     my ( $rel, $mode, $user ) = @_;
+    # SM1354: a copy is the page's, in write mode (see _acl_allows).
+    if ( defined( my $page = Lazysite::PageCopy::original_of($rel) ) ) {
+        ( $rel, $mode ) = ( $page, 'write' );
+    }
     # SM1139: the visitor's address, before the bypass - see address_denial.
     if ( my $by_address = address_denial($rel) ) { return $by_address }
     return undef if file_rule_bypass();

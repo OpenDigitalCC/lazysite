@@ -134,6 +134,18 @@ The editor at `/manager/edit` shows:
 - **History** (when the Content history extension is enabled): opens this
   file's History panel in Files - the same View, Diff and Restore as above
 - Collaborative edit lock - only one user can edit a file at a time
+- **Copy**, on a page: a private copy of the page to change before it goes live
+  (SM1354). The editor opens the copy; its preview shows it as the page would
+  be, with the page's layout, theme, navigation and data. A page has one open
+  copy at a time; Copy on a page that has one offers to open it.
+- **Publish** and **Discard**, on a copy. Publish puts the saved copy over the
+  page as one recorded change naming you; it is refused, showing both versions,
+  when the page changed after the copy was taken. Discard throws the copy away
+  and leaves nothing in the page's history. Straight after a publish, **Undo**
+  puts the page back as it was (through content history, when it is kept).
+  Only people who may change the page see or change its copy; publishing in the
+  manager needs `manage_content`, as a save does. An agent publishes a copy only
+  with `publish_copies`, which no role holds until an operator grants it.
 
 The `lazysite/` control area is not editable here: a path under it opens as
 "system file (read-only)" and names the manager page that owns it. The one

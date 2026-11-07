@@ -490,6 +490,11 @@ my %NO_NEW_BINDING = (
     'acl-remove'       => 'as acl-set',
     'cache-invalidate' => 'drops rendered output; no page text',
     'page-pdf'         => 'reads pages and writes a cached PDF; no page text',
+    # SM1354: a copy is the page's own saved text, written beside it in the engine tree,
+    # which renders nowhere; a change to it is a save (action_save, which asks at the
+    # page's path), and its publish is a save at the page.
+    'page-copy'         => 'writes the saved text of the page as its copy; no page newly names a form',
+    'page-copy-discard' => 'removes a copy; no page text',
 );
 my ( @bind_missing, @bind_stale, @bind_seen );
 for my $a ( sort grep { ( $SCOPED{$_} && $MUT{$_} && !$IW{$_} ) || $MUST_BIND{$_} } keys %ACTION ) {
@@ -519,6 +524,8 @@ my %MCP_NO_NEW_BINDING = (
     invalidate_cache => 'drops rendered output; no page text',
     set_permissions  => 'as acl-set: moves a page between the trees form_bindings reads',
     remove_permissions => 'as acl-remove: moves a page back into the docroot; no page text', # SM1263
+    copy_page    => 'SM1354: as page-copy - the saved text of the page, as its copy',
+    discard_copy => 'SM1354: as page-copy-discard - removes a copy',
 );
 my %twin_of = map { $twin{$_} => $_ } grep { defined $twin{$_} } keys %twin;
 my ( @mcp_bind_missing, @mcp_bind_stale, @mcp_bind_seen );

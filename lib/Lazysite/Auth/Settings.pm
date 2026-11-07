@@ -19,7 +19,7 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     request_cap_groups request_group_caps narrow_caps_to_request
     effective_groups touch_credential role_summary
     resolve_user_scopes resolve_home_domain resolve_token_ttl
-    read_group_settings write_group_settings group_is_assignable @CAP_KEYS
+    read_group_settings write_group_settings group_is_assignable @CAP_KEYS @OFF_BY_DEFAULT
     group_settings_unreadable group_settings_undecodable auth_cannot_tell cannot_tell_refusal);
 
 our $AUTH_DIR; # auth/ in the engine tree (Lazysite::Paths::lazysite_dir), set by the script
@@ -56,7 +56,16 @@ our @CAP_KEYS = qw(
     create_sub_users delegate_sub_user_creation
     manage_data write_data manage_briefs
     run_jobs manage_connectors manage_notifications
-    housekeeping purge audit_switch maintenance_access);
+    housekeeping purge audit_switch maintenance_access
+    publish_copies);
+
+# SM1354 (ruling 155): THE CAPABILITIES NO SEED AND NO TOP-UP GRANTS. A manager
+# group is seeded with, and topped up to, every capability but the remote
+# channels (SM127, SM645); one listed here it is offered (grantable) and never
+# given, so it is held only where an operator granted it. publish_copies lets an
+# agent put its own copy of a page over the page, which ruling 155 makes a
+# per-site decision, off by default.
+our @OFF_BY_DEFAULT = qw(publish_copies);
 
 # SM1369 X2 (H-7): THE LITERAL ABOVE IS WHAT CORE IMPLEMENTS, AND NOTHING MORE.
 # A capability an extension owns (`owns.capabilities`, described by its

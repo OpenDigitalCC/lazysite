@@ -196,6 +196,10 @@ tone: medium
 `odoo-secret-set` | manage_odoo | secret (body), grant (body), scheduled (body), login (body)
 `odoo-status` | manage_odoo |  
 `odoo-unknown-runs` | settle_odoo_writes |  
+`page-copies` | manage_content |  
+`page-copy` | manage_content | path (query)
+`page-copy-discard` | manage_content | path (query)
+`page-copy-publish` | publish_copies | path (query), via (query)
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  
 `preview` | cookie only | path (query), theme (query)

@@ -111,7 +111,10 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   125, SM1278: odoo-resume, gate ALWAYS as odoo-confirm is - the run's binding decides;
     #        odoo-unknown-runs and odoo-dismiss, gated settle_odoo_writes (SM1276).
     #   126, SM1387: group-delete, gated manage_users as group-set is - a group nothing uses.
-    is( scalar keys %caps, 126, '126 actions are reachable with a token' )
+    #   130, SM1354 (ruling 155): page-copy, page-copies, page-copy-discard, gated
+    #        manage_content as a page write is; page-copy-publish, gated publish_copies, OFF
+    #        BY DEFAULT (no shipped role holds it), with manage_content asked in the branch.
+    is( scalar keys %caps, 130, '130 actions are reachable with a token' )
         or diag( 'The count moved. Either an action gained or lost a gate, or '
             . 'the move dropped one - and this table decides who may do what.' );
 

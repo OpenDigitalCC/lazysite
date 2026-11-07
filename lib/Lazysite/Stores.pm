@@ -199,6 +199,13 @@ my @STORES = (
         store => 0,
         why   => 'authored content in the content tree, not engine state',
     },
+    # SM1354: the copies of pages and their records (who took each, from which version).
+    # The records are engine state - an unreadable records file is not "no copies",
+    # and Manager::PageCopy refuses on it rather than taking a copy over one it lost.
+    { dir => 'copies',
+        store   => 1,
+        modules => ['lib/Lazysite/Manager/PageCopy.pm'],
+    },
     { dir => 'git',
         store => 0,
         why   => 'the content-history repository; git reports its own faults and the '

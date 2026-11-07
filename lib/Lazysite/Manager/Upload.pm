@@ -17,6 +17,7 @@ use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl qw(_acl_denied);
 use Lazysite::Private   ();
+use Lazysite::PageCopy  ();                # SM1354: no upload into the page copies folder
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -314,6 +315,14 @@ sub action_file_upload {
         if ( my $why = is_blocked_path($rel_target)
             || is_blocked_config( $rel_target, 1 ) ) {
             push @errors, { name => $fname, error => $why };
+            next;
+        }
+        # SM1354: the page copies folder takes an open copy's text, saved through
+        # the editor (Files::action_save), and no upload - as action_save_binary.
+        if ( Lazysite::PageCopy::under_copies($rel_target) ) {
+            push @errors, { name => $fname, kind => 'copy-path',
+                error => "'$rel_target' is in the page copies folder, and an upload does not write "
+                    . 'there. Take a copy with copy_page (page-copy) and change it in the editor.' };
             next;
         }
 

@@ -71,6 +71,9 @@ $NOT_A_PATH{$_} = 1 for qw(run assume_done assume_not_done reason);
 # SM1327: write_file's base_mtime - a modification time in seconds, compared with
 # the file the path already names.
 $NOT_A_PATH{base_mtime} = 1;
+# SM1354: publish_copy's via - a word naming what made the change, recorded in the
+# version's message.
+$NOT_A_PATH{via} = 1;
 
 # A path-shaped name that is not a content path on this tool, and why.
 my %NOT_A_PATH_HERE = (

@@ -55,6 +55,7 @@ use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::Groups  ();  # SM1050: list_groups, set_group; SM1387: delete_group
 use Lazysite::Manager::AddressProfiles ();    # SM1138: list_address_profiles
 use Lazysite::Manager::Data        ();
+use Lazysite::Manager::PageCopy        (); # SM1354: copy_page, publish_copy, discard_copy
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 use Lazysite::Manager::Extensions qw(action_form_submissions action_form_submission action_form_list);
 # SM918: the one notice reader, shared with the control API
@@ -2317,7 +2318,7 @@ my %TOOLS = (
     },
     preview_page => {
         path_args => [qw(path)],
-        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate. Pass `content` to render a DRAFT before saving it: the draft is rendered at `path`, which decides the domain, layout, theme, navigation and access rules that apply, and NOTHING is written - no file, no cache, no content history; the saved page is untouched. A draft is refused for anything a save of it at that path would be refused for (not UTF-8, a form you do not reach, a template that does not parse, raw HTML, the path\'s own write rules), and is limited to 512 KiB. Pass `theme` to render the page (or the draft) with an INSTALLED theme that is not the active one, so a theme can be checked on real pages before it is activated: it replaces the site\'s, the section\'s and the page\'s own theme for this render only, nothing is written, and it is refused for a theme that is not installed for the layout the page renders with. `theme` also needs manage_themes or manage_layouts - the capability that already lets a manager preview a theme in the browser (preview-grant).',
+        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate. Pass `content` to render a DRAFT before saving it: the draft is rendered at `path`, which decides the domain, layout, theme, navigation and access rules that apply, and NOTHING is written - no file, no cache, no content history; the saved page is untouched. A draft is refused for anything a save of it at that path would be refused for (not UTF-8, a form you do not reach, a template that does not parse, raw HTML, the path\'s own write rules), and is limited to 512 KiB. Pass `theme` to render the page (or the draft) with an INSTALLED theme that is not the active one, so a theme can be checked on real pages before it is activated: it replaces the site\'s, the section\'s and the page\'s own theme for this render only, nothing is written, and it is refused for a theme that is not installed for the layout the page renders with. `theme` also needs manage_themes or manage_layouts - the capability that already lets a manager preview a theme in the browser (preview-grant). Pass a page\'s COPY path (lazysite/copies/pages/..., from copy_page) to see the copy rendered exactly as the page would be, at the page\'s path.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -2331,6 +2332,22 @@ my %TOOLS = (
             if ( defined $a->{theme} ) {    # SM1290
                 my $no = _preview_theme_refusal( $a->{theme}, $caps );
                 return $no if $no;
+            }
+            # SM1354: a page's copy renders as a draft at its page - the page's
+            # layout, theme, navigation and data - and writes nothing.
+            if ( defined( my $page = Lazysite::PageCopy::original_of( $a->{path} ) ) ) {
+                return { ok => 0, kind => 'invalid',
+                    error => 'A copy is previewed as it is saved: send its path without content, or '
+                        . 'save the change to the copy first.',
+                    audit_detail => 'invalid: content beside a copy path - send one or the other' }
+                    if defined $a->{content};
+                my $rd = action_read( $a->{path}, $user );
+                return $rd unless ref $rd eq 'HASH' && $rd->{ok};
+                my $r = _preview_draft( "/$page", $rd->{content}, $user, $caps, $a->{theme} );
+                return $r unless ref $r eq 'HASH' && $r->{ok};
+                return { %$r, copy => $a->{path},
+                    note => "the copy of /$page, rendered fresh as a public visitor at the page's path, with "
+                        . 'its layout, theme and navigation; nothing was written and the page is unchanged' };
             }
             return _preview_draft( $a->{path}, $a->{content}, $user, $caps, $a->{theme} )
                 if defined $a->{content};    # SM1030
@@ -2461,6 +2478,59 @@ my %TOOLS = (
             },
             required => [ 'path', 'version' ], additionalProperties => JSON::PP::false },
         run => sub { action_git_restore( $_[0]->{path}, $_[1], $_[0]->{version} ) },
+    },
+    # SM1354 (ruling 155): copy a page, change the copy, publish it over the page.
+    # An agent proposes by copying and changing; publishing needs publish_copies,
+    # which no shipped role holds, as well as manage_content.
+    copy_page => {
+        path_args => [qw(path)],
+        description => 'Take a private copy of a page to change before it goes live. The copy is '
+            . 'written at lazysite/copies/pages/<page path> (the answer names it): change it there with '
+            . 'write_file or replace_text, look at it with preview_page path:<copy path> - it renders '
+            . 'exactly as the page would, with its layout, theme, navigation and data - and then '
+            . 'publish_copy (needs publish_copies) or discard_copy. Only people who may change the page '
+            . 'can read or write its copy; it has no public address and is in no navigation, search, '
+            . 'sitemap or cache. One open copy per page: a second is refused, naming the first.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'The page to copy, e.g. /about.md' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Manager::PageCopy::action_page_copy( $_[0]->{path}, $_[1] ) },
+    },
+    publish_copy => {
+        path_args => [qw(path)],
+        description => 'Publish a page\'s open copy over the page: one recorded version naming you, '
+            . 'this connector as where the change came from (and `via`, such as "wizard", when given), '
+            . 'and who prepared the copy. Refused - nothing written - when the page changed after the '
+            . 'copy was taken; the answer names both versions (taken_from and current). The answer '
+            . 'names the version to undo to: restore_version with it puts the page back. Needs '
+            . 'publish_copies (off by default; the site grants it) and manage_content.',
+        cap         => 'publish_copies', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string', description => 'The page, or its copy\'s path' },
+                via => { type => 'string', description => 'Optional: what made the change, e.g. "wizard" (a lower-case word)' },
+            },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub {
+            return { ok => 0, kind => 'forbidden',
+                error => 'Publishing a copy needs manage_content as well as publish_copies: it is a write of the page.',
+                audit_detail => 'forbidden: publish needs manage_content - ask for it' }
+                unless ( $_[2] || {} )->{manage_content};
+            return Lazysite::Manager::PageCopy::action_page_copy_publish( $_[0]->{path}, $_[1],
+                door => 'agent', via => $_[0]->{via} );
+        },
+    },
+    discard_copy => {
+        path_args => [qw(path)],
+        description => 'Throw a page\'s open copy away. The page is untouched and its content history '
+            . 'shows nothing of the copy. Use it when a proposal is not wanted, or to take a fresh copy '
+            . 'after a publish was refused because the page changed.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'The page, or its copy\'s path' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { Lazysite::Manager::PageCopy::action_page_copy_discard( $_[0]->{path}, $_[1] ) },
     },
 );
 
@@ -4995,6 +5065,8 @@ elsif ( $method eq 'tools/call' ) {
         for my $pk ( _path_args($tool) ) {
             my $p = $a->{$pk};
             next unless defined $p && length $p;
+            # SM1354: a page's copy is in its page's scope, and asked as the page.
+            $p = Lazysite::PageCopy::scope_path($p);
             next if $p =~ m{^/?lazysite/};
             next
                 unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );

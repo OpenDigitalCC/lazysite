@@ -154,6 +154,10 @@ my %ALLOW_DIVERGENCE = (
     'form-submissions' => 'manager: read_submissions | approve_accounts (account requests only, SM979); token: read_submissions',
     'form-submission' => 'the same split as form-submissions',
     'form-list' => 'the same split: approve_accounts is shown only the forms that declare account_email',
+    # SM1354 (ruling 155): a person publishes a copy in the manager on manage_content, as
+    # they save; a token needs publish_copies, off by default, AND manage_content, which
+    # the dispatch branch asks (the token table is any-of).
+    'page-copy-publish' => 'manager: manage_content (a save); token: publish_copies and manage_content (ruling 155)',
 );
 my @divergent;
 for my $act ( sort keys %all ) {
@@ -233,6 +237,11 @@ my %COOKIE_READ = map { $_ => 1 } map { ( my $l = $_ ) =~ s/#.*//; split ' ', $l
     # SM1278: the Odoo runs left unknown, read only; dismissing one (odoo-dismiss)
     # and resuming one (odoo-resume) are in %MUTATING.
     odoo-unknown-runs
+
+    # SM1354: the open copies the caller may edit, read only; taking, publishing and
+    # discarding one are in %MUTATING.
+    page-copies
+
 COOKIE_READ
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

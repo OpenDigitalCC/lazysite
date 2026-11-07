@@ -511,6 +511,22 @@ TTL expires (default 4 hours).
    your intent: briefs* in [AI briefing - publishing](/docs/ai-briefing-publishing)
    for the full structure and workflow.
 
+### Changing a live page: copy, change, publish
+
+For a change the owner should see before it goes live, work on a copy rather than
+the page (SM1354):
+
+1. `copy_page` with the page's path. The answer names the copy's path,
+   `lazysite/copies/pages/<page path>`.
+2. Change the copy with `write_file` or `replace_text` at that path, never the page.
+3. `preview_page` at the copy's path renders it as the page would be. Show the owner.
+4. Publishing needs `publish_copies`, which no role holds unless the site granted it.
+   Without it, tell the owner the copy is ready to publish in the manager's editor;
+   with it, `publish_copy` and report the `undo.version` it answers. A `stale-copy`
+   refusal means someone changed the page since: `discard_copy`, copy again and
+   redo the change.
+5. A change that is not wanted: `discard_copy`. It leaves nothing behind.
+
 ### Creating a blog/news index with scan
 
 1. Confirm blog posts live in a single directory, e.g. `/blog/`.

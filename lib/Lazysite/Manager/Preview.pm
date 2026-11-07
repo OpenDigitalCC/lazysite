@@ -28,6 +28,7 @@ use Digest::SHA                qw(hmac_sha256_hex);
 use JSON::PP                   ();
 use Lazysite::Util             qw(log_event write_private_atomic);
 use Lazysite::Manager::Domains ();
+use Lazysite::PageCopy         ();    # SM1354: a copy previews as its page
 use Lazysite::Manager::Common qw($auth_user respond processor_path _emit_json _user_caps _operator);
 
 our @EXPORT_OK = qw(action_preview action_preview_grant action_preview_clear);
@@ -185,6 +186,11 @@ sub action_preview {
     }
     else { undef $theme }
 
+    # SM1354: a page's copy, rendered as the page would be.
+    if ( defined( my $page = Lazysite::PageCopy::original_of($rel_path) ) ) {
+        return _preview_copy( $rel_path, $page, $theme );
+    }
+
     my $uri = $rel_path;
     $uri =~ s{^/*}{/};
     $uri =~ s/\.md$//;
@@ -238,6 +244,72 @@ sub action_preview {
         return { ok => 1, html => $output, theme => $theme };
     }
     return { ok => 1, html => $output };
+}
+
+# SM1354 (ruling 155): A PAGE'S COPY IS SEEN AS THE PAGE WOULD BE. The copy's
+# saved text goes to the processor as a DRAFT of the page (SM1030's single-shot
+# GET, the draft on STDIN, LAZYSITE_DRAFT_PATH naming the page), so it renders
+# with the page's own layout, theme, navigation and data, and writes nothing -
+# no file, no cache, no history. As MCP preview_page renders a copy: a public
+# visitor's view, every credential stripped. The copy is read through
+# Files::action_read, so only those who may change the page see it; and it is
+# refused for what a save of it at the page would be (Files::draft_refusal).
+sub _preview_copy {
+    my ( $copy_rel, $page, $theme ) = @_;
+    require Lazysite::Manager::Files;
+    require IPC::Open2;
+    my $rd = Lazysite::Manager::Files::action_read( $copy_rel, $auth_user );
+    return $rd unless ref $rd eq 'HASH' && $rd->{ok};
+    my $text = $rd->{content} // '';
+    if ( my $d = Lazysite::Manager::Files::draft_refusal( $page, $auth_user, $text ) ) { return $d }
+    my $bytes = $text;
+    utf8::encode($bytes);
+
+    my ( $owner, $url ) = Lazysite::Manager::Domains::served_at($page);
+    $url =~ s/\.md\z//;
+    $url =~ s{(\A|/)index\z}{$1};
+    local %ENV = %ENV;
+    delete @ENV{
+        grep {
+            m{ \A (?: HTTP_X_REMOTE_ | HTTP_X_PAYMENT_ | LAZYSITE_AUTH_ | HTTP_COOKIE
+                | HTTP_AUTHORIZATION | REDIRECT_HTTP_AUTHORIZATION | LAZYSITE_FRONT_DOOR ) }x
+        } keys %ENV
+    };
+    $ENV{DOCUMENT_ROOT}       = $DOCROOT;
+    $ENV{REDIRECT_URL}        = $url;
+    $ENV{REQUEST_URI}         = $url;
+    $ENV{REQUEST_METHOD}      = 'GET';
+    $ENV{QUERY_STRING}        = '';
+    $ENV{CONTENT_LENGTH}      = '0';
+    $ENV{LAZYSITE_NOCACHE}    = '1';
+    $ENV{LAZYSITE_PREVIEW}    = '1';
+    $ENV{LAZYSITE_DRAFT_PATH} = $page;
+    if ( length $owner ) { $ENV{HTTP_HOST} = $owner }
+    else                 { delete $ENV{HTTP_HOST} }
+    if ( defined $theme ) { $ENV{LAZYSITE_PREVIEW_THEME} = $theme }
+    else                  { delete $ENV{LAZYSITE_PREVIEW_THEME} }
+
+    my ( $out, $in );
+    local $SIG{PIPE} = 'IGNORE';
+    my $pid = eval { IPC::Open2::open2( $out, $in, $^X, processor_path() ) }
+        or return { ok => 0, error => 'could not run the processor' };
+    binmode $in;
+    print {$in} $bytes;
+    close $in;
+    my $raw = do { local $/; <$out> } // '';
+    close $out;
+    waitpid $pid, 0;
+
+    my ( $head, $html ) = split /\r?\n\r?\n/, $raw, 2;
+    $head //= '';
+    $html //= '';
+    if ( $head =~ /^X-Lazysite-Draft:\s*refused/mi ) {
+        ( my $why = $html ) =~ s/\s+\z//;
+        return { ok => 0, kind => 'draft-not-rendered', error => "The copy was not rendered: $why." };
+    }
+    utf8::decode($html);
+    return { ok => 1, html => $html, copy => $copy_rel, page => "/$page",
+        ( defined $theme ? ( theme => $theme ) : () ) };
 }
 
 1;

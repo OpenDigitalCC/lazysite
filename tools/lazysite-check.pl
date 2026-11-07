@@ -1131,7 +1131,12 @@ sub run_checks {
                 create_sub_users delegate_sub_user_creation
                 manage_data write_data manage_briefs run_jobs manage_connectors
                 manage_notifications
-                housekeeping purge audit_switch maintenance_access);
+                housekeeping purge audit_switch maintenance_access
+                publish_copies);
+            # SM1354: the capabilities no seed or top-up gives (Settings's
+            # @OFF_BY_DEFAULT, copied for the reason above). Absent on a manager
+            # group is their designed state, not a gap, so they are not reported.
+            my %OFF_BY_DEFAULT = map { $_ => 1 } qw(publish_copies);
             # SM1369 X2 (H-7): and the capabilities this site's extensions
             # declare, read from the extension index as the engine reads them -
             # never from a literal here, and never by running an extension.
@@ -1157,6 +1162,7 @@ sub run_checks {
                 my $have = $gsettings->{$g} or next;
                 next unless $have->{manager};
                 for my $c (@CAPS) {
+                    next if $OFF_BY_DEFAULT{$c} && !exists $have->{$c};
                     if ( !exists $have->{$c} ) {
                         if   ( $topup_fills->( $have, $c ) ) { push @filled,  "$g/$c" }
                         else                                 { push @missing, "$g/$c" }

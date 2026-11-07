@@ -4185,3 +4185,60 @@ residual risk
 verdict
 : drafted by the developer agent: accept as a hardening (less processing of personal
   data), no trigger fired. For the release manager to confirm at the 0.16.8 walk.
+
+### 2026-11-07 - SM1354 (0.16.8, PENDING): a page's copy, and publish_copies on existing doors
+
+Assessment drafted by the developer agent (n772) for the release manager's confirmation.
+
+what changed
+: A page can be copied to `lazysite/copies/pages/<page path>`, the copy changed by path
+  like any page, and the copy published over the page or discarded (control API
+  `page-copy`, `page-copy-publish`, `page-copy-discard`, `page-copies`; MCP `copy_page`,
+  `publish_copy`, `discard_copy`; `preview_page` and the manager's preview render a copy;
+  the editor's Copy, Publish, Discard and Undo). `lazysite/copies/pages/` joins
+  `Manager::Common`'s carve-outs from the `lazysite/` blocklist, gated `manage_content`.
+  A new capability, `publish_copies` (Content section), is needed with `manage_content`
+  to publish over MCP or the control API; no seed, top-up, migration or shipped role
+  grants it (`Auth::Settings::@OFF_BY_DEFAULT`).
+
+threat delta
+: No ADR 0007 trigger fired: the actions are new verbs on the existing control-API and
+  MCP doors under existing authentication, no new sign-in method, no new dependency,
+  and a copy holds the page's own data class. The questions are these.
+: Information disclosure, by a copy read by someone who may read the page but not
+  change it, or by a scoped grant reaching another folder's copy through the `lazysite/`
+  skip. `Auth::Acl::_acl_allows` and `_acl_denied` map a copy to its page in WRITE mode
+  for both read and write, and the MCP and control-API scope checks ask the copy's page
+  (`Lazysite::PageCopy::scope_path`) before they skip `lazysite/`. A copy is never
+  served: it is in the engine tree, rendered only as a draft that writes no cache, and
+  excluded from content history.
+: Elevation of privilege, by an agent putting its own text live. Publishing over MCP or
+  the control API needs `publish_copies`, off by default (ruling 155), as well as
+  `manage_content` and the page's write rule; the publish is `Manager::Files::action_save`
+  at the page's path, so every refusal a save applies (raw HTML, form binding, encoding,
+  the active artifacts, the page's rule) applies. A person publishes with
+  `manage_content` only through a cookie session, as they save.
+: Tampering, by a copy carried out of the folder past the publish: upload (single and
+  multipart), delete, mkdir, move and file copy are refused in the folder, and a save
+  there needs an open copy. WebDAV still denies the folder outright. A copy taken before
+  someone else's change is refused at publish (`stale-copy`, the page's byte digest),
+  so a publish never overwrites a newer page unseen.
+: Repudiation: each publish is one content-history commit naming the publisher, the
+  door and who prepared the copy, and the audit trail records the action as before.
+
+controls
+: t/unit/mcp/76 (the tools, the publish_copies gate, the stale refusal, the folder's
+  refusals, the page's write rule over the copy), t/unit/mcp/77 (a copy is in its page's
+  scope), t/unit/manager/490 (the manager and control-API doors; a token needs
+  publish_copies and manage_content; a manager group seeded without publish_copies and
+  offered it; the multipart upload refusal).
+
+residual risk
+: An open copy holds the page's text in the engine tree until it is published or
+  discarded. Where content history is
+  not kept, a publish has no version to undo to and the answer says so. An operator who
+  grants `publish_copies` lets that group's agents publish without a person looking.
+
+verdict
+: proposed: accepted, no trigger fired; recorded because a new capability gates writes on
+  existing doors and a new carve-out opens part of `lazysite/` to the file verbs.

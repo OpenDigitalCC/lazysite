@@ -19,6 +19,7 @@ use Lazysite::Util    qw(log_event);
 use Lazysite::Private ();
 use Exporter 'import';
 use Lazysite::Paths          ();
+use Lazysite::PageCopy       ();        # SM1354: where a page's copy lives
 use Lazysite::Auth::Settings ();        # SM944 S31: _display_names
 use Lazysite::Auth::Identity ();        # SM1135: _user_caps asks the request's groups
 use Lazysite::Auth::Acl      qw(_is_operator);    # SM944 S32: _operator
@@ -1604,8 +1605,16 @@ sub handler_bind_refusal {
 # Nothing in the fleet is expected to have it; the check is cheap and the
 # finding would be interesting rather than damaging (the files are still on
 # disk, just no longer reachable through the file surface).
+#
+# SM1354 (ruling 155): lazysite/copies/pages/ holds the copies of pages
+# (Lazysite::PageCopy says why there). Carved out so a copy is edited like any
+# page, by path; carveout_requirement gives it manage_content, Auth::Acl gives
+# it the page's write rule, and Manager::Files writes a file there only for an
+# open copy. The copies' records beside it (lazysite/copies/records.json) are
+# not carved out: nothing but the copy verbs writes them.
 our @LAZYSITE_OPEN_PREFIXES
-    = ( 'lazysite/forms/submissions/', 'lazysite/layouts/', 'lazysite/brands/' );
+    = ( 'lazysite/forms/submissions/', 'lazysite/layouts/', 'lazysite/brands/',
+    'lazysite/copies/pages/' ); # Lazysite::PageCopy::copy_prefix, as a literal (lint 272)
 our @LAZYSITE_OPEN_EXACT = ('lazysite/nav.conf');
 
 sub _is_carveout {
@@ -1767,6 +1776,13 @@ sub carveout_requirement {
     if ( $r eq 'lazysite/nav.conf' ) {
         return { caps => ['manage_nav'], mode => $mode,
             why => 'the site navigation is governed by the manage_nav capability' };
+    }
+
+    # SM1354: a page's copy is content, prepared for the page - manage_content's,
+    # read and written alike (who may, beyond that, is the page's write rule).
+    if ( Lazysite::PageCopy::under_copies($r) ) {
+        return { caps => ['manage_content'], mode => $mode,
+            why => "a page's copy is content, governed by the manage_content capability" };
     }
 
     # The literal prefix the blocklist carves out. A store the operator has
@@ -2018,6 +2034,10 @@ our %REFUSAL_STATUS = (
     'address' => '403 Forbidden', # SM1139: the file is limited by the address it is asked from
     ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused form-bind-refused) ),
     'widens-enclosing-rule' => '403 Forbidden',  # SM1309: a rule its writer may not widen
+    'copy-path' => '403 Forbidden',  # SM1354: the page copies folder takes no other write
+    ( map { $_ => '404 Not Found' } qw(no-copy) ),    # SM1354: the page has no open copy
+    ( map { $_ => '409 Conflict' } qw(copy-open stale-copy copy-missing) ), # SM1354: a copy against its page
+
     ( map { $_ => '404 Not Found' }
             qw(not-found unknown-domain
             no_such_table no_such_row no_such_form db-table-missing) ),

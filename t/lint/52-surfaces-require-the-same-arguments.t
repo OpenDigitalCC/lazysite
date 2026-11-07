@@ -144,6 +144,12 @@ TestHelper::mirror_engine();
 # An action whose API side accepts the default, with the reason it is safe.
 # Keyed by action so adding one is a decision someone has to write down.
 my %SAFE_WITH_DEFAULT = (
+    # SM1354: a defaulted path is the docroot, which _page_target refuses as not-a-page
+    # (only a .md file is copied) before any copy is taken, published or discarded.
+    'page-copy' => 'a defaulted path is the docroot, refused not-a-page by _page_target before '
+        . 'anything is written (only a .md page has a copy)',
+    'page-copy-discard' => 'as page-copy: the docroot is refused not-a-page before anything is removed',
+    'page-copy-publish' => 'as page-copy: the docroot is refused not-a-page before anything is written',
     'git-history' => 'a defaulted path is the docroot, and action_git_history '
         . 'resolves it through validate_path then is_editable_text, which '
         . 'rejects a directory. Read-only either way.',

@@ -74,14 +74,16 @@ my %ACTION_INFO = (
                     acl-get acl-set acl-remove
                     data-table-acl-get data-table-acl-set data-table-acl-remove
                     brief-read briefs-list
-                    page-pdf pages) ],
+                    page-pdf pages
+                    page-copy page-copy-discard page-copies) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
                     validate_page invalidate_cache regenerate_registries audit_site create_form
                     get_permissions set_permissions remove_permissions read_brief
                     list_briefs
-                    list_versions list_content_history view_version restore_version preview_public_page)
+                    list_versions list_content_history view_version restore_version preview_public_page
+                    copy_page discard_copy)
             ],
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
         },
@@ -564,6 +566,26 @@ my %ACTION_INFO = (
     # described by its extension's `hooks.capability_info` and reaches this map
     # from the site's extension index (declare_capability, below), with its
     # api and mcp unlocks derived from the gate rows that name it.
+    # SM1354 (ruling 155): AN AGENT PUTS ITS OWN COPY OF A PAGE OVER THE PAGE only
+    # where the site said it may. Taking, changing and discarding a copy is
+    # manage_content's; a person in the manager publishes with manage_content as
+    # they save today; over MCP and the control API a publish needs this as well.
+    # Off by default and held by no shipped role: no seed or top-up grants it
+    # (Auth::Settings @OFF_BY_DEFAULT) - it is offered, and an operator decides.
+    publish_copies => {
+        section => 'Content',
+        title => 'Publish a copy of a page over the page, over MCP or the control API. Taking, '
+            . 'changing and discarding a copy needs manage_content; a person in the manager '
+            . 'publishes with manage_content. Off by default.',
+        grants => 'Put an open copy of a page (copy_page / page-copy) over the page as one recorded '
+            . 'version naming who published it and where from - with manage_content and the page\'s '
+            . 'own write rule as well. Refused when the page changed after the copy was taken. Undo '
+            . 'is restore_version of the version before. No role holds it until an operator grants it.',
+        unlocks => {
+            api => [qw(page-copy-publish)],
+            mcp => [qw(publish_copy)],
+        },
+    },
     audit => {
         section => 'Insight',
         # SM618: measured on edge 2026-08-26 under a grant holding `analytics`

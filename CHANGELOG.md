@@ -239,6 +239,18 @@ Archive
   `backups` (`artifact`, `layout`, `name`, `path`, the path `artifact-backups-delete` takes); the
   Appearance page's Backups panel draws that list. `layouts-available` and the catalogue
   annotation already left snapshots out. `t/unit/manager/476`.
+- SM1354 (PENDING) **Copy a page, change the copy, publish it over the page.** Ruling 155.
+  `page-copy` / `copy_page` takes a private copy at `lazysite/copies/pages/<page>`, one
+  per page, read and written only by those who may write the page and in the page's
+  scope; it is edited like any page and rendered by `preview_page` and the manager's
+  preview as the page would be. `page-copy-publish` / `publish_copy` puts it over the page
+  as one content-history version naming the publisher, the door (person or agent, `via`
+  when given) and who prepared it; refused as `stale-copy`, naming both versions, when the
+  page changed since. `page-copy-discard` / `discard_copy` leaves no trace; `page-copies`
+  lists the open copies. The editor offers Copy, Publish, Discard and, after a publish,
+  Undo. A person publishes in the manager with `manage_content`; over MCP or the control
+  API a publish needs the new `publish_copies` as well, off by default and held by no
+  shipped role. The copies folder takes no upload, delete, folder, move or file copy.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

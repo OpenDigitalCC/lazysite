@@ -245,6 +245,9 @@ my %API_ONLY = (
     # belongs with SM611, which may change what a table's rule is keyed on
     # altogether. Deciding now would likely be deciding twice.
     'data-table-acl-get' => 'undecided pending SM611: a table is addressed by name, not path',
+    # SM1354: the open copies, for the manager's own listing; an agent knows the copy it
+    # took (copy_page answers its path) and asks read_file of it.
+    'page-copies' => 'decided (SM1354): copy_page names the copy it takes; the listing serves the manager',
     'data-table-acl-set' => 'undecided pending SM611: a table is addressed by name, not path',
     'data-table-acl-remove' => 'undecided pending SM611: a table is addressed by name, not path',
     # SM245: the sidecar migration is an operator's one-shot, reached from the

@@ -105,6 +105,14 @@ our %GATE = (
     # SM447: token clients are the point of the data extension - an agent
     # populating a table is the primary use, not an afterthought.
     'page-pdf'                   => [qw(manage_content)],
+    # SM1354 (ruling 155): copy a page, change the copy, publish it over the page.
+    # Taking, listing and discarding a copy is the content grant; publishing one
+    # from a token is publish_copies (off by default, held by no shipped role) -
+    # and manage_content as well, which the branch asks (this table is any-of).
+    'page-copy'                  => [qw(manage_content)],
+    'page-copies'                => [qw(manage_content)],
+    'page-copy-discard'          => [qw(manage_content)],
+    'page-copy-publish'          => [qw(publish_copies)],
     'data-tables'                => [qw(manage_data)],
     'data-table'                 => [qw(manage_data)],
     'data-rows'                  => [qw(manage_data)],
@@ -780,6 +788,11 @@ our %ACTION = (
     # as preview is, so a caller confined to one domain is refused another's page
     # before the extension loads; read on the file surface for the same reason.
     'page-pdf' => { mutates => 1, scoped => 1, file_surface => 'read', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
+# SM1354: a page's copy. The path is the page's or its copy's (lazysite/copies/pages/...).
+    'page-copies' => { cookie_cap => 'manage_content', params => [] },
+    'page-copy' => { mcp => 'copy_page', mutates => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query', required => 1 } ] },
+    'page-copy-discard' => { mcp => 'discard_copy', mutates => 1, destructive => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query', required => 1 } ] },
+    'page-copy-publish' => { mcp => 'publish_copy', mutates => 1, scoped => 1, file_surface => 'write', cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query', required => 1 }, { name => 'via', in => 'query' } ] },
     'pages' => { mcp => 'list_pages', params => [] },    # SM568
     'extension-action' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'extension', in => 'query' }, { name => 'script', in => 'body' }, { name => 'action_id', in => 'body' }, { name => 'params', in => 'body' } ] },
     'extension-disable' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', params => [ { name => 'script', in => 'body' } ] },

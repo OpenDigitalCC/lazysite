@@ -106,6 +106,11 @@ my %EXEMPT = (
         'SM632: unlinks under lazysite/forms/ only; the bare name is validated '
         . 'to [A-Za-z0-9_-]+ before a path is built from it, so no separator '
         . 'reaches it, and handlers/smtp are refused outright',
+    # SM1354: a page's copy is written at lazysite/copies/pages/<page>, a path the engine
+    # derives (Lazysite::PageCopy::copy_of) from a page path that _page_target has put
+    # through validate_path, is_blocked_path and is_blocked_config first.
+    action_page_copy => 'SM1354: writes the copy at Lazysite::PageCopy::copy_of(rel), rel from validate_path + '
+        . 'is_blocked_path in _page_target; the copies records are engine-named; t/unit/mcp/76 pins the refusals',
     action_backup_create   => 'backups dir, name minted by _claim_name',
     action_backup_restore  => 'extracts into the docroot; name validated, tar confined',
     action_git_show        => 'reads git objects; writes only a temp file it names',

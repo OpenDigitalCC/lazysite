@@ -81,6 +81,7 @@ use Lazysite::Manager::Backups qw(action_backup_create action_backup_download
 use Lazysite::Manager::Sessions qw(dispatch_sessions_keys);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root action_domain_check action_domains_list); # SM944 S27
 use Lazysite::Manager::Data        ();
+use Lazysite::Manager::PageCopy    ();    # SM1354: copy, change, publish a page
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 use Lazysite::Manager::Remap qw(_remap_list _remap_save); # SM944 S22: SM802's two actions
 use Lazysite::Manager::Preview qw(action_preview action_preview_grant action_preview_clear); # SM944 S24: SM071's preview verbs
@@ -654,7 +655,10 @@ sub _confine_scope {
     # SM1308 (ruling 47): `list` naming no folder is answered its scope roots at
     # dispatch, so the '/' an absent path defaults to is not a path it named.
     my $named = ( $action eq 'list' && !_list_names_a_folder() ) ? undef : $path;
-    for my $p ( grep { defined && length } ( $named, $params{to}, $params{from}, @ACL_PATHS ) ) {
+    for my $given ( grep { defined && length } ( $named, $params{to}, $params{from}, @ACL_PATHS ) ) {
+        # SM1354: a page's copy is in its page's scope, and asked as the page
+        # (a copy of the loop's alias - the request's own parameters stay as sent).
+        my $p = Lazysite::PageCopy::scope_path($given);
         next if $p =~ m{^/?lazysite/};
         next
             unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
@@ -1512,6 +1516,29 @@ elsif ( $action eq 'git-history-summary' ) {
 elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-restore' ) { $result = action_git_restore( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-init' )   { $result = action_git_init($auth_user) }
+# SM1354 (ruling 155): a page's copy - taken, listed, published, discarded.
+elsif ( $action eq 'page-copy' ) {
+    $result = Lazysite::Manager::PageCopy::action_page_copy( $path, $auth_user );
+}
+elsif ( $action eq 'page-copies' ) {
+    $result = Lazysite::Manager::PageCopy::action_page_copies( $auth_user, \@REQUEST_SCOPES );
+}
+elsif ( $action eq 'page-copy-discard' ) {
+    $result = Lazysite::Manager::PageCopy::action_page_copy_discard( $path, $auth_user );
+}
+elsif ( $action eq 'page-copy-publish' ) {
+    # The gate above admitted a token on publish_copies (any-of); a publish is a
+    # content write as well, so the token holds manage_content too. A person in
+    # the manager publishes on manage_content, the action's cookie capability.
+    if ( $token_auth && !$token_caps{manage_content} ) {
+        _refuse( { ok => 0, kind => 'forbidden',
+                error => 'Publishing a copy needs manage_content as well as publish_copies: it is a '
+                    . 'write of the page.' },
+            'api', 'denied: publish needs manage_content', $path );
+    }
+    $result = Lazysite::Manager::PageCopy::action_page_copy_publish( $path, $auth_user,
+        door => ( $token_auth ? 'agent' : 'person' ), via => $params{via} );
+}
 # SM992: a lock is taken, renewed and released only by a caller who may write
 # the file under its rule (Files::lock_refusal).
 elsif ( $action eq 'lock' ) { $result = lock_refusal( $path, $auth_user ) // acquire_lock( $path, $auth_user ) }

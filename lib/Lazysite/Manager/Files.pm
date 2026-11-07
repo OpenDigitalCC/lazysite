@@ -19,6 +19,7 @@ use Cwd             qw(realpath);
 use POSIX           ();
 use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
+use Lazysite::PageCopy ();    # SM1354: the copies folder's rules
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_save_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
     %params _json_body); # SM944 S33: acl-set's handler reads the request's parameters and body
@@ -859,6 +860,35 @@ sub _site_root_refusal {
         'name a file or folder inside the site' );
 }
 
+# SM1354 (ruling 155): THE COPIES FOLDER HOLDS OPEN COPIES AND NOTHING ELSE.
+# A copy is made by page-copy / copy_page, changed by a save of its text
+# (action_save, below), and closed by publishing or discarding it - so every
+# other verb that would put a file there, take one out or move one about is
+# refused by name: an upload, a delete, a folder, a move or a copy's target. A
+# copy carried out of the folder by move_file would be a publish that skipped
+# the publish (its gate and its stale check).
+sub _copy_path_refusal {
+    my ( $rel, $what ) = @_;
+    return undef unless Lazysite::PageCopy::under_copies($rel);
+    return _refused( 'copy-path', "'$rel' is in the page copies folder, and $what",
+        'take a copy with copy_page (page-copy), change it with write_file, and close it with '
+            . 'publish_copy or discard_copy' );
+}
+
+# A save there writes an OPEN copy's text, or is refused.
+sub _copy_save_refusal {
+    my ($rel) = @_;
+    return undef unless Lazysite::PageCopy::under_copies($rel);
+    my $page = Lazysite::PageCopy::original_of($rel);
+    require Lazysite::Manager::PageCopy;
+    return undef if defined $page && Lazysite::Manager::PageCopy::open_copy($page);
+    return _refused( 'no-copy',
+        defined $page
+        ? "'$rel' is the copy of '$page', and that page has no open copy"
+        : "'$rel' is in the page copies folder and is not a page's copy",
+        'take a copy with copy_page (page-copy) first; it is written there for you' );
+}
+
 sub action_save_binary {
     my ( $rel_path, $username, $bytes ) = @_;
 
@@ -871,6 +901,8 @@ sub action_save_binary {
     if ( my $why = is_blocked_config( $result->{rel}, 1 ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
     # SM1103: a folder is never what a save writes.
     if ( my $d = _folder_target_refusal($result) ) { return $d }
+    # SM1354: a copy is changed as text, through action_save.
+    if ( my $d = _copy_path_refusal( $result->{rel}, 'an upload does not write there' ) ) { return $d }
     # The served layout or theme.
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
     # SM976 Q15h: a page's raw bytes are valid UTF-8, or it is not written.
@@ -1055,9 +1087,15 @@ sub action_save {
     }
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
+    # SM1354: a page's copy is saved only while it is open, and is held to what a
+    # save of its text at the PAGE would be held to (the page decides the form
+    # binding, the nav rule and the rest).
+    if ( my $d = _copy_save_refusal( $result->{rel} ) ) { return $d }
+    my $copy_of = Lazysite::PageCopy::original_of( $result->{rel} );
+
     # SM1030: the refusals the CONTENT decides, shared with a draft preview
     # (draft_refusal) so a preview refuses what a save would.
-    if ( my $d = _content_write_refusal( $result->{rel}, $content ) ) { return $d }
+    if ( my $d = _content_write_refusal( $copy_of // $result->{rel}, $content ) ) { return $d }
 
     my $full = $result->{full};
 
@@ -1106,6 +1144,20 @@ sub action_save {
 
     my ( $wok, $werr ) = write_file_checked( $full, $content );
     return { ok => 0, error => $werr } unless $wok;
+
+    # SM1354: A COPY'S SAVE IS NOT A PAGE'S. It renders nowhere, so it has no
+    # cache to drop and no alias to index; it is no version of anything, so no
+    # content-history commit is recorded (discarding it leaves no trace); and it
+    # changes no registry. Its record names who changed it.
+    if ( defined $copy_of ) {
+        unlink $lock_file if -f $lock_file;
+        require Lazysite::Manager::PageCopy;
+        Lazysite::Manager::PageCopy::note_copy_edit( $copy_of, $username // $auth_user );
+        log_event( 'INFO', $action, 'page copy saved', path => $rel_path, user => $auth_user );
+        my @cst = stat($full);
+        return { ok => 1, path => $rel_path, mtime => $cst[9] // 0, created => $existed ? 0 : 1,
+            copy_of => "/$copy_of" };
+    }
 
     # Invalidate cache (only for .md files that have .html cache)
     if ( $full =~ /\.md$/ ) {
@@ -1208,6 +1260,7 @@ sub action_delete {
 
     if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
     if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    if ( my $d = _copy_path_refusal( $result->{rel}, 'a copy is closed by discarding it' ) ) { return $d } # SM1354
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM074: per-file ACL write gate (sysops bypass).
@@ -1306,6 +1359,7 @@ sub action_mkdir {
 
     if ( my $why = is_blocked_path( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked' ) }
     if ( my $why = is_blocked_config( $result->{rel} ) ) { return _blocked( $result->{rel}, $why, 'blocked-config' ) }
+    if ( my $d = _copy_path_refusal( $result->{rel}, 'its folders are made with the copies' ) ) { return $d } # SM1354
     if ( my $d = _active_artifact_guard( $result->{rel} ) ) { return $d }
 
     # SM979: a folder made is a write at its path, so the path's write rule
@@ -1341,6 +1395,7 @@ sub action_move {
     for my $r ( $s->{rel}, $d->{rel} ) {
         if ( my $why = is_blocked_path($r) ) { return _blocked( $r, $why, 'blocked' ) }
         if ( my $why = is_blocked_config($r) ) { return _blocked( $r, $why, 'blocked-config' ) }
+        if ( my $g = _copy_path_refusal( $r, 'a copy is published or discarded, never moved' ) ) { return $g } # SM1354
     }
     if ( my $g = _active_artifact_guard( $s->{rel}, $d->{rel} ) ) { return $g }
     # SM1103: nor a move.
@@ -1534,6 +1589,8 @@ sub action_copy {
     # Only the DESTINATION is a write: copying a file OUT of the theme being
     # served is how a sysop starts a copy by hand, and reading it is fine.
     if ( my $g = _active_artifact_guard( $d->{rel} ) ) { return $g }
+    # SM1354: and a page's copy is taken by page-copy, never by a file copy.
+    if ( my $g = _copy_path_refusal( $d->{rel}, 'a page is copied there by copy_page' ) ) { return $g }
     # SM1103: nor a copy (the whole site, copied into itself).
     if ( my $g = _site_root_refusal( $s->{rel}, 'a copy does not take it' ) ) { return $g }
 
@@ -3707,6 +3764,9 @@ sub _history_root {
         ? Lazysite::ProtectedHistory::root($DOCROOT)
         : undef;
 }
+
+# SM1354: the same answer for Manager::PageCopy, which names a page's version.
+sub history_root_for { return _history_root(@_) }
 
 # Feature status for the Files page's History control (the operator-facing
 # enable/status surface is the content-history extension, which drives the same

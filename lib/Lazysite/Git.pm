@@ -171,7 +171,9 @@ sub run_git {
 # before it existed); cache/backups/locks/git/assets/html/install-state keep the
 # history clean of runtime and generated artefacts. The CSRF secret and the
 # upload-rate DB are manager runtime state at lazysite/manager/ top level -
-# excluded for the same reason as auth/.
+# excluded for the same reason as auth/. SM1354: lazysite/copies/ holds pages'
+# open copies, which are no version of anything - a discarded copy leaves no
+# trace, and a published one is recorded once, as its page's change.
 my @EXCLUDE = qw(
     /lazysite/auth/
     /lazysite/forms/
@@ -184,6 +186,7 @@ my @EXCLUDE = qw(
     /lazysite/manager/.csrf-secret
     /lazysite/manager/.upload-rate.db
     /lazysite/git/
+    /lazysite/copies/
     /lazysite/aliases.json
     /lazysite-assets/
     *.html

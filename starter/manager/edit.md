@@ -86,6 +86,11 @@ details.mg-stack-section[open] > summary::before { transform: rotate(90deg); }
 <span style="font-size:0.75rem;color:var(--mg-text-light);">Ctrl+S</span>
 <button id="ed-save-btn" class="mg-btn mg-btn-primary" onclick="savePage()" disabled>Save</button>
 <button class="mg-btn" onclick="refreshPreview()">Preview</button>
+<!-- SM1354: a page's copy - taken from the page, published over it, or discarded. -->
+<button id="ed-copy-btn" class="mg-btn" data-impact="edit" onclick="edCopyPage()" title="Make a private copy to change before it goes live">Copy</button>
+<button id="ed-publish-btn" class="mg-btn mg-btn-primary" data-impact="commit" onclick="edPublishCopy()" title="Put this copy over the page">Publish</button>
+<button id="ed-discard-btn" class="mg-btn mg-btn-danger" data-impact="destroy" onclick="edDiscardCopy()" title="Throw this copy away; the page is untouched">Discard</button>
+<button id="ed-undo-btn" class="mg-btn mg-btn-change" data-impact="change" onclick="edUndoPublish()" title="Put the page back as it was before the publish">Undo</button>
 <a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
 <a id="ed-download-btn" class="mg-btn mg-btn-sm" href="#" download>Download</a>
 </div>
@@ -193,9 +198,22 @@ function isFormConfPath(p) {
   var m = String(p || '').replace(/^\/+/, '').match(/^lazysite\/forms\/([A-Za-z0-9_-]+)\.conf$/);
   return !!m && m[1] !== 'smtp' && m[1] !== 'handlers' && m[1] !== 'schedule';
 }
+// SM1354: a page's copy (lazysite/copies/pages/<page>.md) is edited like the
+// page; the server lets only the page's writers read or save it.
+var COPY_PREFIX = 'lazysite/copies/pages/';
+// Hidden until edSetupCopyButtons decides (.mg-btn's display beats `hidden`).
+['ed-copy-btn', 'ed-publish-btn', 'ed-discard-btn', 'ed-undo-btn'].forEach(function(id) {
+  var b = document.getElementById(id); if (b) b.style.display = 'none';
+});
+function copyPageOf(p) {
+  p = String(p || '').replace(/^\/+/, '');
+  if (p.indexOf(COPY_PREFIX) !== 0 || !/\.md$/i.test(p)) return null;
+  return p.substring(COPY_PREFIX.length);
+}
 function isReservedPath(p) {
   p = String(p || '').replace(/^\/+/, '');
   if (isFormConfPath(p)) return false;
+  if (copyPageOf(p) !== null) return false;
   return /^lazysite\//i.test(p) || /^cgi-bin\//i.test(p) || /\.(?:pl|cgi)$/i.test(p);
 }
 var isMdFile = filePath && /\.md$/i.test(filePath);
@@ -454,6 +472,7 @@ function loadFile() {
   var viewPath = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
   if (viewPath.charAt(0) !== '/') viewPath = '/' + viewPath;
   document.getElementById('ed-view-link').href = viewPath;
+  edSetupCopyButtons();
 
   // SM019: Download button is useful for every file type, so wire
   // it for every path. For binary files the whole toolbar is hidden
@@ -962,6 +981,9 @@ function isRawOrApi() {
 
 function refreshPreview() {
   if (!isMdFile) return;
+  // SM1354: a copy has no address of its own; the server renders its saved
+  // text as the page would be (its layout, theme and navigation).
+  if (copyPageOf(filePath) !== null) { edPreviewCopy(); return; }
   var url = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
   if (url.charAt(0) !== '/') url = '/' + url;
   url += '?_t=' + Date.now();
@@ -1103,6 +1125,94 @@ function edOfferHistory() {
         '<a id="ed-history-link" class="mg-btn" href="' + esc(href) + '" title="Versions of this page: view, diff or restore">History</a>');
     })
     .catch(function() { /* no history offered */ });
+}
+
+// SM1354 (ruling 155): COPY, PUBLISH, DISCARD, UNDO. A page offers Copy; its
+// copy offers Publish and Discard, and after a publish Undo restores the
+// version before it through content history (git-restore). The server decides
+// who may (manage_content and the page's write rule); these only ask it.
+var edUndo = null;
+function edPost(qs) {
+  return fetch(API + '?' + qs, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function(r) { return r.json(); });
+}
+function edEditorUrl(p) { return '/manager/edit?path=' + encodeURIComponent(p); }
+function edSetupCopyButtons() {
+  if (!isMdFile || isNew) return;
+  var page = copyPageOf(filePath);
+  var show = function(id, on) { var b = document.getElementById(id); if (b) b.style.display = on ? '' : 'none'; };
+  show('ed-copy-btn', page === null);
+  show('ed-publish-btn', page !== null);
+  show('ed-discard-btn', page !== null);
+  if (page !== null) {
+    var v = document.getElementById('ed-view-link');
+    if (v) { v.href = '/' + page.replace(/\.md$/, '').replace(/(^|\/)index$/, '$1'); v.textContent = 'View live page'; }
+  }
+}
+function edCopyPage() {
+  if (isDirty && !confirm('Copy the page as it is saved? Unsaved edits here are not copied.')) return;
+  edPost('action=page-copy&path=' + encodeURIComponent(filePath)).then(function(d) {
+    if (d.ok) { window.location.href = edEditorUrl(d.copy); }
+    else if (d.kind === 'copy-open' && d.copy) {
+      if (confirm((d.error || 'This page already has a copy.') + '\n\nOpen that copy?')) window.location.href = edEditorUrl(d.copy);
+    }
+    else mgToast(d.error || 'The page was not copied.', 'error');
+  });
+}
+function edPublishCopy() {
+  var page = copyPageOf(filePath);
+  if (isDirty) { mgToast('Save the copy first, so what is published is what you see.', 'error'); return; }
+  if (!confirm('Publish this copy over /' + page + '?')) return;
+  edPost('action=page-copy-publish&path=' + encodeURIComponent(page)).then(function(d) {
+    if (!d.ok) {
+      var msg = d.error || 'The copy was not published.';
+      if (d.kind === 'stale-copy' && d.taken_from && d.current) {
+        msg += '\nCopied from: ' + (d.taken_from.history_version || d.taken_from.digest)
+             + '\nThe page now: ' + (d.current.history_version || d.current.digest);
+      }
+      if (typeof mgShowWarning === 'function') mgShowWarning(msg, true); else alert(msg);
+      return;
+    }
+    edUndo = d.undo ? { path: page, version: d.undo.version } : null;
+    var u = document.getElementById('ed-undo-btn');
+    if (u && edUndo) u.style.display = '';
+    ['ed-publish-btn', 'ed-discard-btn', 'ed-save-btn'].forEach(function(id) {
+      var b = document.getElementById(id); if (b) { b.disabled = true; }
+    });
+    mgToast(d.unchanged ? 'Published - the copy matched the page, so nothing changed.'
+      : 'Published over /' + page + '.' + (edUndo ? ' Undo puts it back.' : ''), 'success');
+  });
+}
+function edDiscardCopy() {
+  var page = copyPageOf(filePath);
+  if (!confirm('Discard this copy? The page is untouched.')) return;
+  edPost('action=page-copy-discard&path=' + encodeURIComponent(page)).then(function(d) {
+    if (d.ok) { clearDirty(); window.location.href = edEditorUrl(page); }
+    else mgToast(d.error || 'The copy was not discarded.', 'error');
+  });
+}
+function edUndoPublish() {
+  if (!edUndo) return;
+  if (!confirm('Put /' + edUndo.path + ' back as it was before the publish?')) return;
+  edPost('action=git-restore&path=' + encodeURIComponent(edUndo.path) + '&sha=' + encodeURIComponent(edUndo.version))
+    .then(function(d) {
+      if (d.ok) { mgToast('The page is back as it was.', 'success'); window.location.href = edEditorUrl(edUndo.path); }
+      else mgToast(d.error || 'The page was not restored.', 'error');
+    });
+}
+function edPreviewCopy() {
+  var frame = document.getElementById('ed-preview-frame');
+  var status = document.getElementById('ed-preview-status');
+  status.textContent = 'Loading...';
+  fetch(API + '?action=preview&path=' + encodeURIComponent(filePath))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { status.textContent = d.error || 'Preview failed'; return; }
+      frame.removeAttribute('src');
+      frame.srcdoc = d.html || '';
+      status.textContent = 'Copy - as the page would be';
+    })
+    .catch(function() { status.textContent = 'Preview failed'; });
 }
 
 loadFile();
