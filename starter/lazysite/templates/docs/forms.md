@@ -349,7 +349,8 @@ operator) creates, changes or deletes one.
   `manage_notifications`. A quarantined submission notifies nobody.
 
   `recipients` is a JSON list on one line, each item one source:
-  `{"accounts":["ann"]}`, `{"owners_of":{"table":"subscriptions","where":{"post":"post"}}}`
+  `{"accounts":["ann"]}`, `{"groups":["site-owners"]}` (every member account
+  of each group, see below), `{"owners_of":{"table":"subscriptions","where":{"post":"post"}}}`
   (the accounts that wrote the matching rows - the table needs
   `timestamps: true`), `{"addresses_from":{"table":"members","column":"email","where":{"list":"list"}}}`,
   `{"fixed":["desk@example.org"]}`, `{"submitter":"account"}` (the signed-in
@@ -358,6 +359,14 @@ operator) creates, changes or deletes one.
   field, the source matches nobody. `channels` is `email`, `bell` or both;
   the bell reaches accounts only, each seeing their own notices. The account
   that caused the event is left out unless `notify_actor: true`.
+
+  A **group** reaches each account in it - including the members of any
+  group nested inside it - at the address on its account (set on the Users
+  page), once each however many of the named groups it is in. The operator
+  group may be named like any other. A member with no address gets no email
+  (the bell still reaches it): it is skipped, and counted on the rule's row
+  and in the outbox (`no-address`), not recorded as a failure. A group that
+  does not exist is refused when the handler is saved, naming it.
 
   `template: comment` reads `lazysite/notify-templates/comment.email.tt` -
   a first line `Subject: ...`, then the body - and `comment.bell.tt`, with
@@ -506,6 +515,35 @@ the `file` and `id` in the notice's url.
 
 Quarantined submissions do not notify. A submission held back by the spam
 controls is recorded but does not raise a notice, so a spam run cannot flood you.
+
+### How a form mails people
+
+By default a form mails nobody. Its submissions are stored - the shipped
+`local-storage` handler writes them under `lazysite/forms/submissions`, where
+the Submissions page reads them - and its notice goes to the bell (and chat,
+where set up). That default holds on any site, because a new site cannot be
+sure it can send mail.
+
+To mail people when a form is submitted, name a `notify` handler as one of the
+form's targets, after the handler that stores the submission:
+
+```yaml
+targets:
+  - handler: local-storage
+  - handler: tell-owners
+```
+
+with a handler `tell-owners` of type `notify` whose recipients name the
+people - usually a group of accounts, so who is told is managed on the Users
+and Groups pages rather than written into a file:
+
+```yaml
+recipients: [{"groups":["site-owners"]}]
+```
+
+Each member gets one message at the address on their account. It needs the
+Form SMTP extension enabled with its settings saved, and the daemon running
+(see `notify` under [Handler types](#handler-types)).
 
 ### Telling the site's owner by email
 

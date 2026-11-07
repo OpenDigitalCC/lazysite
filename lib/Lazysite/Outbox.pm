@@ -30,7 +30,8 @@ package Lazysite::Outbox;
 # source:
 #
 #   {"accounts": ["ann", "bob"]}
-#   {"owners_of": {"table": "subscriptions", "where": {"post": "post"}}}
+#   {"groups": ["site-owners"]}            each member account of each group
+#   {"owners_of":{"table": "subscriptions", "where": {"post": "post"}}}
 #   {"addresses_from": {"table": "members", "column": "email",
 #                       "where": {"list": "list"}}}
 #   {"fixed": ["office@example.org"]}
@@ -40,6 +41,17 @@ package Lazysite::Outbox;
 # A `where` maps a COLUMN to an event FIELD, compared for equality. A field the
 # event does not carry (or carries empty) makes that source resolve to NOBODY -
 # never to "every row", which is what dropping the condition would mean.
+#
+# SM1413 (ruling 158): A GROUP. People are mailed only through a handler the form
+# names, and the people a site keeps are its accounts, their addresses managed on
+# the Users page - so a rule may name groups, and reaches every member account of
+# each (nested membership as the group store resolves it: a member of a group
+# nested inside a named group is a member), at the address its own record holds,
+# once each however many named groups it is in. An operator group may be named
+# like any other. A member with no address gets no mail: it is skipped, and
+# counted in the outbox record (a `no-address` ledger line, the rule's status)
+# rather than audited as a refusal. A group the store does not know is refused
+# at save, naming it; one deleted since resolves to nobody.
 use strict;
 use warnings;
 use JSON::PP        ();
@@ -60,6 +72,7 @@ our $MAX_FIELD_CHARS  = 400;
 my $NAME_RE    = qr/\A[a-z][a-z0-9_]{0,63}\z/;                 # a table or column
 my $FIELD_RE   = qr/\A[A-Za-z][A-Za-z0-9_.~-]{0,127}\z/;       # an event field
 my $ACCOUNT_RE = qr/\A[A-Za-z0-9][A-Za-z0-9_.\@-]{0,63}\z/;    # an account name
+my $GROUP_RE   = qr/\A[A-Za-z0-9_-]{1,64}\z/;    # a group name, as group-create takes it
 
 sub outbox_dir {
     my ($docroot) = @_;
@@ -121,6 +134,16 @@ sub _source {
         }
         return ( { accounts => [@$v] }, '' );
     }
+    if ( $k eq 'groups' ) {    # SM1413
+        return ( undef, 'a list of group names' ) unless ref $v eq 'ARRAY' && @$v;
+        return ( undef, 'at most 50 groups' ) if @$v > 50;
+        for my $g (@$v) {
+            return ( undef, 'a group name is letters, digits, _ or -' )
+                unless defined $g && !ref $g && $g =~ $GROUP_RE;
+        }
+        my %seen;
+        return ( { groups => [ grep { !$seen{$_}++ } @$v ] }, '' );
+    }
     if ( $k eq 'fixed' ) {
         return ( undef, 'a list of addresses' ) unless ref $v eq 'ARRAY' && @$v;
         return ( undef, 'at most 50 addresses' ) if @$v > 50;
@@ -159,8 +182,19 @@ sub _source {
         }
         return ( undef, '"account" (the signed-in submitter) or {"field": "<name>"}' );
     }
-    return ( undef, 'not a source - the sources are accounts, owners_of, addresses_from, '
+    return ( undef, 'not a source - the sources are accounts, groups, owners_of, addresses_from, '
             . 'fixed and submitter' );
+}
+
+# SM1413: the groups a recipient list names, for the save-time check that each
+# exists.
+sub groups_named {
+    my ($sources) = @_;
+    my ( @g, %seen );
+    for my $s ( @{ $sources || [] } ) {
+        push @g, grep { !$seen{$_}++ } @{ $s->{groups} } if ref $s->{groups} eq 'ARRAY';
+    }
+    return \@g;
 }
 
 # The tables a recipient list reads, for the save-time check that they exist.
@@ -357,9 +391,42 @@ sub _rows {
     return ( \@rows, '' );
 }
 
+# SM1413: { group => [ member accounts, sorted ] } for every group, or undef when
+# a group store exists and will not open (the four states, SM778: "could not
+# tell who is in it" is not "nobody is"). Membership is the store's own walk
+# (Auth::Settings::group_closure_in, over the groups file and the group
+# records): an account is a member of a group when that group is among its
+# effective groups, so a member of a nested group is a member of the group it
+# sits in. Address limits on a group (SM1140) belong to a request and are not
+# applied here - the job has no visitor. Only real accounts are members.
+sub _members_by_group {
+    my ( $docroot, $accounts ) = @_;
+    my %by;
+    my $ok = eval {
+        require Lazysite::Auth::Settings;
+        no warnings 'once';
+        local $Lazysite::Auth::Settings::AUTH_DIR = _lz_of($docroot) . '/auth';
+        my $membership = Lazysite::Auth::Settings::group_members();
+        return 0 if $Lazysite::Auth::Settings::GROUPS_UNREADABLE;
+        my $gs = Lazysite::Auth::Settings::read_group_settings();
+        return 0 if Lazysite::Auth::Settings::group_settings_unreadable();
+        my %direct;
+        for my $g ( keys %$membership ) { push @{ $direct{$_} }, $g for @{ $membership->{$g} || [] } }
+        for my $acct ( sort keys %{ $accounts || {} } ) {
+            next unless $direct{$acct};
+            push @{ $by{$_} }, $acct
+                for Lazysite::Auth::Settings::group_closure_in( $membership, $gs, @{ $direct{$acct} } );
+        }
+        1;
+    };
+    return $ok ? \%by : undef;
+}
+
 # Every recipient the rule names for this event, deduplicated:
 # [ { key, account, address } ] - an account recipient has `account` (its
-# address is looked up per channel), an address recipient has `address`.
+# address is looked up per channel), an address recipient has `address`; an
+# account reached through a group (SM1413) also has `group`, the first named
+# group it was found in.
 # ( \@list, '' ) or ( undef, $why ) for a failure worth retrying.
 sub resolve {
     my ( $docroot, $sources, $entry, $accounts ) = @_;
@@ -370,8 +437,18 @@ sub resolve {
         my $key = defined $r{account} ? 'a:' . $r{account} : 'm:' . lc $r{address};
         push @out, { %r, key => $key } unless $seen{$key}++;
     };
+    my $members;    # SM1413: the group store, read once, only when a groups source asks
     for my $s (@$sources) {
         if    ( $s->{accounts} ) { $add->( account => $_ ) for @{ $s->{accounts} } }
+        elsif ( $s->{groups} ) {
+            $members //= _members_by_group( $docroot, $accounts );
+            return ( undef, 'the group store could not be read, so no group member could be '
+                    . 'resolved; see the log' )
+                unless $members;
+            for my $g ( @{ $s->{groups} } ) {
+                $add->( account => $_, group => $g ) for @{ $members->{$g} || [] };
+            }
+        }
         elsif ( $s->{fixed} )    { $add->( address => $_ ) for @{ $s->{fixed} } }
         elsif ( my $o = $s->{owners_of} ) {
             my ( $rows, $why ) = _rows( $docroot, $o->{table}, $o->{where}, $fields );
@@ -635,6 +712,19 @@ sub _process {
                 _audit( $docroot, $ctx->{actor}, $h->{id}, $ch, 0, _who($r), $UNSUBSCRIBED );
                 $mark->('refused');
                 next;
+            }
+
+            # SM1413: A GROUP MEMBER WITH NO ADDRESS GETS NO MAIL. The group is
+            # the rule's choice and the address the account's own, so this is not
+            # a refusal of anyone: it is skipped, and counted in the outbox record
+            # (the ledger line and the rule's status) rather than audited.
+            if ( $ch eq 'email' && defined $r->{group} && defined $r->{account} ) {
+                my $acct = $accounts->{ $r->{account} };
+                unless ( ref $acct eq 'HASH' && length( $acct->{email} // '' ) ) {
+                    ( $TALLY{ $h->{id} } ||= { sent => 0, held => 0, failed => 0 } )->{no_address}++;
+                    $mark->('no-address');
+                    next;
+                }
             }
 
             # SM1071 (SM1010 R1, Q7): OVER THE CAP, THE EVENT IS HELD, NOT
@@ -1148,6 +1238,7 @@ sub _write_status {
             sent     => $t->{sent}   // 0,
             held     => $t->{held}   // 0,
             failed   => $t->{failed} // 0,
+            ( $t->{no_address} ? ( no_address => $t->{no_address} ) : () ),    # SM1413
             ( defined $t->{problem}
                 ? ( problem => $t->{problem}, problem_at => $now )
                 : map { defined $prev->{$_} ? ( $_ => $prev->{$_} ) : () } qw(problem problem_at) ),

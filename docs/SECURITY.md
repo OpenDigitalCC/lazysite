@@ -4048,3 +4048,47 @@ residual risk
 verdict
 : drafted by the developer agent: accept as a hardening (less processing of personal
   data), no trigger fired. For the release manager to confirm at the 0.16.8 walk.
+
+### 2026-11-07 - SM1413 (0.16.8): a notify handler's recipients may name a group
+
+Assessment drafted by the developer agent (n771) for the release manager's confirmation
+at the 0.16.8 walk; ruling 158.
+
+what changed
+: `Lazysite::Outbox`'s recipient grammar gains `{"groups":[...]}`. At send time the
+  notify-outbox job reaches every member account of each named group (the group
+  store's own walk, `Auth::Settings::group_closure_in`, so nested members count) at
+  the address its account record holds. A member with no address is skipped and
+  counted (a `no-address` ledger line, the rule's status). A named group must exist
+  at save. Authoring a notify handler still needs `manage_notifications`.
+
+threat delta
+: None new. A group source reaches the same people an `{"accounts":[...]}` list
+  naming them would, at the same addresses, through the same send: one address per
+  recipient, once, the per-recipient cap, one audit row each, the unsubscribe link.
+  What a group adds is reach that follows membership: a person added to a named
+  group, or to a group nested in it, is mailed by the rule from then on without the
+  rule changing. Who may change membership is the users tool's existing control
+  (conferral and nesting rules, SM268); a group's address limits (SM1140) are a
+  request's and do not narrow who the job mails - the job has no visitor. A group
+  store that will not open makes the entry retry rather than read as nobody, so a
+  fault never silently drops recipients and never widens them. ADR 0007: no trigger
+  - no new interface, sign-in method or dependency; account addresses were already
+  mailed by rules naming accounts, so no new processing of personal data.
+
+controls
+: t/unit/notify/10: direct and nested members each mailed once; a member with no
+  address skipped, counted and not audited; the unsubscribe link carried; the cap
+  holds; the operator group named and reached; an unknown group refused at save
+  naming it. Fails with the groups source removed. t/unit/notify/01-09 unchanged.
+
+residual risk
+: A rule naming a large group mails every member: the per-event bound
+  (`$MAX_RECIPIENTS`, 5000) and the per-recipient cap apply as for a table source.
+  An operator who nests a group inside a named group widens the rule's reach; the
+  rule's row does not say how many members it resolves to before it runs (the
+  outbox card shows who each queued event resolves to).
+
+verdict
+: drafted by the developer agent: accept, no trigger fired. For the release manager to
+  confirm at the 0.16.8 walk.

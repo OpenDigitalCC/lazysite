@@ -143,6 +143,18 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1413 (PENDING) **A notify handler's recipients may name a group (ruling 158).** No one
+  is mailed by default - a form's submissions are stored - and people are mailed through a
+  notify handler the form names. Its `recipients` gain `{"groups":["site-owners"]}`: each
+  member account of each named group, nested membership as the group store resolves it, at
+  the address its account record holds, once each. A member with no address is skipped and
+  counted (a `no-address` line in the event's outbox record, `no_address` in the rule's
+  status, "skipped" on the Handlers page), not audited as a refusal. The operator group may
+  be named. The other sources' rules hold: one message per address, once; the
+  per-recipient cap; the audit row; the unsubscribe link. A group that does not exist is
+  refused at save, naming it. Docs: `/docs/forms` (how a form mails people, the notify
+  handler). `t/unit/notify/10`.
+
 - SM1395 (PENDING) **An anonymous public write binding keeps no join (ruling 154).** A
   binding with `modes: public`, `apply: immediate` and a write operation kept two records
   that together tied what a visitor sent to where it came from: the plan store (the

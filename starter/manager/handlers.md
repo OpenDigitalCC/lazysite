@@ -308,7 +308,9 @@ function whenText(t) {
 function lastRunText(l) {
   if (!l) return 'It has not sent anything yet.';
   return 'Last run ' + whenText(l.last_run) + ': ' + (l.sent || 0) + ' sent, ' + (l.held || 0) + ' held, '
-    + (l.failed || 0) + ' failed.';
+    + (l.failed || 0) + ' failed'
+    // SM1413: group members with no address on their account, skipped
+    + (l.no_address ? ', ' + l.no_address + ' skipped (no address on the account)' : '') + '.';
 }
 
 function usedText(u) {

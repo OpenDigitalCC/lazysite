@@ -253,7 +253,10 @@ our %TYPES      = (
         schema => [
             { key => 'recipients', label => 'Recipients', type => 'text', required => 1,
                 max_len => 4000,
-                note => 'A JSON list of sources: {"accounts":[...]}, {"owners_of":{"table":..,'
+                note => 'A JSON list of sources: {"accounts":[...]}, {"groups":[...]} (each '
+                    . 'member account of each group, nested membership included, at the address '
+                    . 'its account holds - the operator group may be named; a member with no '
+                    . 'address is skipped and counted), {"owners_of":{"table":..,'
                     . '"where":{column: field}}}, {"addresses_from":{"table":..,"column":..,'
                     . '"where":{..}}}, {"fixed":[addresses]}, {"submitter":"account"} or '
                     . '{"submitter":{"field":..}}. A where whose field the event lacks '
@@ -1142,6 +1145,23 @@ sub _destination_problem {
     if ( $h->{type} eq 'notify' ) {
         require Lazysite::Outbox;
         my ($src) = Lazysite::Outbox::parse_recipients( $h->{recipients} );
+        # SM1413: every group a rule names must exist, said by name - a rule
+        # naming a group nobody made would mail nobody, found at the first
+        # event instead of by its author (SM807).
+        if ( my @groups = @{ Lazysite::Outbox::groups_named($src) } ) {
+            require Lazysite::Auth::Settings;
+            no warnings 'once';
+            local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($DOCROOT) . '/auth';
+            my $known = Lazysite::Auth::Settings::group_names();
+            return 'recipients: the group store could not be read, so the groups this rule names '
+                . 'cannot be checked; see the log'
+                if $Lazysite::Auth::Settings::GROUPS_UNREADABLE
+                || Lazysite::Auth::Settings::group_settings_unreadable();
+            my @unknown = grep { !$known->{$_} } @groups;
+            return 'recipients: no group ' . join( ', ', map { "'$_'" } @unknown )
+                . ' - the groups are: ' . ( join( ', ', sort keys %$known ) || 'none' )
+                if @unknown;
+        }
         my $tables = _declared_tables();
         for my $pair ( @{ Lazysite::Outbox::tables_named($src) } ) {
             my ( $k, $s ) = @$pair;
