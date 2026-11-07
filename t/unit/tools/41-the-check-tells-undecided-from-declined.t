@@ -89,8 +89,8 @@ subtest 'a gap the top-up does not fill keeps the decision wording (SM1272)' => 
         'the check fills a gap exactly where the top-up does: a manager group, not api/mcp' );
     like( $users, qr/return unless \$gs->\{\$group\}\{manager\};/,
         'the top-up acts only on a manager group' );
-    like( $users, qr/for my \$c \( grep \{ \$_ ne 'api' && \$_ ne 'mcp' \} \@CAP_KEYS \) \{\s*next if exists \$cfg->\{\$c\};/,
-        'and fills every capability but api/mcp it has no decision on' );
+    like( $users, qr/for my \$c \( grep \{ \$_ ne q\(api\) && \$_ ne q\(mcp\) && !\$OFF_BY_DEFAULT\{\$_\} \} \@CAP_KEYS \) \{\s*next if exists \$cfg->\{\$c\};/,
+        'and fills every capability but api/mcp and the off-by-default ones (SM1354) it has no decision on' );
     like( $src, qr/if\s+\( \$topup_fills->\( \$have, \$c \) \) \{ push \@filled,  "\$g\/\$c" \}\s*else\s*\{ push \@missing, "\$g\/\$c" \}/,
         'what the predicate rejects goes to the decision bucket' );
     my ($decide) = $src =~ /if \(\@missing\) \{(.*?)\n            \}/s;
