@@ -41,9 +41,18 @@ CHANGED=$(printf '%s\n' $CHANGED | sort -u)
 # on the path and do not compile standalone, so they are not compiled here.
 PERL=$(printf '%s\n' $CHANGED | grep -E '\.(pl|pm|t)$' | grep -v '^t/vendor/' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
 
+# SM1369 X7: an in-tree extension's payload lib (extensions/<id>/lib) holds its own
+# modules, which `use` one another; compiled with those libs on @INC, as a test has
+# them (TestHelper) and as core reaches them (Lazysite::Extensions::require_payload).
+INC="-Ilib -It/lib"
+for d in extensions/*/lib; do
+  [ -d "$d" ] && INC="$INC -I$d"
+done
+
 for f in $PERL; do
   [ -f "$f" ] || continue
-  perl -Ilib -It/lib -c "$f" >/dev/null 2>&1 || { echo "precheck: does not compile: $f"; RC=1; }
+  # shellcheck disable=SC2086  # INC is a list of -I words
+  perl $INC -c "$f" >/dev/null 2>&1 || { echo "precheck: does not compile: $f"; RC=1; }
 done
 
 # Tests that name a changed file - by its file name, or a module by its package
