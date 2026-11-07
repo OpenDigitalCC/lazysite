@@ -187,14 +187,14 @@ tone: medium
 `notify-outbox-list` | manage_notifications | rule (query), id (query)
 `notify-outbox-retry` | manage_notifications | rule (body), id (body)
 `odoo-bindings` | any authenticated |  
-`odoo-calls` | manage_connectors | binding (query), limit (query)
+`odoo-calls` | manage_odoo | binding (query), limit (query)
 `odoo-confirm` | any authenticated | plan (body)
 `odoo-dismiss` | settle_odoo_writes | run (body), reason (body)
 `odoo-resume` | any authenticated | run (body), assume_done (body), assume_not_done (body)
 `odoo-run` | any authenticated | binding (body), params (body)
-`odoo-secret-clear` | manage_connectors | grant (body), scheduled (body)
-`odoo-secret-set` | manage_connectors | secret (body), grant (body), scheduled (body), login (body)
-`odoo-status` | manage_connectors |  
+`odoo-secret-clear` | manage_odoo | grant (body), scheduled (body)
+`odoo-secret-set` | manage_odoo | secret (body), grant (body), scheduled (body), login (body)
+`odoo-status` | manage_odoo |  
 `odoo-unknown-runs` | settle_odoo_writes |  
 `page-pdf` | manage_content | path (query)
 `pages` | manage_content / manage_nav |  

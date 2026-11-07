@@ -188,12 +188,19 @@ sub write_conf {
     return;
 }
 
+# SM1369 X2: enabling by hand is writing the conf AND building the index the
+# doors read the extension's declared actions from, as the manager's toggle
+# and install.pl's upgrade build it - against the engine's extensions, linked
+# beside the site (TestHelper::link_engine_extensions).
 sub enable_odoo {
     my ($docroot) = @_;
     make_path("$docroot/lazysite");
     open my $fh, '>>', "$docroot/lazysite/lazysite.conf" or die "lazysite.conf: $!";
     print {$fh} "extensions:\n  - extensions/odoo.pl\n";
     close $fh;
+    require TestHelper;
+    TestHelper::link_engine_extensions($docroot);
+    TestHelper::build_site_index($docroot);
     return;
 }
 

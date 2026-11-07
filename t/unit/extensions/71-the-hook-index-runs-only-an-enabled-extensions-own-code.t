@@ -75,6 +75,9 @@ sub index_file { return "$_[0]/lazysite/extensions.index.json" }
 
 subtest 'a site with no hooks: no index, and the same answers' => sub {
     my ( $base, $d ) = fixture();
+    # SM1369 X2: "no hooks" is no INSTALLED extension declaring any - a site
+    # where one does (even off) builds, so its declarations are indexed.
+    unlink "$base/extensions/probe.pl" or die $!;
     my $r = action_extension_enable('extensions/plain.pl');
     is_deeply( [ sort keys %$r ], [qw(action ok script)], 'enable answers what it answered before' );
     ok( !-e index_file($d), 'no index is written' );

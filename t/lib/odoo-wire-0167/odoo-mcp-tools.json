@@ -1,0 +1,268 @@
+[
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : false,
+         "readOnlyHint" : true,
+         "title" : "odoo_bindings"
+      },
+      "description" : "The Odoo bindings this account may run: each one's operation, what it does, whether it writes, and the fields it takes.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {},
+         "type" : "object"
+      },
+      "name" : "odoo_bindings",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : false,
+         "readOnlyHint" : true,
+         "title" : "odoo_calls"
+      },
+      "description" : "The record of Odoo calls, newest first: who caused each, through which binding and operation, in which mode, and how it ended. Never a payload or a credential.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "binding" : {
+               "type" : "string"
+            },
+            "limit" : {
+               "type" : "integer"
+            }
+         },
+         "type" : "object"
+      },
+      "name" : "odoo_calls",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : true,
+         "readOnlyHint" : false,
+         "title" : "odoo_confirm"
+      },
+      "description" : "Apply a plan odoo_run gave you, by its id. Only the account that made a plan may apply it, within an hour, through the binding as it stands now.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "plan" : {
+               "type" : "string"
+            }
+         },
+         "required" : [
+            "plan"
+         ],
+         "type" : "object"
+      },
+      "name" : "odoo_confirm",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : false,
+         "readOnlyHint" : false,
+         "title" : "odoo_dismiss"
+      },
+      "description" : "Dismiss an Odoo run left unknown: it is no longer offered for resuming, and is kept as dismissed with who, when and the reason given. Nothing is sent to Odoo.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "reason" : {
+               "type" : "string"
+            },
+            "run" : {
+               "type" : "string"
+            }
+         },
+         "required" : [
+            "run"
+         ],
+         "type" : "object"
+      },
+      "name" : "odoo_dismiss",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : true,
+         "readOnlyHint" : false,
+         "title" : "odoo_resume"
+      },
+      "description" : "Resume an Odoo run whose apply left a change unknown (its request was sent and no answer came), by the run an answer named. OOM reads each such change back first; one it cannot read back is refused unknown-outcome until you say it was made (assume_done) or was not (assume_not_done) - only the run's maker, or a holder of settle_odoo_writes, may say. The rest of the run is then applied.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "assume_done" : {
+               "items" : {
+                  "type" : "string"
+               },
+               "type" : "array"
+            },
+            "assume_not_done" : {
+               "items" : {
+                  "type" : "string"
+               },
+               "type" : "array"
+            },
+            "run" : {
+               "type" : "string"
+            }
+         },
+         "required" : [
+            "run"
+         ],
+         "type" : "object"
+      },
+      "name" : "odoo_resume",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : true,
+         "readOnlyHint" : false,
+         "title" : "odoo_run"
+      },
+      "description" : "Run an Odoo binding by its id with the fields it takes. A read answers its report; a write answers its plan to confirm with odoo_confirm, or - where the binding says immediate - applies it. The binding decides whether this account may, and how often.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "binding" : {
+               "type" : "string"
+            },
+            "params" : {
+               "type" : "object"
+            }
+         },
+         "required" : [
+            "binding"
+         ],
+         "type" : "object"
+      },
+      "name" : "odoo_run",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : true,
+         "openWorldHint" : false,
+         "readOnlyHint" : false,
+         "title" : "odoo_secret_clear"
+      },
+      "description" : "Remove the Odoo connection user's API key, or - with `grant` - a grant's own Odoo account, or - with `scheduled` - a scheduled binding's own Odoo login.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "grant" : {
+               "type" : "string"
+            },
+            "scheduled" : {
+               "type" : "string"
+            }
+         },
+         "type" : "object"
+      },
+      "name" : "odoo_secret_clear",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : false,
+         "readOnlyHint" : false,
+         "title" : "odoo_secret_set"
+      },
+      "description" : "Set the API key of the Odoo connection user, or - with `grant` and `login` - of the Odoo account a lazysite account's MCP calls run as, or - with `scheduled` (a binding id) and `login` - of the Odoo login that scheduled binding runs as. The key is stored on its own and never returned.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {
+            "grant" : {
+               "type" : "string"
+            },
+            "login" : {
+               "type" : "string"
+            },
+            "scheduled" : {
+               "type" : "string"
+            },
+            "secret" : {
+               "type" : "string"
+            }
+         },
+         "required" : [
+            "secret"
+         ],
+         "type" : "object"
+      },
+      "name" : "odoo_secret_set",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : false,
+         "readOnlyHint" : true,
+         "title" : "odoo_status"
+      },
+      "description" : "The Odoo connection: whether OOM is installed, the connection settings, whether the connection user (and each grant's and scheduled binding's own Odoo account) has a key, and when a scheduled key expires where OOM reports it - never the key - and the operations installed.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {},
+         "type" : "object"
+      },
+      "name" : "odoo_status",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   },
+   {
+      "annotations" : {
+         "changesAccessHint" : false,
+         "destructiveHint" : false,
+         "openWorldHint" : false,
+         "readOnlyHint" : true,
+         "title" : "odoo_unknown_runs"
+      },
+      "description" : "The Odoo runs whose apply left a change unknown and that are not yet settled or dismissed, newest first: the binding, who made the run, when, and each change still unknown (its key, action, model and record). Never a value.",
+      "inputSchema" : {
+         "additionalProperties" : false,
+         "properties" : {},
+         "type" : "object"
+      },
+      "name" : "odoo_unknown_runs",
+      "outputSchema" : {
+         "type" : "object"
+      }
+   }
+]

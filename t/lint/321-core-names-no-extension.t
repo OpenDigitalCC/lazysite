@@ -65,16 +65,15 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 
 # The allow-list: each core file's count of lines naming Odoo, measured on
 # 2026-11-06 at b7f178856 and recounted for ruling 136 (Odoo's names only): 43
-# files; 42 since X7 part one moved the oomd service into Odoo's payload lib. It
-# may only shrink.
+# files; 42 since X7 part one moved the oomd service into Odoo's payload lib; 34
+# since X2 (the actions, capabilities and refusal kinds are declared). It may
+# only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
     'installers/hestia/lazysite-fcgi.tpl'        => 1,
     'installers/nginx/vhost-fcgi.conf.example'   => 1,
     'lazysite-auth.pl'                           => 1,
-    'lazysite-manager-api.pl'                    => 26,
-    'lazysite-mcp.pl'                            => 38,
     'lazysite-processor.pl'                      => 8,
     'lazysite-processor/app.pm'                  => 1,
     'lazysite-processor/auth.pm'                 => 1,
@@ -94,7 +93,6 @@ my %ALLOWED = (
     'lib/Lazysite/Daemon/Supervisor.pm'          => 22,
     'lib/Lazysite/Handlers.pm'                   => 47,
     'lib/Lazysite/Maintenance.pm'                => 1,
-    'lib/Lazysite/Manager/Common.pm'             => 4,
     'lib/Lazysite/Manager/Config.pm'             => 1,
     'lib/Lazysite/Validate.pm'                   => 9,
     'lib/Lazysite/WarmFork.pm'                   => 9,
@@ -102,12 +100,10 @@ my %ALLOWED = (
     'starter/lazysite/templates/system/login.md' => 4,
     'starter/manager/config.md'                  => 2,
     'starter/manager/extension-config.md'        => 17,
-    'starter/manager/groups.md'                  => 1,
-    'starter/manager/users.md'                   => 1,
     'tools/bench-surfaces.pl'                    => 69,
     'tools/coverage-groups.pl'                   => 1,
     'tools/ext-compat.sh'                        => 18,
-    'tools/lazysite-check.pl'                    => 58,
+    'tools/lazysite-check.pl'                    => 57,
     'tools/lazysite-server.pl'                   => 1,
     'tools/precheck-areas.pl'                    => 3,
     'tools/vendor-oom.sh'                        => 20,

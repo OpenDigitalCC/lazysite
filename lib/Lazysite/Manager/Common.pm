@@ -2056,31 +2056,22 @@ our %REFUSAL_STATUS = (
     # available, which is what 503 says.
     'not-set-up' => '503 Service Unavailable',
 
-    # SM747: the Odoo extension's kinds (Lazysite::Odoo::fault and its gate).
-    # Odoo answering badly is a BAD GATEWAY - the request was fine and the
-    # upstream was not - except where Odoo refused this caller's operation
-    # (403) or the record is gone (404). A plan that can no longer apply is a
-    # conflict with the state it was made against; an expired one is gone.
-    ( map { $_ => '403 Forbidden' } qw(mode scope-refused odoo-access-refused read-only no-owner wrong-domain two-factor) ),
-    # B: a person signed in to Odoo has to sign in again (none, ended, or refused).
-    ( map { $_ => '401 Unauthorized' } qw(signin-required signin-refused second-factor second-factor-required) ), # SM1157: Odoo refused the authenticator code / waits for it
-    ( map { $_ => '404 Not Found' } qw(no-operation odoo-missing) ),
-    ( map { $_ => '409 Conflict' } qw(stale applied edited binding instance) ),
-    # SM1275: a run left unknown that OOM cannot read back (a person must say), or one
-    # already settled or dismissed - each in conflict with the state the run is in
-    ( map { $_ => '409 Conflict' } qw(unknown-outcome settled dismissed) ),
-    'expired' => '410 Gone',
-    ( map { $_ => '502 Bad Gateway' } qw(transport-failure odoo-fault invalid-credential session-expired) ),
-    'odoo-validation'  => '422 Unprocessable Content',
-    'apply-incomplete' => '207 Multi-Status',
-    'method'   => '405 Method Not Allowed',     # the Odoo endpoint: a write sent as a GET
+    # SM1369 X2 (H-9): AN EXTENSION'S OWN KINDS ARE NOT HERE. It declares them
+    # in `hooks.refusal_kinds`, and refusal_status reads them from the site's
+    # extension index after these; a core kind is never redefined by one.
+    # What was in the block that stood here and is core's own: a thing that was
+    # and is gone; a fault of this engine's; a service that cannot answer now.
+    'expired'  => '410 Gone',
     'internal' => '500 Internal Server Error',
-    ( map { $_ => '503 Service Unavailable' } qw(unavailable no-key config busy maintenance) ), # SM1107: busy - the outbox job holds its lock; SM1118: maintenance - the site is closed to this caller
+    ( map { $_ => '503 Service Unavailable' } qw(unavailable busy maintenance) ), # SM1107: busy - the outbox job holds its lock; SM1118: maintenance - the site is closed to this caller
 );
 
 sub refusal_status {
     my ($kind) = @_;
-    return ( defined $kind && $REFUSAL_STATUS{$kind} ) || '400 Bad Request';
+    return '400 Bad Request' unless defined $kind;
+    return $REFUSAL_STATUS{$kind} if $REFUSAL_STATUS{$kind};
+    require Lazysite::Extensions::Hooks;
+    return Lazysite::Extensions::Hooks::declared_refusal_status($kind) || '400 Bad Request';
 }
 
 sub respond {

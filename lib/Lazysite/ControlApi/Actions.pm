@@ -93,27 +93,11 @@ our %GATE = (
     'connector-secret-set' => [qw(manage_connectors)],
     'connector-delete'     => [qw(manage_connectors)],
     'connector-calls'      => [qw(manage_connectors)],
-    # SM747 CU: the Odoo extension's connection user - its key set and cleared,
-    # the connection's state and the call record read. Authority over where
-    # site data goes and with what credential, so manage_connectors until
-    # slice E brings manage_odoo (OM3).
-    'odoo-status'       => [qw(manage_connectors)],
-    'odoo-secret-set'   => [qw(manage_connectors)],
-    'odoo-secret-clear' => [qw(manage_connectors)],
-    'odoo-calls'        => [qw(manage_connectors)],
-    # SM747 E: running a bound operation is gated by the BINDING - its modes,
-    # callers and caps (Lazysite::Odoo::may_call) - as connector-call is gated by
-    # its connector, so any signed-in caller reaches the action and the binding
-    # decides.
-    'odoo-bindings' => 'ALWAYS',
-    'odoo-run'      => 'ALWAYS',
-    'odoo-confirm'  => 'ALWAYS',
-    # SM1278 (rulings 10b, 10c): the manager's Odoo page. A resume is gated by the
-    # run's binding (Lazysite::Odoo::resume), as a confirm is; the list and a
-    # dismissal are the settling capability's.
-    'odoo-resume'       => 'ALWAYS',
-    'odoo-unknown-runs' => [qw(settle_odoo_writes)],
-    'odoo-dismiss'      => [qw(settle_odoo_writes)],
+    # SM1369 X2 (H-9): AN EXTENSION'S ACTIONS ARE NOT HERE. Each is a row of its
+    # extension's `hooks.api_actions`, with its own gate entry, and reaches this
+    # table from the site's extension index (declare_action, below) - refused at
+    # the index build without a gate row, and refused again here if it names an
+    # action core publishes.
     # SM160: domain management + the portable site-package family are the
     # manage_domains capability (carved out of manage_config), so an
     # orchestrating control panel drives the lazysite side of a deploy
@@ -918,22 +902,8 @@ our %ACTION = (
     'me-2fa-confirm' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns on their own second factor with a code from their app', params => [ { name => 'code', in => 'body' } ] },
     'me-2fa-disable' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns off their own second factor, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
     'me-recovery-codes' => { self => 1, mutates => 1, cookie_only_reason => 'a person replaces their own recovery codes, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
-    # SM747 CU: the Odoo connection user. The key is set and cleared, never read.
-    # SM747 E: every one has its MCP twin (R5, "All operations should also be mcp
-    # tools"); `grant` names the lazysite account an MCP grant's own Odoo
-    # account belongs to (Q2).
-    'odoo-status' => { mcp => 'odoo_status', cookie_cap => 'manage_connectors', params => [] },
-    'odoo-secret-set' => { mcp => 'odoo_secret_set', instance_wide => 1, mutates => 1, cookie_cap => 'manage_connectors', params => [ { name => 'secret', in => 'body', required => 1 }, { name => 'grant', in => 'body', note => 'a lazysite account: its MCP calls run as this Odoo account' }, { name => 'scheduled', in => 'body', note => 'a scheduled binding id: it runs as this Odoo login' }, { name => 'login', in => 'body', note => 'the Odoo login, with grant or scheduled' } ] },
-    'odoo-secret-clear' => { mcp => 'odoo_secret_clear', instance_wide => 1, mutates => 1, destructive => 1, cookie_cap => 'manage_connectors', params => [ { name => 'grant', in => 'body' }, { name => 'scheduled', in => 'body' } ] },
-    'odoo-calls' => { mcp => 'odoo_calls', cookie_cap => 'manage_connectors', params => [ { name => 'binding', in => 'query' }, { name => 'limit', in => 'query' } ] },
-# [mcp] odoo_run, odoo_confirm: SM747 E: openWorld - the call leaves this instance for Odoo.
-    'odoo-bindings' => { mcp => 'odoo_bindings', params => [] },
-    'odoo-run' => { mcp => 'odoo_run', mcp_open_world => 1, mutates => 1, params => [ { name => 'binding', in => 'body', required => 1 }, { name => 'params', in => 'body', note => 'the request fields the binding maps; nothing else is taken' } ] },
-    'odoo-confirm' => { mcp => 'odoo_confirm', mcp_open_world => 1, mutates => 1, params => [ { name => 'plan', in => 'body', required => 1 } ] },
-# [mcp] odoo_resume: SM1278: openWorld - OOM reads the run back from Odoo and applies the rest.
-    'odoo-resume' => { mcp => 'odoo_resume', mcp_open_world => 1, mutates => 1, params => [ { name => 'run', in => 'body', required => 1, note => 'the run an apply named, or one from odoo-unknown-runs' }, { name => 'assume_done', in => 'body', note => 'change keys or numbers you say were made (the run\'s maker, or settle_odoo_writes)' }, { name => 'assume_not_done', in => 'body', note => 'change keys or numbers you say were not made' } ] },
-    'odoo-unknown-runs' => { mcp => 'odoo_unknown_runs', cookie_cap => 'settle_odoo_writes', params => [] },
-    'odoo-dismiss' => { mcp => 'odoo_dismiss', mutates => 1, cookie_cap => 'settle_odoo_writes', params => [ { name => 'run', in => 'body', required => 1 }, { name => 'reason', in => 'body', note => 'a line of text kept with the run' } ] },
+    # SM1369 X2 (H-9): an extension's rows are declared by it and mirrored in
+    # from the index (declare_action), never written here.
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },
     'start-page-set' => { mutates => 1, params => [ { name => 'username', in => 'body' }, { name => 'value', in => 'body', required => 1, note => 'an empty string clears the start page' } ] },
     'whoami' => { params => [ { name => 'extensions', in => 'query' } ] },
@@ -1030,13 +1000,20 @@ my %FIELD = map { $_ => 1 } qw(
     params caps mutates destructive changes_access audited scoped file_surface
     cookie_cap cookie_gates_itself cookie_only_reason mcp mcp_open_world
     instance_wide content_write self
+    extension handler always_reason description input_schema
 );
+# SM1369 X2: the five fields only a declared row carries - whose it is, the
+# function that runs it, why an ALWAYS gate needs nothing, and the twin's
+# description and schema (which core's twins keep in lazysite-mcp.pl's table).
+my %DECLARED_FIELD = map { $_ => 1 } qw(extension handler always_reason description input_schema);
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
     for my $k ( sort keys %{$spec} ) {
         die "Lazysite::ControlApi::Actions: '$name' declares '$k', which is not a "
             . "field - a misspelt field would silently mean its default\n"
             unless $FIELD{$k};
+        die "Lazysite::ControlApi::Actions: '$name' declares '$k', which only a row an extension declares carries\n"
+            if $DECLARED_FIELD{$k};
     }
     my $fs = $spec->{file_surface};
     die "Lazysite::ControlApi::Actions: '$name' file_surface must be read or write\n"
@@ -1086,6 +1063,106 @@ sub self_param_names_account {
             if exists $twin_of{$t};
         $twin_of{$t} = $name;
     }
+}
+
+# ---------------------------------------------------------------------------
+# SM1369 X2 (H-9): THE ROWS AN EXTENSION DECLARES.
+#
+# Everything above is core's: the literal is what core publishes and gates.
+# An extension's rows come from its `hooks.api_actions`, validated at the index
+# build (Lazysite::Extensions::Hooks), and are put into %GATE and %ACTION here
+# by the mirror, each marked `extension`. From then on every derived table
+# (mutating, cookie_caps, mcp_twins, mcp_annotations, need_caps, actions_for,
+# known_actions) carries them exactly as it carries a core row, which is how
+# the parity lints and both doors see one table. The doors dispatch a marked
+# row through Lazysite::Extensions::Hooks::run_action; nothing here runs code.
+#
+# The core set is fixed at load, so a declared row can never replace a core
+# one (is_core_action) and undeclare_actions puts the tables back exactly.
+my %CORE_ACTION = map { $_ => 1 } keys %ACTION;
+my %CORE_TOOL = map { $ACTION{$_}{mcp} => $_ } grep { defined $ACTION{$_}{mcp} } keys %ACTION;
+my %DECLARED;    # action => extension id
+
+sub is_core_action { return $CORE_ACTION{ $_[0] // '' } ? 1 : 0 }
+
+# A core action's twin. Core's MCP-only tools are in lazysite-mcp.pl's own
+# table, out of reach here; the prefix rule (a twin starts with the extension's
+# id and an underscore) keeps a declared twin off them.
+sub is_core_tool { return exists $CORE_TOOL{ $_[0] // '' } ? 1 : 0 }
+
+sub core_actions     { return map { $_ => 1 } sort keys %CORE_ACTION }
+sub extension_of     { return $DECLARED{ $_[0] // '' } }
+sub declared_actions { return map { $_ => $DECLARED{$_} } sort keys %DECLARED }
+
+# One declared row into the two tables. Returns the problems, as sentences;
+# a row with one is left out (the build is where it was refused with its
+# reasons, this is the second wall).
+sub declare_action {
+    my ( $id, $r ) = @_;
+    return ('a row must be a mapping') unless ref $r eq 'HASH';
+    my $name = $r->{name};
+    return ('a row must have a name') unless defined $name && !ref $name && $name =~ /\A[a-z][a-z0-9-]*\z/;
+    return ("'$name' is a core action") if $CORE_ACTION{$name};
+    return ("'$name' is already declared by $DECLARED{$name}") if exists $DECLARED{$name} && $DECLARED{$name} ne $id;
+    return ("'$name' does not start with the extension's id") unless $name =~ /\A\Q$id\E-./;
+    my $gate = $r->{gate};
+    return ("'$name' has no gate row")
+        unless defined $gate && ( ( !ref $gate && $gate eq 'ALWAYS' ) || ( ref $gate eq 'ARRAY' && @$gate ) );
+    return ("'$name' is gated ALWAYS without an always_reason")
+        if !ref $gate && !( defined $r->{always_reason} && length $r->{always_reason} );
+    my $t = $r->{mcp};
+    if ( defined $t ) {
+        return ("'$name': '$t' is not a tool name") unless !ref $t && $t =~ /\A[a-z][a-z0-9_]*\z/;
+        return ("'$name': '$t' is a core tool") if $CORE_TOOL{$t};
+        return ("'$name': '$t' does not start with the extension's id") unless $t =~ /\A\Q$id\E_./;
+        my ($other) = grep { defined $ACTION{$_}{mcp} && $ACTION{$_}{mcp} eq $t && $_ ne $name } keys %ACTION;
+        return ("'$name': '$other' already names the twin '$t'") if defined $other;
+    }
+    my %spec = (
+        extension => $id,
+        handler   => $r->{handler},
+        params => [ map { { %{$_} } } @{ ref $r->{params} eq 'ARRAY' ? $r->{params} : [] } ],
+        ( defined $t ? ( mcp => $t, description => $r->{description}, input_schema => $r->{input_schema} ) : () ),
+        ( $r->{open_world} && defined $t ? ( mcp_open_world => 1 ) : () ),
+        ( map { $r->{$_} ? ( $_ => 1 ) : () } qw(mutates destructive instance_wide) ),
+        ( defined $r->{cookie_cap}    ? ( cookie_cap    => $r->{cookie_cap} )    : () ),
+        ( defined $r->{always_reason} ? ( always_reason => $r->{always_reason} ) : () ),
+    );
+    $spec{caps}      = ref $gate ? [ @{$gate} ] : [];
+    $GATE{$name}     = ref $gate ? [ @{$gate} ] : 'ALWAYS';
+    $ACTION{$name}   = \%spec;
+    $DECLARED{$name} = $id;
+    return ();
+}
+
+sub undeclare_actions {
+    for my $name ( keys %DECLARED ) {
+        delete $ACTION{$name};
+        delete $GATE{$name};
+    }
+    %DECLARED = ();
+    return;
+}
+
+# The declared twins, in the shape lazysite-mcp.pl's %TOOLS holds a tool:
+# tool => { description, inputSchema, cap, cap_also, action }. The gate's first
+# capability is `cap` and the rest `cap_also` (any one admits); an ALWAYS row
+# is a channel-only tool (cap undef). The door adds `run`.
+sub declared_tools {
+    my %t;
+    for my $name ( sort keys %DECLARED ) {
+        my $s    = $ACTION{$name};
+        my $tool = $s->{mcp} // next;
+        my @caps = @{ $s->{caps} || [] };
+        $t{$tool} = {
+            action      => $name,
+            description => $s->{description},
+            inputSchema => $s->{input_schema},
+            cap         => ( @caps ? $caps[0] : undef ),
+            ( @caps > 1 ? ( cap_also => [ @caps[ 1 .. $#caps ] ] ) : () ),
+        };
+    }
+    return %t;
 }
 
 sub _flagged { my ($k) = @_; return map { $_ => 1 } grep { $ACTION{$_}{$k} } sort keys %ACTION }

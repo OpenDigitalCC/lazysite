@@ -11,7 +11,8 @@ use JSON::PP qw(encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use OdooTest qw(oom_or_skip shop_ready bind quiet);
+use OdooTest   qw(oom_or_skip shop_ready bind quiet);
+use TestHelper ();                                      # SM1369 X2: mirror_engine
 
 BEGIN { oom_or_skip() }
 use Lazysite::Odoo                ();
@@ -59,9 +60,14 @@ quiet( sub { my ($b) = Lazysite::Odoo::find_binding('list'); Lazysite::Odoo::cal
 my ( undef, $calls ) = quiet( sub { Lazysite::Odoo::action_odoo_calls( binding => 'list' ) } );
 is( $calls->{calls}[0]{kind}, 'no-key', 'the call record shows the refusal for the missing key' );
 
+# SM1369 X2 (ruling 71): the rows are the extension's own declaration, read
+# from the index (here the engine's), and the gate is manage_odoo - topped up
+# for every group holding manage_connectors, so nothing changes for a group.
+TestHelper::mirror_engine();
 my $A = \%Lazysite::ControlApi::Actions::ACTION;
 for my $a (qw(odoo-status odoo-secret-set odoo-secret-clear odoo-calls)) {
-    is_deeply( $A->{$a}{caps}, ['manage_connectors'], "$a is manage_connectors'" );
+    is_deeply( $A->{$a}{caps}, ['manage_odoo'], "$a is manage_odoo's" );
+    is( $A->{$a}{extension}, 'odoo', "and declared by the extension" );
 }
 my %mut = Lazysite::ControlApi::Actions::mutating();
 ok( $mut{'odoo-secret-set'} && $mut{'odoo-secret-clear'}, 'setting and clearing are POST-only' );

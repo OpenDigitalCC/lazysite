@@ -24,8 +24,11 @@ my $CAP  = 'settle_odoo_writes';
 subtest 'the Odoo extension declares it, and it is grantable' => sub {
     my $r = run_child( [ $^X, "$root/extensions/odoo.pl", '--describe' ] );
     my $d = eval { decode_json( $r->{out} ) } || {};
-    is_deeply( $d->{owns}{capabilities}, [$CAP], 'extensions/odoo.pl owns it' );
-    ok( ( grep { $_ eq $CAP } @Lazysite::Auth::Settings::CAP_KEYS ), 'it is in @CAP_KEYS' );
+    ok( ( grep { $_ eq $CAP } @{ $d->{owns}{capabilities} || [] } ), 'extensions/odoo.pl owns it' );
+    # SM1369 X2 (H-7): grantable once the index is mirrored, and not from a literal.
+    ok( !( grep { $_ eq $CAP } Lazysite::Auth::Settings::core_capability_keys() ), 'it is not a core literal' );
+    TestHelper::mirror_engine();
+    ok( ( grep { $_ eq $CAP } @Lazysite::Auth::Settings::CAP_KEYS ), 'it is in @CAP_KEYS, from the index' );
     my $info = Lazysite::Capabilities::describe()->{capabilities}{$CAP};
     ok( $info, 'and described' );
     like( $info->{title} // '', qr/Settle an Odoo write/, 'by what it does' );
@@ -45,6 +48,10 @@ sub sysops {
 my $d = site_tempdir();
 make_path("$d/lazysite/auth");
 spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
+# SM1369 X2: the users tool reads the capability from the site's extension index,
+# built here as the upgrade builds it; Odoo is installed beside the site, not on.
+TestHelper::link_engine_extensions($d);
+TestHelper::build_site_index($d);
 my $r = users( $d, 'setup-sysop', '--user', 'sjm', 'pw123456789-long-enough' );
 is( $r->{status}, 0, 'setup-sysop ran' ) or diag $r->{out};
 

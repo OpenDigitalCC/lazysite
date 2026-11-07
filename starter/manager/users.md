@@ -117,6 +117,7 @@ var parentOf = {};    // {username: parent} - the managed_by/created_by hierarch
 var ME = '';          // the current operator's username (from whoami) - a valid owner
 var amOperator = false; // SM194: is the current user a FULL operator (manage_users)? - gates the operator-only promote / scope-independent controls (the API enforces it regardless)
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
+var CAP_LABELS = {};        // SM1369 X2: labels of the capabilities the site's extensions declare (served)
 
 // SM109 phase 2: route all status to the global toast.
 function showStatus(msg, isError) {
@@ -160,8 +161,11 @@ function loadUsers() {
   // SM180: load which channel services are enabled site-wide, so the per-user
   // capability grid can flag a granted channel whose service is OFF as dormant.
   // Fires in parallel; resolves well before a grid is opened on demand.
+  // SM1369 X2 (H-7): and the labels of the capabilities the site's extensions
+  // declare, which PERM_LABELS (core's list, t/lint/19) does not carry.
   fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
-    .then(function(d) { channelServices = (d.ok && d.services) || {}; }, function() { channelServices = {}; });
+    .then(function(d) { channelServices = (d.ok && d.services) || {}; CAP_LABELS = (d.ok && d.labels) || {}; },
+          function() { channelServices = {}; });
   // recent-changes is a TOP-LEVEL api action (as the Files page calls it) -
   // not a users sub-action; tunnelling it through action=users made the
   // sub-dispatcher reject it (field report: audit noise
@@ -237,7 +241,6 @@ var PERM_LABELS = {
   housekeeping: 'Housekeeping (recoverable)', purge: 'Purge (irreversible)',
   audit_switch: 'Audit trail switch',
   maintenance_access: 'Access during maintenance',
-  settle_odoo_writes: 'Settle Odoo writes',
   manage_domains: 'Domains & site packages', manage_config: 'Config + extensions',
   manage_services: 'Services (WebDAV/MCP/OAuth switches)',
   manage_connectors: 'Connectors',
@@ -268,7 +271,7 @@ function loadPermGrid(user, det) {
 function renderPermGrid(d, user) {
   var chans = d.channels || [], acts = d.actions || [], gb = d.granted_by || {};
   var surf = d.surface || {};   // SM197: cap -> { channel: 1 } where the cap has a real surface
-  var lbl = function(k) { return PERM_LABELS[k] || k; };
+  var lbl = function(k) { return PERM_LABELS[k] || CAP_LABELS[k] || k; };
   var by  = function(cap) { return (gb[cap] && gb[cap].length) ? gb[cap] : null; };
   var recheck = '<button class="mg-btn mg-btn-sm" style="margin-bottom:0.4rem" '
     + 'onclick="loadPermGrid(\'' + escHtml(user) + '\')">Recheck</button>';
@@ -449,13 +452,13 @@ function rolesChip(r) {
   var h = '';
   (r.roles || []).forEach(function(x) {
     h += ' <span class="mg-tag mg-tag-auto" title="' + escHtml('Role ' + x.group + ': '
-      + ((x.capabilities || []).map(function(c) { return PERM_LABELS[c] || c; }).join(', ') || 'grants nothing'))
+      + ((x.capabilities || []).map(function(c) { return PERM_LABELS[c] || CAP_LABELS[c] || c; }).join(', ') || 'grants nothing'))
       + '">' + escHtml(x.label || x.group) + '</span>';
   });
   var b = r.beyond || [];
   if (b.length) {
     h += ' <span class="mg-tag mg-tag-off" title="' + escHtml('Held beyond its roles: '
-      + b.map(function(c) { return (PERM_LABELS[c] || c) + ' (' + c + ')'; }).join(', '))
+      + b.map(function(c) { return (PERM_LABELS[c] || CAP_LABELS[c] || c) + ' (' + c + ')'; }).join(', '))
       + '">+' + b.length + ' beyond role' + ((r.roles || []).length === 1 ? '' : 's') + '</span>';
   }
   return h;

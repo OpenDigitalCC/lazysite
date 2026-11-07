@@ -1131,7 +1131,11 @@ sub run_checks {
                 create_sub_users delegate_sub_user_creation
                 manage_data write_data manage_briefs run_jobs manage_connectors
                 manage_notifications
-                housekeeping purge audit_switch maintenance_access settle_odoo_writes);
+                housekeeping purge audit_switch maintenance_access);
+            # SM1369 X2 (H-7): and the capabilities this site's extensions
+            # declare, read from the extension index as the engine reads them -
+            # never from a literal here, and never by running an extension.
+            push @CAPS, declared_capabilities();
 
             my $gsettings = $gs;    # SM1023: read once, and readable to reach here
 
@@ -1426,6 +1430,9 @@ sub run_checks {
 
     # --- 8g1. is every enabled extension listed under the one name? (SM1142) ----
     report_extensions_list();
+
+# --- 8g1b. the extension index: built, and what the enabled extensions declare (SM1369 X2) ---
+    report_hook_index();
 
     # --- 8g2. is the login rate limiter actually counting? (SM798) --------------
     report_login_rate_limit();
@@ -3812,6 +3819,79 @@ sub report_extensions_list {
     return;
 }
 # old-name: end
+
+# SM1369 X2: THE EXTENSION INDEX (lazysite/extensions.index.json), read as the
+# engine reads it - the file, never --describe. Three questions: did the last
+# build fail (the note the build leaves beside the index, so "the previous one
+# stands" is said here and not only in the event log); does an enabled
+# extension that declares hooks have its entry (an index built before it was
+# enabled by hand, or whose build failed, runs none of its actions); and which
+# capabilities the index declares, which the manager-group walk above reads.
+sub _read_hook_index {
+    my $p = "$LZ/extensions.index.json";
+    return undef unless -f $p;
+    open my $fh, '<:raw', $p or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $idx = eval { JSON::PP->new->utf8->decode($raw) };
+    return ref $idx eq 'HASH' ? $idx : undef;
+}
+
+sub declared_capabilities {
+    my $idx = _read_hook_index() or return ();
+    my $d   = ref $idx->{declared} eq 'HASH' ? $idx->{declared} : {};
+    my %c;
+    for my $id ( sort keys %$d ) {
+        my $e = $d->{$id};
+        next unless ref $e eq 'HASH' && ref $e->{capabilities} eq 'ARRAY';
+        $c{$_} = 1 for grep { defined && !ref && /\A[a-z][a-z0-9_]*\z/ } @{ $e->{capabilities} };
+    }
+    return sort keys %c;
+}
+
+sub report_hook_index {
+    my $failed = "$LZ/extensions.index.failed";
+    if ( -f $failed ) {
+        my $why = '';
+        if ( open my $fh, '<', $failed ) { $why = <$fh> // ''; close $fh; chomp $why }
+        report( 'WARN',
+            "the extension index was not rebuilt by the last build, and the previous one stands"
+                . ( length $why ? " ($why)" : '' ),
+            'enable or save an extension in the manager, or run the upgrade again, to rebuild it' );
+    }
+    my $idx = _read_hook_index();
+    my %on;
+    if ( open my $fh, '<:utf8', "$LZ/lazysite.conf" ) {
+        my $in = 0;
+        while ( my $l = <$fh> ) {
+            chomp $l;
+            if ( $l =~ /^extensions\s*:\s*$/ ) { $in = 1; next }
+            if ( $in && $l =~ /^\s+-\s+(.+?)\s*$/ ) { $on{$1} = 1; next }
+            $in = 0 if $in && $l !~ /^\s/;
+        }
+        close $fh;
+    }
+    my $declared = $idx && ref $idx->{declared} eq 'HASH'   ? $idx->{declared}   : {};
+    my $hooks    = $idx && ref $idx->{extensions} eq 'HASH' ? $idx->{extensions} : {};
+    my @missing;
+    for my $id ( sort keys %$declared ) {
+        my $key = ref $declared->{$id} eq 'HASH' ? $declared->{$id}{key} : undef;
+        next unless defined $key && $on{$key};
+        push @missing, $id unless $hooks->{$id};
+    }
+    if (@missing) {
+        report( 'WARN',
+            'enabled extensions whose declarations are indexed and whose hooks are not: ' . join( ', ', @missing )
+                . ' - their actions answer "cannot run now" until the index is rebuilt',
+            'enable or save the extension in the manager (or run the upgrade again), which rebuilds the index' );
+    }
+    elsif ($idx) {
+        my $n = scalar keys %$declared;
+        report( 'OK', "the extension index is built ($n " . ( $n == 1 ? 'extension declares' : 'extensions declare' )
+                . ' capabilities or actions' . ( keys %$hooks ? ', ' . scalar( keys %$hooks ) . ' with hooks indexed' : '' ) . ')' );
+    }
+    return;
+}
 
 # SM798: THE LOGIN RATE LIMITER FAILS OPEN, SO THIS IS WHERE IT SAYS SO.
 #

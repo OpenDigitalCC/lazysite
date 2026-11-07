@@ -34,6 +34,13 @@ my $src  = do {
 
 # --- parse the dispatch action set and the three gate maps from source --------
 my %all = map { $_ => 1 } ( $src =~ /\$action eq '([a-z0-9-]+)'/g );
+# SM1369 X2 (H-9): and the actions the in-tree extensions declare, dispatched
+# through the one table-driven branch, which every rule below reads as it
+# reads a chain branch (gate_caps mirrored the index into the tables).
+gate_caps($src);    # mirrors the index into the tables
+my %declared = Lazysite::ControlApi::Actions::declared_actions();
+cmp_ok( scalar keys %declared, '>=', 1, 'an extension declares actions' );
+$all{$_} = 1 for keys %declared;
 
 # SM943: the CGI's tables are DERIVED from Lazysite::ControlApi::Actions, so the
 # data is read from there. That the CGI builds each of them from it, and keeps

@@ -128,6 +128,11 @@ $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR    = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";   # SM138: site_grants_manager
+# SM1369 X2 (H-7, H-9): the capabilities and actions the site's extensions
+# declare join the tables from the extension index, BEFORE every table below is
+# derived from the declaration (%KNOWN_ACTION, %MUTATING, the gate, the twins).
+use Lazysite::Extensions::Hooks ();
+Lazysite::Extensions::Hooks::mirror($LAZYSITE_DIR);
 use Lazysite::Auth::Verify ();    # SM685: verify in-process, no subprocess
 $Lazysite::Manager::Upload::LAZYSITE_DIR   = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
@@ -2431,48 +2436,6 @@ elsif ( $action eq 'connector-calls' ) {
     $result = _connectors()->can('action_connector_calls')->(
         connector => $params{connector}, state => $params{state}, limit => $params{limit} );
 }
-elsif ( $action eq 'odoo-status' ) { $result = _odoo()->can('action_odoo_status')->() } # SM747
-elsif ( $action eq 'odoo-calls' ) {
-    $result = _odoo()->can('action_odoo_calls')->( binding => $params{binding}, limit => $params{limit} );
-}
-elsif ( $action eq 'odoo-secret-set' ) {
-    my $req = _json_body();
-    $result = _odoo()->can('action_odoo_secret_set')
-        ->( $req->{secret}, grant => $req->{grant}, login => $req->{login}, scheduled => $req->{scheduled} );
-}
-elsif ( $action eq 'odoo-secret-clear' ) {
-    my $req = _json_body();
-    $result = _odoo()->can('action_odoo_secret_clear')->( grant => $req->{grant}, scheduled => $req->{scheduled} );
-}
-# SM747 E: a bound operation, run by a signed-in caller. The binding gates it
-# (its modes, callers and caps) inside Lazysite::Odoo, as a connector gates
-# connector-call; this door runs as the connection user.
-elsif ( $action eq 'odoo-bindings' ) { $result = _odoo()->can('action_odoo_bindings')->( _odoo_who() ) }
-elsif ( $action eq 'odoo-run' ) {
-    my $req = _json_body();
-    $result = _odoo()->can('action_odoo_run')->( $req->{binding}, $req->{params}, _odoo_who() );
-}
-elsif ( $action eq 'odoo-confirm' ) {
-    my $req = _json_body();
-    $result = _odoo()->can('action_odoo_confirm')->( $req->{plan}, _odoo_who() );
-}
-# SM1278 (rulings 10b, 10c): the runs left unknown, an operator's decision on one, and
-# dismissing one. Listing and dismissing are settle_odoo_writes'; a resume is gated by
-# the run's binding inside Lazysite::Odoo::resume, as a confirm is.
-elsif ( $action eq 'odoo-unknown-runs' ) {
-    _odoo();
-    $result = Lazysite::Odoo::action_odoo_unknown_runs( _odoo_who() );
-}
-elsif ( $action eq 'odoo-resume' ) {
-    my $req = _json_body();
-    $result = _odoo()->can('action_odoo_resume')
-        ->( $req->{run}, $req->{assume_done}, $req->{assume_not_done}, _odoo_who() );
-}
-elsif ( $action eq 'odoo-dismiss' ) {
-    my $req = _json_body();
-    _odoo();
-    $result = Lazysite::Odoo::action_odoo_dismiss( $req->{run}, $req->{reason}, _odoo_who() );
-}
 elsif ( $action eq 'connector-save' ) {
     my $req = _json_body();
     $result = _connectors()->can('action_connector_save')->( $req->{id}, $req->{connector} );
@@ -2741,6 +2704,14 @@ elsif ( $action eq 'preview-clear' ) {
 }
 elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \%params ) }
 elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
+# SM1369 X2 (H-9): THE ONE BRANCH FOR EVERY ACTION AN EXTENSION DECLARES. The
+# row came from the site's extension index (Lazysite::ControlApi::Actions,
+# marked `extension`), so it has been through the token gate, the CSRF gate and
+# the parameter check above as a core row is; the handler is the extension's
+# own function, run through the loader, which checks the extension is on now.
+elsif ( defined Lazysite::ControlApi::Actions::extension_of($action) ) {
+    $result = dispatch_extension_action();
+}
 else {
     # SM670: an action that does not exist is not found - 404, not 400. A name
     # SM1343 renamed is told its new one.
@@ -3303,26 +3274,33 @@ sub _connectors {
     return 'Lazysite::Manager::Connectors';
 }
 
-# SM747: the Odoo extension's engine, as the connectors' is reached.
-sub _odoo {
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo');
-    no warnings 'once';
-    $Lazysite::Odoo::DOCROOT = $DOCROOT;
-    return 'Lazysite::Odoo';
-}
-
-# SM747 E: who is asking, for a bound operation - the verified account, its
-# capabilities and groups, and the request address. Never a visitor.
-sub _odoo_who {
-    return (
-        user    => $auth_user,
-        caps    => Lazysite::Auth::Settings::caps_for($auth_user) || {},
-        groups  => [ Lazysite::Auth::Settings::effective_groups($auth_user) ],
-        ip      => _request_ip(),
-        channel => 'api',
-        reach   => {},    # E-Q1: this request's own reach (Manager::Common)
-    );
+# SM1369 X2 (H-9): an extension's action, as declared. Its parameters are read
+# from where each row says (the query string, the JSON body, or either), and
+# who is asking is the verified account, its capabilities and groups, the
+# request address and this door - never a visitor. The extension's handler
+# answers the result hash this door sends.
+sub dispatch_extension_action {
+    my $spec = $Lazysite::ControlApi::Actions::ACTION{$action};
+    my %p;
+    for my $prm ( @{ $spec->{params} || [] } ) {
+        my $n  = $prm->{name};
+        my $in = $prm->{in} // 'body';
+        if ( $in eq 'query' ) { $p{$n} = $params{$n} if exists $params{$n} }
+        elsif ( $in eq 'body' ) { my $req = _json_body(); $p{$n} = $req->{$n} if exists $req->{$n} }
+        else {
+            my $req = _json_body();
+            $p{$n} = exists $params{$n} ? $params{$n} : $req->{$n} if exists $params{$n} || exists $req->{$n};
+        }
+    }
+    return Lazysite::Extensions::Hooks::run_action(
+        $DOCROOT, $action, \%p,
+        { user => $auth_user,
+            caps    => Lazysite::Auth::Settings::caps_for($auth_user) || {},
+            groups  => [ Lazysite::Auth::Settings::effective_groups($auth_user) ],
+            ip      => _request_ip(),
+            channel => 'api',
+            reach   => {},    # E-Q1: this request's own reach (Manager::Common)
+        } );
 }
 
 # SM516 MA-3: a gate refusal is three statements in one order - record it,

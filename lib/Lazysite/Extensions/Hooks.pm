@@ -48,7 +48,9 @@ use Lazysite::Paths      ();
 use Lazysite::Extensions ();
 
 our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
-    check_functions index_path read_index enabled_keys call_hook);
+    check_functions index_path read_index enabled_keys call_hook
+    check_declared declared_entry mirror mirror_index unmirror run_action
+    index_failed_path note_index_failure declared_refusal_status);
 
 # The hook vocabulary. `hook` is the proposal's H-n, `slice` the slice that
 # builds its consumer. A live kind carries its shape:
@@ -69,9 +71,14 @@ our %KINDS = (
     endpoints         => { hook => 'H-4',  slice => 'X5' },
     services          => { hook => 'H-5',  slice => 'X5' },
     checks            => { hook => 'H-6',  slice => 'X6' },
-    capability_info   => { hook => 'H-7',  slice => 'X2' },
+    # SM1369 X2: the three kinds whose consumers are built (see "X2" below). A
+    # kind with a `validate` of its own is checked by it, since its rows carry
+    # lists and maps the generic shapes above cannot say.
+    capability_info => { hook => 'H-7', slice => 'X2', live => 1, form => 'record', validate => \&_validate_capability_info },
     panels            => { hook => 'H-8',  slice => 'X6' },
-    api_actions       => { hook => 'H-9',  slice => 'X2' },
+    api_actions => { hook => 'H-9', slice => 'X2', live => 1, form => 'records', functions => ['handler'],
+        validate => \&_validate_api_actions },
+    refusal_kinds => { hook => 'H-9', slice => 'X2', live => 1, form => 'record', validate => \&_validate_refusal_kinds },
     assets            => { hook => 'H-10', slice => 'X5' },
     components        => { hook => 'H-10', slice => 'X5' },
     template_vars     => { hook => 'H-10', slice => 'X5' },
@@ -165,7 +172,10 @@ sub validate_hooks {
         }
         my $v    = $hooks->{$kind};
         my $form = $spec->{form} // '';
-        if ( $form eq 'functions' ) {
+        if ( $spec->{validate} ) {
+            push @bad, $spec->{validate}->( $id, $v );
+        }
+        elsif ( $form eq 'functions' ) {
             if ( ref $v ne 'ARRAY' ) {
                 push @bad, _err( $id, "hooks.$kind", "$kind must be a list of function names" );
                 next;
@@ -243,10 +253,17 @@ sub _module_file {
     return $f;
 }
 
-# Where else on @INC a module file is found, other than $lib.
+# Where else on @INC a module file is found, other than $lib. SM1369 X2: the
+# same file reached by another spelling of its path (a relative @INC entry, a
+# link to the directory) is not another copy - compared as require_payload
+# compares, by the file's real path.
 sub _shadowed {
     my ( $rel, $lib ) = @_;
-    return grep { !ref && length && $_ ne $lib && -e "$_/$rel" } @INC;
+    my $mine = Cwd::abs_path("$lib/$rel");
+    return grep {
+        !ref && length && $_ ne $lib && -e "$_/$rel"
+            && ( !defined $mine || ( Cwd::abs_path("$_/$rel") // '' ) ne $mine )
+    } @INC;
 }
 
 # THE CODE A DECLARATION NAMES IS THE EXTENSION'S OWN. Each function's module
@@ -406,6 +423,480 @@ sub call_hook {
         return ( 0, "$function died" );
     }
     return ( 1, @out );
+}
+
+# ---------------------------------------------------------------------------
+# SM1369 X2 (H-7, H-9; rulings 71, 135): WHAT AN EXTENSION DECLARES, AND HOW
+# CORE'S TABLES COME TO CARRY IT.
+#
+# Three kinds are live here. `capability_info` is the metadata of each
+# capability the extension owns (`owns.capabilities` names them; this says what
+# each is): the section and label the Groups and Users grids draw, the title
+# and grant sentence describe-capabilities publishes, the UI surfaces it
+# unlocks, and the capabilities it is topped up from (ruling 71: a group holding
+# manage_connectors gains manage_odoo on next use, so nothing changes for a
+# group). `api_actions` is one row per control-API action in the shape of
+# Lazysite::ControlApi::Actions' %ACTION, with its gate, its MCP twin's
+# description and input schema, and the handler - a function in the extension's
+# own payload lib, loaded by call_hook. `refusal_kinds` maps the refusal kinds
+# the extension's answers carry to the HTTP status the control API sends.
+#
+# THE INDEX CARRIES TWO VIEWS. `extensions` (X1) holds the ENABLED extensions'
+# hooks, and is the only thing call_hook runs from. `declared` holds every
+# INSTALLED extension's declarations, built by the same validation, so that a
+# capability is grantable while the extension is installed (H-7), an action of
+# an extension that is installed but off is known and answers "this extension
+# is off" rather than "no such action" (H-9), and the tool listing does not
+# change with the toggle. Whether an action RUNS is decided at the call, from
+# lazysite.conf, never from either view (G-1).
+#
+# THE MIRROR. The runtime tables - @Lazysite::Auth::Settings::CAP_KEYS,
+# Capabilities' %ACTION_INFO, ControlApi::Actions' %GATE and %ACTION, and the
+# refusal statuses - are literals for what core implements and are filled from
+# the index for what an extension declares, by mirror() below, once per process
+# per index. Nothing here runs --describe: the index is the one file the request
+# path reads (lint 76's rule). A declaration can never shadow a core name: the
+# build refuses it (check_declared), and the declare functions refuse it again.
+#
+# WHAT AN ACTION ROW MAY SAY (the %ACTION shape, plus the twin's half and the handler):
+#
+#   name           the control-API action; it starts with the extension's id and a hyphen
+#   mcp            the MCP twin's name; it starts with the id and an underscore
+#   handler        Module::Name::function, in the payload lib; called as
+#                  handler( \%params, \%ctx ) and answers the result hash the door sends
+#   gate           a list of capabilities (any one admits the caller), or 'ALWAYS'
+#   always_reason  why an ALWAYS row needs no capability (required with ALWAYS, as core rows say it)
+#   params         [ { name, in => query|body|query_or_body, required => 0|1, note } ]
+#   description    the twin's description, for tools/list (required with mcp)
+#   input_schema   the twin's JSON Schema (required with mcp); its properties are
+#                  declared params, and it requires exactly the params marked required
+#   mutates, destructive, open_world, instance_wide, cookie_cap - as %ACTION's
+#                  mutates, destructive, mcp_open_world, instance_wide and cookie_cap
+#
+# A capability's info: section (one of Capabilities' @SECTIONS), label (the grid's
+# short name), title, grants, unlocks => { ui => [ sentences ] } - its api and mcp
+# lists are DERIVED from the gate rows that name it, so they cannot disagree with
+# the gate - and top_up_from => [ capabilities ].
+
+our $INDEX_FAILED = 'extensions.index.failed';
+
+sub index_failed_path {
+    my ($lz) = @_;
+    return "$lz/$INDEX_FAILED";
+}
+
+# A build that could not write the index leaves this note beside it (best
+# effort), so `lazysite check` can say the previous index stands and why; a
+# build that writes removes it.
+sub note_index_failure {
+    my ( $lz, $why ) = @_;
+    my $p = index_failed_path($lz);
+    if ( !defined $why ) {
+        unlink $p if -e $p;
+        return;
+    }
+    if ( open my $fh, '>', $p ) {
+        print {$fh} scalar( gmtime() ) . " UTC: $why\n";
+        close $fh;
+    }
+    return;
+}
+
+my $CAP_NAME    = qr/\A[a-z][a-z0-9_]*\z/;
+my $ACTION_NAME = qr/\A[a-z][a-z0-9-]*\z/;
+my $TOOL_NAME   = qr/\A[a-z][a-z0-9_]*\z/;
+my $PARAM_NAME  = qr/\A[a-z][a-z0-9_]*\z/;
+my $KIND_NAME   = qr/\A[a-z][a-z0-9-]*\z/;
+
+sub _nonempty {
+    my ($v) = @_;
+    return _plain($v) && length $v ? 1 : 0;
+}
+
+sub _plain_list {
+    my ( $v, $re ) = @_;
+    return 0 unless ref $v eq 'ARRAY';
+    return 0 if grep { !_plain($_) || ( $re && $_ !~ $re ) } @$v;
+    return 1;
+}
+
+sub _validate_capability_info {
+    my ( $id, $info ) = @_;
+    my $k = 'hooks.capability_info';
+    return ( _err( $id, $k, 'capability_info must be a mapping of capability name to its metadata' ) )
+        unless ref $info eq 'HASH';
+    my @bad;
+    for my $cap ( sort keys %$info ) {
+        unless ( $cap =~ $CAP_NAME ) {
+            push @bad, _err( $id, $k, "'$cap' is not a capability name: lower-case letters, digits and underscores" );
+            next;
+        }
+        my $m = $info->{$cap};
+        unless ( ref $m eq 'HASH' ) {
+            push @bad, _err( $id, $k, "$cap must be a mapping (section, label, title, grants, unlocks, top_up_from)" );
+            next;
+        }
+        for my $f ( sort keys %$m ) {
+            push @bad, _err( $id, $k, "unknown key '$f' on $cap (expected: section, label, title, grants, unlocks, top_up_from)" )
+                unless $f =~ /\A(?:section|label|title|grants|unlocks|top_up_from)\z/;
+        }
+        for my $f (qw(section label title grants)) {
+            push @bad, _err( $id, $k, "$cap must carry a plain, non-empty '$f'" ) unless _nonempty( $m->{$f} );
+        }
+        if ( _nonempty( $m->{section} ) ) {
+            require Lazysite::Capabilities;
+            push @bad, _err( $id, $k, "$cap: section '$m->{section}' is not one of "
+                    . join( ', ', @Lazysite::Capabilities::SECTIONS ) )
+                unless grep { $_ eq $m->{section} } @Lazysite::Capabilities::SECTIONS;
+        }
+        push @bad, _err( $id, $k, "$cap: the label is the grid's short name, at most 40 characters" )
+            if _nonempty( $m->{label} ) && length( $m->{label} ) > 40;
+        if ( exists $m->{unlocks} ) {
+            if ( ref $m->{unlocks} ne 'HASH' ) {
+                push @bad, _err( $id, $k, "$cap: unlocks must be a mapping" );
+            }
+            else {
+                for my $ch ( sort keys %{ $m->{unlocks} } ) {
+                    if ( $ch eq 'ui' ) {
+                        push @bad, _err( $id, $k, "$cap: unlocks.ui must be a list of sentences" )
+                            unless _plain_list( $m->{unlocks}{ui} );
+                    }
+                    else {
+                        push @bad, _err( $id, $k, "$cap: unlocks.$ch is derived from the api_actions rows whose gate names "
+                                . "$cap, and is not declared (only unlocks.ui is)" );
+                    }
+                }
+            }
+        }
+        push @bad, _err( $id, $k, "$cap: top_up_from must be a list of capability names" )
+            if exists $m->{top_up_from} && !_plain_list( $m->{top_up_from}, $CAP_NAME );
+    }
+    return @bad;
+}
+
+my %ROW_KEY = map { $_ => 1 } qw(name mcp handler gate always_reason params description input_schema
+    mutates destructive open_world instance_wide cookie_cap);
+my %FLAG = map { $_ => 1 } qw(mutates destructive open_world instance_wide);
+
+sub _validate_api_actions {
+    my ( $id, $rows ) = @_;
+    my $k = 'hooks.api_actions';
+    return ( _err( $id, $k, 'api_actions must be a list of action rows' ) ) unless ref $rows eq 'ARRAY';
+    my ( @bad, %seen_name, %seen_mcp );
+    for my $i ( 0 .. $#$rows ) {
+        my $r     = $rows->[$i];
+        my $where = "api_actions[$i]";
+        unless ( ref $r eq 'HASH' ) {
+            push @bad, _err( $id, $k, "$where must be a mapping" );
+            next;
+        }
+        my $name = _plain( $r->{name} ) ? $r->{name} : undef;
+        $where = "api_actions '$name'" if defined $name && length $name;
+        for my $f ( sort keys %$r ) {
+            push @bad, _err( $id, $k, "unknown key '$f' on $where (expected: " . join( ', ', sort keys %ROW_KEY ) . ')' )
+                unless $ROW_KEY{$f};
+        }
+        if ( !defined $name || $name !~ $ACTION_NAME ) {
+            push @bad, _err( $id, $k, "$where must carry a name: lower-case letters, digits and hyphens" );
+        }
+        else {
+            push @bad, _err( $id, $k, "$where: an action's name starts with the extension's id ('$id-')" )
+                unless defined $id && $name =~ /\A\Q$id\E-./;
+            push @bad, _err( $id, $k, "$where is declared twice" ) if $seen_name{$name}++;
+        }
+        if ( exists $r->{mcp} ) {
+            if ( !_plain( $r->{mcp} ) || $r->{mcp} !~ $TOOL_NAME ) {
+                push @bad, _err( $id, $k, "$where: mcp must be a tool name: lower-case letters, digits and underscores" );
+            }
+            else {
+                push @bad, _err( $id, $k, "$where: a tool's name starts with the extension's id ('${id}_')" )
+                    unless defined $id && $r->{mcp} =~ /\A\Q$id\E_./;
+                push @bad, _err( $id, $k, "$where: the tool '$r->{mcp}' is named by two rows" ) if $seen_mcp{ $r->{mcp} }++;
+            }
+            push @bad, _err( $id, $k, "$where: a row with an mcp twin carries the twin's description" )
+                unless _nonempty( $r->{description} );
+            if ( ref $r->{input_schema} ne 'HASH' || ( $r->{input_schema}{type} // '' ) ne 'object' ) {
+                push @bad, _err( $id, $k, "$where: a row with an mcp twin carries the twin's input_schema, a JSON Schema of type object" );
+            }
+        }
+        else {
+            push @bad, _err( $id, $k, "$where: $_ belongs to the mcp twin, and the row names none" )
+                for grep { exists $r->{$_} } qw(description input_schema open_world);
+        }
+        push @bad, _err( $id, $k, "$where must name its handler, a fully qualified function in the payload lib" )
+            unless parse_function( $r->{handler} );
+        my $g = $r->{gate};
+        if ( !defined $g ) {
+            push @bad, _err( $id, $k, "$where has no gate row: a list of capabilities, or 'ALWAYS' with its always_reason" );
+        }
+        elsif ( !ref $g && $g eq 'ALWAYS' ) {
+            push @bad, _err( $id, $k, "$where is gated ALWAYS and gives no always_reason - a core row says why it needs no capability, and so does this one" )
+                unless _nonempty( $r->{always_reason} );
+        }
+        elsif ( ref $g eq 'ARRAY' && @$g && _plain_list( $g, $CAP_NAME ) ) {
+            push @bad, _err( $id, $k, "$where: always_reason belongs to an ALWAYS gate" ) if exists $r->{always_reason};
+            if ( exists $r->{cookie_cap} ) {
+                my %gate = map { $_ => 1 } @$g;
+                my @ck = _plain( $r->{cookie_cap} ) ? split( /\|/, $r->{cookie_cap} ) : ();
+                push @bad, _err( $id, $k, "$where: cookie_cap names the same capabilities as the gate, '|' between them, "
+                        . 'so neither door is the weaker one' )
+                    unless @ck && @ck == keys %gate && !grep { !$gate{$_} } @ck;
+            }
+        }
+        else {
+            push @bad, _err( $id, $k, "$where: gate must be a non-empty list of capability names, or 'ALWAYS'" );
+        }
+        for my $f ( grep { exists $r->{$_} } sort keys %FLAG ) {
+            push @bad, _err( $id, $k, "$where: $f must be 0 or 1" ) unless _plain( $r->{$f} ) && $r->{$f} =~ /\A[01]\z/;
+        }
+        push @bad, _err( $id, $k, "$where: destructive needs mutates" ) if $r->{destructive} && !$r->{mutates};
+        my %param;
+        if ( exists $r->{params} ) {
+            if ( ref $r->{params} ne 'ARRAY' ) {
+                push @bad, _err( $id, $k, "$where: params must be a list of { name, in, required, note }" );
+            }
+            else {
+                for my $p ( @{ $r->{params} } ) {
+                    unless ( ref $p eq 'HASH' && _plain( $p->{name} ) && $p->{name} =~ $PARAM_NAME ) {
+                        push @bad, _err( $id, $k, "$where: each param is a mapping with a name" );
+                        next;
+                    }
+                    push @bad, _err( $id, $k, "$where: param '$p->{name}' is listed twice" ) if $param{ $p->{name} }++;
+                    push @bad, _err( $id, $k, "$where: param '$p->{name}' says where it is read from: query, body or query_or_body" )
+                        unless _plain( $p->{in} ) && $p->{in} =~ /\A(?:query|body|query_or_body)\z/;
+                    push @bad, _err( $id, $k, "unknown key '$_' on $where param '$p->{name}'" )
+                        for grep { !/\A(?:name|in|required|note)\z/ } sort keys %$p;
+                    push @bad, _err( $id, $k, "$where: param '$p->{name}': required must be 0 or 1" )
+                        if exists $p->{required} && !( _plain( $p->{required} ) && $p->{required} =~ /\A[01]\z/ );
+                    push @bad, _err( $id, $k, "$where: param '$p->{name}': note must be a plain value" )
+                        if exists $p->{note} && !_plain( $p->{note} );
+                }
+            }
+        }
+        if ( ref $r->{input_schema} eq 'HASH' ) {
+            my $s     = $r->{input_schema};
+            my $props = ref $s->{properties} eq 'HASH' ? $s->{properties} : {};
+            push @bad, _err( $id, $k, "$where: input_schema names '$_', which is not a declared param" )
+                for grep { !$param{$_} } sort keys %$props;
+            push @bad, _err( $id, $k, "$where: param '$_' is not in the input_schema" )
+                for grep { !exists $props->{$_} } sort keys %param;
+            my %must = map { $_->{name} => 1 } grep { ref $_ eq 'HASH' && $_->{required} } @{ ref $r->{params} eq 'ARRAY' ? $r->{params} : [] };
+            my @sreq = ref $s->{required} eq 'ARRAY' ? @{ $s->{required} } : ();
+            my %sreq = map { $_ => 1 } grep { _plain($_) } @sreq;
+            push @bad, _err( $id, $k, "$where: the twin requires '$_' and the action does not (SM326: both surfaces require the same)" )
+                for grep { !$must{$_} } sort keys %sreq;
+            push @bad, _err( $id, $k, "$where: the action requires '$_' and the twin does not (SM326: both surfaces require the same)" )
+                for grep { !$sreq{$_} } sort keys %must;
+        }
+    }
+    return @bad;
+}
+
+sub _validate_refusal_kinds {
+    my ( $id, $map ) = @_;
+    my $k = 'hooks.refusal_kinds';
+    return ( _err( $id, $k, 'refusal_kinds must be a mapping of kind to HTTP status line' ) ) unless ref $map eq 'HASH';
+    my @bad;
+    for my $kind ( sort keys %$map ) {
+        push @bad, _err( $id, $k, "'$kind' is not a refusal kind: lower-case letters, digits and hyphens" )
+            unless $kind =~ $KIND_NAME;
+        push @bad, _err( $id, $k, "$kind must map to a status line such as '409 Conflict'" )
+            unless _plain( $map->{$kind} ) && $map->{$kind} =~ /\A[1-5][0-9]{2} [A-Z][A-Za-z' -]*\z/;
+    }
+    return @bad;
+}
+
+# THE CROSS-CHECKS, once the kinds validate on their own: every capability the
+# extension owns is described and every description names an owned capability;
+# nothing declared shadows a core name (a capability, an action, a refusal
+# kind); a gate names capabilities that exist (core's or the extension's own).
+# Returns problems in Owns' shape. Run at the index build and by the lints.
+sub check_declared {
+    my ( $id, $owns ) = @_;
+    return () unless ref $owns eq 'HASH';
+    my $hooks = ref $owns->{hooks} eq 'HASH' ? $owns->{hooks} : {};
+    my @bad;
+    my @caps = ref $owns->{capabilities} eq 'ARRAY' ? grep { _plain($_) } @{ $owns->{capabilities} } : ();
+    my $info  = ref $hooks->{capability_info} eq 'HASH' ? $hooks->{capability_info} : {};
+    my $rows  = ref $hooks->{api_actions} eq 'ARRAY'    ? $hooks->{api_actions}     : [];
+    my $kinds = ref $hooks->{refusal_kinds} eq 'HASH'   ? $hooks->{refusal_kinds}   : {};
+    return () unless @caps || %$info || @$rows || %$kinds;
+
+    my %own = map { $_ => 1 } @caps;
+    if ( %$info || @$rows ) {
+        push @bad, _err( $id, 'capabilities', "'$_' is owned and not described in hooks.capability_info" )
+            for grep { !exists $info->{$_} } @caps;
+    }
+    push @bad, _err( $id, 'hooks.capability_info', "'$_' is described and not in owns.capabilities" )
+        for grep { !$own{$_} } sort keys %$info;
+
+    require Lazysite::Auth::Settings;
+    my %core_cap = map { $_ => 1 } Lazysite::Auth::Settings::core_capability_keys();
+    push @bad, _err( $id, 'capabilities', "'$_' is a core capability, which an extension can never own or shadow" )
+        for grep { $core_cap{$_} } @caps;
+    for my $cap ( sort keys %$info ) {
+        my $m = ref $info->{$cap} eq 'HASH' ? $info->{$cap} : {};
+        push @bad, _err( $id, 'hooks.capability_info', "$cap: top_up_from names '$_', which is no capability" )
+            for grep { !$core_cap{$_} && !$own{$_} } @{ ref $m->{top_up_from} eq 'ARRAY' ? $m->{top_up_from} : [] };
+    }
+
+    require Lazysite::ControlApi::Actions;
+    for my $r ( grep { ref $_ eq 'HASH' } @$rows ) {
+        my $name = _plain( $r->{name} ) ? $r->{name} : next;
+        push @bad, _err( $id, 'hooks.api_actions', "'$name' is a core action, which an extension can never shadow" )
+            if Lazysite::ControlApi::Actions::is_core_action($name);
+        push @bad, _err( $id, 'hooks.api_actions', "'$r->{mcp}' is a core tool, which an extension can never shadow" )
+            if _plain( $r->{mcp} ) && Lazysite::ControlApi::Actions::is_core_tool( $r->{mcp} );
+        if ( ref $r->{gate} eq 'ARRAY' ) {
+            push @bad, _err( $id, 'hooks.api_actions', "'$name' is gated on '$_', which is no capability of core's or this extension's" )
+                for grep { _plain($_) && !$core_cap{$_} && !$own{$_} } @{ $r->{gate} };
+        }
+    }
+
+    if (%$kinds) {
+        require Lazysite::Manager::Common;
+        no warnings 'once';
+        push @bad, _err( $id, 'hooks.refusal_kinds', "'$_' is a core refusal kind, which an extension can never redefine" )
+            for grep { exists $Lazysite::Manager::Common::REFUSAL_STATUS{$_} } sort keys %$kinds;
+    }
+    return @bad;
+}
+
+# The index's `declared` entry for one (validated) descriptor: what the mirror
+# needs and nothing it does not.
+sub declared_entry {
+    my ( $key, $desc ) = @_;
+    my $owns  = ref $desc->{owns} eq 'HASH'  ? $desc->{owns}  : {};
+    my $hooks = ref $owns->{hooks} eq 'HASH' ? $owns->{hooks} : {};
+    my %e = ( key => $key, name => ( _plain( $desc->{name} ) ? $desc->{name} : $desc->{id} ) );
+    $e{capabilities} = [ @{ $owns->{capabilities} } ] if ref $owns->{capabilities} eq 'ARRAY' && @{ $owns->{capabilities} };
+    $e{capability_info} = $hooks->{capability_info} if ref $hooks->{capability_info} eq 'HASH' && %{ $hooks->{capability_info} };
+    $e{api_actions} = $hooks->{api_actions} if ref $hooks->{api_actions} eq 'ARRAY' && @{ $hooks->{api_actions} };
+    $e{refusal_kinds} = $hooks->{refusal_kinds} if ref $hooks->{refusal_kinds} eq 'HASH' && %{ $hooks->{refusal_kinds} };
+    return keys %e > 2 ? \%e : undef;
+}
+
+# ---- the mirror ----
+my %MIRROR;     # sig => the index mirrored, ids => the extensions it carried
+my %REFUSAL;    # kind => status, from the mirrored declarations
+
+sub declared_refusal_status {
+    my ($kind) = @_;
+    return defined $kind ? $REFUSAL{$kind} : undef;
+}
+
+# The api and mcp halves of a capability's `unlocks`, derived from the rows
+# whose gate names it (the gate is what decides, so the map cannot over- or
+# under-claim - lint 90's two directions, by construction).
+sub _unlocks_of {
+    my ( $cap, $info, $rows ) = @_;
+    my ( @api, @mcp );
+    for my $r ( grep { ref $_ eq 'HASH' && ref $_->{gate} eq 'ARRAY' } @$rows ) {
+        next unless grep { $_ eq $cap } @{ $r->{gate} };
+        push @api, $r->{name};
+        push @mcp, $r->{mcp} if defined $r->{mcp};
+    }
+    my %u  = ( api => \@api, mcp => \@mcp );
+    my $ui = ref $info->{unlocks} eq 'HASH' ? $info->{unlocks}{ui} : undef;
+    $u{ui} = [@$ui] if ref $ui eq 'ARRAY' && @$ui;
+    return \%u;
+}
+
+# Fill the runtime tables from an index (its `declared` view). Replaces what an
+# earlier mirror put there, so a rebuilt index is read whole. Returns the ids
+# mirrored. A declaration the build let through that the tables refuse
+# (a core name, from a hand-edited index) is skipped with a WARN: the refusal
+# is the closed side, and the build is where it is said properly.
+sub mirror_index {
+    my ( $index, $sig ) = @_;
+    unmirror();
+    my $decl = ref $index eq 'HASH' && ref $index->{declared} eq 'HASH' ? $index->{declared} : {};
+    require Lazysite::Auth::Settings;
+    require Lazysite::Capabilities;
+    require Lazysite::ControlApi::Actions;
+    my @ids;
+    for my $id ( sort keys %$decl ) {
+        my $e = $decl->{$id};
+        next unless ref $e eq 'HASH';
+        my @caps = ref $e->{capabilities} eq 'ARRAY'   ? @{ $e->{capabilities} } : ();
+        my $info = ref $e->{capability_info} eq 'HASH' ? $e->{capability_info}   : {};
+        my $rows = ref $e->{api_actions} eq 'ARRAY'    ? $e->{api_actions}       : [];
+        my @why;
+        push @why, Lazysite::Auth::Settings::declare_capabilities( $id, \@caps );
+        for my $cap ( grep { ref $info->{$_} eq 'HASH' } sort keys %$info ) {
+            push @why, Lazysite::Capabilities::declare_capability( $id, $cap,
+                { %{ $info->{$cap} }, unlocks => _unlocks_of( $cap, $info->{$cap}, $rows ) } );
+        }
+        push @why, Lazysite::ControlApi::Actions::declare_action( $id, $_ ) for grep { ref $_ eq 'HASH' } @$rows;
+        my $kinds = ref $e->{refusal_kinds} eq 'HASH' ? $e->{refusal_kinds} : {};
+        for my $kind ( sort keys %$kinds ) {
+            if ( exists $REFUSAL{$kind} ) { push @why, "refusal kind '$kind' is declared twice"; next }
+            $REFUSAL{$kind} = $kinds->{$kind};
+        }
+        _log( 'WARN', 'a declaration in the index was not mirrored', extension => $id, why => join( '; ', @why ) )
+            if @why;
+        push @ids, $id;
+    }
+    %MIRROR = ( sig => $sig, ids => \@ids );
+    return @ids;
+}
+
+sub unmirror {
+    return unless %MIRROR;
+    require Lazysite::Auth::Settings;
+    require Lazysite::Capabilities;
+    require Lazysite::ControlApi::Actions;
+    Lazysite::Auth::Settings::undeclare_capabilities();
+    Lazysite::Capabilities::undeclare_capabilities();
+    Lazysite::ControlApi::Actions::undeclare_actions();
+    %REFUSAL = ();
+    %MIRROR  = ();
+    return;
+}
+
+# Mirror a site's index into this process, once per index: a second call with
+# the same file is a stat. Returns 1 when the tables changed.
+sub mirror {
+    my ($lz) = @_;
+    return 0 unless defined $lz && length $lz;
+    my $index = read_index($lz);
+    my $path  = index_path($lz);
+    my $sig   = ( $CACHE{$path} ? $CACHE{$path}{sig} : 'none' ) . '@' . $path;
+    return 0 if defined $MIRROR{sig} && $MIRROR{sig} eq $sig;
+    mirror_index( $index, $sig );
+    return 1;
+}
+
+# RUN ONE DECLARED ACTION, from either door. $name is the control-API action
+# (the twin's row is the same row); \%params are its declared parameters as the
+# door read them; \%ctx is who is asking (user, caps, groups, ip, channel,
+# reach), to which the docroot, the extension and the action are added. The
+# extension must be on NOW and its hooks indexed; call_hook checks the rest.
+# Answers a result hash in the doors' shape, always.
+sub run_action {
+    my ( $docroot, $name, $params, $ctx ) = @_;
+    require Lazysite::ControlApi::Actions;
+    no warnings 'once';
+    my $spec = $Lazysite::ControlApi::Actions::ACTION{ $name // '' };
+    my $id   = ref $spec eq 'HASH' ? $spec->{extension} : undef;
+    return { ok => 0, kind => 'not-found', error => 'Unknown action: ' . ( $name // '' ) } unless defined $id;
+    my $lz    = Lazysite::Paths::lazysite_dir($docroot);
+    my $index = read_index($lz);
+    my $decl  = ref $index->{declared} eq 'HASH' ? $index->{declared}{$id}     : undef;
+    my $key   = ref $decl eq 'HASH'              ? $decl->{key}                : undef;
+    my $label = ref $decl eq 'HASH' && _plain( $decl->{name} ) ? $decl->{name} : $id;
+    unless ( defined $key && enabled_keys($lz)->{$key} ) {
+        return { ok => 0, kind => 'disabled',
+            error => "This extension ($label) is off, so $name cannot run - a sysop can enable it on the Extensions page." };
+    }
+    my ( $ok, @out ) = call_hook( $docroot, $id, $spec->{handler}, $params // {},
+        { %{ $ctx || {} }, docroot => $docroot, extension => $id, action => $name } );
+    unless ($ok) {
+        return { ok => 0, kind => 'cannot-tell',
+            error => "$name cannot run now: $out[0]. Enabling, saving or upgrading the extension rebuilds its index." };
+    }
+    return $out[0] if ref $out[0] eq 'HASH';
+    return { ok => 0, kind => 'internal', error => "$name answered nothing this door can send" };
 }
 
 1;

@@ -128,6 +128,17 @@ while ( $mcp =~ /\n    ([a-z0-9_]+) => \{(.*?)\n    \},/gs ) {
     $requires{$tool} = \@args if @args;
 }
 cmp_ok( scalar keys %requires, '>=', 10, 'MCP required-argument lists parsed' );
+# SM1369 X2: and what the tools the in-tree extensions declare require, from
+# the input schema each row declares (the index build holds it equal to the
+# params the row marks required, SM326's rule, before a door ever sees it).
+TestHelper::mirror_engine();
+{
+    my %declared = Lazysite::ControlApi::Actions::declared_tools();
+    for my $tool ( sort keys %declared ) {
+        my $req = $declared{$tool}{inputSchema}{required};
+        $requires{$tool} = [@$req] if ref $req eq 'ARRAY' && @$req;
+    }
+}
 
 # --- recorded exceptions -----------------------------------------------------
 # An action whose API side accepts the default, with the reason it is safe.

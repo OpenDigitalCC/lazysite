@@ -258,6 +258,10 @@ my $BUNDLES_HAD_FILE    = "$AUTH_DIR/bundles-adopted.json";    # SM1262
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Auth::AddressProfiles::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
+# SM1369 X2 (H-7): the capabilities this site's extensions declare join
+# @CAP_KEYS from the extension index, before any grant is read or written.
+require Lazysite::Extensions::Hooks;
+Lazysite::Extensions::Hooks::mirror($LAZYSITE_DIR);
 
 # Verbs (API actions and CLI commands) that ONLY read the auth store - they take
 # NO store lock, so the hot per-request read (verify-credential) never serialises
@@ -1481,6 +1485,35 @@ sub _claim_link_lines {
 # re-running setup-manager repairs an affected install; an existing entry is
 # left alone (an operator may have tuned it). SM127: manager groups are
 # interactive-only, so everything EXCEPT the remote api/mcp channels.
+# SM1369 X2 (ruling 71, D-6): A CAPABILITY THAT MOVED OUT OF A CORE ONE INTO AN
+# EXTENSION'S OWN is topped up for every group holding the one it moved from,
+# on the same trigger as SM645 and by its rule - absent only, never over a 0 an
+# operator wrote - so nothing changes for a group: whoever held manage_connectors
+# before holds manage_odoo after. Which capabilities, and from which, is the
+# extension's own declaration (`top_up_from` in its capability_info), read from
+# the registry the mirror filled; nothing here names an extension.
+sub _top_up_declared_caps {
+    require Lazysite::Capabilities;
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    return unless ref $gs eq 'HASH' && %$gs;
+    my $changed = 0;
+    for my $cap ( Lazysite::Capabilities::action_keys() ) {
+        next unless defined Lazysite::Auth::Settings::capability_declared_by($cap);
+        my @from = Lazysite::Capabilities::top_up_from($cap) or next;
+        for my $g ( sort keys %$gs ) {
+            my $cfg = $gs->{$g};
+            next unless ref $cfg eq 'HASH' && %$cfg;
+            next if exists $cfg->{$cap};    # decided already, either way
+            next unless grep { $cfg->{$_} } @from;
+            $cfg->{$cap} = 1;
+            $changed++;
+            log_event( 'INFO', $g, "topped up with $cap, which " . join( ' / ', @from ) . ' held' );
+        }
+    }
+    Lazysite::Auth::Settings::write_group_settings($gs) if $changed;
+    return;
+}
+
 sub _ensure_manager_group_caps {
     my ($group) = @_;
     # Module read directly - the seeding wrapper calls back into the healer.
@@ -4563,6 +4596,7 @@ sub _ensure_groups_seeded {
             next unless ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
             _ensure_manager_group_caps($g);
         }
+        _top_up_declared_caps();
         return;
     }
     my $seed = _default_group_seed();

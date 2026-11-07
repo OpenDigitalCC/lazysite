@@ -34,8 +34,9 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper         qw(repo_root);
+use TestHelper                    qw(repo_root mirror_engine);
 use Lazysite::Capabilities ();
+use Lazysite::ControlApi::Actions ();
 
 my $root = repo_root();
 my $mcp  = "$root/lazysite-mcp.pl";
@@ -78,6 +79,17 @@ while ( $tools_block =~ /^\s{4}(\w+)\s*=>\s*\{(.*?)^\s{4}\},/gms ) {
 cmp_ok( scalar keys %gate, '>', 40, 'the tool table really parsed (not vacuous)' );
 cmp_ok( scalar keys %path_aware, '>', 10,
     'path_aware tools exist and are being excluded knowingly' );
+
+# SM1369 X2: and the tools the in-tree extensions declare, with their gates as
+# the door takes them (cap, then cap_also), from the index mirrored here.
+mirror_engine();
+my %declared = Lazysite::ControlApi::Actions::declared_tools();
+cmp_ok( scalar keys %declared, '>=', 1, 'an extension declares tools' );
+for my $tool ( sort keys %declared ) {
+    my $d = $declared{$tool};
+    ok( !exists $gate{$tool}, "the declared tool '$tool' is not also in the hand-written table" );
+    $gate{$tool} = [ grep { defined } ( $d->{cap}, @{ $d->{cap_also} || [] } ) ];
+}
 
 # describe() returns a WRAPPER - capabilities, channels, engine_owned, tasks -
 # not a capability map. Indexing it directly made every lookup undef, so the

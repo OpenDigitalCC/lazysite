@@ -41,8 +41,13 @@ my $mcp_src = slurp("$root/lazysite-mcp.pl");
 # no regex over a sub body, and nothing to get subtly wrong.
 my @api_live = sort keys %{ { gate_caps($api_src) } };
 my @mcp_live = $mcp_src =~ /^    ([a-z_]+)\s*=>\s*\{/mg;
+# SM1369 X2: and the tools the in-tree extensions declare, which join %TOOLS
+# from the index at the door (gate_caps mirrored the index into the tables).
+my %declared_tool = Lazysite::ControlApi::Actions::declared_tools();
+push @mcp_live, sort keys %declared_tool;
 cmp_ok( scalar @api_live, '>=', 40, 'the control-API action table was parsed' );
 cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );
+cmp_ok( scalar keys %declared_tool, '>=', 1,  'and an extension declares tools' );
 
 # Introspection is capability-free by design, so it has no `unlocks` home.
 # SM350 adds actions-list: the control API's answer to tools/list. Capability-free
@@ -57,12 +62,18 @@ my %INTROSPECTION = map { $_ => 1 }
 # name. It has no capability home by design, and no MCP twin yet (phase 2).
 # SM579 phase 2: the MCP twin is gated the same way, by the connector, so it
 # has no capability home for the same reason its API half has none.
-my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call
-    odoo-bindings odoo_bindings odoo-run odoo_run odoo-confirm odoo_confirm
-    odoo-resume odoo_resume);    # SM1278: a resume is gated by its run's binding, as a confirm is
-# SM747 E: the three Odoo binding actions join connector-call for the same
-# reason. The gate is the BINDING - its modes, callers and caps
-# (Lazysite::Odoo::may_call) - so they have no capability home on either door.
+my %CONNECTOR_GATED = map { $_ => 1 } qw(connector-call connector_call);
+# SM1369 X2 (H-9): an extension's ALWAYS row carries its own reason
+# (`always_reason`, refused at the index build without one) - the same
+# discipline as this file's lists, written where the row is. Each such row and
+# its twin has no capability home for the reason it gives.
+for my $a ( keys %Lazysite::ControlApi::Actions::ACTION ) {
+    my $s = $Lazysite::ControlApi::Actions::ACTION{$a};
+    next unless defined $s->{extension} && defined $s->{always_reason};
+    cmp_ok( length $s->{always_reason}, '>', 40, "$a (declared by $s->{extension}) gives its ALWAYS reason" );
+    $CONNECTOR_GATED{$a} = 1;
+    $CONNECTOR_GATED{ $s->{mcp} } = 1 if defined $s->{mcp};
+}
 # SM778: display-names / display_names have no capability home for the same
 # kind of reason as the introspection actions, but it is a DIFFERENT reason
 # and is written out rather than folded into that set. They disclose nothing a

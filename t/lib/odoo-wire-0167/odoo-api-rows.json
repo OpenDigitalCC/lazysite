@@ -1,0 +1,252 @@
+{
+   "actions" : {
+      "odoo-bindings" : {
+         "caps" : [],
+         "gate" : "ALWAYS",
+         "mcp" : "odoo_bindings",
+         "params" : []
+      },
+      "odoo-calls" : {
+         "caps" : [
+            "manage_connectors"
+         ],
+         "cookie_cap" : "manage_connectors",
+         "gate" : [
+            "manage_connectors"
+         ],
+         "mcp" : "odoo_calls",
+         "params" : [
+            {
+               "in" : "query",
+               "name" : "binding"
+            },
+            {
+               "in" : "query",
+               "name" : "limit"
+            }
+         ]
+      },
+      "odoo-confirm" : {
+         "caps" : [],
+         "gate" : "ALWAYS",
+         "mcp" : "odoo_confirm",
+         "mcp_open_world" : 1,
+         "mutates" : 1,
+         "params" : [
+            {
+               "in" : "body",
+               "name" : "plan",
+               "required" : 1
+            }
+         ]
+      },
+      "odoo-dismiss" : {
+         "caps" : [
+            "settle_odoo_writes"
+         ],
+         "cookie_cap" : "settle_odoo_writes",
+         "gate" : [
+            "settle_odoo_writes"
+         ],
+         "mcp" : "odoo_dismiss",
+         "mutates" : 1,
+         "params" : [
+            {
+               "in" : "body",
+               "name" : "run",
+               "required" : 1
+            },
+            {
+               "in" : "body",
+               "name" : "reason",
+               "note" : "a line of text kept with the run"
+            }
+         ]
+      },
+      "odoo-resume" : {
+         "caps" : [],
+         "gate" : "ALWAYS",
+         "mcp" : "odoo_resume",
+         "mcp_open_world" : 1,
+         "mutates" : 1,
+         "params" : [
+            {
+               "in" : "body",
+               "name" : "run",
+               "note" : "the run an apply named, or one from odoo-unknown-runs",
+               "required" : 1
+            },
+            {
+               "in" : "body",
+               "name" : "assume_done",
+               "note" : "change keys or numbers you say were made (the run's maker, or settle_odoo_writes)"
+            },
+            {
+               "in" : "body",
+               "name" : "assume_not_done",
+               "note" : "change keys or numbers you say were not made"
+            }
+         ]
+      },
+      "odoo-run" : {
+         "caps" : [],
+         "gate" : "ALWAYS",
+         "mcp" : "odoo_run",
+         "mcp_open_world" : 1,
+         "mutates" : 1,
+         "params" : [
+            {
+               "in" : "body",
+               "name" : "binding",
+               "required" : 1
+            },
+            {
+               "in" : "body",
+               "name" : "params",
+               "note" : "the request fields the binding maps; nothing else is taken"
+            }
+         ]
+      },
+      "odoo-secret-clear" : {
+         "caps" : [
+            "manage_connectors"
+         ],
+         "cookie_cap" : "manage_connectors",
+         "destructive" : 1,
+         "gate" : [
+            "manage_connectors"
+         ],
+         "instance_wide" : 1,
+         "mcp" : "odoo_secret_clear",
+         "mutates" : 1,
+         "params" : [
+            {
+               "in" : "body",
+               "name" : "grant"
+            },
+            {
+               "in" : "body",
+               "name" : "scheduled"
+            }
+         ]
+      },
+      "odoo-secret-set" : {
+         "caps" : [
+            "manage_connectors"
+         ],
+         "cookie_cap" : "manage_connectors",
+         "gate" : [
+            "manage_connectors"
+         ],
+         "instance_wide" : 1,
+         "mcp" : "odoo_secret_set",
+         "mutates" : 1,
+         "params" : [
+            {
+               "in" : "body",
+               "name" : "secret",
+               "required" : 1
+            },
+            {
+               "in" : "body",
+               "name" : "grant",
+               "note" : "a lazysite account: its MCP calls run as this Odoo account"
+            },
+            {
+               "in" : "body",
+               "name" : "scheduled",
+               "note" : "a scheduled binding id: it runs as this Odoo login"
+            },
+            {
+               "in" : "body",
+               "name" : "login",
+               "note" : "the Odoo login, with grant or scheduled"
+            }
+         ]
+      },
+      "odoo-status" : {
+         "caps" : [
+            "manage_connectors"
+         ],
+         "cookie_cap" : "manage_connectors",
+         "gate" : [
+            "manage_connectors"
+         ],
+         "mcp" : "odoo_status",
+         "params" : []
+      },
+      "odoo-unknown-runs" : {
+         "caps" : [
+            "settle_odoo_writes"
+         ],
+         "cookie_cap" : "settle_odoo_writes",
+         "gate" : [
+            "settle_odoo_writes"
+         ],
+         "mcp" : "odoo_unknown_runs",
+         "params" : []
+      }
+   },
+   "annotations" : {
+      "odoo_bindings" : [
+         1,
+         0,
+         0,
+         0
+      ],
+      "odoo_calls" : [
+         1,
+         0,
+         0,
+         0
+      ],
+      "odoo_confirm" : [
+         0,
+         0,
+         1,
+         0
+      ],
+      "odoo_dismiss" : [
+         0,
+         0,
+         0,
+         0
+      ],
+      "odoo_resume" : [
+         0,
+         0,
+         1,
+         0
+      ],
+      "odoo_run" : [
+         0,
+         0,
+         1,
+         0
+      ],
+      "odoo_secret_clear" : [
+         0,
+         1,
+         0,
+         0
+      ],
+      "odoo_secret_set" : [
+         0,
+         0,
+         0,
+         0
+      ],
+      "odoo_status" : [
+         1,
+         0,
+         0,
+         0
+      ],
+      "odoo_unknown_runs" : [
+         1,
+         0,
+         0,
+         0
+      ]
+   }
+}

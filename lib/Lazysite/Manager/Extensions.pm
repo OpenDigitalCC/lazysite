@@ -591,8 +591,9 @@ sub action_extension_disable {
     return $r unless $r->{ok};
 
     # SM1369 X1: only a site that has an index rebuilds it - the extension just
-    # switched off, and any that require it, leave it.
-    if ( -e _hook_index_path() ) {
+    # switched off, and any that require it, leave it. X2: or one where an
+    # installed extension declares, so the `declared` view says it is off.
+    if ( _index_wanted(undef) ) {
         my $index = rebuild_hook_index();
         $r->{index} = $index;
     }
@@ -698,7 +699,58 @@ sub _hook_problems {
     }
     my ( undef, undef, @why ) = Lazysite::Extensions::Hooks::check_functions( $id, $full, $owns->{hooks} );
     push @bad, map { $_->{error} } @why;
+    # SM1369 X2: what the declarations say about each other and about core's
+    # names (an owned capability described and vice versa, no core name shadowed,
+    # a gate that names capabilities that exist).
+    push @bad, map { $_->{error} } Lazysite::Extensions::Hooks::check_declared( $id, $owns );
     return @bad;
+}
+
+# SM1369 X2: does any INSTALLED extension declare hooks? Read from the listing,
+# which caches its descriptors (SM1153), so a toggle of an extension without
+# hooks still builds the `declared` view a site needs once one extension
+# installed here has declarations. The core descriptor scripts are not
+# extensions and declare none.
+sub _any_installed_declares_hooks {
+    my $list = action_extension_list();
+    return 0 unless ref $list eq 'HASH' && ref $list->{extensions} eq 'ARRAY';
+    return ( grep { _declares_hooks($_) } @{ $list->{extensions} } ) ? 1 : 0;
+}
+
+# Whether a toggle or a save builds: the extension in hand declares hooks, an
+# index exists, or another installed extension declares them. A site where
+# none does keeps doing what it did (C-6).
+sub _index_wanted {
+    my ($desc) = @_;
+    return 1 if _declares_hooks($desc) || -e _hook_index_path();
+    return _any_installed_declares_hooks();
+}
+
+# The `declared` view: every installed extension's declarations, by id, from
+# the listing's descriptors, each validated as an enabled one's are (the
+# requires check aside: whether it is on is the call's question). An
+# extension whose declaration fails is left out and named, so a shipped
+# descriptor with a fault is reported, on or off.
+sub _declared_view {
+    my ($known) = @_;
+    my $list    = action_extension_list();
+    my $reg     = extension_registry();
+    my ( %declared, @refused );
+    return ( \%declared, \@refused ) unless ref $list eq 'HASH' && ref $list->{extensions} eq 'ARRAY';
+    for my $p ( @{ $list->{extensions} } ) {
+        next unless ref $p eq 'HASH' && defined $p->{id} && !ref $p->{id} && _declares_hooks($p);
+        my $key  = $p->{_script} // next;
+        my $full = $reg->{$key}  // next;
+        my $desc = $known && exists $known->{$key} ? $known->{$key} : $p;
+        my @bad  = _hook_problems( $p->{id}, $full, $desc, undef );
+        if (@bad) {
+            push @refused, { extension => $p->{id}, problems => \@bad };
+            next;
+        }
+        my $e = Lazysite::Extensions::Hooks::declared_entry( $key, $desc ) or next;
+        $declared{ $p->{id} } //= $e;
+    }
+    return ( \%declared, \@refused );
 }
 
 # Build the index. %o: known => { key => descriptor } already described.
@@ -733,10 +785,18 @@ sub rebuild_hook_index {
         };
     }
 
-    my %r    = ( ok => 1, indexed => [ sort keys %entries ], refused => \@refused );
+    # SM1369 X2: the `declared` view, from every installed extension. A refusal
+    # already named above (an enabled extension) is not named twice.
+    my ( $declared, $drefused ) = _declared_view( $o{known} );
+    my %named = map { $_->{extension} => 1 } @refused;
+    push @refused, grep { !$named{ $_->{extension} } } @$drefused;
+
+    my %r = ( ok => 1, indexed => [ sort keys %entries ], declared => [ sort keys %$declared ], refused => \@refused );
     my $path = _hook_index_path();
-    if (%entries) {
-        my $json = JSON::PP->new->canonical(1)->pretty->encode( { format => 1, extensions => \%entries } );
+    my $lz   = _lz();
+    if ( %entries || %$declared ) {
+        my $json = JSON::PP->new->canonical(1)->pretty->encode(
+            { format => 1, extensions => \%entries, declared => $declared } );
         my ( $wok, $werr ) = write_file_checked( $path, $json );
         %r = ( %r, ok => 0, error => "the hook index was not written, and the previous one stands: $werr" )
             unless $wok;
@@ -744,6 +804,9 @@ sub rebuild_hook_index {
     elsif ( -e $path && !unlink $path ) {
         %r = ( %r, ok => 0, error => "the old hook index could not be removed: $!" );
     }
+    # X2: a build that failed leaves a note the check reads; one that did not
+    # takes it away.
+    Lazysite::Extensions::Hooks::note_index_failure( $lz, $r{ok} ? undef : $r{error} );
     log_event( 'WARN', 'extension-hook', $r{error} ) unless $r{ok};
     return \%r;
 }
@@ -752,8 +815,56 @@ sub rebuild_hook_index {
 # site with no hooks (see above), so the response is what it always was.
 sub _maybe_rebuild_hook_index {
     my ( $script, $desc ) = @_;
-    return undef unless _declares_hooks($desc) || -e _hook_index_path();
+    return undef unless _index_wanted($desc);
     return rebuild_hook_index( known => { $script => $desc } );
+}
+
+# SM1369 X2: THE ENGINE'S OWN INDEX, built in memory from the extensions beside
+# the lib this module was loaded from, with every one treated as enabled. For
+# the lints, the docs generator and the gate fingerprint, which read the merged
+# tables with no site: the same validation, the same entries, no file. Runs
+# --describe, so it is never called on a request path.
+sub engine_hook_index {
+    require Lazysite::Extensions::Hooks;
+    my $root = Lazysite::Extensions::engine_root();
+    my %out  = ( format => 1, extensions => {}, declared => {}, refused => [] );
+    return \%out unless defined $root;
+    my $dir = Lazysite::Extensions::extensions_dir($root);
+    opendir my $dh, $dir or return \%out;
+    my @files = sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ && -f "$dir/$_" && !-l "$dir/$_" } readdir $dh;
+    closedir $dh;
+    my %by_id;
+    for my $f (@files) {
+        my $full = "$dir/$f";
+        my $desc = _describe($full);
+        next unless ref $desc eq 'HASH' && defined $desc->{id} && !ref $desc->{id};
+        $by_id{ $desc->{id} } //= { key => Lazysite::Extensions::registry_key($f), full => $full, desc => $desc };
+    }
+    for my $id ( sort keys %by_id ) {
+        my $x = $by_id{$id};
+        next unless _declares_hooks( $x->{desc} );
+        my @bad = _hook_problems( $id, $x->{full}, $x->{desc}, \%by_id );
+        if (@bad) { push @{ $out{refused} }, { extension => $id, problems => \@bad }; next }
+        my $owns = $x->{desc}{owns};
+        my ( $fns, $lib ) = Lazysite::Extensions::Hooks::check_functions( $id, $x->{full}, $owns->{hooks} );
+        my @req = @{ $owns->{requires} || [] };
+        $out{extensions}{$id} = {
+            key => $x->{key},  lib => $lib, hooks => $owns->{hooks}, functions => $fns,
+            requires => \@req, requires_keys => [ map { $by_id{$_}{key} } @req ],
+        } if @$fns;
+        my $e = Lazysite::Extensions::Hooks::declared_entry( $x->{key}, $x->{desc} );
+        $out{declared}{$id} = $e if $e;
+    }
+    return \%out;
+}
+
+# The engine's index, mirrored into this process's tables (the lints' and
+# tools' way in). Returns the index.
+sub mirror_engine_index {
+    require Lazysite::Extensions::Hooks;
+    my $index = engine_hook_index();
+    Lazysite::Extensions::Hooks::mirror_index( $index, 'engine@' . ( Lazysite::Extensions::engine_root() // '' ) );
+    return $index;
 }
 
 # install.pl's upgrade step runs this as the site user (it loads no Lazysite
@@ -767,6 +878,7 @@ sub rebuild_hook_index_main {
     local $DOCROOT = $docroot;
     my $r = rebuild_hook_index();
     print "hooks indexed: $_\n" for @{ $r->{indexed} };
+    print "declarations indexed: $_\n" for @{ $r->{declared} || [] };
     print "hooks refused: $_->{extension} (" . join( '; ', @{ $_->{problems} } ) . ")\n"
         for @{ $r->{refused} };
     print "hook index: $r->{error}\n" unless $r->{ok};
@@ -1132,7 +1244,7 @@ sub action_extension_save {
     # SM1369 X1: a save of an enabled extension rebuilds the hook index, when the
     # extension declares hooks or the site has an index.
     my $index;
-    if ( @changed && ( _declares_hooks($desc) || -e _hook_index_path() ) ) {
+    if ( @changed && _index_wanted($desc) ) {
         my $reg = extension_registry();
         my ($key) = grep { $reg->{$_} eq $full_script } sort keys %$reg;
         $index = rebuild_hook_index( known => { $key => $desc } )

@@ -242,6 +242,8 @@ ok( $ASKS{_nav_reach_deny}, '...through a sub that asks it' );
 # is on %NOT_INSTANCE_WIDE below with the reason it is not an instance-wide
 # write. An entry there that is held any other way fails:
 # the list stays closed and true.
+# SM1369 X2: the tables include the rows the in-tree extensions declare.
+TestHelper::mirror_engine();
 my %IW     = Lazysite::ControlApi::Actions::instance_wide();
 my %SCOPED = Lazysite::ControlApi::Actions::scoped_actions();
 my %MUT    = Lazysite::ControlApi::Actions::mutating();

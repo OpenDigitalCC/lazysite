@@ -63,6 +63,7 @@ use Lazysite::Handlers         ();               # SM842: handlers, bindings, th
 use Lazysite::Lang             qw(set_members);
 use Lazysite::Validate         ();               # SM887 F2: the engine owns validation
 use Lazysite::ControlApi::Actions ();            # SM943: the twins' annotations
+use Lazysite::Extensions::Hooks (); # SM1369 X2: the declared tools, and the loader that runs them
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -76,6 +77,10 @@ my $DOCROOT      = Lazysite::Paths::canonical_docroot( $ENV{DOCUMENT_ROOT} // ''
 my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);                        # SM293
 Lazysite::Timing::begin();    # SM1144: where this request's time goes
 Lazysite::Timing::configure($LAZYSITE_DIR);
+# SM1369 X2 (H-7, H-9): the capabilities and actions the site's extensions
+# declare join the tables from the extension index, before %TOOLS takes their
+# twins and %ANNOTATE is derived.
+Lazysite::Extensions::Hooks::mirror($LAZYSITE_DIR);
 # SM929: THE request address for this request - the visitor, not the front proxy.
 # One reader, cached, because everything below asks the same question about one
 # request. Behind a front proxy REMOTE_ADDR is a single constant for every visitor
@@ -545,23 +550,19 @@ sub _briefs {
     return;
 }
 
-# SM747 E: the Odoo engine, told where the site is; and who an agent is, for a
-# bound operation - its account, capabilities and groups, the request address,
-# and the channel, which is what lets the engine run it as the grant's own Odoo
-# account (Q2). Never a visitor.
-sub _odoo_engine {
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo');
+# SM1369 X2 (H-9): a tool an extension declares, run through the loader. Who
+# an agent is: its account, capabilities and groups, the request address, this
+# door, and the grant's reach (E-Q1) - never a visitor. The arguments the
+# schema admitted are passed by the row's parameter names.
+sub _run_declared {
+    my ( $action, $a, $user, $caps ) = @_;
+    my $spec = $Lazysite::ControlApi::Actions::ACTION{$action};
+    my %p = map { $_->{name} => $a->{ $_->{name} } } grep { exists $a->{ $_->{name} } } @{ $spec->{params} || [] };
     no warnings 'once';
-    $Lazysite::Odoo::DOCROOT = $DOCROOT;
-    return 'Lazysite::Odoo';
-}
-
-sub _odoo_who {
-    my ( $user, $caps ) = @_;
-    no warnings 'once';
-    return ( user => $user, caps => $caps || {}, groups => [@Lazysite::Auth::Acl::user_groups],
-        ip => _request_ip(), channel => 'mcp', reach => { _grant_reach($caps) } );  # E-Q1
+    return Lazysite::Extensions::Hooks::run_action(
+        $DOCROOT, $action, \%p,
+        { user => $user, caps => $caps || {}, groups => [@Lazysite::Auth::Acl::user_groups],
+            ip => _request_ip(), channel => 'mcp', reach => { _grant_reach($caps) } } );
 }
 
 # --- shared site-tool helpers ---------------------------------------------
@@ -864,108 +865,6 @@ my %TOOLS = (
         },
     },
 
-    # SM747 E (R5, ruled 2026-10-12: "All operations should also be mcp tools").
-    # Every Odoo action has its twin here, declared once in
-    # Lazysite::ControlApi::Actions. An operation reaches an agent through a
-    # BINDING, as it reaches a page: the binding's modes, callers and caps decide,
-    # and only the fields it maps may be sent. An agent is an AUTHENTICATED
-    # caller and never a visitor, so a binding that works on a visitor's key is
-    # neither listed nor run here. Q2: the call runs as this grant's own Odoo
-    # account when the operator configured one, else as the connection user.
-    odoo_status => {
-        description => 'The Odoo connection: whether OOM is installed, the connection settings, whether the connection user (and each grant\'s and scheduled binding\'s own Odoo account) has a key, and when a scheduled key expires where OOM reports it - never the key - and the operations installed.',
-        cap => 'manage_connectors',
-        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _odoo_engine()->can('action_odoo_status')->() },
-    },
-    odoo_calls => {
-        description => 'The record of Odoo calls, newest first: who caused each, through which binding and operation, in which mode, and how it ended. Never a payload or a credential.',
-        cap         => 'manage_connectors',
-        inputSchema => { type => 'object',
-            properties => { binding => { type => 'string' }, limit => { type => 'integer' } },
-            additionalProperties => JSON::PP::false },
-        run => sub {
-            _odoo_engine()->can('action_odoo_calls')->( binding => $_[0]->{binding}, limit => $_[0]->{limit} );
-        },
-    },
-    odoo_secret_set => {
-        description => 'Set the API key of the Odoo connection user, or - with `grant` and `login` - of the Odoo account a lazysite account\'s MCP calls run as, or - with `scheduled` (a binding id) and `login` - of the Odoo login that scheduled binding runs as. The key is stored on its own and never returned.',
-        cap         => 'manage_connectors',
-        inputSchema => { type => 'object',
-            properties => { secret => { type => 'string' }, grant => { type => 'string' },
-                scheduled => { type => 'string' }, login => { type => 'string' } },
-            required => ['secret'], additionalProperties => JSON::PP::false },
-        run => sub {
-            my ($a) = @_;
-            _odoo_engine()->can('action_odoo_secret_set')
-                ->( $a->{secret}, grant => $a->{grant}, login => $a->{login}, scheduled => $a->{scheduled} );
-        },
-    },
-    odoo_secret_clear => {
-        description => 'Remove the Odoo connection user\'s API key, or - with `grant` - a grant\'s own Odoo account, or - with `scheduled` - a scheduled binding\'s own Odoo login.',
-        cap         => 'manage_connectors',
-        inputSchema => { type => 'object', properties => { grant => { type => 'string' }, scheduled => { type => 'string' } },
-            additionalProperties => JSON::PP::false },
-        run => sub { _odoo_engine()->can('action_odoo_secret_clear')->( grant => $_[0]->{grant}, scheduled => $_[0]->{scheduled} ) },
-    },
-    odoo_bindings => {
-        description => 'The Odoo bindings this account may run: each one\'s operation, what it does, whether it writes, and the fields it takes.',
-        cap => undef,
-        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _odoo_engine()->can('action_odoo_bindings')->( _odoo_who( $_[1], $_[2] ) ) },
-    },
-    odoo_run => {
-        description => 'Run an Odoo binding by its id with the fields it takes. A read answers its report; a write answers its plan to confirm with odoo_confirm, or - where the binding says immediate - applies it. The binding decides whether this account may, and how often.',
-        cap         => undef,
-        inputSchema => { type => 'object',
-            properties => { binding => { type => 'string' }, params => { type => 'object' } },
-            required => ['binding'], additionalProperties => JSON::PP::false },
-        run => sub {
-            my ( $a, $user, $caps ) = @_;
-            _odoo_engine()->can('action_odoo_run')->( $a->{binding}, $a->{params}, _odoo_who( $user, $caps ) );
-        },
-    },
-    odoo_confirm => {
-        description => 'Apply a plan odoo_run gave you, by its id. Only the account that made a plan may apply it, within an hour, through the binding as it stands now.',
-        cap         => undef,
-        inputSchema => { type => 'object', properties => { plan => { type => 'string' } },
-            required => ['plan'], additionalProperties => JSON::PP::false },
-        run => sub {
-            my ( $a, $user, $caps ) = @_;
-            _odoo_engine()->can('action_odoo_confirm')->( $a->{plan}, _odoo_who( $user, $caps ) );
-        },
-    },
-    # SM1278 (rulings 10a-10c): an Odoo run whose apply left a change unknown.
-    odoo_resume => {
-        description => 'Resume an Odoo run whose apply left a change unknown (its request was sent and no answer came), by the run an answer named. OOM reads each such change back first; one it cannot read back is refused unknown-outcome until you say it was made (assume_done) or was not (assume_not_done) - only the run\'s maker, or a holder of settle_odoo_writes, may say. The rest of the run is then applied.',
-        cap         => undef,
-        inputSchema => { type => 'object',
-            properties => { run => { type => 'string' },
-                assume_done     => { type => 'array', items => { type => 'string' } },
-                assume_not_done => { type => 'array', items => { type => 'string' } } },
-            required => ['run'], additionalProperties => JSON::PP::false },
-        run => sub {
-            my ( $a, $user, $caps ) = @_;
-            _odoo_engine()->can('action_odoo_resume')
-                ->( $a->{run}, $a->{assume_done}, $a->{assume_not_done}, _odoo_who( $user, $caps ) );
-        },
-    },
-    odoo_unknown_runs => {
-        description => 'The Odoo runs whose apply left a change unknown and that are not yet settled or dismissed, newest first: the binding, who made the run, when, and each change still unknown (its key, action, model and record). Never a value.',
-        cap => 'settle_odoo_writes',
-        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _odoo_engine()->can('action_odoo_unknown_runs')->( _odoo_who( $_[1], $_[2] ) ) },
-    },
-    odoo_dismiss => {
-        description => 'Dismiss an Odoo run left unknown: it is no longer offered for resuming, and is kept as dismissed with who, when and the reason given. Nothing is sent to Odoo.',
-        cap => 'settle_odoo_writes',
-        inputSchema => { type => 'object', properties => { run => { type => 'string' }, reason => { type => 'string' } },
-            required => ['run'], additionalProperties => JSON::PP::false },
-        run => sub {
-            my ( $a, $user, $caps ) = @_;
-            _odoo_engine()->can('action_odoo_dismiss')->( $a->{run}, $a->{reason}, _odoo_who( $user, $caps ) );
-        },
-    },
     list_files => {
         path_args => [qw(path)],
         description => 'List files and folders under a site-relative directory path (default "/"; for a grant confined to a scope, the default is its scope roots). A served copy of a theme (under a lazysite-assets folder) is marked `served_copy`: its `source`, the path to write instead, and `served_by`, the hosts that serve it, each with `theme_active`. A served copy is not writable; it follows its source.',
@@ -2564,6 +2463,32 @@ my %TOOLS = (
         run => sub { action_git_restore( $_[0]->{path}, $_[1], $_[0]->{version} ) },
     },
 );
+
+# SM1369 X2 (H-9): THE TOOLS AN EXTENSION DECLARES join the table here, from the
+# rows the mirror put into Lazysite::ControlApi::Actions (each row's twin, with
+# its declared description and input schema, and its gate as cap / cap_also).
+# One `run` for all of them: the loader, which checks the extension is on now
+# and calls its own handler. A declared name that is already a tool here is
+# left out with a WARN - the index build refuses the shadow; this is the second
+# wall - so a hand-edited index cannot replace a core tool.
+{
+    my %declared = Lazysite::ControlApi::Actions::declared_tools();
+    for my $tool ( sort keys %declared ) {
+        my $d = $declared{$tool};
+        if ( exists $TOOLS{$tool} ) {
+            log_event( 'WARN', 'mcp', 'a declared tool names a core tool and was left out', tool => $tool );
+            next;
+        }
+        my $action = $d->{action};
+        $TOOLS{$tool} = {
+            description => $d->{description},
+            inputSchema => $d->{inputSchema},
+            cap         => $d->{cap},
+            ( exists $d->{cap_also} ? ( cap_also => $d->{cap_also} ) : () ),
+            run => sub { my ( $a, $user, $caps ) = @_; _run_declared( $action, $a, $user, $caps ) },
+        };
+    }
+}
 
 # Content search (grep) over site text files. Excludes the lazysite/ infra and
 # binary/asset files; bounded by file + match caps so a big site can't produce a

@@ -56,7 +56,62 @@ our @CAP_KEYS = qw(
     create_sub_users delegate_sub_user_creation
     manage_data write_data manage_briefs
     run_jobs manage_connectors manage_notifications
-    housekeeping purge audit_switch maintenance_access settle_odoo_writes);
+    housekeeping purge audit_switch maintenance_access);
+
+# SM1369 X2 (H-7): THE LITERAL ABOVE IS WHAT CORE IMPLEMENTS, AND NOTHING MORE.
+# A capability an extension owns (`owns.capabilities`, described by its
+# `hooks.capability_info`) is added to @CAP_KEYS from the site's extension
+# index by Lazysite::Extensions::Hooks::mirror, which every door reaches
+# through the reads below (_mirror_declared) and the scripts call outright
+# before they derive their own tables. So a capability is grantable where its
+# extension is installed, and nowhere else - and never shadows a core name:
+# declare_capabilities refuses one, after the index build refused it first.
+# Lint 76 reads the index; nothing here runs --describe.
+our @CORE_CAP_KEYS = @CAP_KEYS;
+
+sub core_capability_keys { my @k = @CORE_CAP_KEYS; return @k }
+
+my %DECLARED_BY;    # capability => the extension id that declared it
+
+# Add an extension's capabilities to @CAP_KEYS. Returns the problems, as
+# sentences (a core name, or one another extension declared); a declaration
+# the index build let through and this refuses is skipped, not died on.
+sub declare_capabilities {
+    my ( $id, $caps ) = @_;
+    my @why;
+    my %core = map { $_ => 1 } @CORE_CAP_KEYS;
+    for my $c ( @{ $caps || [] } ) {
+        next unless defined $c && !ref $c && $c =~ /\A[a-z][a-z0-9_]*\z/;
+        if ( $core{$c} ) { push @why, "'$c' is a core capability"; next }
+        if ( exists $DECLARED_BY{$c} ) {
+            push @why, "'$c' is already declared by $DECLARED_BY{$c}" unless $DECLARED_BY{$c} eq $id;
+            next;
+        }
+        push @CAP_KEYS, $c;
+        $DECLARED_BY{$c} = $id;
+    }
+    return @why;
+}
+
+sub undeclare_capabilities {
+    @CAP_KEYS    = @CORE_CAP_KEYS;
+    %DECLARED_BY = ();
+    return;
+}
+
+# The extension that declared a capability, or undef for a core one.
+sub capability_declared_by { return $DECLARED_BY{ $_[0] // '' } }
+
+# The mirror, reached from the reads every door makes: the site is the one
+# $AUTH_DIR names, and the index is read once per process (a stat afterwards).
+sub _mirror_declared {
+    return unless defined $AUTH_DIR && length $AUTH_DIR;
+    ( my $lz = $AUTH_DIR ) =~ s{/auth/?\z}{};
+    return if $lz eq $AUTH_DIR;
+    require Lazysite::Extensions::Hooks;
+    Lazysite::Extensions::Hooks::mirror($lz);
+    return;
+}
 
 # SM591: the LATERAL grants. Deletion and tidying are the same job wherever they
 # happen, and they are the operations a sysop most often reserves to one
@@ -451,6 +506,7 @@ sub group_settings_unreadable  { return $GROUP_SETTINGS_UNREADABLE }
 sub group_settings_undecodable { return $GROUP_SETTINGS_UNDECODABLE }
 
 sub read_group_settings {
+    _mirror_declared();
     my $f = _group_settings_file();
     $GROUP_SETTINGS_UNREADABLE  = 0;
     $GROUP_SETTINGS_UNDECODABLE = 0;
@@ -781,6 +837,7 @@ sub _write_json_atomic {
 # An ABSENT store is readable, so a first write still lands.
 sub write_group_settings {
     my ($ref) = @_;
+    _mirror_declared();
     if ( group_settings_unreadable() ) {
         my $why = group_settings_undecodable() ? 'does not decode as a JSON object' : 'could not be read';
         log_event( 'WARN', 'settings', "refusing to write group settings over a store that $why",
@@ -1015,7 +1072,8 @@ sub cannot_tell_refusal {
 
 sub caps_for {
     my ($user) = @_;
-    my $gc     = _group_caps($user);
+    _mirror_declared();
+    my $gc = _group_caps($user);
     my %c      = map { $_ => ( $gc->{$_} ? 1 : 0 ) } @CAP_KEYS;
     return \%c;
 }

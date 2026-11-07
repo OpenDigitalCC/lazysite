@@ -95,8 +95,15 @@ sub action_channel_services {
         }
     }
 
+    # SM1369 X2 (H-7): the grids' short names for the capabilities extensions
+    # declare, from the registry entry the mirror filled; a core capability's
+    # label is the page's own (t/lint/19 holds the page's list to core's).
+    my %labels = map { $_ => Lazysite::Capabilities::label($_) }
+        grep { defined Lazysite::Capabilities::capability_extension($_) && defined Lazysite::Capabilities::label($_) }
+        Lazysite::Capabilities::action_keys();
+
     return { ok => 1, services => \%svc, channel_for_key => \%by_key,
-        grants => \%grants, capability_extension => \%cap_extension,
+        grants => \%grants, capability_extension => \%cap_extension, labels => \%labels,
         # SM758: the categories the Actions grid is drawn by, from the registry.
         sections => Lazysite::Capabilities::sections() };
 }

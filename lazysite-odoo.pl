@@ -127,10 +127,16 @@ sub refuse {
     return reply( _refusal_pair($r) );
 }
 
-# ( status, data ): a refusal and the status its kind maps to.
+# ( status, data ): a refusal and the status its kind maps to. SM1369 X2: this
+# extension's own kinds are its declaration's (hooks.refusal_kinds), read from
+# the site's extension index, so the map is mirrored here before it is asked.
 sub _refusal_pair {
     my ($r) = @_;
     require Lazysite::Manager::Common;
+    require Lazysite::Extensions::Hooks;
+    require Lazysite::Paths;
+    my $docroot = $ENV{DOCUMENT_ROOT} // '';
+    Lazysite::Extensions::Hooks::mirror( Lazysite::Paths::lazysite_dir($docroot) ) if length $docroot;
     return ( Lazysite::Manager::Common::refusal_status( $r->{kind} ), $r );
 }
 

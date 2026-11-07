@@ -78,7 +78,6 @@ var ACTIONS = [
   ['purge', 'Purge'],
   ['audit_switch', 'Audit trail switch'],
   ['maintenance_access', 'Access during maintenance'],
-  ['settle_odoo_writes', 'Settle Odoo writes'],
   ['manage_domains', 'Domains & site packages'],
   ['manage_config', 'Site config (+ extensions)'],
   // SM633: the five switches that decide whether the remote surfaces answer
@@ -116,6 +115,11 @@ var CAPS = CHANNELS.concat(ACTIONS);   // for counting
 // everything, if the fetch failed - under "Other" rather than losing it: a
 // grant that is not drawn cannot be seen, audited or revoked.
 var CAP_SECTIONS = [];      // [[name, [capability, ...]], ...] served
+// SM1369 X2 (H-7): the capabilities an EXTENSION declares are not in ACTIONS
+// above (that list is core's, t/lint/19). They arrive with the sections, and
+// their labels are served beside them (channel-services `labels`), so the
+// grid draws them from the extension's own declaration.
+var CAP_LABELS = {};        // capability -> label, for the declared ones
 
 // SM758: rows sorted by their human label - the order a reader scans, since
 // the label is what the grid shows and the key is only on hover.
@@ -128,6 +132,7 @@ function byLabel(list) {
 function renderActions(row) {
   var byKey = {}, placed = {};
   ACTIONS.forEach(function(c) { byKey[c[0]] = c; });
+  Object.keys(CAP_LABELS).forEach(function(k) { if (!byKey[k]) byKey[k] = [k, CAP_LABELS[k]]; });
   var sections = CAP_SECTIONS.map(function(s) {
     var caps = s[1].filter(function(k) { return byKey[k]; }).map(function(k) { placed[k] = 1; return byKey[k]; });
     return [s[0], caps];
@@ -192,6 +197,7 @@ function loadGroups() {
     .then(function(d) {
       if (d.ok && d.grants) CAP_GRANTS = d.grants;
       if (d.ok && d.sections) CAP_SECTIONS = d.sections;
+      if (d.ok && d.labels) CAP_LABELS = d.labels;
       if (d.ok && d.capability_extension) capabilityExtension = d.capability_extension;
       return (d.ok && d.services) ? d.services : {};
     })

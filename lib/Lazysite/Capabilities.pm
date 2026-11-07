@@ -310,15 +310,13 @@ my %ACTION_INFO = (
             # connector-call is NOT here: the connector gates it (callers
             # groups, or this capability) and the API gate admits any
             # logged-in caller to the action, so the map may not claim it.
-            # SM747 CU: and the Odoo connection user, until manage_odoo (OM3).
+            # SM1369 X2 (ruling 71): an extension's connection user is its own
+            # capability now, declared by the extension and topped up from this one.
             api => [ qw(connector-list connector-save connector-secret-set connector-delete connector-calls
-                    odoo-status odoo-secret-set odoo-secret-clear odoo-calls
                     handler-list handler-save handler-delete form-targets-read
                     schedule-list schedule-save schedule-delete) ],
             # SM842: a connector handler is this capability's to configure.
-            # SM747 E: and the Odoo connection's twins (R5).
-            mcp => [ qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule
-                    odoo_status odoo_calls odoo_secret_set odoo_secret_clear) ],
+            mcp => [qw(list_handlers save_handler delete_handler list_schedule save_schedule delete_schedule)],
         },
     },
     # SM1019 (SM1010, ruled 2026-10-12 "New 'manage_notifications' cap"): WHO MAY
@@ -562,27 +560,10 @@ my %ACTION_INFO = (
         grants => 'Browse the site, and use MCP, the control API and WebDAV, while the site is in maintenance (the `maintenance` setting, per domain or for the whole instance). Held by the operator group and the site-admins role by default. Has no effect while the site is not in maintenance.',
         unlocks => {},
     },
-    # SM1276 (rulings 10a-10c, 2026-10-23): WHO SAYS WHETHER AN ODOO CHANGE WAS
-    # MADE. A write whose request was sent and whose answer never came is
-    # `unknown` (SM1218). Resuming its run reads each such change back first; one
-    # that cannot be read back is settled by a person's decision, and that
-    # decision is the run's own maker's or the holder of this. Declared by the
-    # Odoo extension (it owns it; t/lint/76), so it is grantable only where the
-    # extension is installed. A manager group is topped up with it (SM645).
-    settle_odoo_writes => {
-        section => 'Operations',
-        title   => 'Settle an Odoo write whose answer never came: say it was made or was '
-            . 'not, on any run, and dismiss a run. The run\'s own maker may decide for '
-            . 'their own run without this. Declared by the Odoo extension.',
-        grants => 'Decide, for a change Odoo cannot be asked about, whether it was made, on a run anyone made, and dismiss an unsettled run so it is no longer offered. Every decision and every dismissal is one call record and one audit line naming who. Held by the operator group by default.',
-        # SM1278: the list and dismissing. odoo-resume is NOT here: the run's binding
-        # gates it, and the API admits any signed-in caller, as for odoo-confirm.
-        unlocks => {
-            ui  => ['the Unknown Odoo writes panel of the Odoo extension (Extensions)'],
-            api => [qw(odoo-unknown-runs odoo-dismiss)],
-            mcp => [qw(odoo_unknown_runs odoo_dismiss)],
-        },
-    },
+    # SM1369 X2 (H-7): AN EXTENSION'S CAPABILITIES ARE NOT HERE. Each is
+    # described by its extension's `hooks.capability_info` and reaches this map
+    # from the site's extension index (declare_capability, below), with its
+    # api and mcp unlocks derived from the gate rows that name it.
     audit => {
         section => 'Insight',
         # SM618: measured on edge 2026-08-26 under a grant holding `analytics`
@@ -909,6 +890,51 @@ sub implied_by {
     return @$i;
 }
 
+# SM1369 X2 (H-7): A CAPABILITY AN EXTENSION DECLARES. The index build
+# validated the info (Lazysite::Extensions::Hooks); the mirror hands it here
+# with the api and mcp unlocks derived. A core name is refused (the build
+# refused it first; this is the second wall), and so is a name another
+# extension holds. Returns the problems, as sentences.
+my %DECLARED_INFO;    # capability => the extension id
+
+sub declare_capability {
+    my ( $id, $cap, $info ) = @_;
+    return ("'$cap' is not a capability name") unless defined $cap && $cap =~ /\A[a-z][a-z0-9_]*\z/;
+    return ("'$cap' is a core capability") if exists $ACTION_INFO{$cap} && !exists $DECLARED_INFO{$cap};
+    return ("'$cap' is already declared by $DECLARED_INFO{$cap}")
+        if exists $DECLARED_INFO{$cap} && $DECLARED_INFO{$cap} ne $id;
+    return ("'$cap' is described without a section") unless ref $info eq 'HASH' && defined $info->{section};
+    $ACTION_INFO{$cap}   = { %{$info}, extension => $id };
+    $DECLARED_INFO{$cap} = $id;
+    return ();
+}
+
+sub undeclare_capabilities {
+    delete $ACTION_INFO{$_} for keys %DECLARED_INFO;
+    %DECLARED_INFO = ();
+    return;
+}
+
+# The extension that declared a capability, or undef for a core one.
+sub capability_extension { return $DECLARED_INFO{ $_[0] // '' } }
+
+# The grid's short name for a declared capability (a core one's label is the
+# page's own; see t/lint/19).
+sub label {
+    my ($cap) = @_;
+    return ( $ACTION_INFO{$cap} || {} )->{label};
+}
+
+# Ruling 71 (D-6): the capabilities a group holding any of which is topped up
+# with this one on next use, so nothing changes for a group when a capability
+# moves out of a core one and into an extension's own (manage_odoo from
+# manage_connectors). Empty for a core capability.
+sub top_up_from {
+    my ($cap) = @_;
+    my $t = ( $ACTION_INFO{$cap} || {} )->{top_up_from} || [];
+    return @$t;
+}
+
 # SM821: WHAT AN ACCOUNT MAY DO, AND WHAT IT IS - APART, AND THE SAME ON EVERY
 # SURFACE. Takes the account's resolved settings (Lazysite::Auth::Verify::
 # effective_settings - what both whoamis start from) and returns
@@ -1212,6 +1238,12 @@ sub describe {
                 : '' ),
             unlocks => $info->{unlocks},
             ( @imp ? ( implied_by => \@imp ) : () ),
+            # SM1369 X2: a declared capability says whose it is, and the grids'
+            # short name for it.
+            ( defined $info->{extension}
+                ? ( extension => $info->{extension}, label => $info->{label},
+                    ( @{ $info->{top_up_from} || [] } ? ( top_up_from => [ @{ $info->{top_up_from} } ] ) : () ) )
+                : () ),
         };
     }
 

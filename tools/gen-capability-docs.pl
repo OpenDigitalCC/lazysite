@@ -19,8 +19,13 @@ BEGIN {
 }
 use Lazysite::Capabilities        qw(describe channel_keys action_keys);
 use Lazysite::ControlApi::Actions ();                                      # SM350
+use Lazysite::Manager::Extensions ();    # SM1369 X2: the engine's index
 
 my $what = shift @ARGV // '';
+# SM1369 X2: the capabilities and actions the in-tree extensions declare join
+# the tables from an index built from their descriptors, as a site's index
+# fills a door's tables - so the static docs describe what the doors publish.
+Lazysite::Manager::Extensions::mirror_engine_index();
 my $map  = describe();          # static model, no caller grant
 
 if    ( $what eq 'map' )         { print render_map($map) }

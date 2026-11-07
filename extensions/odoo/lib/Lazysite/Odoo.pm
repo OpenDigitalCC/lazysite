@@ -65,7 +65,9 @@ our $OOM_MIN     = '0.03';
 # configures Odoo bindings and the connection user's key. manage_odoo (OM3) is
 # slice E's; until it exists this is the capability that already governs where
 # site data is sent.
-our $OVERRIDE_CAP = 'manage_connectors';
+# SM1369 X2 (ruling 71, D-6): the extension's own capability, declared in
+# extensions/odoo.pl and topped up for every group holding manage_connectors.
+our $OVERRIDE_CAP = 'manage_odoo';
 
 sub _lz        { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 sub store_dir  { return _lz() . '/odoo' }

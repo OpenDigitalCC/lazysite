@@ -6,14 +6,15 @@ use File::Temp   qw(tempdir);
 use Fcntl        qw(:flock O_WRONLY O_CREAT);
 use File::Path   qw(make_path);
 use File::Copy   ();
+use File::Basename qw(dirname);                   # SM1369 X2: link_engine_extensions
 use Digest::SHA  qw(sha256_hex);
 use Scalar::Util qw(weaken);
 use FindBin;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    gate_caps gate_predicates
-    site_tempdir
+    gate_caps gate_predicates mirror_engine
+    site_tempdir link_engine_extensions build_site_index
     repo_root processor_path
     load_processor silence_stdout
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
@@ -458,6 +459,38 @@ sub site_tempdir {
     return $d;
 }
 
+# SM1369 X2: THE ENGINE'S EXTENSIONS BESIDE A TEST SITE, by one link. A test
+# that enables an in-tree extension by hand (writing lazysite.conf) and then
+# reaches one of its declared actions through a door needs the extension in
+# the site's registry (DOCROOT/../extensions) with its payload lib, because the
+# loader finds the handler there and nowhere else. A LINKED DIRECTORY, not
+# copies: the registry refuses a linked descriptor file (SM152) and the loader a
+# linked payload (X1), and neither is - the directory above them is. The index
+# records the payload lib by this path and the loader compares the real file,
+# so the engine's own copy on the test process's @INC is not a second one.
+sub link_engine_extensions {
+    my ($docroot) = @_;
+    my $base      = dirname($docroot);
+    my $dir       = "$base/extensions";
+    return $dir if -e $dir;
+    symlink repo_root() . '/extensions', $dir or die "link $dir: $!";
+    return $dir;
+}
+
+# SM1369 X2: build a test site's extension index as install.pl builds one - in
+# a child with the engine's lib and nothing else on @INC, so what is indexed is
+# what a door will read. Dies when the build could not write; returns its lines.
+sub build_site_index {
+    my ($docroot) = @_;
+    my $root      = repo_root();
+    my $r         = run_child(
+        [ $^X, "-I$root/lib", '-MLazysite::Manager::Extensions', '-e',
+            'exit Lazysite::Manager::Extensions::rebuild_hook_index_main(@ARGV)', $docroot ],
+        stderr => 'inherit' );
+    die "the extension index of $docroot was not built: $r->{out}\n" if $r->{status};
+    return $r->{out};
+}
+
 sub _copy_tree {
     my ( $from, $to ) = @_;
     make_path($to);
@@ -571,9 +604,25 @@ sub _gc_set_caps {
 # so a fault in the script's own rebuild cannot cancel itself out" - is kept by
 # t/lint/98, which asserts the CGI declares no gate of its own and consumes this
 # one. That is the property; reading the same declaration twice was never it.
+# SM1369 X2: THE MERGED TABLE. The actions and capabilities the in-tree
+# extensions declare join core's tables from an index built in memory from
+# their descriptors (Manager::Extensions::engine_hook_index), exactly as a
+# site's index fills a door's tables - so a lint reading the gate, the twins or
+# the capability map reads what both doors decide with, extension rows
+# included. Once per process; the index is returned for a lint that wants it.
+my $ENGINE_INDEX;
+
+sub mirror_engine {
+    return $ENGINE_INDEX if $ENGINE_INDEX;
+    require Lazysite::Manager::Extensions;
+    $ENGINE_INDEX = Lazysite::Manager::Extensions::mirror_engine_index();
+    return $ENGINE_INDEX;
+}
+
 sub gate_caps {
     my ($src) = @_;    # kept for signature compatibility; the module is the source
     require Lazysite::ControlApi::Actions;
+    mirror_engine();
     my $decl = Lazysite::ControlApi::Actions::need_caps();
     die "TestHelper::gate_caps: the gate table is empty or unreachable - every "
         . "check that reads it would pass on nothing\n"
