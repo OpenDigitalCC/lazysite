@@ -158,9 +158,9 @@ Archive
   to. Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md
   entry drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/136`.
 
-- SM1405 (PENDING) **The owner-contact notice mail has its own shape.** `Notify::_mail_send`
+- SM1405 (PENDING) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
   handed a notice to the Form SMTP extension as a form submission (the subject as
-  `subject_prefix`, the notice as a `message` field), so the owner mail arrived with the
+  `subject_prefix`, the notice as a `message` field), so a notice mail arrived with the
   subject `[SITE] A form was submitted - ` (nothing after the dash) and a body laid out as a
   submission: a "Form submission" heading, the notice under a `message:` label, then
   Submitted and IP lines. It is now sent as a composed message (the extension's
