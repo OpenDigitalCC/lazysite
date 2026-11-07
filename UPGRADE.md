@@ -198,6 +198,11 @@ zone it cannot find). Passed exceptions are removed by the daemon's new
 `schedule-exceptions` job, which runs as the job account and needs `manage_data` on it;
 without that grant the job records a refusal and the exceptions stay, harmlessly.
 
+**The editor holds its lock again (SM1411).** The manager's editor now takes and renews
+its edit lock with a POST, so opening a file no longer shows "This action must be sent
+as POST." beside the toolbar, and a second editor on the same file is told who has it.
+Nothing to do but the upgrade, which replaces the page.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

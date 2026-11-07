@@ -391,7 +391,11 @@ function buildContent() {
 // --- Lock ---
 function acquireLock() {
   if (!filePath || isNew) return;
-  fetch(API + '?action=lock&path=' + encodeURIComponent(filePath))
+  // SM1411: lock and renew-lock WRITE (the lock record), so they are POSTs, as
+  // unlock is: the API refuses a mutating action sent as GET, and from 0.7.19
+  // every editor open was refused its lock that way and, from 0.15.5, showed
+  // the refusal as the lock label.
+  fetch(API + '?action=lock&path=' + encodeURIComponent(filePath), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var dot = document.getElementById('ed-lock-dot');
@@ -413,7 +417,7 @@ function acquireLock() {
       } else {
         dot.className = 'lock-dot editing'; lbl.textContent = '';
         lockRenewTimer = setInterval(function() {
-          fetch(API + '?action=renew-lock&path=' + encodeURIComponent(filePath));
+          fetch(API + '?action=renew-lock&path=' + encodeURIComponent(filePath), { method: 'POST' });
         }, 60000);
       }
     }).catch(function() {});

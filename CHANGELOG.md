@@ -306,6 +306,13 @@ Archive
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.
+- SM1411 (PENDING) **the editor takes and renews its lock with a POST.** The editor sent
+  `lock` and `renew-lock` as GETs; both are declared mutating and the API refuses a
+  mutating action sent as GET, so from 0.7.19 no editor open was granted its lock, and from
+  0.15.5 the page showed "This action must be sent as POST." as its lock label and opened
+  with Save disabled (the first change enabled it, so saves went through, unlocked). Both
+  are POSTs now, as `unlock` was. A lint keeps every manager page's fetch of a mutating
+  action a POST (t/unit/manager/480, t/lint/340).
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 
