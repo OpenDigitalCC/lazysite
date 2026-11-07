@@ -80,6 +80,26 @@ Archive
   `lazysite check` reads the index's capabilities and reports a failed build or an
   enabled extension whose hooks are not indexed. Lint 321's allow-list falls from 42
   files to 34.
+- SM1369 (PENDING) **Page sources and delivery handler types are declared by the
+  extension (X3: H-2, H-3).** An enabled extension's `owns.hooks.page_sources` gives a page
+  variable a prefix that core resolves by calling the extension's own code from its payload
+  lib through the hook index; `per_viewer` marks such a page as never cached for another
+  viewer (it replaces the three `odoo-identity:` peeks), `live` sets the live-source flag
+  as `url:` does, `check` adds issues at the page's save. Core hands a source no session
+  credential unless it declared `per_viewer`, makes every value inert, and renders a
+  source that dies or answers nothing as the empty string with one WARN line. An
+  extension's `owns.hooks.handler_types` puts a type in the handler catalogue with its
+  label, cap, schema and `origins`; core runs its `parse` and `on_save` at save,
+  `on_delete` at delete and `deliver` from a form or the timer, and keeps handlers.conf,
+  the schema check, the cap gate, the schedule and the delivery record; a delivery from an
+  origin the type did not list is refused by core. The `address_list` schema field type
+  lets the address-profile check find the profiles a handler names by the field's type
+  and slot, whichever type carries them. Odoo's `odoo:` and `odoo-identity:` sources and
+  its handler type move onto the hooks (`Lazysite::Odoo::Hooks`); its bindings, page
+  variables, refusals and handlers.conf rows are unchanged, and lint 321's allow-list
+  loses seven files. The hook index is rebuilt on every upgrade, so a site using Odoo
+  gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
+  `odoo:` always did. Tests: t/unit/extensions/72, 73. Register entry drafted.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

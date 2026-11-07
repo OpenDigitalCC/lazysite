@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL: X0, X1 shipped in 0.16.6; X7 part one in 0.16.7. X2 built on n768 for 0.16.8: capability_info, api_actions and refusal_kinds live; the index's declared view; one mirror fills the tables; both doors dispatch through one branch; Odoo's ten actions and two capabilities (manage_odoo, ruling 71) declared, wire unchanged. Next X3, X5 asset part, X8; X4, X6, X7's rest in 0.16.9."
+status-note: "PARTIAL: X0, X1 shipped in 0.16.6; X7 part one in 0.16.7. Built for 0.16.8: X2 on n768 (capability_info, api_actions, refusal_kinds live; Odoo's ten actions and two capabilities declared, wire unchanged); X3 on n769 (page sources and handler types declared; Odoo's sources and type on the hooks). Next X5 asset part, X8; X4, X6, X7's rest in 0.16.9."
 ---
 
 # The ruling
@@ -266,6 +266,95 @@ Tests
   integration/171 and 114 hand the override capability ruling 71 names; tools/330 reads
   the declared view the upgrade builds, tools/338 the one a fresh install builds
   (ruling 166); tools/339 the upgrade's top-up (ruling 167). Each fails with its change
+# X3: page sources and delivery handler types
+
+Built on n769 for 0.16.8: H-2 and H-3 are live, and Odoo's `odoo:` and
+`odoo-identity:` sources and its handler type are declared by the extension.
+Bindings, page variables, refusals and handlers.conf rows are unchanged.
+
+Page sources (H-2)
+: `owns.hooks.page_sources` is a list of `{ prefix, resolve, check, per_viewer,
+  live, read_only }`. The processor (sources.pm, `resolve_source`) resolves a
+  variable whose prefix the index declares - after its own scan:, db:, json: and
+  url:, the longest declared prefix first, never `scheme://` - by calling
+  `resolve(spec, ctx)` through `Hooks::call_hook`. The context is the page, the
+  key, the prefix, the request address through the trusted-proxy rule, the host,
+  the site and mode `render`; a source that declared `per_viewer` is also handed
+  the cookie header and the request's identity, and no other is. The answer is
+  `( $value )` or `( undef, $why, %detail )`; core makes the value inert
+  (`_source_inert`, `_odoo_inert` made generic: escaped and no link scheme) and
+  writes one WARN line in one shape for a refusal, a death, a module that did not
+  load or an extension that is off, with the value empty. `per_viewer` replaces
+  the three `odoo-identity:` peeks: the processor's front-matter peek marks the
+  page per viewer (`per_viewer_source`, the gated page's cache treatment), the
+  offline-app rule in the processor and the manager's copy read the same
+  prefixes from the index, and a per-viewer source anywhere the mark did not
+  reach is refused. `live` and `per_viewer` set the live-source flag. `check(spec,
+  docroot)` runs at the page's save (Validate, `_check_source_bindings`) and its
+  issues join the page's, with the extension's own kind.
+
+Handler types (H-3)
+: `owns.hooks.handler_types` is a map of type name to `{ label, cap, schema,
+  origins, note, parse, on_save, on_delete, deliver }`. `Lazysite::Handlers`
+  merges the site's index into `%TYPES` and `@TYPE_ORDER` on every read of the
+  catalogue (`_sync_hook_types`, a stat; the merge is redone when the index
+  changes), after the five core types. Core runs `parse(h, ctx)` and
+  `on_save(h, ctx)` at save - the shape, then the destination - `on_delete` at
+  delete, and `deliver(h, fields, ctx)` from a form or the timer, each answering
+  `{ ok, why, field, note }`; a function that did not run is a refusal or a
+  failed delivery with the reason. Core keeps handlers.conf, the schema check
+  that refuses an unknown key, the cap gate (the type's `cap` gates creating,
+  editing, deleting and scheduling it, and the scheduler's job account must hold
+  it, as for a core type), the origin gate (`origins`, the two core has: `form`,
+  `timer`; a delivery from another is refused before the extension's code loads)
+  and the delivery record. What crosses to `deliver` is the visible fields and a
+  context without the handler list or the uploads. A type whose extension is off
+  leaves the catalogue: a saved handler of it is listed with its problem and not
+  delivered. The MCP save_handler schema reads the merged catalogue.
+
+address_list (I-13)
+: A schema field type for names of address profiles, comma separated, with a
+  `slot` (allow, deny, match). `Handlers::address_list_fields` says which fields
+  of which types carry them, and `AddressRefs` walks handlers.conf by that answer,
+  so the profiles a session binding's sign-in limit and an operation's address
+  profile name are found by type, not by the type name `odoo`. The describe label
+  for the place is `handler`.
+
+The validator
+: Refused by name before anything is indexed: a prefix core owns (scan, db,
+  json, url), one with a colon or capitals, one declared twice, a source without
+  `read_only => 1`; a type named for a core type (smtp, file, table, connector,
+  notify) or a retired one (webhook, api, db), a `cap` that is not in the
+  engine's capability list, an origin core has not got, no origin, a schema key
+  every handler carries (id, type, name, enabled, domain, csrf_token), a field
+  type the catalogue does not draw, a slot that is not one. `Hooks` gains the
+  `named` form (a map of names to records), `lists` and `tables` keys, and a
+  per-kind `check` for the vocabulary. The build runs `cross_problems` over the
+  entries that passed: the later of two extensions declaring one prefix or one
+  type name is left out, named.
+
+Odoo
+: `Lazysite::Odoo::Hooks` (its payload lib) carries `source_binding`,
+  `source_identity`, `check_binding`, `handler_parse`, `handler_save`,
+  `handler_delete` and `handler_deliver`, each the lines that left sources.pm,
+  Validate.pm and Handlers.pm, with the same words. `extensions/odoo.pl` declares
+  the two sources and the type with its schema. Lint 321's allow-list loses
+  sources.pm, auth.pm, app.pm, Config.pm, Validate.pm, Handlers.pm and
+  AddressRefs.pm, and one line of the processor: 35 files.
+
+Tests
+: `t/unit/extensions/72`: a fixture extension's sources through the real
+  processor as a CGI - no credential to a shared render, per viewer never cached
+  for another, inert, a dying source and one answering nothing as empty with one
+  WARN line each, `live`, `check` at save, one owner per prefix, and the index
+  file's spelling pinned between sources.pm and `Hooks::index_path`.
+  `t/unit/extensions/73`: a fixture handler type - the vocabulary, the catalogue,
+  save and delete through the extension, the origin gate, `address_list` by
+  type, off means off. Odoo's tests assert what they asserted; `OdooTest::
+  enable_odoo` builds the index from the checkout's descriptor (through the dev
+  server's directory rule, so the loader sees the one payload lib TestHelper put
+  on `@INC`), and tests 13, 30, 368, 145 and 395 enable and index Odoo where they
+  relied on the type or the source being core's. Each fails with its change
   reverted.
 
 # Choices made
@@ -295,6 +384,11 @@ C-13 | Which refusal kinds move (X2) | The kinds only Odoo produces (thirty) go 
 C-14 | The handler type's capability | `Handlers.pm`'s `odoo` type stays `manage_connectors`' until X3 declares the type (its file is n769's); the top-up keeps the reach equal | Changed here to manage_odoo
 C-15 | The older extensions' capabilities (data, briefs, daemon) | Stay mirrored in the core literal in 0.16.8: each owns its capabilities (`owns.capabilities`) and describes none. A fresh install now builds the index as the upgrade does (ruling 166), so nothing stops the move but the work: the data, briefs and daemon extensions describe their own capabilities and leave the literal in 0.16.9, with X6 (ruling 166). Lint 76 holds one state each meanwhile: described and indexed, or owned and literal | Describe all three here
 C-16 | What a grant resolver mirrors | The light scope - the capability names and the refusal statuses, from `Auth::Settings` alone - so the processor's pooled workers carry no action table (lint 269); the doors, the tools and the lints mirror the full scope before deriving their tables | One scope everywhere, and the action tables resident in the processor
+C-17 | X3: the origins a type may name | `form` and `timer`, the two core delivers from; the page endpoint runs its bindings itself, so `page` is not a name until a slice (X5) makes core deliver from one | `page` accepted now, as a name nothing passes
+C-18 | X3: `odoo-identity:` on a site whose Odoo extension is off | The literal, as any undeclared prefix: the source is the extension's, and such a page can have no identity cookie to read | An empty mapping, as before, which needed core to know the prefix
+C-19 | X3: a handler of a type whose extension is off | Listed with its problem (`unknown type`) and not delivered, as a retired type's record is; saving one is refused | Delivered through the extension's code regardless, which would run a disabled extension
+C-20 | X3: the dying source's log | Two lines: the loader's, naming the extension and function with the reason where it happened, and the page's one line in the one shape, carrying the reason | One line, which would lose the record of which extension died for a caller that does not log (a check)
+C-21 | X3: `AddressRefs` loads the handler catalogue | It asks `Lazysite::Handlers` which fields of which types name profiles, so an extension's type is found as a core one is | A second, hand-kept list of fields, which is the drift the module's own header refuses
 ```
 
 # ADR 0007

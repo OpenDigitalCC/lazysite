@@ -136,6 +136,7 @@ Elevation of privilege | An extension's own Perl run inside a core process (SM13
 Information disclosure | An account reaching the primary - one granted nothing, or the primary's row - reading and writing every secondary domain's folder under the docroot through the primary's content (SM1372, the residual risk SM1332-SM1334 recorded) | The primary's content is the docroot less the other domains' content roots, one rule (`DomainAccess::foreign_root_of`) asked by the manager API, MCP and WebDAV, on reads, writes and walks; a listing leaves those folders out for a caller refused them (ruling 137) | Closed in 0.16.6 (t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74; row confirmed, ruling 142); the operator group and an account granted a domain keep it; a secondary with no content root of its own serves the primary's content
 Denial of service | The site used as a mailer: a visitor typing a stranger's address in a form whose conf opts in to an acknowledgement, so the site mails it (SM1362) | The message is the form's fixed text with nothing of the submission in it; 3 an hour per address and 60 per site across every form and smtp handler, one record; the form's own per-address limit, render timestamp and honeypot first; a quarantined submission is never answered; an unreadable cap record refuses | 0.16.6 (t/unit/forms/68; row confirmed, ruling 142); opt-in per form; a visitor can still have the fixed text sent to an address they name, within the caps
 Tampering | An Odoo module loaded from the wrong place now that the extension's modules live in its payload lib (SM1369 X7 part one): a stale copy an earlier release left in core's `lib/`, an edited one the upgrade kept as an orphan, a module planted in a second payload lib, or a payload linked in from elsewhere, run in place of the extension's own | `require_payload` loads only a regular file in exactly one payload lib - a real directory beside a descriptor under the engine's own `extensions/`, appended to `@INC`, never prepended - and refuses by name a module that also resolves anywhere else on `@INC`, so nothing loads; the upgrade removes the old copies and the directories they emptied, and keeps an edited copy only as a named orphan, which is then refused, never run | 0.16.7 (t/unit/extensions/75, t/lint/335, t/tools/335; row confirmed by the release manager on 2026-11-07, ruling 149): an edited old copy stops Odoo until it is removed, fail closed; whoever can write the engine tree can write either copy, as before
+Information disclosure | A page source an extension declares (SM1369 X3, H-2) handed a visitor's session credential into a render that is shared and cached, so one viewer's value is served to the next; a value a remote system answered reaching a template with markup in it; a handler type an extension declares (H-3) run from an origin it did not list, or configured, scheduled and run under a capability it never declared | Core hands a source the page, the key, the request address and host and mode `render`, and the cookie header and identity only to a source that declared `per_viewer`, whose page is never read from or written to the page cache and is no-store (the gated page's treatment), and is refused outside a page's own front matter; every value a source answers is made inert by core (escaped, no link scheme) before a template sees it; a source that dies or answers nothing is the empty string and one WARN line; a type's `cap` must be a capability the engine or an extension declares, gates creating, editing and scheduling it and must be held by the timer's job account, and a delivery from an origin the type did not list is refused by core before the extension's code is loaded; two extensions cannot declare one prefix or one type name | 0.16.8 (t/unit/extensions/72, 73; drafted by the developer agent for the release manager's confirmation): the first callers of boundary 15's loader on the request path and in the handler catalogue; what a source reads and what a type does are the extension's own code (Odoo's refusals of a write, a visitor key, a session binding and a download moved with it), and a type's `deliver` runs with the visible fields of a submission, so the extension sees what a core type sees
 Tampering | The renewal step on the Odoo endpoint, `GET /cgi-bin/lazysite-odoo.pl?renew=1`, reached with no token (SM1381): a cross-site request ending a person's site session (a forced sign-out), `next` or the renewal path as an open redirect, a redirect loop, or repeated requests driving calls to Odoo | Nothing is renewed or ended without the `lzs_odoo_session` cookie, `SameSite=Strict` and scoped to the endpoint, which a cross-site request does not carry; the step grants only what `?csrf=1` grants, under the group map's capability refusal; `next` and the site's `auth_redirect` pass `sanitise_next`, and core accepts the renewal path only as a same-site path with a query; GET only, one Odoo call per stale session, and one renewal a minute per browser (`lzs_renewed`) | 0.16.7 (t/unit/odoo/135, t/unit/auth/74, t/integration/293; row confirmed by the release manager on 2026-11-07, ruling 149): a holder of a stale session can make one Odoo call per request to the step, as with `?csrf=1`; a client that sets `lzs_renewed` itself skips only its own renewal
 Spoofing | One key signing three payloads with no domain separation (SM1383, found; SM1390, closed): a theme-preview cookie `v1:<expiry>:<layout>:<theme>:<user>` read as a legacy session for an account named `v1`, a session read as a preview, a timestamp in the future outliving the lifetime, and the key itself in the hands of an outside process on the same host that verifies `lazysite_auth` | The session verifier refuses a payload beginning `v1:` before anything else is read, and a timestamp or `seen` time more than 300 seconds ahead of its clock; the preview verifier refuses a payload without exactly five fields; no account may be named `v1` on any door that creates or renames one, and `lazysite check` names one that exists; the contract document puts an outside reader in the web server's trust, forbids it the groups in the cookie and every write, and the format changes only versioned, reader before writer | 0.16.7 (t/unit/auth/75, 76; t/integration/361; t/unit/users/71; t/tools/333; row confirmed by the release manager on 2026-11-07, ruling 149): the key stays symmetric, so a process that can verify can mint, and "read-only" is that process's promise; the CSRF token shares the key and never travels with its payload
 Elevation of privilege | A group deleted while an access rule, a page, a domain, a data table, an Odoo binding, a connector or a group map still names it, so a group made later under that name - by any `manage_users` holder, a token included - inherits every grant those references make (SM1387; the cookie Groups page did this) | `group-delete`, MCP `delete_group` and the Groups page all go through the users tool, the store's one writer, which refuses the operator group, a group with a member and a group anything names (`Lazysite::Auth::GroupRefs`, the twelve places), naming each; a confined caller deletes only a group it created with `group-set`; audited as `@group` | 0.16.7 (t/integration/357; row confirmed by the release manager on 2026-11-07, ruling 149): a store naming groups that GroupRefs does not read is not refused, so a new one is added there; a reference left by a deletion before 0.16.7 admits nobody through the name until it is reused
@@ -3751,3 +3752,102 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-07 (ruling 149). No trigger
   fired; recorded because SM1385 widens where a destructive action reaches and
   SM1389 narrows what a check reports.
+
+### 2026-11-07 - SM1369 X3 (0.16.8): page sources and delivery handler types are declared by the extension
+
+Assessment drafted by the developer agent for the release manager's confirmation.
+Ruling 55; the design is the extension-hooks proposal, H-2 and H-3; the first callers of
+the X1 loader (boundary 15), on the request path and in the handler catalogue.
+
+what changed
+: H-2. An enabled extension's `owns.hooks.page_sources` declares a page-variable prefix
+  (`x: odoo:shop-list`), a `resolve(spec, ctx)` function in its payload lib, an optional
+  `check(spec, docroot)` for the page's save, and three flags: `per_viewer`, `live` and
+  `read_only` (required, 1). The processor resolves a prefix it does not own (scan:, db:,
+  json:, url: are tried first) by calling `resolve` through `Hooks::call_hook` with the
+  page, the key, the request address through the trusted-proxy rule, the host, the site
+  and mode `render`; the value is made inert by core; a source that dies, cannot be
+  loaded, is off or answers nothing is the empty string and one WARN line in one shape.
+  `per_viewer` replaces the three `odoo-identity:` peeks (the processor's front-matter
+  peek, the offline-app rule in the processor and in the manager): the page takes the
+  gated page's cache treatment, and the source is handed the cookie header and the
+  request's identity. `live` sets the live-source flag as `url:` does. Odoo's `odoo:` and
+  `odoo-identity:` are declared this way; its refusals (a write, a visitor key, an address
+  parameter, a session binding, a download) moved into `Lazysite::Odoo::Hooks` unchanged.
+: H-3. `owns.hooks.handler_types` declares a type - `label`, `cap`, `schema`, `origins`,
+  `parse`, `on_save`, `on_delete`, `deliver` - that `Lazysite::Handlers` merges into the
+  catalogue from the site's hook index on every read of it. Core runs `parse` and
+  `on_save` at save, `on_delete` at delete and `deliver(h, fields, ctx)` from a form or
+  the timer, and keeps handlers.conf, the schema check that refuses an unknown key, the
+  cap gate, the schedule and the delivery record. `origins` is where the type may run;
+  a delivery from any other origin is refused by core before the extension's code loads.
+  Odoo's type is declared this way, with its schema. The `address_list` field type lets
+  `AddressRefs` find the profiles a handler names by the field's type and `slot`, not by
+  the type name `odoo` (I-13).
+: The validator refuses, by name and before anything is indexed: a prefix core owns or
+  one declared twice, a source without `read_only`, a type named for a core or retired
+  type, a `cap` that is not a capability the engine or an extension declares, an origin
+  core has not got, a schema key every handler carries or a field type the catalogue does
+  not draw. The build leaves out the later of two extensions declaring one prefix or one
+  type name, naming why. No site-facing file changes shape: handlers.conf rows, page
+  variables and bindings are as they were.
+
+threat delta
+: ADR 0007's triggers: no new external interface (the page variables, the handler
+  actions and the timer are the interfaces they were; what is new is which code answers
+  them, which boundary 15 already records); no new sign-in method; no new dependency;
+  no new processing of restricted data (a per-viewer source reads the cookie the
+  `odoo-identity:` render already read). The questions are these. Information
+  disclosure: a session credential handed to a source whose render is shared and
+  cached, so one viewer's value is the next viewer's page; a per-viewer value reaching a
+  render the per-viewer mark did not (a site-wide variable, an error page). Tampering
+  and injection: a remote system's records reaching a template as markup or a link
+  scheme. Elevation of privilege: a handler type run under a capability it never
+  declared, from an origin it did not list, or by the timer's job account without the
+  cap. Denial of service: a source that dies or hangs on the render path. Spoofing: two
+  extensions claiming one prefix or one type name.
+
+controls
+: No credential to a shared render (G-8): the context core hands a source carries the
+  cookie header and identity only when the declaration says `per_viewer`, and such a
+  page is never read from or written to the page cache and is no-store on output (the
+  mark main sets from the peek, `_protected`); a per-viewer source anywhere the mark did
+  not reach is refused with a WARN and the empty string (SM857's mechanism). Inert by
+  core (G-8): every scalar a source answers is HTML-escaped and made unable to spell a
+  link or break JSON before a template sees it, and a reference that is not a list or a
+  mapping is dropped. Fails closed (G-9): a source that dies, cannot be loaded, is off or
+  answers no value is the empty string with one WARN line naming the prefix, the key and
+  the reason; the page renders. The cap rule: a type's `cap` must be in the engine's
+  capability list, it gates creating, editing, deleting and scheduling a handler of the
+  type as a core type's does, and the scheduler refuses an entry whose job account does
+  not hold it (`Daemon::Jobs`, `cap_for_type`, unchanged). The origin gate: `deliver` runs
+  only from an origin the type lists; the timer and a form are the two core has. The
+  schema check refuses a key the type does not declare, as for a core type. What crosses
+  to `deliver` is the visible fields (never a `_`-prefixed key) and a context without the
+  handler list or the uploads. Off means off (G-1): a type whose extension is off leaves
+  the catalogue, so a saved handler of it is a named problem and is not delivered, and a
+  source whose extension is off resolves empty. One owner per name: the build refuses the
+  later claimant of a prefix or a type name. The loader's own rules (boundary 15) hold:
+  the extension's module, from its payload lib, found nowhere else. t/unit/extensions/72
+  (sources, through the real processor), t/unit/extensions/73 (types), t/lint/321 (seven
+  core files leave the allow-list), and Odoo's own tests unchanged in what they assert.
+
+residual risk
+: What a source reads and what a type does are the extension's own code, under
+  boundary 15's contract-not-sandbox: the Odoo source's refusal of a writing operation
+  is now Odoo's line, not core's, and a second extension's source is trusted to be the
+  read it declares (`read_only` is a declaration core cannot verify). A source's cost on
+  the render path is unbounded by core, as `db:` and `url:` are; `live` and `per_viewer`
+  keep such a page out of the cache's proof, so a slow source is a slow page, not a stale
+  one. The peek that marks a page per viewer is a trigger on the prefix, wider than the
+  grammar (a false positive costs a cached render); a per-viewer source the peek cannot
+  see (a site-wide variable) is refused at the render, never cached. The manager's copy
+  of the offline-app rule reads the same index (t/unit/manager/368 runs both). A page
+  naming `odoo-identity:` on a site whose Odoo extension is off now renders the literal,
+  where it rendered an empty mapping before; such a page cannot have a cookie to read.
+
+verdict
+: drafted by the developer agent, for the release manager's confirmation at the 0.16.8
+  compliance walk. No ADR 0007 trigger fires; recorded because the request path and the
+  handler catalogue gain their first callers of boundary 15's loader, as the X1 entry
+  said each slice would be.
