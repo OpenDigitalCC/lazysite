@@ -96,6 +96,7 @@ Archive
   The format does not change silently. A `docs/SECURITY.md` entry is drafted; it records,
   for ruling, that the preview cookie's value verifies as a session for an account named
   `v1`; confirmed as contained (ruling 146).
+
 - SM1390 (PENDING) **auth: another signed value is not a session, a future timestamp is
   refused, and the sliding reader is reachable (ruling 147).** Three gaps found at the
   SM1383 walk, closed as hardening. The session verifier refuses a payload whose first
@@ -110,12 +111,22 @@ Archive
   refuse the name, saying why, from the verifier's constant; `lazysite check` names an
   account that already carries it. `t/unit/auth/76`, `t/integration/361`,
   `t/unit/users/71`, `t/tools/333`; a `docs/SECURITY.md` entry is drafted.
+
 - SM1391 (PENDING) **daemon: a schedule entry under the floor is recorded as refused,
   once (ruling 148).** A hand-written `every:` below 300 seconds in `schedule.conf` was
   passed over in silence. The first tick that meets it records a refusal against the
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+
+- SM1385 (PENDING) **A theme is deleted by its path, under any layout.** `delete_theme`
+  (MCP), `theme-delete` (control API) and the manager's Themes page found a theme only under
+  the active layout (D013), so one under any other layout was removable only file by file.
+  Each now takes `lazysite/layouts/<layout>/themes/<name>` as `theme-copy` does (SM1339); the
+  bare name still means the active layout's theme. The active theme, a theme any domain
+  serves, and a theme another account made (over MCP or a token) are refused by path as by
+  name; a path into a served copy is refused naming its source. The Themes page offers
+  Delete under every layout.
 
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 

@@ -1900,11 +1900,11 @@ my %TOOLS = (
         run => sub { action_layout_delete( $_[0]->{layout} ) },
     },
     delete_theme => {
-        description => 'Delete a theme YOU created with create_theme. You cannot remove a theme created by anyone else, or one that predates this account - that stays an operator action from the manager. Refuses the ACTIVE theme, and any theme a configured domain is using, naming the domains. Use this to clear an experiment rather than leaving it behind: a theme you abandon stays in the site\'s theme list until someone removes it.',
+        description => 'Delete a theme YOU created with create_theme. You cannot remove a theme created by anyone else, or one that predates this account - that stays an operator action from the manager. Refuses the ACTIVE theme, and any theme a configured domain is using, naming the domains. Give the name for a theme under the active layout, or its path lazysite/layouts/<layout>/themes/<name> for one under any layout; a path into a served copy (/lazysite-assets/...) is refused, naming the source. Use this to clear an experiment rather than leaving it behind: a theme you abandon stays in the site\'s theme list until someone removes it.',
         cap         => 'manage_themes',
         inputSchema => { type => 'object',
             properties => { theme => { type => 'string',
-                    description => 'The theme name, as given to create_theme' } },
+                    description => 'the theme: its name under the active layout, as given to create_theme, or its path lazysite/layouts/<layout>/themes/<name> (which names the layout too)' } },
             required => ['theme'], additionalProperties => JSON::PP::false },
         run => sub {
             my ( $a, $user ) = @_;

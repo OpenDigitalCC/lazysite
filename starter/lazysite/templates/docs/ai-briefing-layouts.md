@@ -439,7 +439,9 @@ So a theme change is always **copy, edit, activate**:
    control API, or **Copy** on the manager's Themes page. The theme is named by
    its directory name or by its path, `lazysite/layouts/<layout>/themes/<theme>`,
    as the refusal gives it. The copy carries the
-   source's files and asset mirror and is yours to delete.
+   source's files and asset mirror and is yours to delete: `delete_theme`
+   (MCP) or `theme-delete` (control API) takes the theme by name under the
+   active layout, or by its path under any layout.
 2. **Edit** the copy, under `lazysite/layouts/<layout>/themes/<new_name>/`, with
    `write_file` / `replace_text` / `PUT` as usual - a non-active theme accepts
    writes with `manage_themes`.

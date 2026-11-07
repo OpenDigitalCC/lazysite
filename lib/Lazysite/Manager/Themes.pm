@@ -1875,21 +1875,50 @@ sub _bad_theme_name {
 
 sub action_theme_delete {
     my ( $theme_name, $opts ) = @_;
-    if ( my $bad = _bad_theme_name( 'name', $theme_name ) ) { return $bad }
     $opts ||= {};
 
+    # SM1385: the theme by its path too, as theme-copy takes it (SM1339):
+    # lazysite/layouts/<layout>/themes/<name>, the form the theme's own `path`
+    # field gives. The bare name still means the active layout's theme (D013),
+    # so a theme under any other layout was removable only file by file. A path
+    # into a host's served copy (/lazysite-assets/...) is refused as every write
+    # into one is, naming the source; any other path is not a theme's.
+    my $layout;
+    if ( defined $theme_name && $theme_name =~ m{/} ) {
+        if ( $theme_name =~ m{\A/*lazysite/layouts/([^/]+)/themes/([^/]+?)/*\z} ) {
+            ( $layout, $theme_name ) = ( $1, $2 );
+            return { ok => 0, kind => 'validation', field => 'layout',
+                error => "layout '$layout' must match [A-Za-z0-9_-]+" }
+                unless $layout =~ /^[A-Za-z0-9_-]+$/;
+        }
+        else {
+            ( my $p = $theme_name ) =~ s{^/+}{};
+            if ( my ( $err, $why ) = Lazysite::Manager::Common::served_artifact_refusal(
+                    $p, docroot => $DOCROOT ) )
+            {
+                return { ok => 0, kind => 'served-artifact-refused', error => $err,
+                    audit_detail => $why };
+            }
+            return { ok => 0, kind => 'validation', field => 'path',
+                error => "'$p' is not a theme: give its name, or its path "
+                    . 'lazysite/layouts/<layout>/themes/<name>' };
+        }
+    }
+    if ( my $bad = _bad_theme_name( 'name', $theme_name ) ) { return $bad }
+
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+    $layout = $active_layout unless defined $layout;
     return { ok => 0, error => "Cannot delete the active theme" }
-        if $theme_name eq $active_theme;
+        if $layout eq $active_layout && $theme_name eq $active_theme;
     return { ok => 0, error => "No active layout set" }
-        unless length $active_layout;
+        unless length $layout;
 
     # SM177: a sub-domain is a first-class peer - if any configured domain uses
-    # this theme (under the active layout, where it lives), deleting it would
+    # this theme (under its layout, where it lives), deleting it would
     # break that domain. Block and name them, just as the active-theme guard does
     # for the primary. domains_using resolves effective per-host values, so an
     # alias that inherits the active layout but pins this theme is caught.
-    my @in_use = _domains_using( theme => $theme_name, layout => $active_layout );
+    my @in_use = _domains_using( theme => $theme_name, layout => $layout );
     if (@in_use) {
         return { ok => 0,
             error => "Theme '$theme_name' is in use by "
@@ -1897,11 +1926,11 @@ sub action_theme_delete {
                 . ". Repoint or remove those domains first." };
     }
 
-    # D013: delete only from the active layout's themes dir. A theme
-    # installed under multiple layouts (via theme.json's layouts[])
-    # has copies elsewhere — those remain, and the operator can remove
-    # them by switching to each layout in turn.
-    my $themes_dir = _lz() . "/layouts/$active_layout/themes";
+    # D013: by name, delete only from the active layout's themes dir; by path
+    # (SM1385), from the layout the path names. A theme installed under several
+    # layouts (theme.json's layouts[]) has a copy under each, removed one path
+    # at a time.
+    my $themes_dir = _lz() . "/layouts/$layout/themes";
     my $theme_dir  = "$themes_dir/$theme_name";
     return { ok => 0, error => "Theme not found" } unless -d $theme_dir;
 
@@ -1932,7 +1961,7 @@ sub action_theme_delete {
     # which is the same safe reading as before.
     if ( $opts->{restrict_to_creator} ) {
         my $who = $opts->{user} // '';
-        my $by  = _theme_creator( $active_layout, $theme_name );
+        my $by  = _theme_creator( $layout, $theme_name );
         unless ( length $who && length $by && $by eq $who ) {
             return { ok => 0, kind => 'not-yours',
                 error => "Theme '$theme_name' was not created by this account, so "
@@ -1954,12 +1983,13 @@ sub action_theme_delete {
     }
     # The theme is gone; drop its provenance so a later theme reusing the name
     # does not inherit a creator it never had.
-    _forget_theme_creator( $active_layout, $theme_name );
+    _forget_theme_creator( $layout, $theme_name );
     # SM1335: its copies go with it - every host's, not only the docroot's, which
     # was the one this removed - and so do the renders that linked them.
-    follow_source_write( $DOCROOT, "lazysite/layouts/$active_layout/themes/$theme_name" );
+    follow_source_write( $DOCROOT, "lazysite/layouts/$layout/themes/$theme_name" );
 
-    return { ok => 1, deleted => $theme_name };
+    return { ok => 1, deleted => $theme_name, layout => $layout,
+        path => "lazysite/layouts/$layout/themes/$theme_name" };
 }
 
 # SM749: copy a theme, so "copy, edit, activate" is one verb on every surface.

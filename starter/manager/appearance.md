@@ -268,9 +268,14 @@ function renderInstalled(layouts, byLayout) {
           if (tUsed.length) {
             html += '<span class="mg-file-meta">cannot delete</span>';
           } else {
-            html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t) + '\')">Delete</button>';
+            html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Delete</button>';
           }
         }
+      } else if (tUsed.length) {
+        html += '<span class="mg-file-meta">cannot delete</span>';
+      } else {
+        // SM1385: a theme under a layout that is not active is deleted by its path.
+        html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Delete</button>';
       }
       html += '</div></div></div>';
     }
@@ -406,10 +411,11 @@ function copyTheme(name) {
   });
 }
 
-function deleteTheme(name) {
-  mgConfirm('Delete theme "' + name + '"? This cannot be undone.', { danger: true, ok: 'Delete' }).then(function(ok) {
+function deleteTheme(name, layout) {
+  mgConfirm('Delete theme "' + name + '" (layout "' + layout + '")? This cannot be undone.', { danger: true, ok: 'Delete' }).then(function(ok) {
     if (!ok) return;
-    fetch(API + '?action=theme-delete&path=' + encodeURIComponent(name), { method: 'POST' })
+    // SM1385: by its path, so the layout is the one the row is under.
+    fetch(API + '?action=theme-delete&path=' + encodeURIComponent('lazysite/layouts/' + layout + '/themes/' + name), { method: 'POST' })
       .then(function(r){ return r.json(); }).then(function(d) {
         if (!d.ok) { showStatus(d.error, true); return; }
         showStatus('Theme deleted.'); loadAll();

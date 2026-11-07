@@ -288,9 +288,9 @@ my %NOT_INSTANCE_WIDE = (
     'theme-upload' => 'installs a theme under a name not already installed (a theme of a name '
         . 'already installed goes beside it under a dated name, YYYYMMDD-name, never over it), '
         . 'served by nothing until activated',
-    'theme-delete' => 'a confined caller deletes only a theme it created (SM262 '
-        . 'restrict_to_creator, asked below); a theme the primary or any domain serves is '
-        . 'refused to everyone (SM177)',
+    # theme-delete left this list with SM1385: a path it is given is asked the
+    # served-artifact rule, which asks the domain rule, so it is held that way
+    # (and a confined caller still deletes only a theme it created, asked below).
     'accounts-import-stage' => 'SM1053: writes a staging file the operator reviews; nothing a site '
         . 'reads changes until the operator applies it',
     'accounts-import-apply' => 'SM1053: the operator only (a cookie session _operator() '
