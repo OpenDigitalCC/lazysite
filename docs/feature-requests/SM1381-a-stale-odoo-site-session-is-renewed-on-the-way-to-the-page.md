@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "developer agent (0.16.7 brief, n762)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n762: the odoo-stale verdict names the renewal path; the page gate and ?action=session send the visitor to ?renew=1 on the Odoo endpoint, which renews once and returns them, or sends them to the site's sign-in (auth_redirect, else /login) with next. Loop guard lzs_renewed. Register entry drafted. t/unit/odoo/135, t/unit/auth/74."
+status-note: "SHIPPED (0.16.7) on n762: the odoo-stale verdict names the renewal path; the page gate and ?action=session send the visitor to ?renew=1 on the Odoo endpoint, which renews once and returns them, or sends them to the site's sign-in (auth_redirect, else /login) with next. Loop guard lzs_renewed. Register entry drafted. t/unit/odoo/135, t/unit/auth/74."
 ---
 
 # What happened

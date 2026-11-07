@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 148)"
 area: forms
-status-note: "SHIPPED (PENDING) on n763, ruling 148: Daemon::Jobs::schedule_run records a refusal (outcome refused, naming the 300 s floor) in schedule-runs.json the first time it meets an enabled entry under the floor, logs it then, and writes nothing on later ticks; lazysite check names such entries. t/unit/daemon/17, t/tools/332."
+status-note: "SHIPPED (0.16.7) on n763, ruling 148: Daemon::Jobs::schedule_run records a refusal (outcome refused, naming the 300 s floor) in schedule-runs.json the first time it meets an enabled entry under the floor, logs it then, and writes nothing on later ticks; lazysite check names such entries. t/unit/daemon/17, t/tools/332."
 ---
 
 # What happened

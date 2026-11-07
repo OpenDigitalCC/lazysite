@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent, from edge testing of 0.16.6 (brief n765)"
 area: users
-status-note: "SHIPPED (PENDING) on n765: _bootstrapped and _shipped_groups in tools/lazysite-users.pl guard _adopt_added_bundles and _adopt_agent_roles; the mark is read from the manager group. t/unit/users/72. UPGRADE.md note under Unreleased (0.16.7)."
+status-note: "SHIPPED (0.16.7) on n765: _bootstrapped and _shipped_groups in tools/lazysite-users.pl guard _adopt_added_bundles and _adopt_agent_roles; the mark is read from the manager group. t/unit/users/72. UPGRADE.md note under Unreleased (0.16.7)."
 ---
 
 # What happened

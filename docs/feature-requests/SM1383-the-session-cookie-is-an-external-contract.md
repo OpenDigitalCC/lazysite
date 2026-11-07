@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 132)"
 area: auth
-status-note: "SHIPPED (PENDING) on n763, ruling 132 E: docs/architecture/session-cookie-contract.md states the format, key, expiry and revocation; t/unit/auth/75 mints through the real sign-in and verifies as an outside process would, agreeing with the engine. SECURITY.md entry confirmed (ruling 146). The three verifier gaps found at the walk are closed as SM1390 (ruling 147)."
+status-note: "SHIPPED (0.16.7) on n763, ruling 132 E: docs/architecture/session-cookie-contract.md states the format, key, expiry and revocation; t/unit/auth/75 mints through the real sign-in and verifies as an outside process would, agreeing with the engine. SECURITY.md entry confirmed (ruling 146). The three verifier gaps found at the walk are closed as SM1390 (ruling 147)."
 ---
 
 # What was asked

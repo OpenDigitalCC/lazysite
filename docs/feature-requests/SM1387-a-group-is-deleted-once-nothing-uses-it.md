@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent (0.16.7 small fixes)"
 area: auth
-status-note: "SHIPPED (PENDING) on n764: Manager::Groups::group_delete behind control API group-delete and MCP delete_group; the users tool's group-delete asks Lazysite::Auth::GroupRefs and refuses the operator group. t/integration/357."
+status-note: "SHIPPED (0.16.7) on n764: Manager::Groups::group_delete behind control API group-delete and MCP delete_group; the users tool's group-delete asks Lazysite::Auth::GroupRefs and refuses the operator group. t/integration/357."
 ---
 
 # What happened

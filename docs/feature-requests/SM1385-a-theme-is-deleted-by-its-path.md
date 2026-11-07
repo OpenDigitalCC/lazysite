@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent (0.16.7 small fixes)"
 area: themes
-status-note: "SHIPPED (PENDING) on n764: action_theme_delete takes lazysite/layouts/<layout>/themes/<name>; a served-copy path is refused by served_artifact_refusal; the Themes page deletes by path under every layout. t/unit/manager/471."
+status-note: "SHIPPED (0.16.7) on n764: action_theme_delete takes lazysite/layouts/<layout>/themes/<name>; a served-copy path is refused by served_artifact_refusal; the Themes page deletes by path under every layout. t/unit/manager/471."
 ---
 
 # What happened

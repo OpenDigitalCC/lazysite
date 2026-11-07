@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 132)"
 area: data
-status-note: "SHIPPED (PENDING) on n763, ruling 132 B: t/integration/360 drives the chain against a 127.0.0.1 JSON source; the Live data section of /docs/ai-briefing-building-sites states the limits it measured: 300 s floor, rounding up to multiples of 300, fixed fields, one row per poll, ttl: the only freshness bound, mode=live inert."
+status-note: "SHIPPED (0.16.7) on n763, ruling 132 B: t/integration/360 drives the chain against a 127.0.0.1 JSON source; the Live data section of /docs/ai-briefing-building-sites states the limits it measured: 300 s floor, rounding up to multiples of 300, fixed fields, one row per poll, ttl: the only freshness bound, mode=live inert."
 ---
 
 # What was asked

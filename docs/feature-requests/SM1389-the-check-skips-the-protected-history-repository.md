@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent (the 0.16.6 edge deploy's check report)"
 area: check
-status-note: "SHIPPED (PENDING) on n764: report_stray_public prunes ProtectedHistory::_git_dir_in(<store>); a moved layout's copy is still reported. t/tools/04."
+status-note: "SHIPPED (0.16.7) on n764: report_stray_public prunes ProtectedHistory::_git_dir_in(<store>); a moved layout's copy is still reported. t/tools/04."
 ---
 
 # What happened

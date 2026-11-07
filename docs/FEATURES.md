@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.6"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.7"
 brand: plain
 ---
 
@@ -2041,6 +2041,18 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.7** (2026-11-07, edge) - **Odoo's modules move into the extension's
+  own lib, a stale Odoo session is renewed, and a group is deleted on every
+  door.** Odoo's modules load from the extension's payload lib, the same code
+  from one place, with a stale copy refused by name (SM1369 X7 part one); a
+  site session the Odoo sign-in minted and left idle is renewed on the way to
+  the page instead of refused (SM1381); a group is deleted over the control
+  API, MCP and the Groups page once nothing uses it (SM1387); the session
+  cookie is a stated external contract, and one signed value means one thing
+  (SM1383, SM1390); the agent roles and the shipped bundles reach a site the
+  seeded mark never reached (SM1393); a form's own conf opens in the editor and
+  over MCP to manage_forms (SM1392); a theme is deleted by its path under any
+  layout (SM1385); live data is a documented, measured recipe (SM1382)
 - **0.16.6** (2026-11-07, edge) - **The primary site's content leaves out the
   other domains, agents hold roles, and extensions can declare hooks.** the
   primary's content, granted or unbound, leaves out every other domain's

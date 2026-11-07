@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 147)"
 area: auth
-status-note: "SHIPPED (PENDING) on n763, ruling 147: Session.pm refuses a payload beginning v1: and a ts or seen more than 300 s ahead, and splits to five fields so the sliding branch is reachable; gates.pm check_preview requires five fields. t/unit/auth/76 and t/integration/361, each part failing reverted. Hardening; register entry drafted."
+status-note: "SHIPPED (0.16.7) on n763, ruling 147: Session.pm refuses a payload beginning v1: and a ts or seen more than 300 s ahead, and splits to five fields so the sliding branch is reachable; gates.pm check_preview requires five fields. t/unit/auth/76 and t/integration/361, each part failing reverted. Hardening; register entry drafted."
 ---
 
 # What was found

@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1394 (PENDING) **docs: the compliance records cover 0.16.7.** OBLIGATIONS.md and
+## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
+
+- SM1394 (def213ea) **docs: the compliance records cover 0.16.7.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.7 stack and stamped 0.16.7. The seven
   register entries the branches wrote are walked against the code, each gaining a "walked"
   note: SM1383 is confirmed (ruling 146); SM1381's new-external-interface (the renewal
@@ -66,7 +68,7 @@ Archive
   renewal step and four STRIDE rows, with four operate-side rows. UPGRADE.md's 0.16.7 notes are one section. Docs
   only; nothing is signed.
 
-- SM1369 (PENDING) **Odoo's modules move out of core's lib into the extension's own (X7,
+- SM1369 (525674a3) **Odoo's modules move out of core's lib into the extension's own (X7,
   part one).** Ruling 135: a hook may name only a module in its extension's payload lib, so
   `Lazysite::Odoo`, its twelve `Lazysite::Odoo::*` modules and the oomd and warm-endpoint
   services move from `lib/` to `extensions/odoo/lib/` before X2. Their names do not change.
@@ -79,7 +81,7 @@ Archive
   snapshot stay in `t/` until 0.16.9. New: t/lint/335, t/unit/extensions/75, and the
   upgrade journey t/tools/335.
 
-- SM1381 (PENDING) **A site session that is only stale is renewed on the way to the
+- SM1381 (525674a3) **A site session that is only stale is renewed on the way to the
   page.** A person signed in through Odoo and idle past `odoo_identity_ttl` was sent to
   `/login` by every protected page, and `/login`'s `?action=session` said they were signed
   out, although their Odoo session was still good. The page gate now sends such a session
@@ -89,7 +91,7 @@ Archive
   `lzs_renewed`, guards against a loop: one renewal a minute, then the sign-in. The
   refusal is logged at INFO. t/unit/odoo/135.
 
-- SM1382 (PENDING) **docs: live data is a scheduled connector answer in a table row
+- SM1382 (3ba0fc2e) **docs: live data is a scheduled connector answer in a table row
   (ruling 132, B).** A spike, `t/integration/360`, proves the chain the docs claim on a
   scratch site against a JSON source on 127.0.0.1: schedule, connector handler, remote, a
   data-table row, a page or the data endpoint. The "Live data" section of
@@ -100,7 +102,7 @@ Archive
   binding modes is corrected: such a binding still reads rows at render. Filed beside it,
   as a candidate: SM1384, a connector cannot express a multi-step job protocol.
 
-- SM1383 (PENDING) **docs: the session cookie is an external contract (ruling 132, E).**
+- SM1383 (3ba0fc2e) **docs: the session cookie is an external contract (ruling 132, E).**
   `docs/architecture/session-cookie-contract.md` states the `lazysite_auth` format an outside
   process on the same host verifies read-only: the signed `username:timestamp:sid:groups`
   payload and the legacy three-field variant, the key and how it is used, constant-time
@@ -110,7 +112,7 @@ Archive
   for ruling, that the preview cookie's value verifies as a session for an account named
   `v1`; confirmed as contained (ruling 146).
 
-- SM1390 (PENDING) **auth: another signed value is not a session, a future timestamp is
+- SM1390 (f333e366) **auth: another signed value is not a session, a future timestamp is
   refused, and the sliding reader is reachable (ruling 147).** Three gaps found at the
   SM1383 walk, closed as hardening. The session verifier refuses a payload whose first
   field is the preview cookie's marker `v1`, and the preview verifier refuses a payload
@@ -126,14 +128,14 @@ Archive
   `t/unit/users/71`, `t/tools/333`; a `docs/SECURITY.md` entry is drafted, confirmed
   (ruling 149).
 
-- SM1391 (PENDING) **daemon: a schedule entry under the floor is recorded as refused,
+- SM1391 (f333e366) **daemon: a schedule entry under the floor is recorded as refused,
   once (ruling 148).** A hand-written `every:` below 300 seconds in `schedule.conf` was
   passed over in silence. The first tick that meets it records a refusal against the
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
 
-- SM1389 (PENDING) **`lazysite check` no longer reports the protected-history repository as
+- SM1389 (c8e13a54) **`lazysite check` no longer reports the protected-history repository as
   stray public copies.** The stray-copy walk read the whole private store, so the SM1324
   history repository (`<store>/lazysite/git`) matched the docroot's content-history repository
   at `lazysite/git` file for file (HEAD, config, refs, identical objects) and the 0.16.6 edge
@@ -141,7 +143,7 @@ Archive
   `ProtectedHistory`'s own path helper. Only the repository: a layout a rule moved into the
   store's `lazysite/layouts` is content, and a copy beside it is still reported.
 
-- SM1387 (PENDING) **A group is deleted once nothing uses it, on every door.** No token or
+- SM1387 (4c81d959) **A group is deleted once nothing uses it, on every door.** No token or
   MCP surface deleted a group. `group-delete` (control API), `delete_group` (MCP) and the
   manager's Groups page (which now calls `group-delete`) need `manage_users`, are audited
   (`@group`), and are refused while the group holds a member or anything names it - an access
@@ -153,13 +155,13 @@ Archive
   role (SM1371) or shipped role may be (`reset-groups` restores a shipped one). A
   domain-confined caller deletes only a group it created with `group-set`.
 
-- SM1388 (PENDING) **A folder rule's history needs the folder to exist, and says so.** A rule
+- SM1388 (6675f612) **A folder rule's history needs the folder to exist, and says so.** A rule
   with `history: true` (SM1324) is refused until its folder exists in the document root or the
   private store. The refusal said "'X' is not a folder", which read as a file; for a folder not
   there yet it now says it does not exist and to create it first. The protected-history docs
   (OPERATOR.md, the access-control model) say so.
 
-- SM1386 (PENDING) **A theme install warns when its stylesheets are outside assets/.** Only a
+- SM1386 (0db996a7) **A theme install warns when its stylesheets are outside assets/.** Only a
   theme's `assets/` is served, so a zip with `main.css` at its root beside `theme.json`
   installed and previewed with no CSS. Every install door - `theme-upload` (the manager's
   Upload Theme), MCP `install_theme`, and the layout installs (`layouts-install`,
@@ -168,7 +170,7 @@ Archive
   Warned, never refused. The themes doc's on-disk picture put `main.css` beside
   `theme.json`; it now shows it in `assets/`.
 
-- SM1385 (PENDING) **A theme is deleted by its path, under any layout.** `delete_theme`
+- SM1385 (51cd54d4) **A theme is deleted by its path, under any layout.** `delete_theme`
   (MCP), `theme-delete` (control API) and the manager's Themes page found a theme only under
   the active layout (D013), so one under any other layout was removable only file by file.
   Each now takes `lazysite/layouts/<layout>/themes/<name>` as `theme-copy` does (SM1339); the
@@ -177,7 +179,7 @@ Archive
   name; a path into a served copy is refused naming its source. The Themes page offers
   Delete under every layout.
 
-- SM1393 (PENDING) **The agent roles and the shipped bundles reach a site the `seeded` mark
+- SM1393 (29586984) **The agent roles and the shipped bundles reach a site the `seeded` mark
   never reached.** SM1371's four agent roles, and the bundles SM1241 and SM1262 adopt on an
   existing site, were adopted only where some group record carried `seeded`. A site
   bootstrapped before SM608 wrote the mark, or whose manager group the conf migration wrote
@@ -190,7 +192,7 @@ Archive
   does not, a group present under its shipped name is what the store can say. SM1262's record
   keeps the rest: a deleted role or bundle never returns, an unreadable record adopts nothing.
 
-- SM1392 (PENDING) **The manager's editor opens a form's own conf to `manage_forms`, and every
+- SM1392 (1f018409) **The manager's editor opens a form's own conf to `manage_forms`, and every
   door names that capability for it.** SM1371 opened `lazysite/forms/<name>.conf` to
   `manage_forms` over MCP, WebDAV and the control API's read and save, but the editor page
   marked every `lazysite/` path "system file (read-only)" before asking the server. The editor

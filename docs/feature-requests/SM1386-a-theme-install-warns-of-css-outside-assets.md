@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent (0.16.7 small fixes)"
 area: themes
-status-note: "SHIPPED (PENDING) on n764: Themes::_css_outside_assets_warning, asked by _install_theme_from_dir, the one install path every door uses; warnings / theme_warnings in the answer; the manager shows it. t/unit/manager/472."
+status-note: "SHIPPED (0.16.7) on n764: Themes::_css_outside_assets_warning, asked by _install_theme_from_dir, the one install path every door uses; warnings / theme_warnings in the answer; the manager shows it. t/unit/manager/472."
 ---
 
 # What happened

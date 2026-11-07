@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent (0.16.7 small fixes)"
 area: access
-status-note: "SHIPPED (PENDING) on n764: action_acl_set's history check tells a folder that does not exist from a file; OPERATOR.md and the access-control model say the folder must exist. t/unit/manager/420."
+status-note: "SHIPPED (0.16.7) on n764: action_acl_set's history check tells a folder that does not exist from a file; OPERATOR.md and the access-control model say the folder must exist. t/unit/manager/420."
 ---
 
 # What happened

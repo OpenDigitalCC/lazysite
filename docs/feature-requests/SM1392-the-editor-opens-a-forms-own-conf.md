@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent, from edge testing of 0.16.6 (brief n765)"
 area: manager
-status-note: "SHIPPED (PENDING) on n765: isFormConfPath in starter/manager/edit.md exempts a form's own conf from isReservedPath; lazysite-mcp.pl's tool gate asks manage_forms for read_file/write_file on that path. t/unit/manager/475. Docs: manager.md Files, ai-connector-tools.md."
+status-note: "SHIPPED (0.16.7) on n765: isFormConfPath in starter/manager/edit.md exempts a form's own conf from isReservedPath; lazysite-mcp.pl's tool gate asks manage_forms for read_file/write_file on that path. t/unit/manager/475. Docs: manager.md Files, ai-connector-tools.md."
 ---
 
 # What happened
