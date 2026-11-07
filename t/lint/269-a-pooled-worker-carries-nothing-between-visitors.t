@@ -97,7 +97,18 @@ subtest 'the preload list is exactly the modules the processor loads on first us
     }
 };
 
-sub module_file { my ($m) = @_; return "$root/lib/" . join( '/', split /::/, $m ) . '.pm' }
+# SM1369 X7: a module's file, relative to the root - core's lib, else the payload
+# lib of an in-tree extension (extensions/<id>/lib), where Odoo's modules are.
+sub rel_of {
+    my ($modrel) = @_;
+    return "lib/$modrel" if -f "$root/lib/$modrel";
+    for my $p ( sort glob("$root/extensions/*/lib") ) {
+        return ( $p =~ s{\A\Q$root\E/}{}r ) . "/$modrel" if -f "$p/$modrel";
+    }
+    return undef;
+}
+
+sub module_file { my ($m) = @_; my $r = rel_of( join( '/', split /::/, $m ) . '.pm' ); return defined $r ? "$root/$r" : '' }
 
 # The closure: each preloaded module, everything it use/requires, and so on.
 my %module;
@@ -111,9 +122,9 @@ while ( my $m = shift @queue ) {
     $raw =~ s/^\s*#.*$//mg;
     $raw =~ s/^=\w+.*?^=cut\s*$//msg;
     $raw =~ s/^__END__.*//ms;
-    push @queue, $raw =~ /\b(?:use|require)\s+(Lazysite::[\w:]+)/g;
+    push @queue, $raw =~ /\b(?:(?:use|require)\s+|require_payload\(\s*')(Lazysite::[\w:]+)/g;
 }
-$text{"lib/" . join( '/', split /::/, $_ ) . '.pm'} = $module{$_} for keys %module;
+$text{ rel_of( join( '/', split /::/, $_ ) . '.pm' ) } = $module{$_} for keys %module;
 cmp_ok( scalar( keys %module ), '>', scalar(@preload), 'the resident set reaches past the preload list (the use/require closure)' );
 
 # --- classify every file-scope variable ---------------------------------------
@@ -207,7 +218,7 @@ my %GENERIC = (
 # own processes. Held by the `unset` check below: nothing in the processor or its
 # parts assigns a package variable of any of them.
 my $OTHER_SURFACE = 'the manager / scheduler / mail surfaces\' own state, set by those surfaces\' processes; the pooled processor never assigns it (checked below)';
-my @OTHER_SURFACE = qr{\Alib/Lazysite/(?:Manager/|Daemon/|Outbox\.pm|Notify\.pm|Git\.pm|Extensions/|Lifecycle\.pm|Mail\.pm|Unsubscribe\.pm)};
+my @OTHER_SURFACE = qr{\A(?:extensions/[a-z][a-z0-9-]*/)?lib/Lazysite/(?:Manager/|Daemon/|Outbox\.pm|Notify\.pm|Git\.pm|Extensions/|Lifecycle\.pm|Mail\.pm|Unsubscribe\.pm)};
 
 my %T = (
     'lazysite-processor.pl' => {
@@ -339,7 +350,7 @@ my %T = (
     'lib/Lazysite/Data/Owned.pm'  => { '%RESERVED' => [ exempt => 'derived from constants' ], '%STAMPED' => [ exempt => 'derived from constants' ] },
     'lib/Lazysite/Data/Tables.pm' => { '%_descriptor_cache' => [ exempt => $KEYED ] },
     'lib/Lazysite/I18n.pm'        => { '%CACHE' => [ exempt => 'the per-language chrome strings, keyed on (docroot, language); site content, not a visitor\'s' ] },
-    'lib/Lazysite/Odoo.pm' => {
+    'extensions/odoo/lib/Lazysite/Odoo.pm' => {
         '%CALL_FIELD' => [ exempt => 'derived from a constant list' ],
         '$TRANSPORT'  => [ exempt => 'a test seam; unset in the product' ],
         '$LAST_VIA'   => [ exempt => $STATUS ],
@@ -347,8 +358,8 @@ my %T = (
         '$INCOMPLETE_PLAIN' => [ exempt => 'SM1374: a fixed sentence, never assigned at run time' ],
         '%REGISTRY'    => [ exempt => 'OOM\'s operation classes for one site configuration, keyed on the docroot, namespaces, pack directories, cache directory and OOM version (SM1179); it holds no person' ],
     },
-    'lib/Lazysite/Odoo/Daemon.pm' => { '%NAME' => [ exempt => 'the daemon\'s name, a function of the docroot and keyed on it' ] },
-    'lib/Lazysite/Odoo/Session.pm' => { '$HTTP' => [ exempt => 'a test seam; unset in the product' ] },
+    'extensions/odoo/lib/Lazysite/Odoo/Daemon.pm' => { '%NAME' => [ exempt => 'the daemon\'s name, a function of the docroot and keyed on it' ] },
+    'extensions/odoo/lib/Lazysite/Odoo/Session.pm' => { '$HTTP' => [ exempt => 'a test seam; unset in the product' ] },
     'lib/Lazysite/Timing.pm' => {
         '%KNOWN'    => [ exempt => 'derived from a constant list' ],
         '$LOADED'   => [ exempt => 'when the file loaded; worker_started() moves it at a fork' ],
@@ -388,7 +399,7 @@ sub sub_body {
 # `unset`: does anything in the processor or its parts assign this package
 # variable of another module, other than by `local` (which restores it)?
 my $entry_code = join "\n", map { join "\n", map { $_->[1] } code_lines( $text{$_} ) }
-    grep { !m{\Alib/} } sort keys %text;
+    grep { !m{\A(?:extensions/[a-z][a-z0-9-]*/)?lib/} } sort keys %text;    # SM1369 X7: a payload lib is a lib
 sub assigned_from_entry {
     my ($var) = @_;
     my ( $sig, $n ) = $var =~ /\A([\$\@%])(\w+)\z/;

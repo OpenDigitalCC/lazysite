@@ -86,6 +86,12 @@ BEGIN {
     for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( length $doc ? "$doc/../lib" : () ) ) {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
+    # SM1369 X7: the extension's own modules are in its payload lib, beside the
+    # descriptor in the extensions/ next to that lib, on @INC by the X1 rule.
+    require Lazysite::Extensions;
+    my $root = Lazysite::Extensions::engine_root();
+    Lazysite::Extensions::add_payload_lib( Lazysite::Extensions::extensions_dir($root) . '/odoo.pl' )
+        if defined $root;
 }
 
 use Lazysite::Timing (); # SM1144: after the lib search, so its load phase covers what is loaded below

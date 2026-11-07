@@ -1953,6 +1953,12 @@ sub _lazy_lib {
         for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( length $doc ? "$doc/../lib" : () ) ) {
             if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
         }
+        # SM1369 X7: a module that is not core's is an extension's, in its
+        # payload lib beside core's lib, reached by the one rule.
+        unless ( grep { !ref && -f "$_/$file" } @INC ) {
+            require Lazysite::Extensions;
+            return Lazysite::Extensions::require_payload($module);
+        }
     }
     require $file;
     return 1;

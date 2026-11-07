@@ -737,7 +737,7 @@ sub resolve_odoo {
             kind => ( $r->{kind} // '' ), why => ( $r->{error} // '' ) );
         return '';
     }
-    require Lazysite::Odoo::Fields;
+    _lazy_lib('Lazysite::Odoo::Fields');
     return _odoo_inert( Lazysite::Odoo::Fields::page_report( $r->{report} ) );
 }
 
@@ -772,7 +772,7 @@ sub resolve_odoo_identity {
         return {};
     }
     $TT_DEP_LIVE = 1;
-    eval { require Lazysite::Odoo; require Lazysite::Odoo::Identity; require Lazysite::Odoo::Visitor; 1 } or do {
+    eval { _lazy_lib('Lazysite::Odoo'); _lazy_lib('Lazysite::Odoo::Identity'); _lazy_lib('Lazysite::Odoo::Visitor'); 1 } or do {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'odoo-identity: needs the Odoo modules', key => $key );
         return {};
     };

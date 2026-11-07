@@ -48,12 +48,12 @@ use TestHelper qw(repo_root);
 my $root = repo_root();
 
 # An extension's own files, beyond its descriptor and its declared endpoints:
-# the payload that leaves core with it. Odoo's is its engine, its browser
-# helper, its sign-in page and component, and the warm endpoint's service.
+# the payload that leaves core with it. Odoo's browser helper, its sign-in page
+# and component; its modules (engine, services) are in its payload lib,
+# extensions/odoo/lib, since SM1369 X7 part one, outside the lib/ scanned here.
 my %OWN = (
     odoo => [
-        qr{\Alib/Lazysite/Odoo\.pm\z}, qr{\Alib/Lazysite/Odoo/},
-        qr{\Astarter/assets/lazysite-odoo\.js\z}, qr{\Alib/Lazysite/Daemon/Service/OdooEndpoint\.pm\z},
+        qr{\Astarter/assets/lazysite-odoo\.js\z},
         qr{\Astarter/lazysite/templates/(?:components|system)/odoo-signin\.(?:tt|md)\z},
     ],
 );
@@ -65,7 +65,8 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 
 # The allow-list: each core file's count of lines naming Odoo, measured on
 # 2026-11-06 at b7f178856 and recounted for ruling 136 (Odoo's names only): 43
-# files. It may only shrink.
+# files; 42 since X7 part one moved the oomd service into Odoo's payload lib. It
+# may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
@@ -89,7 +90,6 @@ my %ALLOWED = (
     'lib/Lazysite/Auth/Settings.pm'              => 1,
     'lib/Lazysite/Capabilities.pm'               => 9,
     'lib/Lazysite/ControlApi/Actions.pm'         => 20,
-    'lib/Lazysite/Daemon/Service/Oomd.pm'        => 51,
     'lib/Lazysite/Daemon/Supervisor.pm'          => 22,
     'lib/Lazysite/Handlers.pm'                   => 47,
     'lib/Lazysite/Maintenance.pm'                => 1,
@@ -108,7 +108,7 @@ my %ALLOWED = (
     'tools/ext-compat.sh'                        => 18,
     'tools/lazysite-check.pl'                    => 58,
     'tools/lazysite-server.pl'                   => 1,
-    'tools/precheck-areas.pl'                    => 4,
+    'tools/precheck-areas.pl'                    => 3,
     'tools/vendor-oom.sh'                        => 20,
 );
 

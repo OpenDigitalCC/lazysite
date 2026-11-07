@@ -660,7 +660,8 @@ sub _check_odoo_bindings {
         next unless $line =~ /:\s*odoo:([A-Za-z0-9][A-Za-z0-9_-]{0,63})\s*\z/;
         my $id = $1;
         my $b  = eval {
-            require Lazysite::Odoo;
+            require Lazysite::Extensions;
+            Lazysite::Extensions::require_payload('Lazysite::Odoo');
             no warnings 'once';
             local $Lazysite::Odoo::DOCROOT = $docroot;
             ( Lazysite::Odoo::find_binding($id) )[0];

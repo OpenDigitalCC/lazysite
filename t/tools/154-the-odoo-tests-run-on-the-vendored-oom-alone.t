@@ -40,7 +40,7 @@ spit( "$t/poison/Odoo/Transport/Session.pm", "package Odoo::Transport::Session;\
 
 subtest 'every Odoo module a test loads is the snapshot\'s' => sub {
     my $prog = q{
-        use lib "t/lib", "lib";
+        use lib "t/lib", "lib", "extensions/odoo/lib";    # SM1369 X7: the Odoo payload lib, as a test has it
         use OdooTest;
         OdooTest::oom_or_skip();
         require Odoo::Ops;

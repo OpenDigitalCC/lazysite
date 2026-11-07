@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL on n757: X0 (t/lint/321) and X1 (Lazysite::Extensions::Hooks, the index build, install.pl run_hook_index_build, the payload lib rule) are built. Next, ruling 135: Odoo's file move (X7's move), which X2 waits for. Then X2 actions and capabilities, X3 sources and handlers, X4 identity, X5 endpoint, services, assets, X6 check, panels, secrets, X7's rest, X8 the offline kit."
+status-note: "PARTIAL: X0 and X1 shipped in 0.16.6. X7 part one (ruling 135) built on n762: Odoo's modules in extensions/odoo/lib, reached by require_payload; tests and the OOM snapshot stay for 0.16.9. Next X2 actions and capabilities, X3 sources and handlers, X4 identity, X5 endpoint, services, assets, X6 check, panels, secrets, X7's rest, X8 the offline kit."
 ---
 
 # The ruling
@@ -105,6 +105,81 @@ Tests
   with no hooks); `t/tools/330` (the upgrade step, through the real
   `install.pl`); `t/lint/125` runs the loader's enabled-list reader beside the
   other two. Each fails with its change reverted.
+
+# X7, part one: Odoo's modules move into its payload lib
+
+Ruling 135 puts this before X2. It is built on n762 for 0.16.7. Ruling 143 leaves
+the rest of X7 to 0.16.9: the separate `lazysite-odoo` deb, the `--with odoo` install
+path and the empty allow-list.
+
+The move
+: Odoo's modules go from `lib/Lazysite/` to `extensions/odoo/lib/Lazysite/`, with
+  their names unchanged (D-3 (a)). That is `Lazysite::Odoo`, the twelve
+  `Lazysite::Odoo::*` and the two Odoo-only daemon services (`Daemon::Service::Oomd`,
+  `Daemon::Service::OdooEndpoint`). The move is its own commit of renames. They still
+  ship in the same package and install: `classification.json` installs
+  `extensions/<id>/lib/**.pm` at `{DOCROOT}/../extensions/<id>/lib/`, and the six
+  directories are declared at 0755.
+
+How core reaches them
+: `Lazysite::Extensions::require_payload($module)` loads the engine's own copy. That
+  copy is the payload beside the lib core was loaded from: `{DOCROOT}/../extensions`
+  on a site, `extensions/` in a checkout and in `/usr/share/lazysite`. It puts the
+  payload lib on `@INC` by the X1 rule (`add_payload_lib`, appended). A module found
+  in two payload libs is refused. So is a copy anywhere else on `@INC`, such as an
+  edited file an earlier release left in core's lib. A missing module dies as
+  `require` does. Like `require`, it gates nothing. Whether the extension is on stays
+  each caller's question, as before the move.
+
+Who uses it
+: Every core `require` of an Odoo module now goes through it. The processor's
+  `_lazy_lib` falls back to it for a module that is not core's, which covers its
+  sources and the pool's preload list (`Lazysite::Extensions` joins that list). The
+  manager's config validator (`validate_*`) does too. Odoo's own files find their
+  payload themselves: the endpoint `lazysite-odoo.pl` in its BEGIN, the descriptor
+  beside itself. The endpoint's service finds the script six levels up from its new
+  place.
+
+The upgrade
+: The manifest plan installs the payload and removes the old copies, as it removes
+  any file that left the manifest. The directories they emptied in core's lib go too,
+  and only empty ones. The hook index is rebuilt as on every upgrade; Odoo declares
+  no hooks yet. An edited old copy is kept with its orphan warning. `require_payload`
+  then refuses it by name rather than running stale code.
+
+Kept in place, for 0.16.9 (risk R-6)
+: Odoo's tests stay in `t/unit/odoo` and the rest of `t/`. The OOM snapshot stays in
+  `t/vendor/oom`, with `tools/vendor-oom.sh`, `tools/ext-compat.sh` and lints 207,
+  261 and 262. Moving them is not mechanical:
+  - every runner reads `t/`: `prove -lr t/` in `tools/suite.sh` and the nightly,
+    `precheck.sh`'s greps of `t/unit` and `t/integration`, and the area map's
+    `all_tests`;
+  - the coverage digests are taken over those inputs;
+  - `OdooTest` finds the snapshot at `t/vendor/oom` from its own place;
+  - lint 261 holds that path to its MANIFEST.
+
+  Moving them needs H-12, where the tools read the extension's declaration, and the
+  core-alone gate job. Until then a test reaches the payload as `prove -l` reaches
+  core's lib: `TestHelper` appends each in-tree payload lib to `@INC` in the test
+  process only, never in a child a test starts.
+
+The allow-list
+: Lint 321 loses `lib/Lazysite/Daemon/Service/Oomd.pm`, which is now the extension's,
+  and `tools/precheck-areas.pl` drops to 3 lines (one row now covers the payload lib):
+  42 files. No core file gained a line naming Odoo.
+
+Tests
+: `t/lint/335`: core's `lib/` holds no extension module, and no core file loads one
+  but through the rule. `t/unit/extensions/75`: the rule against a fixture engine
+  tree, including a stale copy refused, two payloads and a linked payload.
+  `t/tools/335`: the upgrade journey, with a site in the old layout with Odoo on, the
+  site sign-in on, a page binding, a page reading it, a protected page and a person
+  signed in through Odoo, upgraded in place by the real `install.pl`. After it, the
+  installed code keeps the person signed in and the binding answering at the endpoint
+  and on the page, and a second run changes nothing. oomd, the pooled warm endpoint
+  and a scheduled binding's timer are not stood up there; their names, socket and
+  paths are unchanged. Lints 262, 269 and 272 read the payload lib as they read
+  `lib/`.
 
 # Choices made
 

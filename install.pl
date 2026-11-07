@@ -2578,6 +2578,13 @@ sub remove_page_file {
     my ( $docroot, $dest ) = @_;
     unlink $dest
         or warn "  warn: could not unlink $dest: $!\n";
+    # SM1369 X7: a module the release moved out of a lib (Odoo's, into its payload
+    # lib) leaves the directories it emptied; they go too, up to the lib itself.
+    # rmdir removes only an empty directory, so anything a site put there stays.
+    if ( $dest =~ m{\A(.*/lib)/.+\.pm\z} ) {
+        my ( $top, $dir ) = ( $1, dirname($dest) );
+        while ( length $dir > length $top && rmdir $dir ) { $dir = dirname($dir) }
+    }
     return unless $dest =~ /\.md$/;
     ( my $cached = $dest ) =~ s/\.md$/.html/;
     unlink $cached if -f $cached;

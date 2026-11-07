@@ -47,6 +47,18 @@ my $root = repo_root();
 unshift @INC, "$root/lib";
 require Lazysite::WarmFork;
 
+# SM1369 X7: a module's file, relative to the root - core's lib, else the payload
+# lib of an in-tree extension (extensions/<id>/lib), where Odoo's modules are.
+sub rel_of {
+    my ($modrel) = @_;
+    return "lib/$modrel" if -f "$root/lib/$modrel";
+    for my $p ( sort glob("$root/extensions/*/lib") ) {
+        return ( $p =~ s{\A\Q$root\E/}{}r ) . "/$modrel" if -f "$p/$modrel";
+    }
+    return undef;
+}
+
+
 sub slurp {
     my ($f) = @_;
     open my $fh, '<:raw', $f or die "$f: $!";
@@ -64,14 +76,14 @@ my %text = map { $_ => slurp("$root/$_") } qw(lazysite-odoo.pl lib/Lazysite/Warm
     my %seen;
     while ( defined( my $m = shift @queue ) ) {
         next if $seen{$m}++;
-        my $f = 'lib/' . join( '/', split /::/, $m ) . '.pm';
-        next unless -f "$root/$f";
+        my $f = rel_of( join( '/', split /::/, $m ) . '.pm' );
+        next unless defined $f;
         $text{$f} = slurp("$root/$f");
         push @queue, Lazysite::WarmFork::_names( $text{$f} );
     }
 }
 cmp_ok( scalar keys %text, '>', 20, 'the parent\'s set reaches the endpoint\'s modules and theirs' );
-ok( $text{'lib/Lazysite/Odoo.pm'} && $text{'lib/Lazysite/Auth/Session.pm'}, '...the engine and the verifier among them' );
+ok( $text{'extensions/odoo/lib/Lazysite/Odoo.pm'} && $text{'lib/Lazysite/Auth/Session.pm'}, '...the engine and the verifier among them' );
 
 subtest 'a real preload loads nothing of lazysite\'s that this reads past' => sub {
     my $code = 'require Lazysite::WarmFork; my ( $l, $s, $e ) = Lazysite::WarmFork::preload( $ARGV[0] ); '
@@ -83,7 +95,8 @@ subtest 'a real preload loads nothing of lazysite\'s that this reads past' => su
     my @ours = grep { m{\ALazysite/} } @$inc;
     cmp_ok( scalar @ours, '>', 20, 'and loaded the endpoint\'s modules' );
     for my $f (@ours) {
-        ok( exists $text{"lib/$f"}, "lib/$f is in the set read here" );
+        my $rel = rel_of($f) // "lib/$f";
+        ok( exists $text{$rel}, "$rel is in the set read here" );
     }
 };
 
@@ -119,10 +132,10 @@ my %T       = (
     'lib/Lazysite/Manager/Extensions.pm' => { '$ROW_JSON' => 'a JSON::PP encoder, constructed with no data' },
     'lib/Lazysite/Manager/Upload.pm' => { '%TEXT_EXTENSIONS' => $DERIVED },
     'lib/Lazysite/Notify.pm' => { '$XMPP_SENDER' => $SEAM, '$MAIL_SENDER' => $SEAM, '$SRV_RESOLVER' => $SEAM },
-    'lib/Lazysite/Odoo.pm' => { '%PRIVATE4' => 'a constant table of code references (private address ranges)', '%CALL_FIELD' => $DERIVED },
-    'lib/Lazysite/Odoo/Binding.pm' => { '%FROM_INPUT' => $DERIVED, '%SNIFFED' => $DERIVED },
-    'lib/Lazysite/Odoo/Download.pm' => { '%INLINE_OK' => $DERIVED },
-    'lib/Lazysite/Odoo/Fields.pm' => { '%TYPE' => 'derived at load from the module\'s constant TYPES()' },
+    'extensions/odoo/lib/Lazysite/Odoo.pm' => { '%PRIVATE4' => 'a constant table of code references (private address ranges)', '%CALL_FIELD' => $DERIVED },
+    'extensions/odoo/lib/Lazysite/Odoo/Binding.pm' => { '%FROM_INPUT' => $DERIVED, '%SNIFFED' => $DERIVED },
+    'extensions/odoo/lib/Lazysite/Odoo/Download.pm' => { '%INLINE_OK' => $DERIVED },
+    'extensions/odoo/lib/Lazysite/Odoo/Fields.pm' => { '%TYPE' => 'derived at load from the module\'s constant TYPES()' },
     'lib/Lazysite/Outbox.pm' => { '$MAIL_SENDER' => $SEAM },
     'lib/Lazysite/Timing.pm' => {
         '%KNOWN' => $DERIVED,

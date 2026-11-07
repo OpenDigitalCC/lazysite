@@ -9,6 +9,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM1369 X7 (ruling 135): an extension's own Perl modules, in its payload lib beside its descriptor (extensions/<id>.pl and extensions/<id>/lib, the X1 layout). Never in core's lib: core reaches them through Lazysite::Extensions::require_payload, from the payload beside the lib it was loaded from.",
+      "pattern": "^extensions/([a-z][a-z0-9-]*/lib/.+\\.pm)$",
+      "install_to": "{DOCROOT}/../extensions/$1",
+      "bucket": "code"
+    },
+    {
       "_comment": "Core CGI scripts stay at repo root with the lazysite- prefix. processor, auth, manager-api, dav, mcp, oauth are explicitly enumerated so a future stray lazysite-*.pl at root won't get silently installed to cgi-bin.",
       "pattern": "^lazysite-(processor|auth|manager-api|dav|mcp|oauth|front|data|odoo)\\.pl$",
       "install_to": "{CGIBIN}/$0",
@@ -693,9 +699,34 @@
       "why": "as ../lib - ADR 0009, reading and validating an extension's owns declaration"
     },
     {
-      "path": "{DOCROOT}/../lib/Lazysite/Odoo",
+      "path": "{DOCROOT}/../extensions/odoo",
       "mode": "0755",
-      "why": "as ../lib - SM747, the Odoo extension's binding, key and visitor modules. Code and read-only; the extension's store is {LAZYSITE}/odoo, created by the extension when first used"
+      "why": "as ../extensions - SM1369 X7, the Odoo extension's payload beside its descriptor. Code and read-only; the extension's store is {LAZYSITE}/odoo, created by the extension when first used"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/lib",
+      "mode": "0755",
+      "why": "as ../lib - the Odoo extension's own modules (its payload lib, the X1 layout)"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/lib/Lazysite",
+      "mode": "0755",
+      "why": "as ../lib"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/lib/Lazysite/Odoo",
+      "mode": "0755",
+      "why": "as ../lib - SM747, the Odoo extension's binding, key and visitor modules"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/lib/Lazysite/Daemon",
+      "mode": "0755",
+      "why": "as ../lib"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/lib/Lazysite/Daemon/Service",
+      "mode": "0755",
+      "why": "as ../lib - the Odoo extension's two daemon services, oomd and the endpoint's warm-fork parent"
     }
   ]
 }

@@ -131,7 +131,8 @@ sub _names {
     $t        =~ s/^__END__.*//ms;
     $t        =~ s/^=\w+.*?^=cut\s*$//msg;
     $t        =~ s/^\s*#.*$//mg;
-    return $t =~ /\b(?:use|require)\s+(Lazysite::[\w:]+)/g;
+    # SM1369 X7: and a module core reaches in an extension's payload lib
+    return $t =~ / \b (?: (?:use|require) \s+ | require_payload\( \s* ' ) (Lazysite::[\w:]+) /xg;
 }
 
 # What the parent compiled, as it is on disk now: a change is an upgrade.

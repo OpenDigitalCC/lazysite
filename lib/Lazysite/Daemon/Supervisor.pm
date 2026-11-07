@@ -128,7 +128,8 @@ sub services {
     push @s, {
         name  => 'oomd',
         start => sub {
-            require Lazysite::Daemon::Service::Oomd;
+            require Lazysite::Extensions;
+            Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
             return Lazysite::Daemon::Service::Oomd::run(@_);
         },
         }
@@ -139,7 +140,8 @@ sub services {
     push @s, {
         name  => 'odoo-endpoint',
         start => sub {
-            require Lazysite::Daemon::Service::OdooEndpoint;
+            require Lazysite::Extensions;
+            Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::OdooEndpoint');
             return Lazysite::Daemon::Service::OdooEndpoint::run(@_);
         },
         }
@@ -169,7 +171,8 @@ our $SERVICE_GATE_EVERY = 5;
 
 sub _oomd_wanted {
     my ($root) = @_;
-    require Lazysite::Daemon::Service::Oomd;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
     my $w = eval { Lazysite::Daemon::Service::Oomd::wanted($root) };
     return $w ? 1 : 0;
 }
@@ -180,7 +183,8 @@ sub _gated { return ( oomd => 'oomd', 'odoo-endpoint' => 'odoo_endpoint' ) }
 
 sub _odoo_endpoint_wanted {
     my ($root) = @_;
-    require Lazysite::Daemon::Service::OdooEndpoint;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::OdooEndpoint');
     my $w = eval { Lazysite::Daemon::Service::OdooEndpoint::wanted($root) };
     return $w ? 1 : 0;
 }
@@ -199,7 +203,8 @@ sub _listed {
 
 sub _oomd_reason {
     my ($root) = @_;
-    require Lazysite::Daemon::Service::Oomd;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
     return 'oomd said: ' . Lazysite::Daemon::Service::Oomd::failure_reason($root);
 }
 

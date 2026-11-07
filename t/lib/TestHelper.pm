@@ -27,6 +27,28 @@ our @EXPORT_OK = qw(
     changelog_text
 );
 
+# SM1369 X7 (ruling 135): AN IN-TREE EXTENSION'S OWN MODULES are in its payload
+# lib (extensions/<id>/lib), not in core's lib/, so `prove -l` no longer finds
+# them. A test that loads one by name - most of t/unit/odoo - finds it here, as it
+# found core's through -l: each payload lib is APPENDED, as the X1 rule appends
+# (Lazysite::Extensions::add_payload_lib), so core's lib still resolves first.
+# Only this test process: a child a test runs (a CGI, a tool, install.pl) reaches
+# the payload by the product's own rule, which is what t/lint/335 and the
+# upgrade journey test (t/tools/335) hold - so this runs in the test file's own
+# process only ($0 a .t), never in a child that loads a test helper (OdooInject).
+if ( $0 =~ /\.t\z/ ) {
+    require Cwd;
+    my $me   = Cwd::abs_path(__FILE__) // __FILE__;
+    my $repo = $me =~ s{/t/lib/TestHelper\.pm\z}{}r;
+    if ( opendir my $xd, "$repo/extensions" ) {
+        for my $s ( sort grep { /\A[a-z][a-z0-9-]*\z/ } readdir $xd ) {
+            my $lib = "$repo/extensions/$s/lib";
+            push @INC, $lib if -f "$repo/extensions/$s.pl" && -d $lib && !-l $lib && !grep { !ref && $_ eq $lib } @INC;
+        }
+        closedir $xd;
+    }
+}
+
 # Run a command and capture its output. LIST FORM - no shell, ever.
 #
 # WHY THIS EXISTS. Tests kept building a shell string and interpolating into it,
@@ -426,10 +448,27 @@ sub site_tempdir {
         opendir my $pd, $src or die "$src: $!";
         for my $f ( grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
             File::Copy::copy( "$src/$f", "$t/site/extensions/$f" ) or die "copy $f: $!";
+            # SM1369 X7: and its payload beside it, as the installer lays it out, so a
+            # descriptor run from the copy finds its own modules (extensions/<id>/lib).
+            ( my $stem = $f ) =~ s/\.pl\z//;
+            _copy_tree( "$src/$stem", "$t/site/extensions/$stem" ) if -d "$src/$stem" && !-l "$src/$stem";
         }
         closedir $pd;
     }
     return $d;
+}
+
+sub _copy_tree {
+    my ( $from, $to ) = @_;
+    make_path($to);
+    opendir my $dh, $from or die "$from: $!";
+    for my $e ( grep { !/\A\.\.?\z/ } readdir $dh ) {
+        next if -l "$from/$e";
+        if    ( -d "$from/$e" ) { _copy_tree( "$from/$e", "$to/$e" ) }
+        elsif ( -f "$from/$e" ) { File::Copy::copy( "$from/$e", "$to/$e" ) or die "copy $from/$e: $!" }
+    }
+    closedir $dh;
+    return;
 }
 
 sub grant_caps {

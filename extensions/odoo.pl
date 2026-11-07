@@ -27,6 +27,9 @@ BEGIN {
     for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
+    # SM1369 X7: its own modules are in its payload lib, beside this file (the X1
+    # rule), found by the one resolver; --describe needs none of them.
+    eval { require Lazysite::Extensions; Lazysite::Extensions::add_payload_lib( Cwd::abs_path(__FILE__) ); 1 };
 }
 
 exit run(@ARGV) if !caller;

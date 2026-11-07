@@ -114,7 +114,7 @@ for my $rel (
 # Held stronger than the list above: it opens nothing for writing, so a writer that
 # comes back must come back through the helper and onto that list.
 {
-    open my $fh, '<', "$root/lib/Lazysite/Odoo/SiteSignin.pm" or die $!;
+    open my $fh, '<', "$root/extensions/odoo/lib/Lazysite/Odoo/SiteSignin.pm" or die $!;
     my $src = do { local $/; <$fh> };
     close $fh;
     unlike( $src, qr{open\s*\(?\s*my\s+\$\w+\s*,\s*['"](?:\+?>|>>)}, 'SiteSignin.pm opens no file for writing' );

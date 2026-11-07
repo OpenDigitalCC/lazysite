@@ -72,6 +72,7 @@ our @POOL_PRELOAD = qw(
     Lazysite::I18n
     Lazysite::Fetch
     Lazysite::Data::Tables
+    Lazysite::Extensions
     Lazysite::Odoo
     Lazysite::Odoo::Fields
     Lazysite::Odoo::Identity

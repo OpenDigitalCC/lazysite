@@ -550,7 +550,8 @@ sub _briefs {
 # and the channel, which is what lets the engine run it as the grant's own Odoo
 # account (Q2). Never a visitor.
 sub _odoo_engine {
-    require Lazysite::Odoo;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo');
     no warnings 'once';
     $Lazysite::Odoo::DOCROOT = $DOCROOT;
     return 'Lazysite::Odoo';

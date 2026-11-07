@@ -25,7 +25,7 @@ use warnings;
 use Exporter 'import';
 use Lazysite::Paths ();
 
-our @EXPORT_OK = qw(locate extensions_dir registry_key payload_lib add_payload_lib);
+our @EXPORT_OK = qw(locate extensions_dir registry_key payload_lib add_payload_lib engine_root require_payload);
 
 # The directory's name under an install root, and the package's copy. The
 # registry key a site's lazysite.conf lists is the same name and the file:
@@ -98,6 +98,75 @@ sub add_payload_lib {
     return undef unless defined $lib;
     push @INC, $lib unless grep { !ref && $_ eq $lib } @INC;
     return $lib;
+}
+
+# SM1369 X7, part one (ruling 135): CORE'S REMAINING CALLS INTO AN EXTENSION'S
+# OWN MODULES. An extension's modules live in its payload lib, never in core's
+# lib/, so a hook (X2 onwards) can name them. Until each hook slice replaces the
+# core lines that still call an extension's module by name (the allow-list of
+# t/lint/321), those lines load it here, and only here (t/lint/335):
+#
+#   - THE ENGINE'S OWN COPY: the payload beside the lib this module was loaded
+#     from - {DOCROOT}/../lib with {DOCROOT}/../extensions on a site, lib/ with
+#     extensions/ in a checkout and in /usr/share/lazysite - so core and the
+#     extension it calls always come from the same install;
+#   - the payload lib goes on @INC by the one rule (add_payload_lib, appended);
+#   - the module must be a file in exactly one payload lib, and nowhere else on
+#     @INC: a copy an earlier release left in core's lib (an edited one the
+#     upgrade keeps, with its orphan warning) would otherwise win, so it is
+#     refused by name;
+#   - it dies as `require` does, so a caller's `eval { require ... }` reads the
+#     same. Like `require`, it loads and gates nothing else: whether the
+#     extension is on is the caller's question, as it was before the move.
+sub engine_root {
+    my $me = $INC{'Lazysite/Extensions.pm'} or return undef;
+    require Cwd;
+    my $abs = Cwd::abs_path($me)                or return undef;
+    $abs =~ s{/lib/Lazysite/Extensions\.pm\z}{} or return undef;
+    return $abs;
+}
+
+# Every payload lib of the engine's own extensions: ( [ descriptor, lib ], ... ).
+sub _engine_payloads {
+    my $root = engine_root();
+    return () unless defined $root;
+    my $dir = extensions_dir($root);
+    opendir my $dh, $dir or return ();
+    my @stems = sort grep { /\A[A-Za-z0-9_-]+\z/ && -d "$dir/$_" && !-l "$dir/$_" } readdir $dh;
+    closedir $dh;
+    my @out;
+    for my $s (@stems) {
+        my $d = "$dir/$s.pl";
+        next unless -f $d;
+        my $lib = payload_lib($d);
+        push @out, [ $d, $lib ] if defined $lib;
+    }
+    return @out;
+}
+
+sub require_payload {
+    my ($module) = @_;
+    die "require_payload: '" . ( $module // '' ) . "' is not a module name\n"
+        unless defined $module && $module =~ /\A[A-Za-z_]\w*(?:::\w+)*\z/;
+    ( my $rel = "$module.pm" ) =~ s{::}{/}g;
+    return 1 if $INC{$rel};
+    my @hit = grep { -f "$_->[1]/$rel" && !-l "$_->[1]/$rel" } _engine_payloads();
+    die "Can't locate $rel in any extension's payload lib (" . ( engine_root() // 'no engine root' ) . "/extensions)\n"
+        unless @hit;
+    die "$rel is in more than one extension's payload lib: $hit[0][1], $hit[1][1]\n" if @hit > 1;
+    my ( $descriptor, $lib ) = @{ $hit[0] };
+    require Cwd;
+    my $mine = Cwd::abs_path("$lib/$rel");
+    for my $dir ( grep { !ref && length } @INC ) {
+        next unless -e "$dir/$rel";
+        my $other = Cwd::abs_path("$dir/$rel");
+        next if defined $other && $other eq $mine;
+        die "$rel is in the payload lib $lib and also at $dir/$rel - a copy an earlier release left "
+            . "outside the extension; remove it\n";
+    }
+    add_payload_lib($descriptor);
+    require $rel;
+    return 1;
 }
 
 1;

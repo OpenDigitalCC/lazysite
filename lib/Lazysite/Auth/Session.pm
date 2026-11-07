@@ -636,7 +636,8 @@ sub odoo_login_of {
     my ($field) = @_;
     return undef unless defined $field && $field =~ /\Aodoo=([A-Za-z0-9._@+%-]{1,762})\z/;
     ( my $l = $1 ) =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
-    require Lazysite::Odoo::SiteSignin;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
     return Lazysite::Odoo::SiteSignin::login_ok($l) ? $l : undef;
 }
 
@@ -683,7 +684,8 @@ sub _session_field {
 sub mint_odoo_session {
     my (%a) = @_;
     my $login = $a{login};
-    require Lazysite::Odoo::SiteSignin;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
     return () unless Lazysite::Odoo::SiteSignin::login_ok($login);
     my $secret = _auth_secret_read();
     return () unless length $secret;
@@ -718,7 +720,8 @@ sub _verify_odoo_session {
     my $login = odoo_login_of($field);
     return ( undef, 'malformed' ) unless defined $login && defined $sid && $sid =~ /\A[[:xdigit:]]{16}\z/;
     my $user = "odoo:$login";
-    require Lazysite::Odoo::SiteSignin;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
     my $dir = $LAZYSITE_DIR;
 
     # Off means off: turning the opt-in off ends these sessions at the next request.

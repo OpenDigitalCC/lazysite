@@ -31,6 +31,7 @@ use warnings;
 use Exporter   qw(import);
 use File::Path qw(make_path);
 use FindBin;
+use TestHelper ();    # SM1369 X7: puts the payload libs (Odoo's modules) on @INC
 
 our @EXPORT_OK = qw(oom_lib oom_test_lib oomd_bin vendor_dir oom_or_skip pretend_released odoo_site enable_odoo write_conf
     fake_shop shop_namespace bind set_key shop_ready quiet);

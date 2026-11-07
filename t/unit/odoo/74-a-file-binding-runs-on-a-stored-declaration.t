@@ -59,7 +59,8 @@ my $script = "$d/child-file-call.pl";
 use strict; use warnings; no warnings 'once';
 use lib $ENV{T_REPO} . '/lib';
 use JSON::PP;
-require Lazysite::Odoo;
+require Lazysite::Extensions;
+Lazysite::Extensions::require_payload('Lazysite::Odoo');    # SM1369 X7: as core reaches it
 $Lazysite::Odoo::DOCROOT = $ENV{T_DOCROOT};
 my $jpeg = pack 'H*', $ENV{T_JPEG};
 my $png  = pack 'H*', $ENV{T_PNG};

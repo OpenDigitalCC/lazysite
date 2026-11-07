@@ -998,7 +998,7 @@ sub validate_handler {
     if ( $type eq 'odoo' ) {
         # The shape, in the one parser the call uses - so what is saved is what
         # will run. Whether the operation exists is _destination_problem's.
-        require Lazysite::Odoo::Binding;
+        Lazysite::Extensions::require_payload('Lazysite::Odoo::Binding');
         my ( $b, $why, $field ) = Lazysite::Odoo::Binding::parse( \%out );
         return ( undef, $why, $field ) unless $b;
     }
@@ -1155,8 +1155,8 @@ sub _destination_problem {
         # registry can be read. OOM absent or the connection unconfigured is NOT
         # a refusal - unvalidated is not invalid - and the call checks again.
         my $problem = eval {
-            require Lazysite::Odoo;
-            require Lazysite::Odoo::Binding;
+            Lazysite::Extensions::require_payload('Lazysite::Odoo');
+            Lazysite::Extensions::require_payload('Lazysite::Odoo::Binding');
             no warnings 'once';
             local $Lazysite::Odoo::DOCROOT = $DOCROOT;
             my ($have) = Lazysite::Odoo::oom_check();
@@ -1369,7 +1369,7 @@ sub action_handler_delete {
     return { ok => 0, error => $err } unless $ok;
     if ( ( $h->{type} // '' ) eq 'odoo' ) { # SM1180: its stored operation declaration goes with it
         eval {
-            require Lazysite::Odoo;
+            Lazysite::Extensions::require_payload('Lazysite::Odoo');
             no warnings 'once';
             local $Lazysite::Odoo::DOCROOT = $DOCROOT;
             Lazysite::Odoo::forget_decl($id);
@@ -1800,8 +1800,8 @@ sub _deliver_one {
 # refused here by name rather than planned into a void.
 sub _to_odoo {
     my ( $h, $fields, $ctx ) = @_;
-    require Lazysite::Odoo;
-    require Lazysite::Odoo::Binding;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo');
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::Binding');
     no warnings 'once';
     local $Lazysite::Odoo::DOCROOT = $DOCROOT;
     my ( $b, $why ) = Lazysite::Odoo::Binding::parse($h);

@@ -992,7 +992,12 @@ sub action_extension_save {
             my $vf   = $fd ? ( $fd->{validate} // '' ) : '';
             if ( my ( $mod, $fn ) = $vf =~ /\A(Lazysite(?:::\w+)+)::(validate_\w+)\z/ ) {
                 ( my $file = "$mod.pm" ) =~ s{::}{/}g;
-                my $code = eval { require $file; $mod->can($fn) };
+                my $code = eval {
+                    # SM1369 X7: core's, else the extension's own, from its payload lib.
+                    if ( grep { !ref && -f "$_/$file" } @INC ) { require $file }
+                    else { require Lazysite::Extensions; Lazysite::Extensions::require_payload($mod) }
+                    $mod->can($fn);
+                };
                 if ($code) {
                     my $why = $code->( $values->{$k}, _lz() );
                     return { ok => 0, kind => 'invalid', field => $k, error => "'$k' is refused: $why" }

@@ -3905,8 +3905,9 @@ sub report_odoo_daemon {
     my $d = $opt{docroot};
     return unless -r "$LZ/odoo.conf";
     my $st = eval {
-        require Lazysite::Odoo::Daemon;
-        require Lazysite::Odoo;
+        require Lazysite::Extensions;
+        Lazysite::Extensions::require_payload('Lazysite::Odoo::Daemon');
+        Lazysite::Extensions::require_payload('Lazysite::Odoo');
         no warnings 'once';
         local $Lazysite::Odoo::DOCROOT = $d;
         Lazysite::Odoo::Daemon::status($d);
@@ -3948,7 +3949,8 @@ sub report_odoo_daemon {
 # Odoo does not know cannot be named since OOM 0.37 (SM1217), and the line says so rather than
 # reading as "all known". Reads the config; makes no call to Odoo.
 sub report_odoo_site_signin {
-    require Lazysite::Odoo::SiteSignin;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
     my $r = Lazysite::Odoo::SiteSignin::report($LZ);
     return unless $r->{enabled};
     report( 'OK', "the Odoo sign-in is the site sign-in; $r->{mapped} Odoo group" . ( $r->{mapped} == 1 ? '' : 's' ) . ' mapped'
@@ -3982,7 +3984,7 @@ sub report_odoo_read_caps {
             && ( $_->{rate_per_hour}         // '' ) eq '200'
     } @$list;
     return unless @old;
-    my $ok = eval { require Lazysite::Odoo; 1 };
+    my $ok = eval { require Lazysite::Extensions; Lazysite::Extensions::require_payload('Lazysite::Odoo'); 1 };
     return unless $ok;
     no warnings 'once';
     local $Lazysite::Odoo::DOCROOT = $DOC;

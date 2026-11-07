@@ -51,7 +51,7 @@ sub script_for {
     return $SCRIPT if defined $SCRIPT;
     my @c = ("$root/../cgi-bin/lazysite-odoo.pl");
     if ( my $me = $INC{'Lazysite/Daemon/Service/OdooEndpoint.pm'} ) {
-        my $engine = File::Basename::dirname($me) . '/../../../..';
+        my $engine = File::Basename::dirname($me) . '/../../../../../..';    # extensions/odoo/lib/Lazysite/Daemon/Service
         push @c, "$engine/lazysite-odoo.pl";
     }
     for my $c (@c) {

@@ -52,7 +52,8 @@ my $script = "$d/child-call.pl";
 use strict; use warnings; no warnings 'once';
 use lib $ENV{T_REPO} . '/lib';
 use JSON::PP;
-require Lazysite::Odoo;
+require Lazysite::Extensions;
+Lazysite::Extensions::require_payload('Lazysite::Odoo');    # SM1369 X7: as core reaches it
 $Lazysite::Odoo::DOCROOT = $ENV{T_DOCROOT};
 if ( $ENV{T_FAKE} ) { unshift @INC, $ENV{T_TESTLIB}; require OdooTest; $Lazysite::Odoo::TRANSPORT = OdooTest::fake_shop() }
 my ($b) = Lazysite::Odoo::find_binding( $ENV{T_BINDING} );

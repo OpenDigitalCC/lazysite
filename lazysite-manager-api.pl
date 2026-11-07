@@ -3299,7 +3299,8 @@ sub _connectors {
 
 # SM747: the Odoo extension's engine, as the connectors' is reached.
 sub _odoo {
-    require Lazysite::Odoo;
+    require Lazysite::Extensions;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo');
     no warnings 'once';
     $Lazysite::Odoo::DOCROOT = $DOCROOT;
     return 'Lazysite::Odoo';

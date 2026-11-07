@@ -231,7 +231,7 @@ sub oomd_ready {
         join '', map { "$_\n" } 'odoo_url: https://odoo.example', 'odoo_db: local16', 'odoo_login: tester',
         'odoo_daemon: required', 'odoo_daemon_workers: 1' );
     no warnings 'once';
-    require Lazysite::Odoo::Secret;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::Secret');
     local $Lazysite::Odoo::Secret::DOCROOT = $docroot;
     my ( $ok, $why ) = Lazysite::Odoo::Secret::set_key( 'connection', 'k3y-for-the-bench' );
     return "the connection key was not set: $why" unless $ok;
@@ -243,7 +243,7 @@ sub oomd_ready {
         unconstrained => 1 );
     return "the binding was not saved: $r->{error}" unless $r->{ok};
 
-    require Lazysite::Daemon::Service::Oomd;
+    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
     $Lazysite::Daemon::Service::Oomd::COMMAND = [ $^X, "$vendor/bin/oomd" ];
     my $pid = fork() // return "fork: $!";
     if ( !$pid ) {
@@ -255,7 +255,7 @@ sub oomd_ready {
         POSIX::_exit( defined $rc ? $rc : 1 );
     }
     $oomd_pid = $pid;
-    require Lazysite::Odoo::Daemon;
+    Lazysite::Extensions::require_payload('Lazysite::Odoo::Daemon');
     my ($sock) = Lazysite::Odoo::Daemon::socket_for($docroot);
     for ( 1 .. 300 ) {
         my $h = eval { require Odoo::Ops::Daemon::Path; Odoo::Ops::Daemon::Path->health( socket => $sock, timeout => 2 ) };
@@ -293,8 +293,8 @@ sub margin_check {
             . "--margin-binding (a public read binding on it)\n"
             unless length $opt{margin_docroot} && length $opt{margin_binding};
         $docroot = $opt{margin_docroot};
-        require Lazysite::Odoo;
-        require Lazysite::Odoo::Daemon;
+        Lazysite::Extensions::require_payload('Lazysite::Odoo');
+        Lazysite::Extensions::require_payload('Lazysite::Odoo::Daemon');
         no warnings 'once';
         $Lazysite::Odoo::DOCROOT = $docroot;
         my ( $b, $why ) = Lazysite::Odoo::find_binding( $opt{margin_binding} );
@@ -531,7 +531,7 @@ END { stop_pool() }
 # --- the Odoo endpoint's warm-fork parent (SM1226), started by its own service -----
 my $warm_pid;
 sub start_warm {
-    require Lazysite::Daemon::Service::OdooEndpoint;
+    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::OdooEndpoint');
     require Lazysite::WarmFork::Wire;
     no warnings 'once';
     $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT = "$ROOT/lazysite-odoo.pl";

@@ -49,11 +49,12 @@ my %ALLOWED = map { $_ => 1 } qw(
 # declaration line is exempt, matched whole, so a second mention in the file, or
 # any test naming the path, is still a finding.
 my %ALLOWED_LINE = (
-    'lib/Lazysite/Odoo.pm' => q{our $PACKAGED_PACKS = '} . '/usr/share/' . q{odoo-oom/packs';},
+    'extensions/odoo/lib/Lazysite/Odoo.pm' => q{our $PACKAGED_PACKS = '} . '/usr/share/' . q{odoo-oom/packs';},
 );
 
 my @files;
-for my $top (qw(t lib tools)) {
+# SM1369 X7: an in-tree extension's payload lib is code the gate runs, as lib/ is.
+for my $top ( qw(t lib tools), map { s{\A\Q$root\E/}{}r } sort glob("$root/extensions/*/lib") ) {
     next unless -d "$root/$top";
     File::Find::find(
         { no_chdir => 1,
