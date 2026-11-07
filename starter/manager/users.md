@@ -1384,7 +1384,9 @@ function deleteUser(user) {
     apiCall({ action: 'remove', username: user })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('User "' + user + '" removed.');
+      // SM1401: the rules the account owned, named with the remedy, when there are any.
+      if (d.orphaned_rules && d.orphaned_rules.length) { showStatus('User "' + user + '" removed. ' + d.message, true); }
+      else { showStatus('User "' + user + '" removed.'); }
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

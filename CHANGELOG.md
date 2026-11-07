@@ -143,6 +143,17 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1401 (PENDING) **Removing an account names the rules it owned (triage T-91).** An access
+  rule kept its owner's login after the account went, in force as written and changeable by
+  the operator alone, and nothing said so. `lazysite-users.pl remove` and the manager's
+  account delete (the users API's `remove`, now answering `orphaned_rules`) say which rules
+  the account owned, where (`/path`, in `lazysite/auth/acls.json`) and the remedy; `lazysite
+  check` names each stored rule whose owner is no account (`report_rules_without_an_owner`,
+  `local` counting as one) with the same remedy: the operator removes it from the manager's
+  Permissions or re-owns it with `lazysite acl set --owner`; a token cannot, by design
+  (`Acl::_is_operator` answers 0 under token auth). The rule itself is not changed.
+  `t/unit/users/73`, `t/tools/336`.
+
 - SM1402 (PENDING) **A notify setting for a form that does not exist is refused (triage
   T-92).** `set_form_notify` (MCP) and `form-notify-save` (API) asked only whether the
   caller reaches the form, and `action_form_notify_save` wrote `lazysite/forms/<name>.conf`

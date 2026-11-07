@@ -59,7 +59,8 @@ perl tools/lazysite-users.pl --docroot /path/to/public_html \
 ```
 add USERNAME PASSWORD       Add a new user
 passwd USERNAME NEWPASSWORD Change password
-remove USERNAME             Remove user and group memberships
+remove USERNAME             Remove user and group memberships; names the
+                            access rules the account owned, which stay
 list                        List all users
 group-add USERNAME GROUP    Add user to group
 group-remove USERNAME GROUP Remove user from group

@@ -1418,6 +1418,7 @@ sub run_checks {
     report_address_slots_against_old_kinds();
     report_old_address_template_calls();
     report_widened_rules();          # SM1313
+    report_rules_without_an_owner();    # SM1401
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
@@ -2704,6 +2705,46 @@ sub report_widened_rules {
             last if ++$n >= 50;
         }
         last if $n >= 50;
+    }
+    return;
+}
+
+# SM1401 (triage T-91): A RULE WHOSE OWNER IS NO ACCOUNT IS NAMED. Removing an
+# account (`lazysite-users.pl remove`, the manager's account delete) leaves its
+# rules with the login as owner. The rule stays in force as written, and only
+# the operator can change it: a rule's writer must be its owner or an operator,
+# and a token is never an operator (Acl::_is_operator answers 0 under token
+# auth), so an agent that could set rules cannot clear this one. The remove
+# command names them at the time; this names the ones already there. `local`,
+# the host operator, is an owner every site has. A WARN; nothing is changed,
+# with or without --fix, because whether the rule should stay is a decision.
+sub report_rules_without_an_owner {
+    my $d = $opt{docroot};
+    my ( $map, $state ) = _read_json_state( _acls_file($d) );
+    return unless $state eq 'ok' && ref $map eq 'HASH' && keys %$map; # the other states: report_group_acl_reach
+    open my $uf, '<', "$LZ/auth/users" or return; # no store, or unreadable: the auth checks name it
+    my %account = ( local => 1 );
+    while ( my $l = <$uf> ) {
+        next if $l =~ /^\s*(?:#|$)/;
+        my ($name) = split /:/, $l, 2;
+        next unless defined $name;
+        $name =~ s/^\s+|\s+$//g;
+        $account{$name} = 1 if length $name;
+    }
+    close $uf;
+    my $n = 0;
+    for my $key ( sort keys %$map ) {
+        my $rec = $map->{$key};
+        next unless ref $rec eq 'HASH';
+        my $owner = $rec->{owner};
+        next unless defined $owner && length $owner && !$account{$owner};
+        report( 'WARN',
+            "the rule on '$key' is owned by '$owner', which is no account (removed, or never one) - the "
+                . 'rule stays in force as written, and only the operator can change it',
+            "remove it from the manager's Permissions (Files page) as the operator, or re-own it: "
+                . "lazysite acl set '$key' --owner ACCOUNT --actor local --docroot $d. A token cannot: "
+                . 'only the operator changes a rule it does not own' );
+        last if ++$n >= 50;
     }
     return;
 }

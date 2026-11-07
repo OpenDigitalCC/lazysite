@@ -199,6 +199,16 @@ changes it. Review each: keep it if it is meant (it stays in force), or remove i
 with the command the warning gives,
 `lazysite acl remove 'PATH' --actor local --docroot DOCROOT`.
 
+**A rule whose owner is no account is left for you too (SM1401).** Removing an
+account - `lazysite-users.pl remove`, or the manager's account delete - leaves
+the access rules it owned with its login as owner. The remove names them, with
+their paths; `lazysite check` warns for each stored rule whose owner is no
+account. Each stays in force as written, and only the operator can change it:
+remove it from the manager's Permissions (the Files page), or re-own it with
+`lazysite acl set 'PATH' --owner ACCOUNT --actor local --docroot DOCROOT`. A
+token cannot, by design: a rule's writer must be its owner or an operator, and
+a token is never an operator.
+
 **When to run it.** After any upgrade, and after anything that rebuilds a vhost
 through the control panel. Hestia's `v-rebuild-web-domain` re-applies its own
 docroot permissions (`2751`: setgid, no group write) and a rebuild driven from

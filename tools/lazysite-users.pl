@@ -508,8 +508,10 @@ if ($API_MODE) {
             $result = { ok => 1, message => "Password updated" };
         }
         elsif ( $action eq 'remove' ) {
-            cmd_remove( $req->{username} );
-            $result = { ok => 1, message => "User removed" };
+            # SM1401: the answer names the rules the account owned, and where
+            my $owned = cmd_remove( $req->{username} );
+            $result = { ok => 1, orphaned_rules => $owned,
+                message => 'User removed' . ( @$owned ? '. ' . _orphaned_rules_text( $req->{username}, $owned ) : '' ) };
         }
         elsif ( $action eq 'rename' ) {
             cmd_rename( $req->{username}, $req->{to}, actor => $req->{actor} );
@@ -1192,7 +1194,51 @@ sub cmd_remove {
         write_settings($settings);
     }
 
+    # SM1401 (triage T-91): THE RULES THE ACCOUNT OWNED ARE NAMED. An access rule
+    # keeps its owner's login after the account goes, and nothing said so: the
+    # rule stays in force as written, nobody but the operator can edit it, and
+    # `lazysite check` did not name it. The rule itself is not changed here -
+    # whether it should stay is the operator's decision.
+    my @owned = _rules_owned_by($user);
+    if (@owned) {
+        log_event( 'WARN', $user, 'removed account owned access rules', rules => scalar @owned );
+        unless ($API_MODE) {
+            print "User '$user' removed.\n";
+            print _orphaned_rules_text( $user, \@owned ), "\n";
+        }
+        return \@owned;
+    }
+
     print "User '$user' removed.\n" unless $API_MODE;
+    return [];
+}
+
+# SM1401: the keys of every access rule in lazysite/auth/acls.json whose owner is
+# the account, as paths (/key, the file browser's spelling). A store that will
+# not read answers none - and is named by `lazysite check`, not here.
+sub _rules_owned_by {
+    my ($user) = @_;
+    require Lazysite::Auth::Acl;
+    no warnings 'once';
+    local $Lazysite::Auth::Acl::DOCROOT = $DOCROOT;
+    my $map = Lazysite::Auth::Acl::load_acls();
+    return () unless ref $map eq 'HASH';
+    return map { "/$_" }
+        sort grep { ref $map->{$_} eq 'HASH' && ( $map->{$_}{owner} // '' ) eq $user } keys %$map;
+}
+
+# The sentence every door gives: which rules, where, and the remedy. The
+# operator removes or re-owns each from the manager's Permissions (the Files
+# page) or with the acl tool; a token cannot, by design (Acl::_is_operator
+# answers 0 under token auth).
+sub _orphaned_rules_text {
+    my ( $user, $owned ) = @_;
+    return sprintf(
+        "The account owned %d access rule%s in lazysite/auth/acls.json, whose owner is now no account: %s. "
+            . 'Each stays in force as written and only the operator can change it: remove it from the '
+            . "manager's Permissions (Files page), or re-own it with lazysite acl set 'PATH' --owner ACCOUNT "
+            . '--actor local --docroot DOCROOT. A token cannot: only the operator changes a rule it does not own.',
+        scalar @$owned, ( @$owned == 1 ? '' : 's' ), join( ', ', @$owned ) );
 }
 
 # SM778: the login and, where there is one, the name that goes with it. An
