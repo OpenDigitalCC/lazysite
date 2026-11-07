@@ -1,6 +1,6 @@
 ---
 title: AI briefing - building sites
-subtitle: Best practice for AI agents creating or maintaining sites on the lazysite engine - the separation-of-concerns model and the failure modes to avoid.
+subtitle: Best practice for AI agents creating or maintaining sites on the lazysite engine - the separation-of-concerns model, the failure modes to avoid, and the sanctioned pattern for live data.
 register:
   - sitemap.xml
 ---
@@ -256,6 +256,114 @@ in the refusal if you exceed it.
 
 If an asset is genuinely too large for the cap, say so and ask the operator
 rather than reaching for a remote URL.
+
+## Live data
+
+A page that shows what another system knows - a price, a queue length, a
+status - is built from parts the engine already has, and this chain is the
+sanctioned way to do it:
+
+    schedule -> connector handler -> remote source -> a data-table row -> page
+
+An outside process that produces live data is not ported into lazysite: it stays
+its own engine, and the site reads what it publishes through this chain.
+
+### The parts
+
+1. **A data table for the answers**, with exactly the columns a connector
+   writes. Make it `public: true` if visitors read it:
+
+   ```yaml
+   public: true
+   key: id
+   auto_key: true
+   fields:
+     connector: { type: text }
+     call_id:   { type: text }
+     mode:      { type: text }
+     actor:     { type: text }
+     at:        { type: integer }
+     state:     { type: text }
+     http:      { type: integer }
+     answer:    { type: text }
+   ```
+
+2. **A connector** with `modes.scheduled` on and `answer_table` naming that
+   table. The operator saves it on the Connectors page; an agent cannot (see
+   [connectors](/docs/connectors)). With `method: GET` the fixed fields travel
+   as the query string.
+3. **A `connector` handler** naming the connector, and **a schedule entry**
+   naming the handler, with an interval and the fixed fields to send:
+
+   ```yaml
+   schedule:
+     - id: price-abc
+       handler: prices
+       every: 300
+       payload: {"symbol":"ABC"}
+   ```
+
+4. **The daemon's job account** (`daemon_job_user`) holds `run_jobs` and
+   `manage_connectors`.
+5. **A page that binds the newest row**:
+
+   ```yaml
+   tt_page_var:
+     latest: db:prices(order=-id,limit=1)
+   ```
+
+   or a `data-ls-db` region that the shipped helper fills from
+   `/cgi-bin/lazysite-data.pl` (see [data tables](/docs/data-tables)).
+
+### What a poll leaves behind
+
+**Every poll appends a row**; nothing replaces the last one. The row is the call
+record - `connector`, `call_id`, `mode` (`scheduled`), `actor` (the job
+account), `at`, `state`, `http` - plus `answer`: the remote's whole JSON reply,
+encoded as one text value (at most 64 KB). A template renders it as that text,
+escaped, and cannot reach inside it; a page script reading the endpoint gets the
+same text and parses it (`JSON.parse(row.answer)`). The engine never removes
+these rows: at the floor one entry adds 288 a day, so delete old ones yourself
+(`delete_data_row`) or size the table for it.
+
+### The limits, plainly
+
+**The cadence floor is 300 seconds.** An entry below it is refused when saved,
+and one written by hand into `schedule.conf` never runs and records nothing.
+The schedule is run by an engine job that itself runs every 300 seconds, so an
+interval rounds **up** to a multiple of 300: `every: 450` polls every 600
+seconds. On the wall clock add up to one daemon tick (`daemon_tick_seconds`,
+default 60) of lateness. There is no faster path.
+
+**Single-call sources only.** Each poll sends the same fixed fields, and nothing
+from one answer reaches the next request. A source that wants submit, then poll
+until done, then read the result cannot be expressed: every poll would submit a
+new job. A sweep over several items is one schedule entry per item - a payload
+cannot carry a list - and every entry through one connector counts against its
+rate cap (default 60 an hour, so five entries at the floor fill it; the sixth is
+refused and recorded as failed). A single static request is what this does well.
+
+**The cost of a poll is small.** One HTTP call, one row, one call-record line and
+one audit line, and it does not grow with visitors. The scheduler runs its jobs
+one after another, so a slow source holds the others for up to the connector's
+`timeout` (at most 60 seconds); keep it short. A browser reading the endpoint
+costs one request per read, which is small at low visitor counts. How live the
+data can be is decided by where the sweep runs - the 300-second schedule - not
+by what a poll costs.
+
+**`ttl:` is the only freshness bound.** No cache clear is needed. A page with no
+`ttl:` shows the newest row on its next request; a page with `ttl: N` shows it
+once N seconds have passed since it was rendered. `mode=live` does nothing
+today: within a `ttl:` it serves the cached render exactly as `snapshot` does.
+`mode=client` still reads the rows at render too; what makes a page client-side
+is a `data-ls-db` region. The endpoint answers `Cache-Control: no-store`, so a
+region with `data-ls-db-every` re-reads it each time - but reading more often
+than the schedule polls shows nothing newer.
+
+**The endpoint refuses what it does not read.** It reads `table`, `order_by`,
+`order`, `limit` and `offset`, and ignores `_` (a cache-buster). Any other
+parameter is a 400 with `kind: unknown-parameter` and no rows - filter on the
+page binding, not in the query string.
 
 ## Publishing hygiene (hard-won)
 

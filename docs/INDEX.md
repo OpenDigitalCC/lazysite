@@ -91,6 +91,7 @@ How a part of the system is shaped, and why it is shaped that way.
 | [`permissions-and-secrets.md`](permissions-and-secrets.md) - lazysite - permissions and secrets | Who a caller is, what they may do, what enforces it on each surface, and where every secret lives |
 | [`render-path-separation.md`](render-path-separation.md) - Render-path separation | At its core, lazysite is a Markdown-to-HTML renderer. |
 | [`security.md`](security.md) - Security | lazysite's security model has three layers. |
+| [`session-cookie-contract.md`](session-cookie-contract.md) - lazysite - the session cookie as an external contract | The lazysite_auth format, the key it is signed with, expiry and revocation, and how an outside process on the same host verifies it read-only |
 | [`test-coverage.md`](test-coverage.md) - Test coverage | The suite is pure core-Perl. |
 | [`test-tiers.md`](test-tiers.md) - Test tiers: what to run when, and why | The tiers, chosen from measurements rather than intuition - what each costs, what each is capable of finding, and the one thing none of them can do. S... |
 
@@ -194,7 +195,7 @@ SHIPPED. The engine's /docs manual, installed into every site's engine tree and 
 | Document | What it is |
 | --- | --- |
 | [`ai-briefing-authoring.md`](ai-briefing-authoring.md) - AI briefing - content authoring | Guide for AI assistants helping users write content on a lazysite site. |
-| [`ai-briefing-building-sites.md`](ai-briefing-building-sites.md) - AI briefing - building sites | Best practice for AI agents creating or maintaining sites on the lazysite engine - the separation-of-concerns model and the failure modes to avoid. |
+| [`ai-briefing-building-sites.md`](ai-briefing-building-sites.md) - AI briefing - building sites | Best practice for AI agents creating or maintaining sites on the lazysite engine - the separation-of-concerns model, the failure modes to avoid, and t... |
 | [`ai-briefing-configuration.md`](ai-briefing-configuration.md) - AI briefing - configuration | Guide for AI assistants helping users configure a lazysite installation. |
 | [`ai-briefing-data.md`](ai-briefing-data.md) - AI briefing - data tables | Guide for AI assistants declaring tables, loading records, and rendering them on a page. |
 | [`ai-briefing-development.md`](ai-briefing-development.md) - AI briefing - development | Guide for AI assistants working on the lazysite processor, scripts, and tools. |
@@ -232,4 +233,4 @@ SHIPPED. The engine's /docs manual, installed into every site's engine tree and 
 
 ---
 
-*116 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*
+*117 documents indexed, across 11 trees. The feature-request corpus is listed by `tools/backlog.pl`.*

@@ -228,7 +228,7 @@ tone: medium
 ---
 `snapshot` | **the default.** Read at render. The page is served from cache for its `ttl:`, and re-rendered on every request if it declares none
 `live` | as `snapshot` today -- see the note below. Intended for stock levels and queue lengths
-`client` | no rows at render; the page's own script fetches them
+`client` | as `snapshot` today: the rows are still read at render. What makes a page client-side is a `data-ls-db` region (below), which the page's own script fills from the endpoint
 ```
 
 ```yaml

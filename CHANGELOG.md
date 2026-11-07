@@ -76,6 +76,27 @@ Archive
   `lzs_renewed`, guards against a loop: one renewal a minute, then the sign-in. The
   refusal is logged at INFO. t/unit/odoo/135.
 
+- SM1382 (PENDING) **docs: live data is a scheduled connector answer in a table row
+  (ruling 132, B).** A spike, `t/integration/360`, proves the chain the docs claim on a
+  scratch site against a JSON source on 127.0.0.1: schedule, connector handler, remote, a
+  data-table row, a page or the data endpoint. The "Live data" section of
+  `/docs/ai-briefing-building-sites` is the sanctioned recipe, with the limits the spike
+  measured: a 300-second floor (an interval rounds up to a multiple of 300), fixed fields,
+  one row per poll with the answer as text, `ttl:` the only freshness bound, `mode=live`
+  inert, and the endpoint's unknown-parameter refusal. The `client` row of the data-tables
+  binding modes is corrected: such a binding still reads rows at render. Filed beside it,
+  as a candidate: SM1384, a connector cannot express a multi-step job protocol.
+
+- SM1383 (PENDING) **docs: the session cookie is an external contract (ruling 132, E).**
+  `docs/architecture/session-cookie-contract.md` states the `lazysite_auth` format an outside
+  process on the same host verifies read-only: the signed `username:timestamp:sid:groups`
+  payload and the legacy three-field variant, the key and how it is used, constant-time
+  comparison, expiry, `revoked.json`, and fresh groups. `t/unit/auth/75` mints a cookie
+  through the real sign-in and verifies it as the document says, agreeing with the engine.
+  The format does not change silently. A `docs/SECURITY.md` entry is drafted; it records,
+  for ruling, that the preview cookie's value verifies as a session for an account named
+  `v1`.
+
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 
 - SM1380 (0e503772) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and

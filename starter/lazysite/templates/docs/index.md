@@ -123,7 +123,7 @@ briefs, ownership and cache behaviour.
 
 [AI briefing - building sites](/docs/ai-briefing-building-sites)
 : Read before creating or restructuring pages. How content, layout and theme stay
-separate, and what not to do.
+separate, what not to do, and the one sanctioned pattern for live data.
 
 [AI briefing - content authoring](/docs/ai-briefing-authoring)
 : Front matter, Markdown, URLs, and the content rules.

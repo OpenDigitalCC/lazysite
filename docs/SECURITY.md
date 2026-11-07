@@ -3249,3 +3249,57 @@ residual risk
 verdict
 : drafted, for the release manager's confirmation: the trigger fires and the change is
   contained.
+
+### 2026-11-07 - SM1383 (0.16.7): the session cookie is an externally relied-on credential format
+
+Assessment drafted by the developer agent, for the release manager's confirmation.
+
+what changed
+: No code. Ruling 132 lets an outside process on the same host share a lazysite
+  sign-in by verifying the `lazysite_auth` cookie itself, read-only, and
+  `docs/architecture/session-cookie-contract.md` states the format it relies on: the
+  HMAC-SHA256-signed `username:timestamp:sid:groups` payload, the legacy
+  `username:timestamp:groups` variant valid until natural expiry, the key
+  (`auth/.secret` in the engine tree, used as its hex text), constant-time comparison,
+  expiry against `session_lifetime`, `revoked.json` (revoked sids, per-user
+  `not_before`, the SM1040 `kept` exception), and fresh groups. The format will not
+  change silently; a change is versioned, reader before writer.
+
+threat delta
+: new-external-interface fires, in a narrow form: no endpoint, method or listener is
+  added, but an existing credential format gains a reader outside the engine, and that
+  reader holds the signing key. The key is symmetric, so a process that can verify can
+  mint a cookie for any account, the operator's included (Spoofing, Elevation): "read-
+  only" is a promise about the outside process's behaviour, not a limit the engine
+  enforces. The document says so plainly and puts the outside process in the same trust
+  as the web server. The other three triggers do not fire: no new sign-in method (the
+  sign-in stays lazysite's), no new dependency (the reader needs Digest::SHA only), no
+  new restricted data. Assessed contained: the key is already readable by the web server
+  and the site user (`0660`, group-shared), and a process granted the same group gains
+  no access those two lack.
+
+controls
+: t/unit/auth/75 mints a cookie through the real sign-in, verifies it as the document
+  describes with Digest::SHA and file reads alone, and requires the engine's verifier to
+  agree on every case the document names (current and legacy shapes, attributes, the
+  key as text, expiry and a configured lifetime, a removed or disabled account, a revoked
+  sid, `not_before` and `kept`, fresh groups, a rotated key, that verification writes
+  nothing). It fails when the sid length or the separator changes in `_mint_session`,
+  and when the legacy shape stops verifying.
+
+residual risk
+: Found while verifying, recorded for the release manager rather than fixed here. The
+  same key signs the theme-preview cookie (`v1:<exp>:<layout>:<theme>:<user>`) and the
+  CSRF tokens (`csrf:<user>:<hour>`), with no domain separation from the session
+  payload. A preview value parses as a legacy session cookie for an account named `v1`
+  with the preview's future expiry as its timestamp; measured on 792a0413b with
+  `tmp/n763-preview-as-session.pl`, it verifies as that account, with that account's
+  groups, when such an account exists. A preview is minted only for a signed-in manager.
+  The verifier also accepts a timestamp in the future. Separately, the five-field
+  "sliding" shape the verifier's comments describe is unreachable (a limit-4 split never
+  yields five fields): such a cookie would verify today as legacy, by its first two
+  fields, with no sid.
+
+verdict
+: drafted, awaiting the release manager. Documentation and a test; the format is
+  unchanged.
