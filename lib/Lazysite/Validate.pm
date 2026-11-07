@@ -650,27 +650,31 @@ sub _check_db_bindings {
     return;
 }
 
-# SM1225: A PAGE BINDING THAT NAMES A DOWNLOAD. `odoo:ID` puts the binding's report in
-# a page variable; a binding with `answer: download` returns a document, which would be
-# the page's base64. The render refuses it (sources.pm resolve_odoo); the save says so.
-sub _check_odoo_bindings {
+# SM1369 X3 (H-2): A PAGE SOURCE AN EXTENSION DECLARES CHECKS ITS OWN BINDINGS.
+# A front-matter line `key: <prefix>:<spec>` whose prefix is a declared page
+# source with a `check` function is handed to it, with the docroot, and what it
+# answers - a list of { kind, message } - joins the page's issues: the render
+# refuses what the check names (sources.pm), and the save says so first (SM1225
+# was the Odoo download case, now the extension's own check). A check that
+# cannot run, or answers no list, adds nothing: it is the extension's, and the
+# render still refuses.
+sub _check_source_bindings {
     my ( $issues, $fm, $docroot ) = @_;
     return unless defined $docroot && length $docroot;
+    require Lazysite::Paths;
+    require Lazysite::Extensions::Hooks;
+    my $lz      = Lazysite::Paths::lazysite_dir($docroot);
+    my @sources = grep { defined $_->{check} } Lazysite::Extensions::Hooks::page_sources($lz);
+    return unless @sources;
     for my $line ( split /\n/, ( $fm // '' ) ) {
-        next unless $line =~ /:\s*odoo:([A-Za-z0-9][A-Za-z0-9_-]{0,63})\s*\z/;
-        my $id = $1;
-        my $b  = eval {
-            require Lazysite::Extensions;
-            Lazysite::Extensions::require_payload('Lazysite::Odoo');
-            no warnings 'once';
-            local $Lazysite::Odoo::DOCROOT = $docroot;
-            ( Lazysite::Odoo::find_binding($id) )[0];
-        };
-        next unless ref $b eq 'HASH' && ( $b->{answer} // '' ) eq 'download';
-        push @$issues, { kind => 'odoo-binding-is-a-download',
-            message => "this page binds odoo:$id, and '$id' answers a download (answer: download): "
-                . 'its document would be put in the page as base64, so a render refuses it. '
-                . 'Link to the Odoo endpoint instead (?binding=' . $id . ').' };
+        next unless $line =~ /\A\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([a-z][a-z0-9-]*):(?!\/\/)\s*(.*?)\s*\z/i;
+        my ( $prefix, $spec ) = ( lc $1, $2 );
+        my ($src) = grep { lc( $_->{prefix} ) eq $prefix } @sources or next;
+        my ( $ok, $found ) = Lazysite::Extensions::Hooks::call_hook( $docroot, $src->{extension}, $src->{check},
+            $spec, $docroot );
+        next unless $ok && ref $found eq 'ARRAY';
+        push @$issues, map { { kind => $_->{kind} // "$prefix-source", message => $_->{message} // '' } }
+            grep { ref $_ eq 'HASH' } @$found;
     }
     return;
 }
@@ -1025,7 +1029,7 @@ sub validate_content {
     # the two checks on one page count from the same place - the top of the file.
     push @issues, Lazysite::Manager::Common::page_parse_issues( $body, _fm_line_offset($fm) );
     _check_db_bindings( \@issues, \@warnings, $fm, $docroot );
-    _check_odoo_bindings( \@issues, $fm, $docroot );        # SM1225
+    _check_source_bindings( \@issues, $fm, $docroot );      # SM1369 X3 (SM1225)
     _check_form_rules( \@issues, \@warnings, $content );    # SM1264
     _check_html_in_page( \@warnings, $body, $h );
     _check_form_delivery( \@warnings, $content, $body, $h, $o{path}, $lz );

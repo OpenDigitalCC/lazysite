@@ -34,7 +34,7 @@ use FindBin;
 use TestHelper ();    # SM1369 X7: puts the payload libs (Odoo's modules) on @INC
 
 our @EXPORT_OK = qw(oom_lib oom_test_lib oomd_bin vendor_dir oom_or_skip pretend_released odoo_site enable_odoo write_conf
-    fake_shop shop_namespace bind set_key shop_ready quiet);
+    fake_shop shop_namespace bind set_key shop_ready quiet build_hook_index);
 
 # A binding is a handler of type odoo; saved through the handler contract, as
 # an operator's would be, so its validation runs.
@@ -192,6 +192,23 @@ sub write_conf {
 # doors read the extension's declared actions from, as the manager's toggle
 # and install.pl's upgrade build it - against the engine's extensions, linked
 # beside the site (TestHelper::link_engine_extensions).
+# SM1369 X3: ON, AND INDEXED. What a page reads from Odoo and what a form or the
+# timer runs are hooks the extension declares (extensions/odoo.pl, owns.hooks),
+# reached through the hook index core builds on enable and upgrade - so a test
+# site has the index too, built by the real build from the real descriptor.
+#
+# THE DESCRIPTOR IS THE CHECKOUT'S. The registry and the loader look beside the
+# docroot ({DOCROOT}/../extensions), where a test site has nothing, and then in
+# the package's copy, which is not under test. The dev server's rule (SM1222,
+# Lazysite::Paths::dev_extension_dirs) looks in named directories first: a test
+# names the checkout's, so the descriptor found, and the payload lib the index
+# records and the loader loads from, is the one TestHelper put on @INC - the
+# same spelling, so the loader sees one copy, not a shadow. Set for the test
+# process and inherited by the CGIs and tools a test runs.
+#
+# Both, at the restack (n776): X2's link and child build first, then X3's build
+# with the named directories, so the index that stands records the payload lib
+# under the spelling on @INC.
 sub enable_odoo {
     my ($docroot) = @_;
     make_path("$docroot/lazysite");
@@ -201,7 +218,25 @@ sub enable_odoo {
     require TestHelper;
     TestHelper::link_engine_extensions($docroot);
     TestHelper::build_site_index($docroot);
+    build_hook_index($docroot);
     return;
+}
+
+sub build_hook_index {
+    my ($docroot) = @_;
+    require TestHelper;
+    my $dirs = TestHelper::repo_root() . '/extensions';
+    $ENV{LAZYSITE_DEV_SERVER}     = 1;
+    $ENV{LAZYSITE_EXTENSION_DIRS} = $dirs
+        unless defined $ENV{LAZYSITE_EXTENSION_DIRS} && $ENV{LAZYSITE_EXTENSION_DIRS} eq $dirs;
+    require Lazysite::Manager::Extensions;
+    no warnings 'once';
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
+    my $r = Lazysite::Manager::Extensions::rebuild_hook_index();
+    die "the hook index was not built: "
+        . ( $r->{error} // join( '; ', map { @{ $_->{problems} } } @{ $r->{refused} } ) ) . "\n"
+        unless $r->{ok} && grep { $_ eq 'odoo' } @{ $r->{indexed} };
+    return $r;
 }
 
 # A configured site: extension on, a connection, writes on unless told.

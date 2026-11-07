@@ -786,6 +786,17 @@ sub rebuild_hook_index {
         };
     }
 
+    # SM1369 X3: what two extensions cannot both declare (a page source prefix, a
+    # handler type name) - the later by id is left out, named, so each has one
+    # owner.
+    my %clash = Lazysite::Extensions::Hooks::cross_problems( \%entries );
+    for my $id ( sort keys %clash ) {
+        delete $entries{$id};
+        push @refused, { extension => $id, problems => $clash{$id} };
+        log_event( 'WARN', 'extension-hook', 'an extension\'s hooks were left out of the index',
+            extension => $id, why => join( '; ', @{ $clash{$id} } ) );
+    }
+
     # SM1369 X2: the `declared` view, from every installed extension. A refusal
     # already named above (an enabled extension) is not named twice.
     my ( $declared, $drefused ) = _declared_view( $o{known} );

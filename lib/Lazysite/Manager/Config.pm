@@ -196,11 +196,12 @@ sub _app_setting_fault {
 # the same pages through both. The sources of "not the same for everyone" are the
 # ones the gate and the renderer use: the access keys (read by the validator's
 # marked copy of the gate's reader), auth_default, the ACL store (read and address
-# rules), and the front-matter bindings that make main mark a page per viewer
-# (odoo-identity:, db:...(mine)). An `odoo:` binding is NOT one: a render runs only
-# a binding that permits public and takes no visitor key and no Odoo session, so the
-# page HTML is the same for everyone and the personal data comes from the Odoo
-# endpoint at run time, which the worker never touches.
+# rules), and the front-matter bindings that make main mark a page per viewer (a
+# page source an extension declares per_viewer - SM1369 X3, read from the hook
+# index - and db:...(mine)). A source that is not per viewer is NOT one: core hands
+# it no credential, so the page HTML is the same for everyone and the personal data
+# comes from the extension's own endpoint at run time, which the worker never
+# touches.
 sub _app_offline_page_fault {
     my ( $p, $scope, $conf, $stored ) = @_;
     return 'is not a plain site path (a / path, no query, no ..)'
@@ -241,8 +242,15 @@ sub _app_offline_page_fault {
     return 'is a paid page, so it is not the same for every visitor' if ( $ak->{payment} // 'none' ) ne 'none';
     return 'is limited by address, so it is not the same for every visitor'
         if ( ref $ak->{addresses} eq 'ARRAY' && @{ $ak->{addresses} } ) || ( ref $ak->{addresses_deny} eq 'ARRAY' && @{ $ak->{addresses_deny} } );
+    require Lazysite::Paths;
+    require Lazysite::Extensions::Hooks;
+    my @per_viewer = map { $_->{prefix} }
+        grep { $_->{per_viewer} } Lazysite::Extensions::Hooks::page_sources( Lazysite::Paths::lazysite_dir($docroot) );
     for my $line ( split /\r?\n/, $fm ) {
-        return 'shows who the viewer is in Odoo (odoo-identity:), so it is different for each visitor' if $line =~ /\bodoo-identity:/;
+        for my $p (@per_viewer) {
+            return "shows a value that is the viewer's own ($p:), so it is different for each visitor"
+                if $line =~ /\b\Q$p\E:/i;
+        }
         return 'binds the viewer\'s own rows (db:...(mine)), so it is different for each visitor'
             if $line =~ /\bdb:/i && $line =~ /\bmine\b/;
         return 'is rendered fresh for each request (nocache: true)' if $line =~ /^nocache\s*:\s*true/i;

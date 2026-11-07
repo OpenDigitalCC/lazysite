@@ -411,7 +411,10 @@ sub repo_manifest_guard {
 # this is safe inside the `local %ENV = (...)` idiom.) Empty outside coverage
 # runs, so normal prove behaviour is unchanged.
 sub env_passthrough {
-    return map { $_ => $ENV{$_} } grep { defined $ENV{$_} } qw(PERL5OPT PERL5LIB);
+    # SM1369 X3: and the two the dev server's rule reads (OdooTest::enable_odoo
+    # sets them), so a child finds the checkout's extensions - the hooks' code -
+    # as the test process does. Empty when no test set them.
+    return map { $_ => $ENV{$_} } grep { defined $ENV{$_} } qw(PERL5OPT PERL5LIB LAZYSITE_DEV_SERVER LAZYSITE_EXTENSION_DIRS);
 }
 
 # SM095: capabilities live on GROUPS now, not on accounts. Grant some to a user by

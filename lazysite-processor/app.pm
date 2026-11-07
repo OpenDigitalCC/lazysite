@@ -225,13 +225,14 @@ sub _app_fingerprint {
 #       the page is gated (_peek_md reads them with the gate's own reader); an
 #       access key the gate cannot read refuses the page to everyone
 #   an ACL read rule, a draft section, an address rule from the store - _acl_governed
-#   odoo-identity: and db:...(mine) - the page renders per viewer (main marks them
-#       `_protected`, no-store); nocache: true - rendered fresh, api:/raw: - data
-#   an `odoo:` binding is NOT in this list, on purpose: resolve_odoo runs only a
-#       binding that permits public and works on no visitor key and no Odoo
-#       session, so what it puts in the page is the same for every visitor. What is
-#       personal comes from the Odoo endpoint at run time, which the worker never
-#       touches.
+#   a per-viewer page source (SM1369 X3: a source an extension declares
+#       `per_viewer`, such as who the viewer is in a remote system) and
+#       db:...(mine) - the page renders per viewer (main marks them `_protected`,
+#       no-store); nocache: true - rendered fresh, api:/raw: - data
+#   a source that is NOT per viewer is not in this list, on purpose: core hands
+#       it no credential, so what it puts in the page is the same for every
+#       visitor. What is personal comes from the extension's own endpoint at run
+#       time, which the worker never touches.
 #
 # The manager (lib/Lazysite/Manager/Config.pm, _app_offline_page_fault) restates the
 # rules, because it loads nothing from this file, and t/unit/manager/368 runs the
@@ -259,7 +260,7 @@ sub _app_page_fault {
     return 'is limited to groups'        if $m->{groups};
     return 'is a paid page'              if ( $m->{payment} // 'none' ) ne 'none';
     return 'is limited by address'       if $m->{addresses} || $m->{addresses_deny};
-    return 'shows who the viewer is in Odoo (odoo-identity:)'   if $m->{odoo_me};
+    return 'shows a value that is the viewer\'s own (a per-viewer page source)' if $m->{per_viewer_source};
     return 'binds the viewer\'s own rows (db:...(mine))'        if $m->{db_mine};
     return 'is rendered fresh for each request (nocache: true)' if $m->{nocache};
     return 'is a data page (api: or raw: true), not a page'     if $m->{api} || $m->{raw};

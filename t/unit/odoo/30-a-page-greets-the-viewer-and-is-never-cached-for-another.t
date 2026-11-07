@@ -22,6 +22,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
 use TestHelper qw(setup_test_site site_tempdir processor_path load_processor);
+use OdooTest   qw(enable_odoo);
 
 use Lazysite::Odoo::Identity ();
 use Lazysite::Odoo::Visitor  ();
@@ -39,6 +40,7 @@ sub slurp {
 
 my $docroot = site_tempdir();
 setup_test_site($docroot);
+enable_odoo($docroot);    # SM1369 X3: `odoo-identity:` is a source the extension declares
 {
     no warnings 'once';
     $Lazysite::Odoo::Visitor::DOCROOT = $docroot;
@@ -57,7 +59,11 @@ my $logfile = "$docroot/../render.log";
 sub render {
     my ( $uri, %as ) = @_;
     local %ENV = %ENV;
-    delete $ENV{$_} for grep { /\AHTTP_X_REMOTE_|\ALAZYSITE_|\AHTTP_COOKIE\z/ } keys %ENV;
+    # SM1369 X3: the child finds the checkout's extensions (the hook's code) by the
+    # two the dev server sets (OdooTest::enable_odoo); the rest of the engine's
+    # variables are dropped as before.
+    delete $ENV{$_}
+        for grep { /\AHTTP_X_REMOTE_|\ALAZYSITE_(?!DEV_SERVER\z|EXTENSION_DIRS\z)|\AHTTP_COOKIE\z/ } keys %ENV;
     $ENV{DOCUMENT_ROOT}      = $docroot;
     $ENV{REDIRECT_URL}       = $uri;
     $ENV{REQUEST_METHOD}     = 'GET';
@@ -132,7 +138,7 @@ subtest 'a binding outside the page\'s own front matter is refused, not cached' 
         local *STDERR = $fh;
         %v = main::resolve_tt_vars( { me => 'odoo-identity:' } );
     }
-    is_deeply( $v{me}, {}, 'it renders as nobody' );
+    is( $v{me}, '', 'it renders as nobody (the engine\'s one empty, SM1369 X3)' );
     like( $log, qr/odoo-identity: binding refused.*cached and served to another viewer/, 'and the log says why' );
 };
 

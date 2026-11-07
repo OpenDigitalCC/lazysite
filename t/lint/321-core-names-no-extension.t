@@ -66,32 +66,27 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 # The allow-list: each core file's count of lines naming Odoo, measured on
 # 2026-11-06 at b7f178856 and recounted for ruling 136 (Odoo's names only): 43
 # files; 42 since X7 part one moved the oomd service into Odoo's payload lib; 34
-# since X2 (the actions, capabilities and refusal kinds are declared). It may
-# only shrink.
+# since X2 (the actions, capabilities and refusal kinds are declared); 27 since
+# X3 (SM1369, n769) put the page sources (sources.pm, auth.pm, app.pm,
+# Config.pm, Validate.pm, one line of the processor) and the handler type
+# (Handlers.pm, AddressRefs.pm) on their hooks. It may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
     'installers/hestia/lazysite-fcgi.tpl'        => 1,
     'installers/nginx/vhost-fcgi.conf.example'   => 1,
     'lazysite-auth.pl'                           => 1,
-    'lazysite-processor.pl'                      => 8,
-    'lazysite-processor/app.pm'                  => 1,
-    'lazysite-processor/auth.pm'                 => 1,
+    'lazysite-processor.pl'                      => 7,
     'lazysite-processor/components.pm'           => 1,
     'lazysite-processor/front-door.pm'           => 15,
     'lazysite-processor/layout.pm'               => 7,
     'lazysite-processor/pipeline.pm'             => 1,
     'lazysite-processor/render.pm'               => 15,
-    'lazysite-processor/sources.pm'              => 36,
-    'lib/Lazysite/Auth/AddressRefs.pm'           => 2,
     'lib/Lazysite/Auth/GroupRefs.pm'             => 7,    # SM1387: a binding's and odoo.conf's group names
     'lib/Lazysite/Auth/Identity.pm'              => 1,
     'lib/Lazysite/Auth/Session.pm'               => 33,
     'lib/Lazysite/Daemon/Supervisor.pm'          => 22,
-    'lib/Lazysite/Handlers.pm'                   => 47,
     'lib/Lazysite/Maintenance.pm'                => 1,
-    'lib/Lazysite/Manager/Config.pm'             => 1,
-    'lib/Lazysite/Validate.pm'                   => 9,
     'lib/Lazysite/WarmFork.pm'                   => 9,
     'lib/Lazysite/WarmFork/Wire.pm'              => 1,
     'starter/lazysite/templates/system/login.md' => 4,

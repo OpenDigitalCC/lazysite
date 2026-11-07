@@ -68,11 +68,27 @@ our $DOCROOT = '';
 # deleting and scheduling a handler of the type, and the one the timer's job
 # account must hold to run it.
 #
-# Field types: text, email, boolean, and two that name something the engine
-# already knows - `table` (a declared data table) and `connector` (a configured
-# connector). Those are chosen from a list on every surface that draws a form,
-# never typed (SM806).
-our @TYPE_ORDER = qw(smtp file table connector notify odoo);
+# Field types: text, email, boolean, number, and three that name something the
+# engine already knows - `table` (a declared data table), `connector` (a
+# configured connector) and `address_list` (SM1369 X3: names of address
+# profiles, comma separated, which Lazysite::Auth::AddressRefs finds by this
+# type; the field's `slot` says whether the names are allowed, denied or
+# matched). Tables and connectors are chosen from a list on every surface that
+# draws a form, never typed (SM806).
+our @FIELD_TYPES = qw(text email boolean number table connector address_list);
+
+# SM1369 X3 (ruling 55): THE CATALOGUE IS THE ENGINE'S TYPES AND THE TYPES THE
+# ENABLED EXTENSIONS DECLARE. The five below are core's. An extension's own
+# type (`owns.hooks.handler_types`, H-3) is merged in from the hook index of
+# the site $DOCROOT names (_sync_hook_types), with the same catalogue entry a
+# core type has - label, cap, schema - and the functions core calls at save
+# (`parse`, `on_save`), at delete (`on_delete`) and at delivery (`deliver`),
+# which run from the extension's own payload lib through the one loader
+# (Lazysite::Extensions::Hooks::call_hook). A type whose extension is off, or
+# whose index entry is gone, is not in the catalogue: a handler of it is
+# refused at save and not delivered, by name, which is the closed side.
+our @CORE_ORDER = qw(smtp file table connector notify);
+our @TYPE_ORDER = @CORE_ORDER;
 our %TYPES      = (
     smtp => {
         label  => 'Send email',
@@ -273,106 +289,78 @@ our %TYPES      = (
         note => 'Queued, and sent by the scheduler\'s notify-outbox job - the site must run '
             . 'the daemon. Quarantined submissions notify nobody.',
     },
-
-    # SM747 CU: AN ODOO BINDING - a named OOM operation, run as the site's
-    # connection user (the Odoo extension's config), with what a request may set
-    # and who may cause it. The parsing and the safety rules are
-    # Lazysite::Odoo::Binding's; the call is Lazysite::Odoo::call's. Configuring
-    # one is manage_connectors' until slice E brings manage_odoo (OM3): it is
-    # authority over where site data goes, which is that capability's.
-    odoo => {
-        label  => 'Run an Odoo operation',
-        cap    => 'manage_connectors',
-        schema => [
-            { key => 'operation', label => 'Operation', type => 'text', required => 1,
-                note => 'The name of an installed OOM operation, such as pack.action. What '
-                    . 'it may touch in Odoo is its own declared scope and the connection '
-                    . 'user\'s rights in Odoo.' },
-            { key => 'params', label => 'Parameters from the request', type => 'text',
-                max_len => 4000,
-                note => 'field=parameter, comma separated. Only these come from a visitor, '
-                    . 'and only into plain-value parameters; anything else the request '
-                    . 'sends is refused at the page endpoint and dropped from a form.' },
-            { key => 'fixed', label => 'Fixed parameters', type => 'text', max_len => 4000,
-                note => 'parameter=value, comma separated. Set here and never by a request.' },
-            { key => 'visitor_param', label => 'Visitor parameter', type => 'text',
-                note => 'The parameter that receives the visitor\'s own key (a basket, say). '
-                    . 'The server mints the key; a visitor cannot choose or see another\'s.' },
-            # SM1280 (ruling 3): whether the call came from inside an address profile.
-            { key => 'address_profile', label => 'Address profile the operation is told about', type => 'text',
-                note => 'Optional: the name of an address profile (Access, Address profiles). With an address '
-                    . 'parameter, the operation is told whether the call came from inside it - yes or no, '
-                    . 'never the address. Needs trusted_proxies to cover your front end.' },
-            { key => 'address_param', label => 'Address parameter', type => 'text',
-                note => 'With an address profile: the parameter (declared yes/no) that receives whether the '
-                    . 'call came from inside it. Set by the server; a request cannot set it.' },
-            { key => 'modes', label => 'Who may run it', type => 'text',
-                default => 'authenticated',
-                note => 'Comma separated: authenticated (a signed-in account in the caller '
-                    . 'groups), public (any visitor - opt in deliberately), scheduled.' },
-            { key => 'callers', label => 'Caller groups', type => 'text',
-                note => 'Groups whose signed-in members may run it in authenticated mode.' },
-            { key => 'apply', label => 'Applying a change', type => 'text', default => 'confirm',
-                note => 'confirm: a write operation\'s plan is shown and applied when its '
-                    . 'maker confirms it. immediate: applied in the same request, with '
-                    . 'nobody confirming - the ruled basket case (Q1). Odoo\'s rights for '
-                    . 'the connection user still bound what it can do.' },
-            { key => 'credential', label => 'Whose Odoo account runs it', type => 'text',
-                default => 'connection',
-                note => 'connection: the connection user. session: the person signed in '
-                    . 'to Odoo through the page, with their own Odoo rights; the binding is '
-                    . 'authenticated mode only, names no callers, and is never run by a page '
-                    . 'render, a form, the schedule or an agent.' },
-            { key => 'signin_addresses', label => 'Session binding: only from (address profiles)', type => 'text',
-                note => 'Optional, session bindings only: names of address profiles to allow, comma '
-                    . 'separated. A call of this binding from any other address is refused. It can '
-                    . 'only narrow the site\'s signin_addresses, never widen it.' },
-            { key => 'signin_addresses_deny', label => 'Session binding: never from (address profiles)', type => 'text',
-                note => 'Optional, session bindings only: names of address profiles to deny. A call of '
-                    . 'this binding from one of these addresses is refused.' },
-            { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
-                note => 'Optional. A parameter the operation declares as a list of rows has a cap '
-                    . 'of its own; this can only lower it, for this binding.' },
-            # SM1225: a report answered as the document itself.
-            { key => 'answer', label => 'How a read is answered', type => 'text', default => 'json',
-                note => 'json: the report in a JSON answer. download: the document the report '
-                    . 'holds (a core.report with inline=1) is the response to a GET, with its '
-                    . 'content type, a safe file name, its length and no-store. The same '
-                    . 'access rules apply. Reads only.' },
-            { key => 'download_max_kb', label => 'Download: largest document (KB)', type => 'number',
-                note => 'Only with answer: download. Default 10240, at most 20480. A larger '
-                    . 'document is refused with a clear error, never cut short.' },
-            { key => 'download_disposition', label => 'Download: save or show', type => 'text',
-                note => 'Only with answer: download. attachment (the default) saves the file; '
-                    . 'inline shows a pdf, image or plain text in the browser. Html is always saved.' },
-            # SM1162: a binding that takes a file from a multipart request.
-            { key => 'file_params', label => 'Files from the request', type => 'text',
-                max_len => 4000,
-                note => 'field=parameter, comma separated: a request file field mapped to a '
-                    . 'parameter the operation declares as a file or a list of files (or to a '
-                    . 'set.<field> of a binary field). Needs file_max_kb.' },
-            { key => 'file_max_kb', label => 'Cap: size of one file (KB)', type => 'number',
-                note => 'Required when files are mapped. A whole number, at most the operation\'s '
-                    . 'own max_bytes and the endpoint\'s ceiling. A request larger than this is '
-                    . 'refused before it is read.' },
-            { key => 'file_types', label => 'Types of file accepted', type => 'text',
-                note => 'Optional: type/subtype names, comma separated, such as '
-                    . 'image/jpeg,image/png,application/pdf. The type is read from the file\'s '
-                    . 'bytes, never taken from the browser. Empty: any type.' },
-            # SM1173: NO schema default - a default here is saved into the binding
-            # and would pin a read to the write numbers. Empty stands for the
-            # default of what the binding does.
-            { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
-                type => 'number',
-                note => 'Leave empty for the default: 2000 for a read, 20 for a write. A number here replaces it, higher or lower.' },
-            { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',
-                type => 'number',
-                note => 'Leave empty for the default: 20000 for a read, 200 for a write. A number here replaces it, higher or lower.' },
-        ],
-        note => 'Needs the Odoo extension enabled and configured, with the connection '
-            . 'user\'s API key set.',
-    },
 );
+our %CORE_TYPES = %TYPES;
+
+# The types SM842 retired: a record of one no longer delivers, and the
+# conversion names where it went. An extension cannot take their names back.
+our @RETIRED = qw(webhook api db);
+
+sub core_types    { my @t = @CORE_ORDER;  return @t }
+sub retired_types { my @t = @RETIRED;     return @t }
+sub field_types   { my @t = @FIELD_TYPES; return @t }
+
+# SM1369 X3 (I-13): WHERE A HANDLER NAMES ADDRESS PROFILES, by field type rather
+# than by any type's name: { type => [ { key, slot } ] } for every type in the
+# catalogue with an `address_list` field. `slot` is allow (the default), deny or
+# match, as the field declares it. Lazysite::Auth::AddressRefs reads it.
+sub address_list_fields {
+    _sync_hook_types();
+    my %out;
+    for my $t (@TYPE_ORDER) {
+        my @f = map { { key => $_->{key}, slot => ( $_->{slot} // 'allow' ) } }
+            grep { ( $_->{type} // '' ) eq 'address_list' } @{ $TYPES{$t}{schema} || [] };
+        $out{$t} = \@f if @f;
+    }
+    return \%out;
+}
+
+# SM1369 X3: THE EXTENSIONS' TYPES, from the hook index of the site $DOCROOT
+# names, merged into the catalogue on every read of it. The index is cached per
+# process on the file's identity (Hooks::read_index), so this costs a stat; the
+# merge is redone only when the index it saw last has changed, or the site has.
+# With no docroot there is no site to ask, and the catalogue is core's.
+#
+# Each extension type's record is the declaration plus `extension`, the id the
+# loader is asked for; the four functions are kept under `hook`, so `types()`
+# hands a surface what a core type has and nothing it would draw.
+my ( $SYNCED_LZ, $SYNCED_INDEX ) = ( '', undef );
+
+sub _sync_hook_types {
+    my $lz = _lz();
+    unless ( defined $lz ) {
+        _reset_types() if $SYNCED_INDEX;
+        ( $SYNCED_LZ, $SYNCED_INDEX ) = ( '', undef );
+        return;
+    }
+    require Lazysite::Extensions::Hooks;
+    my $index = Lazysite::Extensions::Hooks::read_index($lz);
+    return if $SYNCED_LZ eq $lz && $SYNCED_INDEX && $SYNCED_INDEX == $index;
+    _reset_types();
+    my %ext = Lazysite::Extensions::Hooks::handler_types($lz);
+    for my $t ( sort { $ext{$a}{extension} cmp $ext{$b}{extension} || $a cmp $b } keys %ext ) {
+        next if $CORE_TYPES{$t}; # the build refuses one; an older index could still carry it
+        my $d = $ext{$t};
+        $TYPES{$t} = {
+            label   => $d->{label},
+            cap     => $d->{cap},
+            schema  => [ map { +{%$_} } @{ $d->{schema} || [] } ],
+            origins => [ @{ $d->{origins}               || [] } ],
+            ( defined $d->{note} ? ( note => $d->{note} ) : () ),
+            extension => $d->{extension},
+            hook => { map { $_ => $d->{$_} } grep { defined $d->{$_} } qw(parse on_save on_delete deliver) },
+        };
+        push @TYPE_ORDER, $t;
+    }
+    ( $SYNCED_LZ, $SYNCED_INDEX ) = ( $lz, $index );
+    return;
+}
+
+sub _reset_types {
+    %TYPES      = %CORE_TYPES;
+    @TYPE_ORDER = @CORE_ORDER;
+    return;
+}
 
 # Form names a form may not take, because the file beside it is not a form.
 our %RESERVED_FORM = map { $_ => 1 } qw(handlers smtp schedule);
@@ -383,17 +371,36 @@ our $SCHEDULE_FLOOR = 300;
 
 sub is_reserved_form { return $RESERVED_FORM{ $_[0] // '' } ? 1 : 0 }
 
-sub types { return [ map { { type => $_, %{ $TYPES{$_} } } } @TYPE_ORDER ] }
+sub types {
+    _sync_hook_types();
+    return [ map { my %t = ( type => $_, %{ $TYPES{$_} } ); delete $t{hook}; \%t } @TYPE_ORDER ];
+}
 
 sub cap_for_type {
     my ($type) = @_;
+    _sync_hook_types();
     return undef unless defined $type && $TYPES{$type};
     return $TYPES{$type}{cap};
 }
 
 # The capabilities that admit a caller to the handler actions at all. The
 # destination then decides; this is only the door.
-sub door_caps { my %s; return [ grep { !$s{$_}++ } map { $TYPES{$_}{cap} } @TYPE_ORDER ] }
+sub door_caps { _sync_hook_types(); my %s; return [ grep { !$s{$_}++ } map { $TYPES{$_}{cap} } @TYPE_ORDER ] }
+
+# SM1369 X3: ONE OF AN EXTENSION TYPE'S FUNCTIONS, through the one loader.
+# Returns what the function answered - a mapping with `ok` - or a failed answer
+# naming why it did not run: an extension that is off, a module not its own, a
+# function that died. Nothing an extension answers is trusted to be a mapping.
+sub _hook {
+    my ( $def, $fn, @args ) = @_;
+    my $name = $def->{hook}{$fn};
+    return { ok => 1 } unless defined $name;    # an optional function it did not declare
+    require Lazysite::Extensions::Hooks;
+    my ( $ok, @out ) = Lazysite::Extensions::Hooks::call_hook( $DOCROOT, $def->{extension}, $name, @args );
+    return { ok => 0, why => "the $def->{extension} extension's $fn did not run: " . ( $out[0] // '' ) } unless $ok;
+    return { ok => 0, why => "the $def->{extension} extension's $fn answered nothing" } unless ref $out[0] eq 'HASH';
+    return $out[0];
+}
 
 sub valid_id { return defined $_[0] && $_[0] =~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/ }
 
@@ -867,6 +874,7 @@ sub validate_handler {
     return ( undef, "id '$id' must be letters, digits, - or _ (at most 64)", 'id' )
         unless valid_id($id);
     my $type = $in->{type};
+    _sync_hook_types();
     return ( undef, 'type is required - one of: ' . join( ', ', @TYPE_ORDER ), 'type' )
         unless defined $type && length $type;
     return ( undef,
@@ -959,6 +967,18 @@ sub validate_handler {
             return ( undef, "$k must be a connector id", $k )
                 unless $v =~ /\A[a-z0-9][a-z0-9_-]{0,63}\z/;
         }
+        elsif ( $f->{type} eq 'address_list' ) {
+            # SM1369 X3: names of address profiles, comma separated, kept as
+            # one trimmed list. Whether each names a profile in the store is
+            # the check's question (AddressRefs finds them by this type).
+            my @n = grep { length } map { s/\A\s+|\s+\z//gr } split /,/, $v;
+            for my $n (@n) {
+                return ( undef, "$k: '$n' is not the name of an address profile", $k )
+                    unless $n =~ /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\z/;
+            }
+            $v = join ',', @n;
+            next unless length $v;
+        }
         $out{$k} = $v;
     }
 
@@ -995,12 +1015,13 @@ sub validate_handler {
         my ( $p, $field, $why ) = _notify_problem( \%out );
         return ( undef, $why, $field ) if length $why;
     }
-    if ( $type eq 'odoo' ) {
-        # The shape, in the one parser the call uses - so what is saved is what
-        # will run. Whether the operation exists is _destination_problem's.
-        Lazysite::Extensions::require_payload('Lazysite::Odoo::Binding');
-        my ( $b, $why, $field ) = Lazysite::Odoo::Binding::parse( \%out );
-        return ( undef, $why, $field ) unless $b;
+    if ( $def->{extension} ) {
+        # SM1369 X3: the extension's own shape rules, in the one parser its
+        # delivery uses - so what is saved is what will run. What the
+        # destination itself says is _destination_problem's (on_save).
+        my $r = _hook( $def, 'parse', \%out, { docroot => $DOCROOT } );
+        return ( undef, $r->{why} // "a $type handler was refused by its extension", $r->{field} // 'type' )
+            unless $r->{ok};
     }
     return ( \%out, '' );
 }
@@ -1150,30 +1171,16 @@ sub _destination_problem {
             . ( join( ', ', sort keys %$all ) || 'none' )
             if defined $all && !exists $all->{ $h->{connector} };
     }
-    if ( $h->{type} eq 'odoo' ) {
-        # SM747: the binding against the operation's OWN declaration, when the
-        # registry can be read. OOM absent or the connection unconfigured is NOT
-        # a refusal - unvalidated is not invalid - and the call checks again.
-        my $problem = eval {
-            Lazysite::Extensions::require_payload('Lazysite::Odoo');
-            Lazysite::Extensions::require_payload('Lazysite::Odoo::Binding');
-            no warnings 'once';
-            local $Lazysite::Odoo::DOCROOT = $DOCROOT;
-            my ($have) = Lazysite::Odoo::oom_check();
-            my ($conn) = $have ? Lazysite::Odoo::connection() : ();
-            return '' unless $conn;
-            my ($b) = Lazysite::Odoo::Binding::parse($h);
-            my ( $class, $why ) = Lazysite::Odoo::operation_class( $conn, $b->{operation} );
-            return "operation: $why" unless $class;
-            my $w = Lazysite::Odoo::Binding::check_against( $b, $class );
-            return "params: $w" if length $w;
-
-            # SM1180: what the request path needs of the operation, kept beside the
-            # binding and stamped, so a call that oomd answers loads no OOM.
-            Lazysite::Odoo::store_decl( $b->{id}, $class, $b->{operation}, $conn );
-            return '';
-        };
-        return $problem if defined $problem && length $problem;
+    if ( my $def = $TYPES{ $h->{type} } ) {
+        # SM1369 X3: an extension type asks its own destination (on_save),
+        # under the same rule - a destination that cannot be asked is not a
+        # refusal, which is the extension's to say by answering ok. An on_save
+        # that did not run at all IS a refusal: a record nothing could check
+        # would otherwise be saved as checked.
+        if ( $def->{extension} ) {
+            my $r = _hook( $def, 'on_save', $h, { docroot => $DOCROOT } );
+            return $r->{why} // "a $h->{type} handler was refused by its extension" unless $r->{ok};
+        }
     }
     return '';
 }
@@ -1367,18 +1374,20 @@ sub action_handler_delete {
     }
     my ( $ok, $err ) = write_handlers( [ grep { $_->{id} ne $id } @$all ] );
     return { ok => 0, error => $err } unless $ok;
-    if ( ( $h->{type} // '' ) eq 'odoo' ) { # SM1180: its stored operation declaration goes with it
-        eval {
-            Lazysite::Extensions::require_payload('Lazysite::Odoo');
-            no warnings 'once';
-            local $Lazysite::Odoo::DOCROOT = $DOCROOT;
-            Lazysite::Odoo::forget_decl($id);
-        };
+    # SM1369 X3: an extension type's own records go with it (on_delete). The
+    # handler is already gone, so an on_delete that did not run is said in the
+    # result and does not undo the delete.
+    my %extra;
+    if ( my $def = $TYPES{ $h->{type} // '' } ) {
+        if ( $def->{extension} && defined $def->{hook}{on_delete} ) {
+            my $r = _hook( $def, 'on_delete', $h, { docroot => $DOCROOT } );
+            $extra{warning} = "the handler is deleted; its extension's own records were not: " . ( $r->{why} // '' )
+                unless $r->{ok};
+        }
     }
     # SM1093: a notify rule's unsent events go with it (see Outbox::purge_rule).
     # The rule is already gone, so a failed read is said in the result and does
     # not undo the delete.
-    my %extra;
     if ( ( $h->{type} // '' ) eq 'notify' ) {
         require Lazysite::Outbox;
         my $n = Lazysite::Outbox::purge_rule( $DOCROOT, $id );
@@ -1786,74 +1795,51 @@ sub _deliver_one {
     return _to_smtp( $h, $fields, $ctx )      if $t eq 'smtp';
     return _to_connector( $h, $fields, $ctx ) if $t eq 'connector';
     return _to_notify( $h, $fields, $ctx )    if $t eq 'notify';
-    return _to_odoo( $h, $fields, $ctx )      if $t eq 'odoo';
+    _sync_hook_types();
+    return _to_extension( $TYPES{$t}, $h, $fields, $ctx ) if $TYPES{$t} && $TYPES{$t}{extension};
     return { ok => 0, why => _legacy_problem($h) };
 }
 
-# SM747 CU: a form or the timer runs an Odoo binding. A form is PUBLIC - this
-# path has no verified actor (SM402) - and the timer is SCHEDULED, exactly as a
-# connector is told; the binding's modes decide whether either may.
+# SM1369 X3 (H-3): AN EXTENSION'S TYPE DELIVERS THROUGH ITS OWN `deliver`.
 #
-# NEITHER HAS A VISITOR OR ANYBODY TO CONFIRM. A binding that works on a
-# visitor's key belongs on a page (the Odoo endpoint mints and checks the key),
-# and a write that waits for a confirm would wait for ever - so both are
-# refused here by name rather than planned into a void.
-sub _to_odoo {
-    my ( $h, $fields, $ctx ) = @_;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo');
-    Lazysite::Extensions::require_payload('Lazysite::Odoo::Binding');
-    no warnings 'once';
-    local $Lazysite::Odoo::DOCROOT = $DOCROOT;
-    my ( $b, $why ) = Lazysite::Odoo::Binding::parse($h);
-    return { ok => 0, why => "the Odoo binding cannot be used: $why" } unless $b;
-    return { ok => 0, why => "the Odoo binding '$b->{id}' works on a visitor's key, which only "
-            . 'the Odoo page endpoint carries - bind it on a page, not a form or the schedule' }
-        if length $b->{visitor_param};
-    return { ok => 0, why => "the Odoo binding '$b->{id}' runs as a person signed in to Odoo, which "
-            . 'only the Odoo page endpoint carries - not a form or the schedule' }
-        if ( $b->{credential} // '' ) eq 'session';
-    return { ok => 0, why => "the Odoo binding '$b->{id}' waits for a confirm, and a form or the "
-            . 'schedule has nobody to give one - set apply: immediate on it (Q1)' }
-        if $b->{apply} ne 'immediate' && _odoo_writes($b);
-    my $r = Lazysite::Odoo::call( $b, { _visible($fields) },
-        mode  => ( ( $ctx->{origin} // '' ) eq 'timer' ? 'scheduled' : 'public' ),
-        actor => $ctx->{actor} // '',
-        ip    => $ctx->{ip}    // '',
-        # E-Q1: a form is a request on a host, and a domain's binding runs only
-        # there; the timer has no host and runs what the operator scheduled.
-        ( ( $ctx->{origin} // '' ) eq 'timer' ? () : ( host => _odoo_host() ) ) );
-    return { ok => 1 } if $r->{ok};
-
-    # SM1148 (OOM Lab L-3): APPLIED WITH A WARNING IS DELIVERED. OOM reports an
-    # apply as not ok when an invariant on the result failed after the change was
-    # made (its O-4: the record WAS made). That reached here as a failure, so a
-    # form sent the visitor to outcome=undelivered, they sent it again, and Odoo
-    # held a duplicate. It is delivered, with the warning in `note` - which the
-    # delivery's audit line carries as its detail and the event log as a WARN
-    # (deliver, above) - and the engine's call record already holds the kind. Only
-    # a result in which every change that was attempted is done counts: a change
-    # that failed, or was never attempted, is not a delivery and keeps its refusal.
-    if ( ( $r->{kind} // '' ) eq 'apply-incomplete' && $r->{applied} ) {
-        my $c = ( ref $r->{result} eq 'HASH' && ref $r->{result}{counts} eq 'HASH' ) ? $r->{result}{counts} : {};
-        return { ok => 1,
-            note => 'the change was applied in Odoo, and its checks afterwards reported apply-incomplete - see the Odoo call record' }
-            if ( $c->{done} // 0 ) > 0 && !( $c->{failed} // 0 ) && !( $c->{unknown} // 0 ) && !( $c->{not_attempted} // 0 );
+# THE ORIGIN GATE IS CORE'S. A type declares where it may run (`origins`: a
+# form's submission, the timer), and a delivery from anywhere else is refused
+# here, by name, before the extension's code is loaded - one rule for every
+# type, in place of each type's own "not from a form or the schedule" lines.
+#
+# WHAT CROSSES. The visible fields only (_visible: never a `_`-prefixed key,
+# which is the submission's own bookkeeping) and a context the extension can
+# act on: the origin and source, the submitter's address, the account the call
+# runs as (the job account for the timer, blank for a public form), the host a
+# form was posted to (E-Q1: a domain's handler runs only there; the timer has
+# none), the site and the quarantine flag. Not the handler list, not the
+# uploads: a type that needs files declares nothing for them yet.
+#
+# The answer is the shape every type gives - { ok, why, note } - and a function
+# that did not run, or answered no mapping, is a failed delivery with the
+# reason, which `deliver` logs and records as it does any other.
+sub _to_extension {
+    my ( $def, $h, $fields, $ctx ) = @_;
+    my $origin = $ctx->{origin} // 'form';
+    return { ok => 0, why => "a $h->{type} handler does not run from a $origin - its origins are: "
+            . join( ', ', @{ $def->{origins} || [] } ) }
+        unless grep { $_ eq $origin } @{ $def->{origins} || [] };
+    my %c = (
+        origin  => $origin,
+        source  => $ctx->{source} // $origin,
+        ip      => $ctx->{ip}     // '',
+        actor   => $ctx->{actor}  // '',
+        docroot => $DOCROOT,
+        ( $ctx->{quarantined} ? ( quarantined => 1, spam_reason => $ctx->{spam_reason} // '' ) : () ),
+    );
+    if ( $origin ne 'timer' ) {
+        require Lazysite::Util;
+        $c{host} = Lazysite::Util::request_host();
     }
-    return { ok => 0, why => 'the Odoo operation did not complete: ' . ( $r->{error} // $r->{kind} // 'failed' ) };
-}
-
-# The host a form was posted to, as Lazysite::Util reads it (E-Q1).
-sub _odoo_host {
-    require Lazysite::Util;
-    return Lazysite::Util::request_host();
-}
-
-# Whether the binding's operation writes - asked of OOM's registry, and treated
-# as a WRITE when it cannot be asked, so the refusal above errs closed.
-sub _odoo_writes {
-    my ($b) = @_;
-    my $w = eval { Lazysite::Odoo::writes_of($b) }; # SM1180: the stored declaration with the daemon on
-    return defined $w ? $w : 1;
+    my $r = _hook( $def, 'deliver', {%$h}, { _visible($fields) }, \%c );
+    return { ok => ( $r->{ok} ? 1 : 0 ),
+        ( $r->{ok} ? () : ( why => $r->{why} // 'the extension did not deliver' ) ),
+        ( length( $r->{note} // '' ) ? ( note => $r->{note} ) : () ) };
 }
 
 sub _audit_delivery {

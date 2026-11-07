@@ -18,19 +18,23 @@ package Lazysite::Auth::AddressRefs;
 #                         signin_addresses, signin_addresses_deny
 #                         bad_url_exempt (SM1321: profile names only, ruling 84; the
 #                         blocker asks membership only, so slot 'match')
-#   handlers.conf         a type-odoo binding's signin_addresses, signin_addresses_deny
-#                         (SM1229; SM1159 held them on the binding's calls), and its
-#                         address_profile (SM1280: whether a call came from inside it)
-# This module reads the files itself and loads nothing else of the engine's, so it
-# answers the same from the shell, the check and the manager, and does not depend
-# on the slices that enforce the rules being installed.
+#   handlers.conf         a handler's fields of type `address_list` (SM1369 X3, I-13):
+#                         the handler catalogue says which fields of which types
+#                         name profiles, and in which slot (Lazysite::Handlers::
+#                         address_list_fields) - a session binding's sign-in limit
+#                         (SM1229; SM1159 held it on the binding's calls) and the
+#                         profile its operation is told about (SM1280) are the
+#                         extension's own declaration now, found by type, not by name
+# This module reads the files itself and loads nothing else of the engine's but the
+# handler catalogue, so it answers the same from the shell, the check and the
+# manager, and does not depend on the slices that enforce the rules being installed.
 #
 # rules($docroot) -> { rules => [ {where, ref, slot, name} ], faults => [ text ] }
 #   where  'page' | 'acl' | 'group' | 'conf' | 'binding'
-#   ref    page path (docroot-relative), acl path, group name, conf key, binding id
+#   ref    page path (docroot-relative), acl path, group name, conf key, handler id
 #   slot   'allow' | 'deny' (the profile allowed or denied, SM1343: a profile has no
-#          kind, the slot is the choice), or 'match' for a binding's address_profile
-#          (SM1280), which asks membership only
+#          kind, the slot is the choice), or 'match' for a field that asks membership
+#          only (SM1280)
 # A store that exists and will not read or decode is a FAULT, named, never read as
 # "no rules" (SM1024): the caller cannot say a profile is unreferenced then.
 
@@ -108,14 +112,21 @@ sub _conf_names {
     return %v;
 }
 
-# SM1229: a binding's own sign-in address limit. The records are read straight
-# from lazysite/forms/handlers.conf (this module loads nothing of the engine's).
-# A handler of type odoo carrying signin_addresses / signin_addresses_deny names
-# profiles exactly as lazysite.conf's keys do, so deleting one it names would leave
-# a session binding refusing every call (a rule allowing a deleted profile admits
-# nobody, SM1138). Disabled bindings count: they can be switched on again.
+# SM1229: a handler's own address-profile fields. The records are read straight
+# from lazysite/forms/handlers.conf; which fields name profiles, and in which slot,
+# is the handler catalogue's answer (SM1369 X3: by the field type `address_list`,
+# so a type an extension declares is found as a core one would be). A field
+# carrying names uses them exactly as lazysite.conf's keys do, so deleting one it
+# names would leave a session binding refusing every call (a rule allowing a
+# deleted profile admits nobody, SM1138). Disabled handlers count: they can be
+# switched on again.
 sub _binding_rules {
-    my ( $path, $rules, $faults ) = @_;
+    my ( $path, $rules, $faults, $docroot ) = @_;
+    require Lazysite::Handlers;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT = $docroot;
+    my $fields = Lazysite::Handlers::address_list_fields();
+    return unless %$fields;
     open my $fh, '<:utf8', $path or do {
         push @{$faults}, "handlers.conf could not be read ($!)" unless $!{ENOENT};
         return;
@@ -137,21 +148,12 @@ sub _binding_rules {
     }
     close $fh;
     for my $r (@recs) {
-        next unless ( $r->{type} // '' ) eq 'odoo';
-        for my $f (qw(signin_addresses signin_addresses_deny)) {
-            ( my $v = $r->{$f} // '' ) =~ s/\A\[(.*)\]\z/$1/;
-            push @{$rules},
-                {
-                where => 'binding',
-                ref   => $r->{id},
-                slot  => ( $f eq 'signin_addresses' ? 'allow' : 'deny' ),
-                name  => $_
-                }
+        my $of = $fields->{ $r->{type} // '' } or next;
+        for my $f (@$of) {
+            ( my $v = $r->{ $f->{key} } // '' ) =~ s/\A\[(.*)\]\z/$1/;
+            push @{$rules}, { where => 'binding', ref => $r->{id}, slot => $f->{slot}, name => $_ }
                 for map { s/\A["']|["']\z//gr } _names( [ split /,/, $v ] );
         }
-    # SM1280: the profile a binding's operation is told about; a deleted one tells it "no"
-        push @{$rules}, { where => 'binding', ref => $r->{id}, slot => 'match', name => $_ }
-            for map { s/\A["']|["']\z//gr } _names( $r->{address_profile} );
     }
     return;
 }
@@ -239,7 +241,7 @@ sub rules {
     push @rules, { where => 'conf', ref => 'bad_url_exempt', slot => 'match', name => $_ }
         for grep { lc $_ ne 'none' } _names( $conf{bad_url_exempt} );
 
-    _binding_rules( "$lz/forms/handlers.conf", \@rules, \@faults );
+    _binding_rules( "$lz/forms/handlers.conf", \@rules, \@faults, $docroot );
 
     return { rules => \@rules, faults => \@faults };
 }
@@ -249,7 +251,7 @@ sub describe {
     my (@r) = @_;
     my %by;
     push @{ $by{ $_->{where} } }, $_->{ref} for @r;
-    my %label = ( page => 'page', acl => 'access rule for', group => 'group', conf => 'lazysite.conf key', binding => 'Odoo binding' );
+    my %label = ( page => 'page', acl => 'access rule for', group => 'group', conf => 'lazysite.conf key', binding => 'handler' );
     my @out;
     for my $w (qw(page acl group conf binding)) {
         next unless $by{$w};

@@ -154,10 +154,15 @@ our ( $DOCROOT, $LAZYSITE_DIR, $CONF_FILE, $DRAFT_BYTES, $REQUEST_IDENT, %ACCESS
             # binding this misses is refused by resolve_db, never cached.
             $m{db_mine} = 1 if $line =~ /\bdb:/i && $line =~ /\bmine\b/;
 
-            # SM747 C: an `odoo-identity:` binding renders who the viewer is in Odoo,
-            # so the page is per viewer and takes the same treatment. A trigger, not a
-            # parser: one this misses is refused by resolve_odoo_identity, never cached.
-            $m{odoo_me} = 1 if $line =~ /\bodoo-identity:/;
+            # SM1369 X3: a page source an extension declares `per_viewer` (who the
+            # viewer is in a remote system, say) renders per viewer, so the page
+            # takes the same treatment. A trigger, not a parser: a line naming the
+            # prefix, and one this misses is refused by resolve_source, never cached.
+            unless ( $m{per_viewer_source} ) {
+                for my $p ( _per_viewer_prefixes() ) {
+                    if ( $line =~ /\b\Q$p\E:/i ) { $m{per_viewer_source} = 1; last }
+                }
+            }
 
             # query_params: block
             if ( $line =~ /^query_params\s*:\s*$/ ) {

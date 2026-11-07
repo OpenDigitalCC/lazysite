@@ -80,6 +80,10 @@ sub site {
     my $d = site_tempdir();
     make_path( "$d/lazysite/auth", "$d/lazysite/forms" );
     put( "$d/lazysite/lazysite.conf", "site_name: T\n" . ( $o{conf} // '' ) );
+    # SM1369 X3: a binding's profile fields are found by their type, which the
+    # Odoo extension declares - so it is on and indexed on every site here.
+    require OdooTest;
+    OdooTest::enable_odoo($d);
     cli( $d, 'address-profile-set', $_, '--entry', '203.0.113.0/24' ) for qw(office other);
     cli( $d, 'address-profile-set', 'bad', '--entry', '198.51.100.0/24' );
     put( "$d/lazysite/forms/handlers.conf", $o{handlers} ) if defined $o{handlers};
@@ -104,12 +108,12 @@ for my $c (
     subtest "refused while a binding names it: $what" => sub {
         my $d   = site( handlers => binding(%$b) );
         my $out = cli( $d, 'address-profile-delete', $list );
-        like $out, qr/still named by .*Odoo binding stock/, 'refused, naming the binding';
+        like $out, qr/still named by .*handler stock/, 'refused, naming the binding';
         like $out, qr/--force/,                             'and how to override';
         is_deeply( [ names($d) ], [ 'bad', 'office', 'other' ], 'the store is untouched' );
         my $r = api( $d, { action => 'address-profile-delete', name => $list } );
         ok !$r->{ok} && $r->{kind} eq 'in-use', 'the API refuses with kind in-use';
-        like $r->{error}, qr/Odoo binding stock/, 'and names the binding';
+        like $r->{error}, qr/handler stock/, 'and names the binding';
         is_deeply( [ map { "$_->{where}:$_->{ref}" } @{ $r->{references} || [] } ], ['binding:stock'], 'and carries the reference' );
     };
 }
@@ -128,7 +132,7 @@ subtest 'every kind of user is named in one refusal' => sub {
     push @{ $by{ $_->{where} } }, $_->{ref} for @{ $r->{references} || [] };
     is_deeply( [ sort keys %by ], [qw(acl binding conf group page)], 'a page, an access rule, a group, conf and a binding' );
     is_deeply( [ sort @{ $by{binding} || [] } ], [qw(orders stock)], 'each binding is named' );
-    like $r->{error}, qr/Odoo binding orders, stock/, 'and the sentence lists them';
+    like $r->{error}, qr/handler orders, stock/, 'and the sentence lists them';
     is_deeply( [ names($d) ], [ 'bad', 'office', 'other' ], 'the store is untouched' );
 };
 
@@ -158,7 +162,7 @@ subtest 'a forced delete goes through and says the binding still named it' => su
     my $d = site( handlers => binding( allow => 'office' ) );
     my $r = api( $d, { action => 'address-profile-delete', name => 'office', force => JSON::PP::true } );
     ok $r->{ok}, 'force:true' or diag $r->{error};
-    like $r->{change}, qr/forced\); still named by .*Odoo binding stock/, 'the change line names the binding';
+    like $r->{change}, qr/forced\); still named by .*handler stock/, 'the change line names the binding';
     is_deeply( [ names($d) ], [ 'bad', 'other' ], 'gone' );
 };
 

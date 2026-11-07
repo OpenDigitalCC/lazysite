@@ -4,10 +4,12 @@ package main;
 #
 # HOLDS   resolve_tt_vars(): the conf's and a page's tt_page_var definitions
 #         resolved - literals, ${VAR} env interpolation through the allowlist
-#         (interpolate_env, _env_value: the SM926 copy t/lint/203 pins), and the
-#         url:, json:, db:, odoo: and scan: sources (resolve_json, resolve_db with
-#         _db_empty and _escape_db_rows, resolve_odoo with _odoo_inert,
-#         _resolve_content_path, _language_set);
+#         (interpolate_env, _env_value: the SM926 copy t/lint/203 pins), the
+#         url:, json:, db: and scan: sources (resolve_json, resolve_db with
+#         _db_empty and _escape_db_rows, _resolve_content_path, _language_set)
+#         and the sources the enabled extensions declare (SM1369 X3:
+#         _hook_sources, _hook_source_for, _per_viewer_prefixes, resolve_source
+#         with _source_inert);
 #         _canonical_of, the domain an alias host renders from (P14, the marked
 #         copy t/lint/224 drives);
 #         the dependency record a cached page is checked against (_tt_dep,
@@ -652,143 +654,113 @@ sub _escape_db_rows {
     return $rows;
 }
 
-# SM747 CU: a page reads an Odoo binding's report.
+# SM1369 X3 (H-2): A PAGE SOURCE AN EXTENSION DECLARES.
 #
 #   tt_page_var:
-#     products: odoo:shop-list
+#     products: <prefix>:<spec>
 #
-# The binding is a handler of type odoo that permits PUBLIC (a render is for
-# whoever asks, and is cached for the next), run as the site's connection user
-# with no request input - what it reads is the operator's binding and nothing a
-# visitor sends. Lazily loaded, as db: is, so a site that never writes `odoo:`
-# loads nothing new.
+# An enabled extension declares its sources in the hook index
+# (`owns.hooks.page_sources`: prefix, resolve, check, per_viewer, live,
+# read_only), and the render asks the index for a prefix it does not resolve
+# itself (scan:, db:, json:, url: are tested first, above). Nothing here knows
+# any extension by name; what a source reads, and what it refuses, is the
+# extension's own code (lint 321). The rules core keeps are the ones a shared,
+# cached render needs:
 #
-# A RENDER NEVER WRITES. A binding whose operation writes - or whose operation
-# cannot be asked - is refused here, before anything runs: a page view that
-# planned or applied a change would turn every crawler into a customer.
+#   * A RENDER IS SHARED. A source gets the page, the key, the request address
+#     through the trusted-proxy rule, the host and mode `render` - and NO
+#     session credential, unless it declared `per_viewer`: such a source is
+#     handed the request's cookie header and identity, and its page is never
+#     cached for another viewer (main marks it per viewer by the peek below,
+#     and the mark arrives here as RENDER_QUERY's `_protected`). A per-viewer
+#     source anywhere the mark did not reach (a site-wide variable, an error
+#     page, a binding the peek could not see) is REFUSED rather than rendered,
+#     because what it read would be cached for everyone (SM857's mechanism,
+#     OI5's rule).
+#   * `live` withdraws the cache's mtime proof, as url: does (SM311), and so
+#     does per_viewer: nothing on disk proves such a page current.
+#   * THE VALUE IS MADE INERT HERE, whatever the source answers: every scalar
+#     in it is HTML-escaped as a db: row is (SM786) and made unable to spell a
+#     link or break JSON (SM966) - a remote system's records are written by
+#     people this site has never met, and no extension decides that for itself.
+#   * A SOURCE THAT FAILS RESOLVES TO EMPTY, with one WARN line in one shape,
+#     and never fails the page: the extension's `why` and detail travel on the
+#     line. A source that dies, cannot be loaded, or whose extension is off is
+#     the same empty (the loader fails closed, G-9).
 #
-# A VISITOR'S BINDING IS NOT A PAGE'S. One that works on a visitor's key would
-# cache one visitor's basket for the next; it belongs to the Odoo endpoint,
-# which answers each browser for itself.
+# The modules load LAZILY, as db: does, so a site whose pages name no source
+# loads nothing new, and a site with no hook index pays a stat.
 #
-# Every scalar in the report is escaped as a db: row is (SM786), because Odoo's
-# records are written by people this site has never met.
-sub resolve_odoo {
-    my ( $id, $key ) = @_;
-    my $page = $ENV{REDIRECT_URL} // '-';
-    if ( !_unit_enabled('extensions/odoo.pl') ) {
-        log_event( 'WARN', $page, 'odoo: page variable needs the Odoo extension, which is switched off',
-            key => $key );
-        return '';
-    }
-    my $ok = eval { _lazy_lib('Lazysite::Odoo'); 1 };
-    unless ($ok) {
-        log_event( 'WARN', $page, 'odoo: page variable needs the Odoo modules', key => $key );
-        return '';
-    }
-    no warnings 'once';
-    local $Lazysite::Odoo::DOCROOT = $DOCROOT;
-    my ( $b, $why ) = Lazysite::Odoo::find_binding($id);
-    unless ($b) {
-        log_event( 'WARN', $page, 'odoo: page variable names no usable binding', key => $key, why => $why );
-        return '';
-    }
-    if ( length $b->{visitor_param} ) {
-        log_event( 'WARN', $page,
-            'odoo: page variable refused - the binding works on a visitor\'s key, and a page '
-                . 'render is shared; read it through the Odoo endpoint instead',
-            key => $key, binding => $id );
-        return '';
-    }
-    if ( length( $b->{address_param} // '' ) ) {    # SM1280
-        log_event( 'WARN', $page,
-            'odoo: page variable refused - the binding is told whether the call came from inside an address '
-                . 'list, and a page render is shared and cached; read it through the Odoo endpoint instead',
-            key => $key, binding => $id );
-        return '';
-    }
-    if ( ( $b->{answer} // '' ) eq 'download' ) {    # SM1225
-        log_event( 'WARN', $page,
-            "odoo: page variable refused - the binding '$id' answers a download (answer: download); "
-                . 'the document would be put in the page as base64. Link to the Odoo endpoint instead',
-            key => $key, binding => $id );
-        return '';
-    }
-    if ( ( $b->{credential} // '' ) eq 'session' ) {
-        log_event( 'WARN', $page,
-            'odoo: page variable refused - the binding runs as a person signed in to Odoo, and a '
-                . 'page render is shared and cached; what one person may see is never put in it',
-            key => $key, binding => $id );
-        return '';
-    }
-    my $w = Lazysite::Odoo::writes_of($b);
-    unless ( defined $w && !$w ) {
-        log_event( 'WARN', $page,
-            'odoo: page variable refused - a render never runs an operation that writes'
-                . ( defined $w ? '' : ' (and this one could not be asked whether it does)' ),
-            key => $key, binding => $id );
-        return '';
-    }
-    $TT_DEP_LIVE = 1;
-    my $r = Lazysite::Odoo::call( $b, {}, mode => 'public', ip => ( _request_address( _trusted_proxy_spec() ) // '' ),
-        host => _request_host() ); # E-Q1: a domain's binding renders only on its own host
-    unless ( $r->{ok} ) {
-        log_event( 'WARN', $page, 'odoo: page variable read nothing', key => $key, binding => $id,
-            kind => ( $r->{kind} // '' ), why => ( $r->{error} // '' ) );
-        return '';
-    }
-    _lazy_lib('Lazysite::Odoo::Fields');
-    return _odoo_inert( Lazysite::Odoo::Fields::page_report( $r->{report} ) );
+# A source's answer: ( $value ) - a scalar, list or mapping for the template -
+# or ( undef, $why, %detail ) for a refusal.
+sub _hook_sources {
+    return () unless -e "$LAZYSITE_DIR/extensions.index.json"; # Hooks::index_path's name; t/unit/extensions/72 pins it
+    return () unless eval { _lazy_lib('Lazysite::Extensions::Hooks'); 1 };
+    return Lazysite::Extensions::Hooks::page_sources($LAZYSITE_DIR);
 }
 
-# SM747 C (OI1, OI4, OI5): who the viewer is in Odoo, for the page to PRESENT.
-#
-#   tt_page_var:
-#     me: odoo-identity:
-#
-# gives `me.name`, `me.lang`, `me.tz`, `me.company_id`, `me.company_ids` and
-# `me.groups`, from the signed identity cookie - or an empty mapping, which is
-# what a page renders for a viewer who has not signed in, whose cookie has ended,
-# or whose cookie does not verify (a tampered one is no identity).
-#
-# PRESENTATION ONLY, never authorisation: showing or hiding a part of a page by
-# `me.groups` is a convenience, and Odoo is what refuses a call a person may not
-# make. Every value is HTML-escaped, as a `db:` value is.
-#
-# THE CACHE, FAIL-CLOSED (OI5), by SM857's own mechanism: main() marks a page
-# whose front matter holds an `odoo-identity:` binding as per-viewer, which is
-# the gated page's treatment - never read from or written to the page cache,
-# no-store on output - and arrives here as RENDER_QUERY's `_protected`. A binding
-# found anywhere that mark did not reach (a site-wide variable, an error page, a
-# binding the front-matter peek could not see) is REFUSED rather than rendered,
-# because what it read would be cached for everyone.
-sub resolve_odoo_identity {
-    my ($key) = @_;
-    unless ( $RENDER_QUERY{_protected} ) {
-        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
-            'odoo-identity: binding refused - it is not in a page\'s own tt_page_var, so the render '
+# The declared source a variable's value names, or undef: `<prefix>:` at the
+# start, the longest declared prefix first, case-insensitive as the engine's own
+# prefixes are - and never `scheme://`, which is a literal address.
+sub _hook_source_for {
+    my ($val) = @_;
+    return undef unless defined $val && $val =~ /\A([a-z][a-z0-9-]*):(?!\/\/)/i;
+    my $p = lc $1;
+    my ($src) = grep { lc( $_->{prefix} ) eq $p } _hook_sources();
+    return $src;
+}
+
+# The prefixes whose pages render per viewer, for the front-matter peek.
+sub _per_viewer_prefixes {
+    return map { $_->{prefix} } grep { $_->{per_viewer} } _hook_sources();
+}
+
+sub resolve_source {
+    my ( $spec, $key, $src ) = @_;
+    my $page   = $ENV{REDIRECT_URL} // '-';
+    my $prefix = $src->{prefix};
+    if ( $src->{per_viewer} && !$RENDER_QUERY{_protected} ) {
+        log_event( 'WARN', $page,
+            "$prefix: binding refused - it is not in a page's own tt_page_var, so the render "
                 . 'could be cached and served to another viewer',
             key => $key );
-        return {};
+        return '';
     }
-    $TT_DEP_LIVE = 1;
-    eval { _lazy_lib('Lazysite::Odoo'); _lazy_lib('Lazysite::Odoo::Identity'); _lazy_lib('Lazysite::Odoo::Visitor'); 1 } or do {
-        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'odoo-identity: needs the Odoo modules', key => $key );
-        return {};
-    };
-    no warnings 'once';
-    local $Lazysite::Odoo::DOCROOT          = $DOCROOT;
-    local $Lazysite::Odoo::Visitor::DOCROOT = $DOCROOT;
-    my $id = Lazysite::Odoo::Identity::identity_from_cookie( $ENV{HTTP_COOKIE} // '', ttl => Lazysite::Odoo::identity_ttl() );
-    return {} unless $id;
-    return _odoo_inert($id);
+    $TT_DEP_LIVE = 1 if $src->{live} || $src->{per_viewer};
+    my %ctx = (
+        page    => $page,
+        key     => $key,
+        prefix  => $prefix,
+        mode    => 'render',
+        docroot => $DOCROOT,
+        address => ( _request_address( _trusted_proxy_spec() ) // '' ),
+        host => ( _request_host() // '' ), # E-Q1: a domain's binding renders only on its own host
+    );
+    if ( $src->{per_viewer} ) {
+        my $i = _request_identity();       # SM1131: the one identity reader
+        $ctx{cookie}   = $ENV{HTTP_COOKIE} // '';
+        $ctx{identity} = { user => $i->{user}, groups => [ @{ $i->{groups} || [] } ] };
+    }
+    my ( $ok, @out ) = Lazysite::Extensions::Hooks::call_hook( $DOCROOT, $src->{extension}, $src->{resolve}, $spec, \%ctx );
+    unless ($ok) {
+        log_event( 'WARN', $page, "$prefix: page variable did not resolve", key => $key, why => ( $out[0] // '' ) );
+        return '';
+    }
+    my ( $value, $why, %detail ) = @out;
+    unless ( defined $value ) {
+        log_event( 'WARN', $page, "$prefix: page variable read nothing", key => $key, why => ( $why // '' ),
+            map { ( $_ => ( $detail{$_} // '' ) ) } grep { !ref $detail{$_} } sort keys %detail );
+        return '';
+    }
+    return _source_inert($value);
 }
 
-sub _odoo_inert {
+sub _source_inert {
     my ($v) = @_;
-    return [ map { _odoo_inert($_) } @$v ]                        if ref $v eq 'ARRAY';
-    return { map { ( $_ => _odoo_inert( $v->{$_} ) ) } keys %$v } if ref $v eq 'HASH';
-    return $v if ref $v || !defined $v;
+    return [ map { _source_inert($_) } @$v ]                        if ref $v eq 'ARRAY';
+    return { map { ( $_ => _source_inert( $v->{$_} ) ) } keys %$v } if ref $v eq 'HASH';
+    return '' if ref $v;    # code, a glob, an object: nothing a page is handed
+    return $v unless defined $v;
     return _data_inert( _esc_html($v) );
 }
 
@@ -824,12 +796,10 @@ sub resolve_tt_vars {
             # .field) answer a value and carry no companion.
             $vars{ $key . '_total' } = 0 + $total if defined $total;
         }
-        elsif ( $val =~ s/^odoo-identity:\s*//i ) {
-            $vars{$key} = resolve_odoo_identity($key);
-        }
-        elsif ( $val =~ s/^odoo://i ) {
+        elsif ( my $src = _hook_source_for($val) ) { # SM1369 X3: a source an extension declares
+            $val =~ s/^\Q$src->{prefix}\E://i;
             $val =~ s/^\s+|\s+$//g;
-            $vars{$key} = resolve_odoo( $val, $key );
+            $vars{$key} = resolve_source( $val, $key, $src );
         }
         elsif ( $val =~ s/^json://i ) {
             $val = interpolate_env($val);

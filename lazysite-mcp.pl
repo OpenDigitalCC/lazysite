@@ -3880,6 +3880,7 @@ sub _audit_site {
 # SM842: save_handler's input schema, built from the handler catalogue so the
 # tool cannot offer a field the types do not declare or miss one they do.
 sub _handler_properties {
+    Lazysite::Handlers::types(); # SM1369 X3: the catalogue with this site's extension types merged in
     my %p = (
         id => { type => 'string', description => 'the handler id: letters, digits, - or _' },
         type    => { type => 'string', enum        => [@Lazysite::Handlers::TYPE_ORDER] },

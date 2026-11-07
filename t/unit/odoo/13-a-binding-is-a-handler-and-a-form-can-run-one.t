@@ -14,7 +14,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(site_tempdir);
-use OdooTest   qw(oom_or_skip shop_ready quiet);
+use OdooTest   qw(oom_or_skip shop_ready quiet enable_odoo);
 
 BEGIN { oom_or_skip() }
 use Lazysite::Handlers ();
@@ -57,7 +57,10 @@ subtest 'it needs the destination\'s capability' => sub {
 };
 
 subtest 'unvalidated is not invalid' => sub {
+    # SM1369 X3: the type is the extension's, so the extension is on (and indexed);
+    # nothing else is configured, so the connection is not there to ask.
     my $bare = site_tempdir();
+    enable_odoo($bare);
     local $Lazysite::Handlers::DOCROOT = $bare;
     my ( undef, $r ) = quiet( sub {
             Lazysite::Handlers::action_handler_save(

@@ -52,6 +52,10 @@ sub put {
 
 my $d = site_tempdir();
 setup_test_site($d);
+# SM1369 X3: `odoo-identity:` is a per-viewer source the Odoo extension declares,
+# read from the hook index - so the extension is on and indexed here.
+require OdooTest;
+OdooTest::enable_odoo($d);
 open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "control_api_enabled: true\n"; close $cf;
 put( "$d/assets/$_", "/* $_ */\n" ) for qw(lazysite-chrome.css lazysite-chrome.js lazysite-app.js);

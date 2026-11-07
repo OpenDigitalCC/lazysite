@@ -50,7 +50,8 @@ use Lazysite::Extensions ();
 our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
     check_functions index_path read_index enabled_keys call_hook
     declared_entry mirror mirror_index unmirror mirror_state index_signature
-    index_failed_path note_index_failure declared_refusal_status);
+    index_failed_path note_index_failure declared_refusal_status
+    cross_problems page_sources handler_types);
 
 # The hook vocabulary. `hook` is the proposal's H-n, `slice` the slice that
 # builds its consumer. A live kind carries its shape:
@@ -58,16 +59,41 @@ our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
 #   form       functions - a list of function names
 #              record    - one map
 #              records   - a list of maps
+#              named     - a map of names to maps (SM1369 X3), each name
+#                          matching the kind's `name` pattern
 #   functions  the keys of a map whose values are function names
 #   fields     the other keys a map may carry, each a plain value
+#   lists      keys whose value is a list of plain values (X3)
+#   tables     keys whose value is a list of maps of plain values (X3)
 #   required   the keys a map must carry
+#   check      a function run over the whole declaration once its shape is
+#              sound, for the kind's own vocabulary (X3); returns problems
 #
 # The names of the kinds that are not live are the proposal's; a slice may
 # rename its kind before making it live, since nothing can declare it until then.
 our %KINDS = (
     identity_provider => { hook => 'H-1',  slice => 'X4' },
-    page_sources      => { hook => 'H-2',  slice => 'X3' },
-    handler_types     => { hook => 'H-3',  slice => 'X3' },
+
+    # SM1369 X3 (n769): H-2 and H-3 are live - their consumers are
+    # lazysite-processor/sources.pm, Lazysite::Validate and Lazysite::Handlers.
+    # The vocabulary each record may use is checked by the X3 block below.
+    page_sources => {
+        hook      => 'H-2', slice => 'X3', live => 1, form => 'records',
+        functions => [qw(resolve check)],
+        fields    => [qw(prefix per_viewer live read_only)],
+        required  => [qw(prefix resolve read_only)],
+        check     => \&_check_page_sources,
+    },
+    handler_types => {
+        hook      => 'H-3', slice => 'X3', live => 1, form => 'named',
+        name      => qr/\A[a-z][a-z0-9_]{0,31}\z/,
+        functions => [qw(parse on_save on_delete deliver)],
+        fields    => [qw(label cap note)],
+        lists     => [qw(origins)],
+        tables    => [qw(schema)],
+        required  => [qw(label cap origins schema deliver)],
+        check     => \&_check_handler_types,
+    },
     endpoints         => { hook => 'H-4',  slice => 'X5' },
     services          => { hook => 'H-5',  slice => 'X5' },
     checks            => { hook => 'H-6',  slice => 'X6' },
@@ -129,6 +155,8 @@ sub _validate_map {
     return ( _err( $id, "hooks.$kind", "$where must be a mapping" ) ) unless ref $m eq 'HASH';
     my %fn  = map { $_ => 1 } @{ $spec->{functions} || [] };
     my %fld = map { $_ => 1 } @{ $spec->{fields}    || [] };
+    my %lst = map { $_ => 1 } @{ $spec->{lists}     || [] };
+    my %tbl = map { $_ => 1 } @{ $spec->{tables}    || [] };
     my @bad;
     for my $k ( sort keys %$m ) {
         if ( $fn{$k} ) {
@@ -140,9 +168,18 @@ sub _validate_map {
             push @bad, _err( $id, "hooks.$kind", "$where.$k must be a plain value" )
                 unless _plain( $m->{$k} );
         }
+        elsif ( $lst{$k} ) {
+            push @bad, _err( $id, "hooks.$kind", "$where.$k must be a list of plain values" )
+                unless ref $m->{$k} eq 'ARRAY' && !grep { !_plain($_) } @{ $m->{$k} };
+        }
+        elsif ( $tbl{$k} ) {
+            push @bad, _err( $id, "hooks.$kind", "$where.$k must be a list of mappings of plain values" )
+                unless ref $m->{$k} eq 'ARRAY'
+                && !grep { ref $_ ne 'HASH' || grep { !_plain($_) } values %$_ } @{ $m->{$k} };
+        }
         else {
             push @bad, _err( $id, "hooks.$kind", "unknown key '$k' in $where (expected: "
-                    . join( ', ', sort( keys %fn, keys %fld ) ) . ')' );
+                    . join( ', ', sort( keys %fn, keys %fld, keys %lst, keys %tbl ) ) . ')' );
         }
     }
     for my $k ( @{ $spec->{required} || [] } ) {
@@ -194,13 +231,185 @@ sub validate_hooks {
                 push @bad, _err( $id, "hooks.$kind", "$kind must be a list of mappings" );
                 next;
             }
-            push @bad, _validate_map( $id, $kind, $spec, $v->[$_], "$kind\[$_\]" ) for 0 .. $#$v;
+            my @shape = map { _validate_map( $id, $kind, $spec, $v->[$_], "$kind\[$_\]" ) } 0 .. $#$v;
+            push @bad, @shape;
+            push @bad, $spec->{check}->( $id, $v ) if !@shape && $spec->{check};
+        }
+        elsif ( $form eq 'named' ) {
+            if ( ref $v ne 'HASH' ) {
+                push @bad, _err( $id, "hooks.$kind", "$kind must be a mapping of names to mappings" );
+                next;
+            }
+            my @shape;
+            for my $n ( sort keys %$v ) {
+                if ( $spec->{name} && $n !~ $spec->{name} ) {
+                    push @shape, _err( $id, "hooks.$kind", "'$n' is not a name $kind may use" );
+                    next;
+                }
+                push @shape, _validate_map( $id, $kind, $spec, $v->{$n}, "$kind.$n" );
+            }
+            push @bad, @shape;
+            push @bad, $spec->{check}->( $id, $v ) if !@shape && $spec->{check};
         }
         else {
             push @bad, _err( $id, "hooks.$kind", "hook '$kind' has no shape in this engine" );
         }
     }
     return @bad;
+}
+
+# ---- SM1369 X3 (n769): the vocabulary of page sources and handler types ----
+#
+# The shape above says a record carries the right keys; this says what the
+# values may be, so a declaration that core could not use is refused at the
+# build, by name, and never indexed (the X1 rule: nothing runs that was not
+# checked first).
+
+# The prefixes the processor resolves itself (lazysite-processor/sources.pm,
+# resolve_tt_vars, tested before it asks the index) - a source cannot take one.
+our @CORE_SOURCE_PREFIXES = qw(scan db json url);
+
+# Where core delivers a handler from: a form's submission
+# (extensions/form-handler.pl) and the scheduler's timer (Daemon::Jobs). A type
+# names the origins it accepts; a delivery from any other is refused by core
+# before the type's own code runs.
+our @HANDLER_ORIGINS = qw(form timer);
+
+sub _check_page_sources {
+    my ( $id, $list ) = @_;
+    my ( @bad, %seen );
+    my %core = map { $_ => 1 } @CORE_SOURCE_PREFIXES;
+    for my $i ( 0 .. $#$list ) {
+        my $s = $list->[$i];
+        my $p = $s->{prefix};
+        my $w = "page_sources[$i]";
+        push @bad, _err( $id, 'hooks.page_sources',
+            "$w.prefix '$p' is not a source prefix: lower-case letters, digits and hyphens, no trailing colon" )
+            unless defined $p && $p =~ /\A[a-z][a-z0-9-]{0,31}\z/;
+        next unless defined $p;
+        push @bad, _err( $id, 'hooks.page_sources', "$w.prefix '$p' is the engine's own" ) if $core{ lc $p };
+        push @bad, _err( $id, 'hooks.page_sources', "$w.prefix '$p' is declared twice" ) if $seen{ lc $p }++;
+        push @bad, _err( $id, 'hooks.page_sources', "$w.read_only must be 1 - a page source is a read" )
+            unless ( $s->{read_only} // '' ) eq '1';
+        for my $k (qw(per_viewer live)) {
+            push @bad, _err( $id, 'hooks.page_sources', "$w.$k must be 0 or 1" )
+                if exists $s->{$k} && ( $s->{$k} // '' ) !~ /\A[01]\z/;
+        }
+    }
+    return @bad;
+}
+
+sub _check_handler_types {
+    my ( $id, $map ) = @_;
+    require Lazysite::Handlers;
+    require Lazysite::Auth::Settings;
+    my %core_type = map { $_ => 1 } Lazysite::Handlers::core_types(), Lazysite::Handlers::retired_types();
+    my %field  = map { $_ => 1 } Lazysite::Handlers::field_types();
+    my %origin = map { $_ => 1 } @HANDLER_ORIGINS;
+    no warnings 'once';
+    my %cap = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
+    my @bad;
+    for my $t ( sort keys %$map ) {
+        my $d = $map->{$t};
+        my $w = "handler_types.$t";
+        push @bad, _err( $id, 'hooks.handler_types', "$w: '$t' is a handler type the engine owns" )
+            if $core_type{$t};
+        push @bad, _err( $id, 'hooks.handler_types', "$w.cap '" . ( $d->{cap} // '' ) . "' is not a capability"
+                . ' - a type runs only under a capability the engine or its extension declares' )
+            unless $cap{ $d->{cap} // '' };
+        push @bad, _err( $id, 'hooks.handler_types', "$w.label must be one line of at most 80 characters" )
+            unless defined $d->{label} && length $d->{label} && length $d->{label} <= 80 && $d->{label} !~ /[\r\n]/;
+        push @bad, _err( $id, 'hooks.handler_types', "$w.origins must name at least one of: "
+                . join( ', ', @HANDLER_ORIGINS ) )
+            unless @{ $d->{origins} };
+        push @bad, _err( $id, 'hooks.handler_types', "$w.origins: '$_' is not an origin (the origins are: "
+                . join( ', ', @HANDLER_ORIGINS ) . ')' )
+            for grep { !$origin{$_} } @{ $d->{origins} };
+        my %key;
+        for my $i ( 0 .. $#{ $d->{schema} } ) {
+            my $f = $d->{schema}[$i];
+            my $k = $f->{key} // '';
+            push @bad, _err( $id, 'hooks.handler_types', "$w.schema[$i].key '$k' is not a field key" )
+                unless $k =~ /\A[a-z][a-z0-9_]{0,63}\z/;
+            push @bad, _err( $id, 'hooks.handler_types', "$w.schema[$i].key '$k' is a key every handler carries" )
+                if $k =~ /\A(?:id|type|name|enabled|domain|csrf_token)\z/;
+            push @bad, _err( $id, 'hooks.handler_types', "$w.schema[$i].key '$k' is declared twice" ) if $key{$k}++;
+            push @bad, _err( $id, 'hooks.handler_types', "$w.schema[$i].type '" . ( $f->{type} // '' )
+                    . "' is not a field type (the types are: " . join( ', ', Lazysite::Handlers::field_types() ) . ')' )
+                unless $field{ $f->{type} // '' };
+            push @bad, _err( $id, 'hooks.handler_types', "$w.schema[$i] must carry a label" )
+                unless defined $f->{label} && length $f->{label};
+            push @bad, _err( $id, 'hooks.handler_types', "$w.schema[$i].slot must be allow, deny or match" )
+                if exists $f->{slot} && ( $f->{slot} // '' ) !~ /\A(?:allow|deny|match)\z/;
+        }
+    }
+    return @bad;
+}
+
+# WHAT TWO EXTENSIONS CANNOT BOTH DECLARE. Run by the index build over the
+# entries that passed their own validation, in id order: the later extension
+# loses the clash and is left out, named, so a prefix or a type name has one
+# owner, as a config key does. Returns ( id => [ problems ] ) for the losers.
+sub cross_problems {
+    my ($entries) = @_;
+    my ( %owner, %bad );
+    for my $id ( sort keys %$entries ) {
+        my $hooks = $entries->{$id}{hooks} || {};
+        for my $s ( @{ ref $hooks->{page_sources} eq 'ARRAY' ? $hooks->{page_sources} : [] } ) {
+            my $p = lc( $s->{prefix} // '' );
+            if ( my $o = $owner{"source:$p"} ) {
+                push @{ $bad{$id} }, "the page source prefix '$p' is already declared by the extension '$o'";
+            }
+            else { $owner{"source:$p"} = $id }
+        }
+        for my $t ( sort keys %{ ref $hooks->{handler_types} eq 'HASH' ? $hooks->{handler_types} : {} } ) {
+            if ( my $o = $owner{"type:$t"} ) {
+                push @{ $bad{$id} }, "the handler type '$t' is already declared by the extension '$o'";
+            }
+            else { $owner{"type:$t"} = $id }
+        }
+    }
+    return %bad;
+}
+
+# THE SOURCES THE INDEX DECLARES, for the processor and the validator: one
+# record per prefix, the longest prefix first (so `odoo-identity` is tried
+# before `odoo`), each carrying the extension that owns it. An index that lists
+# a clash (one written by an older engine) keeps the first by id, as the build
+# does.
+sub page_sources {
+    my ($lz) = @_;
+    my $index = read_index($lz);
+    my ( @out, %seen );
+    for my $id ( sort keys %{ $index->{extensions} } ) {
+        my $e = $index->{extensions}{$id};
+        next unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{page_sources} eq 'ARRAY';
+        for my $s ( @{ $e->{hooks}{page_sources} } ) {
+            next unless ref $s eq 'HASH' && defined $s->{prefix} && length $s->{prefix};
+            next if $seen{ lc $s->{prefix} }++;
+            push @out, { %$s, extension => $id };
+        }
+    }
+    @out = sort { length( $b->{prefix} ) <=> length( $a->{prefix} ) || $a->{prefix} cmp $b->{prefix} } @out;
+    return @out;
+}
+
+# THE HANDLER TYPES THE INDEX DECLARES, for Lazysite::Handlers: type name to
+# its record, each carrying the extension that owns it.
+sub handler_types {
+    my ($lz) = @_;
+    my $index = read_index($lz);
+    my %out;
+    for my $id ( sort keys %{ $index->{extensions} } ) {
+        my $e = $index->{extensions}{$id};
+        next unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{handler_types} eq 'HASH';
+        for my $t ( sort keys %{ $e->{hooks}{handler_types} } ) {
+            my $d = $e->{hooks}{handler_types}{$t};
+            next unless ref $d eq 'HASH';
+            $out{$t} //= { %$d, extension => $id };
+        }
+    }
+    return %out;
 }
 
 # `requires`: the ids of the extensions this one builds on. Enabling it while
@@ -236,7 +445,11 @@ sub hook_functions {
             $out{$_} = 1 for grep { parse_function($_) } @$v;
             next;
         }
-        my @maps = $form eq 'record' ? ($v) : $form eq 'records' && ref $v eq 'ARRAY' ? @$v : ();
+        my @maps
+            = $form eq 'record'                       ? ($v)
+            : $form eq 'records' && ref $v eq 'ARRAY' ? @$v
+            : $form eq 'named' && ref $v eq 'HASH'    ? ( map { $v->{$_} } sort keys %$v )
+            :                                           ();
         for my $m ( grep { ref $_ eq 'HASH' } @maps ) {
             $out{ $m->{$_} } = 1 for grep { exists $m->{$_} && parse_function( $m->{$_} ) }
                 @{ $spec->{functions} || [] };
@@ -420,7 +633,7 @@ sub call_hook {
     unless ( eval { @out = $code->(@args); 1 } ) {
         my $why = $@ =~ s/\s+\z//r;
         _log( 'WARN', 'a hook died', extension => $id, function => $function, why => $why );
-        return ( 0, "$function died" );
+        return ( 0, "$function died: $why" ); # SM1369 X3: the reason travels, so a caller's own line is complete
     }
     return ( 1, @out );
 }

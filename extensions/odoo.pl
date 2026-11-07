@@ -349,6 +349,132 @@ sub hooks {
             'method'           => '405 Method Not Allowed',
             ( map { $_ => '503 Service Unavailable' } qw(no-key config) ),
         },
+
+        # SM1369 X3 (ruling 55): H-2, a page reads a binding's report (SM747
+        # CU), and who the viewer is in Odoo (SM747 C) - per viewer, so core
+        # hands that one the request's cookie and never caches its page for
+        # another. The code is Lazysite::Odoo::Hooks, run from this extension's
+        # own payload lib by the one loader.
+        page_sources => [
+            { prefix => 'odoo', resolve => 'Lazysite::Odoo::Hooks::source_binding',
+                check => 'Lazysite::Odoo::Hooks::check_binding', live => 1, read_only => 1 },
+            { prefix => 'odoo-identity', resolve => 'Lazysite::Odoo::Hooks::source_identity',
+                per_viewer => 1, live => 1, read_only => 1 },
+        ],
+        # H-3: a binding is a handler of type odoo, run by a form or the timer.
+        handler_types => { odoo => _handler_type() },
+    };
+}
+
+# SM747 CU: AN ODOO BINDING - a named OOM operation, run as the site's
+# connection user (this extension's config), with what a request may set and who
+# may cause it. The parsing and the safety rules are Lazysite::Odoo::Binding's;
+# the call is Lazysite::Odoo::call's. The schema is what the handler catalogue
+# draws and checks (a key it does not declare is refused at save, by name).
+sub _handler_type {
+    return {
+        label     => 'Run an Odoo operation',
+        cap       => 'manage_connectors',
+        origins   => [qw(form timer)],
+        parse     => 'Lazysite::Odoo::Hooks::handler_parse',
+        on_save   => 'Lazysite::Odoo::Hooks::handler_save',
+        on_delete => 'Lazysite::Odoo::Hooks::handler_delete',
+        deliver   => 'Lazysite::Odoo::Hooks::handler_deliver',
+        schema    => [
+            { key => 'operation', label => 'Operation', type => 'text', required => 1,
+                note => 'The name of an installed OOM operation, such as pack.action. What '
+                    . 'it may touch in Odoo is its own declared scope and the connection '
+                    . 'user\'s rights in Odoo.' },
+            { key => 'params', label => 'Parameters from the request', type => 'text',
+                max_len => 4000,
+                note => 'field=parameter, comma separated. Only these come from a visitor, '
+                    . 'and only into plain-value parameters; anything else the request '
+                    . 'sends is refused at the page endpoint and dropped from a form.' },
+            { key => 'fixed', label => 'Fixed parameters', type => 'text', max_len => 4000,
+                note => 'parameter=value, comma separated. Set here and never by a request.' },
+            { key => 'visitor_param', label => 'Visitor parameter', type => 'text',
+                note => 'The parameter that receives the visitor\'s own key (a basket, say). '
+                    . 'The server mints the key; a visitor cannot choose or see another\'s.' },
+            # SM1280 (ruling 3): whether the call came from inside an address profile.
+            # An address_list field (slot match): the engine's address-profile check
+            # finds the name here by the type, not by this extension's name (I-13).
+            { key => 'address_profile', label => 'Address profile the operation is told about',
+                type => 'address_list', slot => 'match',
+                note => 'Optional: the name of an address profile (Access, Address profiles). With an address '
+                    . 'parameter, the operation is told whether the call came from inside it - yes or no, '
+                    . 'never the address. Needs trusted_proxies to cover your front end.' },
+            { key => 'address_param', label => 'Address parameter', type => 'text',
+                note => 'With an address profile: the parameter (declared yes/no) that receives whether the '
+                    . 'call came from inside it. Set by the server; a request cannot set it.' },
+            { key => 'modes', label => 'Who may run it', type => 'text',
+                default => 'authenticated',
+                note => 'Comma separated: authenticated (a signed-in account in the caller '
+                    . 'groups), public (any visitor - opt in deliberately), scheduled.' },
+            { key => 'callers', label => 'Caller groups', type => 'text',
+                note => 'Groups whose signed-in members may run it in authenticated mode.' },
+            { key => 'apply', label => 'Applying a change', type => 'text', default => 'confirm',
+                note => 'confirm: a write operation\'s plan is shown and applied when its '
+                    . 'maker confirms it. immediate: applied in the same request, with '
+                    . 'nobody confirming - the ruled basket case (Q1). Odoo\'s rights for '
+                    . 'the connection user still bound what it can do.' },
+            { key => 'credential', label => 'Whose Odoo account runs it', type => 'text',
+                default => 'connection',
+                note => 'connection: the connection user. session: the person signed in '
+                    . 'to Odoo through the page, with their own Odoo rights; the binding is '
+                    . 'authenticated mode only, names no callers, and is never run by a page '
+                    . 'render, a form, the schedule or an agent.' },
+            # SM1229: a session binding's own sign-in limit, names of address
+            # profiles (SM1159 held them on the binding's calls) - found by type.
+            { key => 'signin_addresses', label => 'Session binding: only from (address profiles)',
+                type => 'address_list', slot => 'allow',
+                note => 'Optional, session bindings only: names of address profiles to allow, comma '
+                    . 'separated. A call of this binding from any other address is refused. It can '
+                    . 'only narrow the site\'s signin_addresses, never widen it.' },
+            { key => 'signin_addresses_deny', label => 'Session binding: never from (address profiles)',
+                type => 'address_list', slot => 'deny',
+                note => 'Optional, session bindings only: names of address profiles to deny. A call of '
+                    . 'this binding from one of these addresses is refused.' },
+            { key => 'rows_max', label => 'Cap: rows in a list a request gives', type => 'number',
+                note => 'Optional. A parameter the operation declares as a list of rows has a cap '
+                    . 'of its own; this can only lower it, for this binding.' },
+            # SM1225: a report answered as the document itself.
+            { key => 'answer', label => 'How a read is answered', type => 'text', default => 'json',
+                note => 'json: the report in a JSON answer. download: the document the report '
+                    . 'holds (a core.report with inline=1) is the response to a GET, with its '
+                    . 'content type, a safe file name, its length and no-store. The same '
+                    . 'access rules apply. Reads only.' },
+            { key => 'download_max_kb', label => 'Download: largest document (KB)', type => 'number',
+                note => 'Only with answer: download. Default 10240, at most 20480. A larger '
+                    . 'document is refused with a clear error, never cut short.' },
+            { key => 'download_disposition', label => 'Download: save or show', type => 'text',
+                note => 'Only with answer: download. attachment (the default) saves the file; '
+                    . 'inline shows a pdf, image or plain text in the browser. Html is always saved.' },
+            # SM1162: a binding that takes a file from a multipart request.
+            { key => 'file_params', label => 'Files from the request', type => 'text',
+                max_len => 4000,
+                note => 'field=parameter, comma separated: a request file field mapped to a '
+                    . 'parameter the operation declares as a file or a list of files (or to a '
+                    . 'set.<field> of a binary field). Needs file_max_kb.' },
+            { key => 'file_max_kb', label => 'Cap: size of one file (KB)', type => 'number',
+                note => 'Required when files are mapped. A whole number, at most the operation\'s '
+                    . 'own max_bytes and the endpoint\'s ceiling. A request larger than this is '
+                    . 'refused before it is read.' },
+            { key => 'file_types', label => 'Types of file accepted', type => 'text',
+                note => 'Optional: type/subtype names, comma separated, such as '
+                    . 'image/jpeg,image/png,application/pdf. The type is read from the file\'s '
+                    . 'bytes, never taken from the browser. Empty: any type.' },
+            # SM1173: NO schema default - a default here is saved into the binding
+            # and would pin a read to the write numbers. Empty stands for the
+            # default of what the binding does.
+            { key => 'rate_per_visitor_hour', label => 'Cap: runs per visitor per hour',
+                type => 'number',
+                note => 'Leave empty for the default: 2000 for a read, 20 for a write. A number here replaces it, higher or lower.' },
+            { key => 'rate_per_hour', label => 'Cap: runs of this binding per hour',
+                type => 'number',
+                note => 'Leave empty for the default: 20000 for a read, 200 for a write. A number here replaces it, higher or lower.' },
+        ],
+        note => 'Needs the Odoo extension enabled and configured, with the connection '
+            . 'user\'s API key set.',
     };
 }
 

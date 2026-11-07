@@ -35,6 +35,10 @@ sub site {
     my ( $conf, %o ) = @_;
     my $d = site_tempdir();
     setup_test_site($d);
+    # SM1369 X3: `odoo-identity:` is a per-viewer source the Odoo extension
+    # declares, read from the hook index - so the extension is on and indexed.
+    require OdooTest;
+    OdooTest::enable_odoo($d);
     open my $fh, '>>', "$d/lazysite/lazysite.conf" or die $!;
     print {$fh} $conf;
     close $fh;
