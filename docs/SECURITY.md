@@ -3604,8 +3604,11 @@ walked
   and `lazysite-mcp.pl`'s tool gate asks `manage_forms` for a path `form_conf_name`
   recognises; the server's `read` and `save` gate is SM1371's, unchanged. No trigger
   fires. The question the filing leaves - whether `read_file` and `write_file` should
-  be offered to a `manage_forms`-only grant in the tool listing (SM210's shape) - is
-  outside this entry and is for the release manager.
+  be offered to a `manage_forms`-only grant in the tool listing (SM210's shape) - was
+  ruled on the same day: from ruling 152 the two tools are offered to that grant for a
+  form's own configuration alone, through the `cap_path` declaration the gate reads,
+  which widens discovery and nothing a grant can do (SM1392's second commit, its
+  register entry's threat delta, t/unit/mcp/75).
 
 ### 2026-11-07 - SM1385, SM1389, SM1391 (0.16.7): a theme deleted by its path, the check's walk past the history repository, and a schedule entry under the floor, with no trigger
 

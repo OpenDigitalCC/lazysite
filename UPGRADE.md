@@ -147,7 +147,10 @@ without the capability the server's refusal names it. Over MCP, `read_file` and
 holding `manage_forms` without `manage_content` reaches a form's own conf through the
 connector as it has over WebDAV; a grant holding `manage_content` without `manage_forms`
 is refused it, as it was. If an account holds `manage_forms` it should not, this is the
-release to check. No other path changes.
+release to check. No other path changes. From ruling 152 the tool listing offers
+`read_file` and `write_file` to a grant holding `manage_forms` without `manage_content`,
+each saying it reaches a form's own configuration and nothing else, and
+`whoami.tools_by_reach` names that reach under `path_only_reach`.
 
 **A check line that goes away (SM1389).** On a site with a protected folder's history
 on (`history: true`, SM1324), 0.16.6's `lazysite check` reported the history repository
