@@ -275,6 +275,13 @@ my %EXEMPT = (
     'Notices::action_notices_seen' =>
         'notice-seen marker under lazysite/manager, not page content',
     'API::action_pages'        => 'read-only',
+    # SM1369 X2: the one branch for an extension's declared actions, which run
+    # the extension's own handler through the loader. Before X2 these were
+    # inline branches the registry did not scan; what they write is the
+    # extension's (Odoo: Odoo itself and its store under lazysite/odoo/), never
+    # page content - a declared action that wrote content would need the hook
+    # in its own handler.
+    'API::dispatch_extension_action' => 'an extension\'s declared action; its handler writes the extension\'s own store, not page content',
     # SM944 S30: the configuration verbs moved to Manager::Config.
     'Config::action_config_read' => 'read-only',
     # SM944 S27: the two domain actions moved to Manager::Domains.
