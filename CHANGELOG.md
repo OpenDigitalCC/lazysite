@@ -143,6 +143,15 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1400 (PENDING) **A layout's backup snapshot is not a layout (triage T-87).** `delete_layout`
+  (and an activate) keeps `<name>-backup-<stamp>` beside the layouts, and the listing every
+  door draws installed layouts and themes from (`themes-list-all`: the Appearance page, MCP
+  `list_themes`, the control API) walked every directory under `layouts/`, so the snapshot
+  came back as a layout of its own with the deleted layout's theme under it, and a second
+  delete removed it. The listing now leaves every snapshot out of `themes` and lists it under
+  `backups` (`artifact`, `layout`, `name`, `path`, the path `artifact-backups-delete` takes); the
+  Appearance page's Backups panel draws that list. `layouts-available` and the catalogue
+  annotation already left snapshots out. `t/unit/manager/476`.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

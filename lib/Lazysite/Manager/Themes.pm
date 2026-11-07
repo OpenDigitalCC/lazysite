@@ -161,26 +161,45 @@ sub action_theme_list {
     };
 }
 
+# SM1400 (triage T-87): A BACKUP SNAPSHOT IS NOT A LAYOUT. delete_layout and an
+# activate keep `<layout>-backup-<stamp>` beside the layouts (recoverable, pruned
+# by backup_retention), and this listing walked every directory under layouts/,
+# so the snapshot came back as a layout of its own, with the deleted layout's
+# themes under it - on the Appearance page, over MCP (list_themes) and on the
+# API - and a second delete removed it. The walk now leaves every snapshot out
+# of `themes` (a layout's and a theme's alike) and lists them under `backups`:
+# {artifact, layout, name, path}, the path being what artifact-backups-delete takes.
 sub action_themes_list_all {
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
     my $use = _usage();
 
     my $layouts_dir = _lz() . "/layouts";
-    my @themes;
+    my ( @themes, @backups );
 
     if ( -d $layouts_dir ) {
         opendir my $ld, $layouts_dir or return {
-            ok            => 1, themes => [], active => $active_theme,
+            ok            => 1, themes => [], backups => [], active => $active_theme,
             active_layout => $active_layout,
         };
         for my $layout_name ( sort readdir $ld ) {
             next if $layout_name =~ /^\./;
+            next unless -d "$layouts_dir/$layout_name";
+            if ( $layout_name =~ /-backup-\d/ ) {
+                push @backups, { artifact => 'layout', layout => _backup_base($layout_name),
+                    name => $layout_name, path => "lazysite/layouts/$layout_name" };
+                next;
+            }
             my $themes_path = "$layouts_dir/$layout_name/themes";
             next unless -d $themes_path;
 
-            push @themes, map { { layout => $layout_name, %$_ } }
-                _themes_under( $themes_path, $layout_name, $use,
-                $active_layout, $active_theme );
+            for my $row ( _themes_under( $themes_path, $layout_name, $use, $active_layout, $active_theme ) ) {
+                if ( $row->{name} =~ /-backup-\d/ ) {
+                    push @backups, { artifact => 'theme', layout => $layout_name, name => $row->{name},
+                        path => "lazysite/layouts/$layout_name/themes/$row->{name}" };
+                    next;
+                }
+                push @themes, { layout => $layout_name, %$row };
+            }
         }
         closedir $ld;
     }
@@ -188,6 +207,7 @@ sub action_themes_list_all {
     return {
         ok            => 1,
         themes        => \@themes,
+        backups       => \@backups,
         active        => $active_theme,
         active_layout => $active_layout,
     };

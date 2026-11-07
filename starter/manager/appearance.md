@@ -154,6 +154,9 @@ function loadAll() {
     var themes  = ta.themes || [];                 // [{name, layout, used_by}]
     var layouts = (la.layouts || []).slice();      // [name]
     LAYOUT_USED = la.layout_usage || {};           // SM234: layout -> [hosts]
+    // SM1400: the snapshots, listed by the server as backups and never as a
+    // layout or a theme - a deleted layout's snapshot was drawn as a layout here.
+    BACKUPS = Array.isArray(ta.backups) ? ta.backups : [];
 
     // Group themes by layout; union layout names so empty layouts show too.
     // SM234: keep each theme's domain usage, keyed layout+theme, so a theme a
@@ -177,6 +180,7 @@ function loadAll() {
 // pressed Delete and learned it was protected from the error that came back.
 var LAYOUT_USED = {};   // layout -> [hosts]
 var THEME_USED  = {};   // "layout theme" -> [hosts]
+var BACKUPS     = [];   // SM1400: [{artifact, layout, name, path}] from themes-list-all
 
 // The blockers, named ONCE. Field feedback on the first cut: the badge and a
 // trailing meta line both said "in use by <hosts>", the long host list could not
@@ -209,7 +213,9 @@ function renderInstalled(layouts, byLayout) {
     layouts = [ACTIVE_LAYOUT].concat(layouts.filter(function(l){ return l !== ACTIVE_LAYOUT; }));
   }
   var html = '';
-  var allBackups = [];   // {layout, name, path} - collapsed into one panel below
+  // {layout, name, path} - collapsed into one panel below. SM1400: seeded from
+  // the server's list, which holds a layout's snapshots as well as a theme's.
+  var allBackups = BACKUPS.slice();
   for (var g = 0; g < layouts.length; g++) {
     var L = layouts[g], isActiveL = (L === ACTIVE_LAYOUT);
     html += '<div class="mg-handler-group" style="margin:0.5rem;">';

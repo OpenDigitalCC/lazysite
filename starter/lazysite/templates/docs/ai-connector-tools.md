@@ -305,7 +305,9 @@ read_nav
 
 list_themes
 : The themes installed across all layouts, with which is active. Needs
-  `manage_themes`.
+  `manage_themes`. A snapshot kept when a layout or theme was switched or
+  deleted (`<name>-backup-<stamp>`) is not a layout or a theme: it is listed
+  under `backups` (`artifact`, `layout`, `name`, `path`) and never under `themes`.
 
 list_layout_catalogue
 : The layouts available in the configured layouts repo (name, version, default
