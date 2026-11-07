@@ -289,7 +289,12 @@ my %T = (
         '$LAZYSITE_VERSION' => [ exempt => 'the installed release, read once from the install state' ],
         '$ENGINE_MTIME'     => [ exempt => 'when the engine was installed, read once from the install state' ],
     },
+    'lazysite-processor/extensions.pm' => {
+        '%INDEX_MEMO'   => [ exempt => 'the hook index, a function of lazysite/extensions.index.json keyed on the file\'s identity (device, inode, size, mtime): the manager renames a rebuild into place' ],
+        '%ENTRIES_MEMO' => [ exempt => 'the index\'s enabled entries, keyed on the index\'s identity and lazysite.conf\'s' ],
+    },
     'lazysite-processor/pipeline.pm' => {
+        '$FAVICON_ICO'           => [ exempt => 'the engine\'s fallback icon, constant bytes built once (SM1397)' ],
         '%STATIC_DENY'           => [ exempt => $BEGIN_CONST ],
         '@SOURCE_ALTERNATE_KEYS' => [ exempt => $BEGIN_CONST ],
         '%RENDER_QUERY'          => [ exempt => 'localised (`local %RENDER_QUERY`) by process_md for the render and restored on exit' ],

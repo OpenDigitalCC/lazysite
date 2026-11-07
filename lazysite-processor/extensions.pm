@@ -261,7 +261,8 @@ sub _inject_extension_assets {
                     }
                 }
             }
-            my $script = '<script src="' . $src . '?v=' . $v . '"' . $attrs . ' defer></script>';
+            my $script = '<script src="' . $src . '?v=' . $v . '"'
+                . $attrs . ' defer></script>';
             $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
         }
     }

@@ -117,11 +117,11 @@ our %KINDS = (
     # rendered by its function when a template asks for it. `attrs` is a
     # function returning the data attributes the injected script tag carries.
     # Every file a declaration names must be in the payload (check_payload_files).
-    assets => { hook => 'H-10', slice => 'X5', live => 1, form => 'records',
+    assets => { hook => 'H-10', slice => 'X5', live => 1, form => 'records', check_values => \&_check_assets,
         functions => [qw(attrs)], fields => [qw(file inject_when alias)], required => [qw(file)] },
-    components => { hook => 'H-10', slice => 'X5', live => 1, form => 'records',
+    components => { hook => 'H-10', slice => 'X5', live => 1, form => 'records', check_values => \&_check_components,
         fields => [qw(file)], required => [qw(file)] },
-    template_vars => { hook => 'H-10', slice => 'X5', live => 1, form => 'records',
+    template_vars => { hook => 'H-10', slice => 'X5', live => 1, form => 'records', check_values => \&_check_template_vars,
         functions => [qw(render)], fields => [qw(name)], required => [qw(name render)] },
 
     system_pages      => { hook => 'H-10', slice => 'X5' },
@@ -501,10 +501,6 @@ sub _check_template_vars {
     }
     return @bad;
 }
-
-$KINDS{assets}{check_values} = \&_check_assets;
-$KINDS{components}{check_values} = \&_check_components;
-$KINDS{template_vars}{check_values} = \&_check_template_vars;
 
 # THE FILES A DECLARATION NAMES ARE THE EXTENSION'S OWN, as its hook modules are:
 # an asset is a regular file in the payload's assets/, a component one in its

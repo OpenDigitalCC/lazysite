@@ -1031,7 +1031,7 @@ applies; SM579's invocation-mode policy is (ruled X4, 2026-09-28).
 - **Rendering.** A page render never runs a write, never renders a binding that works
   on a visitor's key (the render is shared and cached), and escapes every scalar.
   A page that binds `odoo-identity:` is per-viewer and never cached.
-  `starter/assets/lazysite-odoo.js` fills regions as text only.
+  `extensions/odoo/assets/lazysite-odoo.js` fills regions as text only.
 - **The boundary.** t/lint/240 keeps all Odoo knowledge (RPC methods, models, field
   types) out of lazysite; the mapper is OOM's, vendored as a pinned snapshot checked
   by t/lint/261.

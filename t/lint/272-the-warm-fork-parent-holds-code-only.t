@@ -131,8 +131,8 @@ my %T       = (
         '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load' },
     # SM1369 X3: the live kinds carry a name pattern and a code reference to
     # their vocabulary check; the table is constant, declared with those in it.
-    'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED,
-        '%KINDS' => 'the constant hook vocabulary: each kind\'s shape, a name pattern (qr) and code references to its validators',
+    'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED, '%CORE_ASSETS' => $DERIVED, '%CORE_VARS' => $DERIVED,
+        '%KINDS' => 'the constant hook vocabulary: each kind\'s shape, a name pattern (qr) and code references to its validators and value checks (SM1369 X3, X5)',
         '%ROW_KEY' => $DERIVED, '%FLAG' => $DERIVED },
     'lib/Lazysite/Handlers.pm' => {
         '%RESERVED_FORM' => $DERIVED,
