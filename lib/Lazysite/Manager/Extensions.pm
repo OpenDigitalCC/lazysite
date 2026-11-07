@@ -704,6 +704,9 @@ sub _hook_problems {
     # a gate that names capabilities that exist).
     require Lazysite::Extensions::Declared;
     push @bad, map { $_->{error} } Lazysite::Extensions::Declared::check_declared( $id, $owns );
+    # SM1369 X5: and the files it names (assets, components) are in its payload.
+    my ( undef, @fwhy ) = Lazysite::Extensions::Hooks::check_payload_files( $id, $full, $owns->{hooks} );
+    push @bad, map { $_->{error} } @fwhy;
     return @bad;
 }
 
@@ -774,11 +777,15 @@ sub rebuild_hook_index {
         }
         my $owns = $x->{desc}{owns};
         my ( $fns, $lib ) = Lazysite::Extensions::Hooks::check_functions( $id, $x->{full}, $owns->{hooks} );
-        next unless @$fns;    # an empty map names nothing to call
+        # SM1369 X5: a declaration that names files to serve or render is indexed
+        # with its payload directory, functions or none.
+        my ($payload) = Lazysite::Extensions::Hooks::check_payload_files( $id, $x->{full}, $owns->{hooks} );
+        next unless @$fns || defined $payload;    # an empty map names nothing to call or serve
         my @req = @{ $owns->{requires} || [] };
         $entries{$id} = {
             key           => $x->{key},
             lib           => $lib,
+            payload       => $payload,
             hooks         => $owns->{hooks},
             functions     => $fns,
             requires      => \@req,

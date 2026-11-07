@@ -18,17 +18,28 @@ use Test::More;
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root env_passthrough site_tempdir);
+use TestHelper qw(repo_root env_passthrough site_tempdir index_extensions);
 
-my $root    = repo_root();
-my $docroot = site_tempdir();
-make_path( "$docroot/lazysite", "$docroot/assets" );
-open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\n";
-close $cf;
+my $root = repo_root();
 
-my $asset = "$root/starter/assets/lazysite-odoo.js";
-ok( -f $asset, 'the helper is a shipped asset' ) or BAIL_OUT('starter/assets/lazysite-odoo.js is missing');
+# SM1369 X5: the helper is an asset the Odoo extension DECLARES (owns.hooks.assets,
+# inject_when data-ls-odoo, alias /assets/lazysite-odoo.js), served and injected
+# by the processor from the hook index the manager writes when the extension is
+# enabled - so each fixture enables it and builds the index as the manager would.
+sub odoo_site {
+    my (%o) = @_;
+    my $d = site_tempdir( extensions => 1 );
+    make_path( "$d/lazysite", "$d/assets" );
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: T\n" . ( $o{conf} // '' ) . "extensions:\n  - extensions/odoo.pl\n";
+    close $cf;
+    index_extensions($d);
+    return $d;
+}
+my $docroot = odoo_site();
+
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
+ok( -f $asset, 'the helper is a shipped asset' ) or BAIL_OUT('extensions/odoo/assets/lazysite-odoo.js is missing');
 
 sub page {
     my ( $dir, $path, $body ) = @_;
@@ -72,11 +83,8 @@ subtest 'a region, or a sign-in control, gets it - once, versioned' => sub {
 };
 
 subtest 'BOTH RENDER PATHS INJECT IT' => sub {
-    my $d = site_tempdir();
+    my $d = odoo_site( conf => "layout: plain\n" );
     make_path("$d/lazysite/layouts/plain");
-    open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print {$c} "site_name: T\nlayout: plain\n";
-    close $c;
     open my $lt, '>', "$d/lazysite/layouts/plain/layout.tt" or die $!;
     print {$lt} '<!DOCTYPE html><html><head><title>[% page_title %]</title></head><body><main>[% content %]</main></body></html>';
     close $lt;
@@ -86,17 +94,38 @@ subtest 'BOTH RENDER PATHS INJECT IT' => sub {
     like( $html, qr{/assets/lazysite-odoo\.js}, 'and the helper is injected on it too' );
 };
 
-subtest 'SM382: THE ASSET RESOLVES ON A CONTENT-ROOTED DOMAIN, by an exact list' => sub {
-    my $src = do {
-        open my $fh, '<', "$root/lazysite-processor/pipeline.pm" or die $!;
-        local $/;
-        <$fh>;
+subtest 'SM382, SM1369 X5: THE ASSET IS SERVED FROM THE EXTENSION\'S PAYLOAD, on every domain' => sub {
+    my $bytes = do { open my $fh, '<', $asset or die $!; local $/; <$fh> };
+    for my $path ( '/assets/lazysite-odoo.js', '/assets/odoo-lazysite-odoo.js' ) {
+        my $out = visit( $docroot, $path );
+        like( $out, qr{^Status: 200 OK}m, "$path answers 200 (the alias, and the declared path)" );
+        like( $out, qr{^Content-Type: text/javascript}m, '...as a script' );
+        ok( index( $out, substr( $bytes, 0, 200 ) ) >= 0, '...with the helper\'s own bytes, from extensions/odoo/assets' );
+    }
+    ok( !-e "$docroot/assets/lazysite-odoo.js", 'and no copy of it is in the docroot' );
+
+    # A domain with its own content root: static resolution is content-root
+    # scoped, and the engine's and the extensions' assets are not site content.
+    my $d = odoo_site( conf => "domains:\n  - host: two.test\n    root: two\n" );
+    make_path("$d/two");
+    page( $d, 'two/index.md', "---\ntitle: Two\n---\n\nTwo.\n" );
+    local $ENV{HTTP_HOST} = 'two.test';
+    my $out = do {
+        local %ENV = ( env_passthrough(), DOCUMENT_ROOT => $d, REDIRECT_URL => '/assets/lazysite-odoo.js',
+            REQUEST_URI => '/assets/lazysite-odoo.js', REQUEST_METHOD => 'GET', HTTP_HOST => 'two.test' );
+        delete $ENV{LAZYSITE_AUTH_TRUSTED};
+        qx($^X \Q$root/lazysite-processor.pl\E 2>/dev/null);
     };
-    my ($sub) = $src =~ /sub _is_engine_asset \{(.*?)\n\}/s;
-    ok( $sub, 'the engine-asset list is found' ) or BAIL_OUT('cannot read it');
-    like( $sub, qr{/assets/lazysite-odoo\.js}, 'the helper is on it' )
-        or diag('Without this it 404s on any domain with its own content root, silently.');
-    unlike( $sub, qr{index\s*\(|=~\s*m?\{?\^?/assets/\[}, 'and it is still exact paths, not a prefix' );
+    like( $out, qr{^Status: 200 OK}m, 'on a content-rooted domain the alias answers too' );
+
+    # Off means off (G-1): with the extension disabled nothing is injected and
+    # the path is not found, as any asset of a disabled extension.
+    my $off = site_tempdir( extensions => 1 );
+    make_path("$off/lazysite");
+    page( $off, 'lazysite/lazysite.conf', "site_name: T\n" );
+    page( $off, 'region.md', "---\ntitle: R\n---\n\n<div data-ls-odoo=\"shop-list\"></div>\n" );
+    unlike( visit( $off, '/region' ), qr{/assets/lazysite-odoo\.js}, 'extension off: no helper on the page' );
+    like( visit( $off, '/assets/lazysite-odoo.js' ), qr{^Status: 404}m, 'extension off: the alias is not found' );
 };
 
 done_testing();

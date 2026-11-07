@@ -1,4 +1,4 @@
-/* SM1223: the Idempotency-Key half of starter/assets/lazysite-odoo.js, run under node
+/* SM1223: the Idempotency-Key half of extensions/odoo/assets/lazysite-odoo.js, run under node
  * with a fake fetch that records every request's headers. Loaded by
  * t/unit/odoo/98; prints one JSON object of facts. */
 'use strict';

@@ -159,4 +159,20 @@ sub report {
         unknown_note => $UNKNOWN_NOTE, ttl => identity_ttl($dir) };
 }
 
+# SM1160, moved here by SM1369 X5: the layout variable [% odoo_signin_banner %],
+# a hook the descriptor declares (owns.hooks.template_vars), called by core with
+# { docroot, lazysite_dir, version }. On a site that opted in to the Odoo sign-in
+# as the site sign-in, the page's "Signed in as <name>" with a sign-out link -
+# the same markup for every visitor, filled in by the browser helper from the
+# signed identity (so a cached page is never one person's). '' on any other
+# site. Safe markup: nothing of the request or the site is in it.
+sub banner {
+    my ($ctx) = @_;
+    return '' unless ref $ctx eq 'HASH' && enabled( $ctx->{lazysite_dir} );
+    return '<span class="ls-odoo-banner" data-ls-odoo-banner style="font-size:0.8rem;margin-left:auto;">'
+        . '<span data-ls-odoo-in hidden>Signed in as <strong data-ls-odoo-name></strong> '
+        . '<a href="#" data-ls-odoo-signout>Sign out</a></span>'
+        . '<a href="#" data-ls-odoo-signin data-ls-odoo-out>Sign in</a></span>';
+}
+
 1;

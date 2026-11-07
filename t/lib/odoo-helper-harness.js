@@ -1,4 +1,4 @@
-/* The behaviour of starter/assets/lazysite-odoo.js, run under node with a fake
+/* The behaviour of extensions/odoo/assets/lazysite-odoo.js, run under node with a fake
  * fetch that records every request. Loaded by t/unit/odoo/31; prints one JSON
  * object of facts for the Perl test to assert on. No DOM: the prompt is replaced
  * by a stand-in (the DOM prompt is checked by its source), so what is tested here

@@ -33,10 +33,12 @@ subtest 'an unknown hook is refused by name' => sub {
 subtest 'a known hook this engine does not call yet is refused, naming its slice' => sub {
     # SM1369 X2: three kinds are live (capability_info, api_actions,
     # refusal_kinds); their rules are t/unit/extensions/72's. X3 adds two
-    # (page_sources, handler_types). The rest are refused as X1 refused them all.
+    # (page_sources, handler_types); X5 three (assets, components, template_vars,
+    # H-10). The rest are refused as X1 refused them all.
     my @live = grep { $Lazysite::Extensions::Hooks::KINDS{$_}{live} } hook_kinds();
-    is_deeply( \@live, [qw(api_actions capability_info handler_types page_sources refusal_kinds)],
-        'the live kinds are X2\'s three and X3\'s two' );
+    is_deeply( \@live,
+        [qw(api_actions assets capability_info components handler_types page_sources refusal_kinds template_vars)],
+        'the live kinds are X2\'s three, X3\'s two and X5\'s three' );
     for my $k ( grep { !$Lazysite::Extensions::Hooks::KINDS{$_}{live} } hook_kinds() ) {
         my $e = errors( validate_hooks( 'x', { $k => [] } ) );
         is( scalar @$e, 1, "$k: refused" );

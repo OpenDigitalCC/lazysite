@@ -1,4 +1,4 @@
-/* SM1162: the file half of starter/assets/lazysite-odoo.js, run under node with a
+/* SM1162: the file half of extensions/odoo/assets/lazysite-odoo.js, run under node with a
  * fake fetch that records every request INCLUDING a FormData body (node 18+ has
  * FormData and Blob). Loaded by t/unit/odoo/68; prints one JSON object of facts.
  * Separate from odoo-helper-harness.js, whose fetch reads every body as JSON. */

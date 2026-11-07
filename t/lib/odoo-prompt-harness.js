@@ -1,4 +1,4 @@
-/* SM1157: the sign-in dialog of starter/assets/lazysite-odoo.js, driven under node
+/* SM1157: the sign-in dialog of extensions/odoo/assets/lazysite-odoo.js, driven under node
  * with a stand-in DOM and a fake fetch that records every request. Loaded by
  * t/unit/odoo/49; prints one JSON object of facts for the Perl test to assert on.
  * What is held here is what the dialog does with the two-factor step: it asks for

@@ -12,18 +12,21 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root run_processor site_tempdir);
+use TestHelper qw(repo_root run_processor site_tempdir index_extensions);
 
 my $root = repo_root();
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub site {
     my ($name) = @_;
-    my $d = site_tempdir();
+    # SM1369 X5: the helper's tag, the component and the name are the extension's
+    # declared hooks, reached through the index the manager writes on enable.
+    my $d = site_tempdir( extensions => 1 );
     system( 'cp', '-r', "$root/starter/.", $d ) == 0 or die 'copy starter';
     make_path("$d/lazysite/cache");
     spit( "$d/lazysite/lazysite.conf", "site_name: Probe\nextensions:\n  - extensions/odoo.pl\n" );
     spit( "$d/lazysite/odoo.conf", "odoo_site_signin: on\n" . ( defined $name ? "odoo_display_name: $name\n" : '' ) );
+    index_extensions($d);
     return $d;
 }
 sub pages {

@@ -39,4 +39,24 @@ sub phrase {
     return $t;
 }
 
+# SM1369 X5: the two hooks the descriptor declares for the name (owns.hooks),
+# called by core through Lazysite::Extensions::Hooks with { docroot,
+# lazysite_dir, version }.
+#
+# The layout variable [% odoo_display_name %]: the name as text, which a
+# template escapes where it lands (`| html`), as the pages and the sign-in
+# component always have.
+sub display_name_var {
+    my ($ctx) = @_;
+    return display_name( ref $ctx eq 'HASH' ? $ctx->{lazysite_dir} : undef );
+}
+
+# The data attributes of the script tag core adds for the browser helper: the
+# name the helper's dialog and messages say ('' for none, SM1328). Core
+# escapes the value into the attribute.
+sub script_attrs {
+    my ($ctx) = @_;
+    return { 'data-ls-odoo-display-name' => display_name( ref $ctx eq 'HASH' ? $ctx->{lazysite_dir} : undef ) };
+}
+
 1;

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1162, the browser half: starter/assets/lazysite-odoo.js sends a binding call
+# SM1162, the browser half: extensions/odoo/assets/lazysite-odoo.js sends a binding call
 # whose params hold a File, a Blob or a list of them as multipart/form-data - the
 # JSON body as the part named json (the token with it), each file a part named for
 # its field, the binding in the query so the server knows its cap before it reads -
@@ -15,7 +15,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root  = repo_root();
-my $asset = "$root/starter/assets/lazysite-odoo.js";
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
 my $node  = `sh -c 'command -v node || command -v nodejs' 2>/dev/null`;
 chomp $node;
 plan skip_all => 'node is not installed' unless length $node && -x $node;

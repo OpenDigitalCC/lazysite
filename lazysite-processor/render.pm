@@ -23,8 +23,7 @@ package main;
 #         _front_matter_private, _content_rel,
 #         _request_address, _trusted_proxy_spec, _lazysite_version,
 #         _manager_style, _enabled_extensions, _placeholder_key, _url_safe_filter,
-#         _lazy_lib (the address test, and odoo_display_name's reader
-#         Lazysite::Odoo::Name, each on first ask),
+#         _extension_template_vars, _lazy_lib (the address test, on first ask),
 #         log_event (the script and its parts); Template->new and make_path
 #         (loaded by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $TT_COMPILE_DIR, %AUTH_CONTEXT,
@@ -505,14 +504,11 @@ sub _render_stash {
         auth_control =>
             '<a href="/login" data-ls-auth-in class="ls-auth ls-auth-in" style="display:none">Sign in</a>'
             . '<a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out class="ls-auth ls-auth-out" style="display:none">Sign out</a>',
-  # SM1160: on a site that opted in to the Odoo sign-in as the site sign-in, the page's
-  # "signed in as <name>" with a sign-out link - the same markup for every visitor, filled
-  # in by the browser helper from the signed identity (so a cached page is never one
-  # person's). '' on any other site; a layout renders [% odoo_signin_banner %].
-        odoo_signin_banner => _odoo_signin_banner(),
-    # SM1328 (ruling 52): the name the site gives Odoo ('' for none), asked only by a
-    # template that says it - [% odoo_display_name %] - so no other page loads the reader.
-        odoo_display_name => sub { _odoo_display_name() },
+        # SM1369 X5: the variables the enabled extensions declare (template_vars),
+        # each a code ref the template engine calls only when a template names it,
+        # so a page whose layout says nothing of an extension loads nothing of it.
+        # What SM1160's "Signed in as" banner and SM1328's display name were.
+        %{ _extension_template_vars() },
         sections => $meta->{sections} || [],    # D035 Phase 3: data-driven pages
         editor   => $editor_flag,
         year     => sprintf( '%04d', (localtime)[5] + 1900 ),
@@ -699,22 +695,8 @@ sub _odoo_site_signin_on {
     return $on =~ /\A(?:on|yes|true|1)\z/ ? 1 : 0;
 }
 
-# SM1328 (ruling 52): odoo_display_name, read by its one reader (Lazysite::Odoo::Name),
-# loaded on first ask: a page that names Odoo nowhere never loads it.
-sub _odoo_display_name {
-    _lazy_lib('Lazysite::Odoo::Name');
-    return Lazysite::Odoo::Name::display_name($LAZYSITE_DIR);
-}
-
-# SM1160: is this an Odoo-sign-in site, and if so the banner. The processor loads no
-# Lazysite:: module (ADR 0001), so the one key is read here; t/unit/odoo holds this reader
-# and Lazysite::Odoo::SiteSignin::enabled to the same answer.
-sub _odoo_signin_banner {
-    return '' unless _odoo_site_signin_on();
-    return '<span class="ls-odoo-banner" data-ls-odoo-banner style="font-size:0.8rem;margin-left:auto;">'
-        . '<span data-ls-odoo-in hidden>Signed in as <strong data-ls-odoo-name></strong> '
-        . '<a href="#" data-ls-odoo-signout>Sign out</a></span>'
-        . '<a href="#" data-ls-odoo-signin data-ls-odoo-out>Sign in</a></span>';
-}
+# SM1328's display name and SM1160's banner were read and built here. SM1369 X5:
+# both are template variables the extension declares (template_vars), rendered
+# by its own code through lazysite-processor/extensions.pm when a template asks.
 
 1;

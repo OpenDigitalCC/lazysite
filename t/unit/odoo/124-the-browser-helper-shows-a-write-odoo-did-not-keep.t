@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1347 (ruling 103), the browser half: starter/assets/lazysite-odoo.js draws, as
+# SM1347 (ruling 103), the browser half: extensions/odoo/assets/lazysite-odoo.js draws, as
 # text, each change an applied answer says Odoo did not keep (`not_kept`, `note`)
 # into the page's [data-ls-odoo-not-kept] - for a write(), a confirm() and a resume
 # settled from the unknown slot - and says `kept` when there is none. A page without
@@ -14,7 +14,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_child);
 
 my $root  = repo_root();
-my $asset = "$root/starter/assets/lazysite-odoo.js";
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
 my ($node) = grep { -x } map { "$_/node" } split /:/, ( $ENV{PATH} // '' );
 plan skip_all => 'node is not installed' unless $node;
 

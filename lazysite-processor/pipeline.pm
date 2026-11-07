@@ -264,12 +264,15 @@ sub _is_engine_asset {
     # and a live table simply never refreshes - silently, because a script that
     # does not load reports nothing. That is SM382's measured failure, and a
     # new asset inherits none of the reasoning unless somebody adds it here.
+    # SM1369 X5: and the assets the enabled extensions declare, each at its own
+    # path and alias, read from the hook index - the one list, in the
+    # extension's declaration rather than here (t/lint/321).
     return ( $uri eq '/assets/lazysite-chrome.css'
             || $uri eq '/assets/lazysite-chrome.js'
             || $uri eq '/assets/lazysite-data.js'
             || $uri eq '/assets/lazysite-account.js'    # SM1043: /account on every domain
-            || $uri eq '/assets/lazysite-app.js' # SM1155: registers the app worker, on every domain
-            || $uri eq '/assets/lazysite-odoo.js' ) ? 1 : 0; # SM747 D: the Odoo helper, on every domain
+            || $uri eq '/assets/lazysite-app.js'        # SM1155: registers the app worker, on every domain
+            || _extension_asset($uri) ) ? 1 : 0;
 }
 
 

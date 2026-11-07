@@ -15,6 +15,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM1369 X5 (n770): the files an extension declares beyond its modules - its assets (owns.hooks.assets, served at /assets/<id>-<file> and at a declared alias) and its templates (owns.hooks.components) - in its payload beside its descriptor (extensions/<id>/assets, extensions/<id>/templates). Core serves and finds them through the hook index, from the payload the index names, never from the docroot.",
+      "pattern": "^extensions/([a-z][a-z0-9-]*/(?:assets|templates)/.+)$",
+      "install_to": "{DOCROOT}/../extensions/$1",
+      "bucket": "code"
+    },
+    {
       "_comment": "Core CGI scripts stay at repo root with the lazysite- prefix. processor, auth, manager-api, dav, mcp, oauth are explicitly enumerated so a future stray lazysite-*.pl at root won't get silently installed to cgi-bin.",
       "pattern": "^lazysite-(processor|auth|manager-api|dav|mcp|oauth|front|data|odoo)\\.pl$",
       "install_to": "{CGIBIN}/$0",
@@ -727,6 +733,21 @@
       "path": "{DOCROOT}/../extensions/odoo/lib/Lazysite/Daemon/Service",
       "mode": "0755",
       "why": "as ../lib - the Odoo extension's two daemon services, oomd and the endpoint's warm-fork parent"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/assets",
+      "mode": "0755",
+      "why": "as ../extensions/odoo - SM1369 X5, the browser helper the extension declares (owns.hooks.assets), served by the processor from here at /assets/lazysite-odoo.js"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/templates",
+      "mode": "0755",
+      "why": "as ../extensions/odoo - SM1369 X5, the templates the extension declares"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/templates/components",
+      "mode": "0755",
+      "why": "as ../extensions/odoo - SM1369 X5, the ::: odoo-signin component (owns.hooks.components)"
     }
   ]
 }

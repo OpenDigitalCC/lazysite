@@ -106,7 +106,7 @@ chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 SKIP: {
     skip 'node is not installed', 1 unless length $node && -x $node;
     subtest 'the browser helper\'s dialog and messages' => sub {
-        my $r = run_child( [ $node, "$root/t/lib/odoo-name-harness.js", "$root/starter/assets/lazysite-odoo.js" ], stderr => 'merge' );
+        my $r = run_child( [ $node, "$root/t/lib/odoo-name-harness.js", "$root/extensions/odoo/assets/lazysite-odoo.js" ], stderr => 'merge' );
         my $f = eval { decode_json( $r->{out} ) };
         ok( $f && !$f->{error}, 'the harness ran' ) or return diag( $r->{out} // '' );
         my %want = (

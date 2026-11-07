@@ -363,6 +363,22 @@ sub hooks {
         ],
         # H-3: a binding is a handler of type odoo, run by a form or the timer.
         handler_types => { odoo => _handler_type() },
+
+        # SM1369 X5 (the asset part of H-10, n770): what the processor used to
+        # know by name - the browser helper, the sign-in component and the two
+        # layout variables - declared here, served, injected, found and
+        # rendered by core through the hook index. The helper keeps its path,
+        # /assets/lazysite-odoo.js, as an alias; the display name travels on
+        # the script tag as before (SM1328, script_attrs).
+        assets => [
+            { file => 'lazysite-odoo.js', inject_when => 'data-ls-odoo', alias => '/assets/lazysite-odoo.js',
+                attrs => 'Lazysite::Odoo::Name::script_attrs' },
+        ],
+        components    => [ { file => 'odoo-signin.tt' } ],
+        template_vars => [
+            { name => 'odoo_signin_banner', render => 'Lazysite::Odoo::SiteSignin::banner' },
+            { name => 'odoo_display_name',  render => 'Lazysite::Odoo::Name::display_name_var' },
+        ],
     };
 }
 

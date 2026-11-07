@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1277 (rulings 10a, 10b), the browser half: starter/assets/lazysite-odoo.js shows a
+# SM1277 (rulings 10a, 10b), the browser half: extensions/odoo/assets/lazysite-odoo.js shows a
 # person what their write left unknown - its request was sent and no answer came -
 # with "Check again", and "It was made" / "It was not made" only where the answer
 # says they may say (`may_assume`). resume() sends {run, resume: true} with the
@@ -16,7 +16,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root run_child);
 
 my $root  = repo_root();
-my $asset = "$root/starter/assets/lazysite-odoo.js";
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
 my ($node) = grep { -x } map { "$_/node" } split /:/, ( $ENV{PATH} // '' );
 plan skip_all => 'node is not installed' unless $node;
 

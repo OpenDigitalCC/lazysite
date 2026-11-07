@@ -51,7 +51,7 @@ use Socket       qw(inet_pton inet_ntop AF_INET AF_INET6);    # SM929: the reque
 # lib tree. A part is package main and loads nothing; a missing one fails here.
 BEGIN {
     my $parts = dirname( realpath(__FILE__) ) . '/lazysite-processor';
-    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm registries.pm render.pm layout.pm pipeline.pm acl.pm auth.pm app.pm)) {
+    for my $part (qw(front-matter.pm oembed.pm remap.pm components.pm ct-cache.pm gates.pm access-log.pm front-door.pm include.pm forms.pm output.pm request.pm sources.pm registries.pm render.pm layout.pm pipeline.pm acl.pm auth.pm app.pm extensions.pm)) {
         my $file = "$parts/$part";
         require $file;
     }
@@ -1804,6 +1804,10 @@ sub main {
     # put in their content still wins.
     # SM1155: the app manifest and worker are generated from settings, as a
     # registry is, and like one lose to a file the site really has at that path.
+    # SM1369 X5: an asset an enabled extension declares is served from its
+    # payload, on every domain, at /assets/<id>-<file> and at its alias - after
+    # the static handler for the same reason.
+    return if _serve_extension_asset($uri);
     return if _serve_app($uri);
     return if _serve_registry($uri);
 

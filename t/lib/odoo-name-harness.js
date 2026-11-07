@@ -1,4 +1,4 @@
-/* SM1328: the texts of starter/assets/lazysite-odoo.js that name Odoo, driven under
+/* SM1328: the texts of extensions/odoo/assets/lazysite-odoo.js that name Odoo, driven under
  * node with a stand-in DOM. Loaded by t/unit/odoo/121; prints one JSON object of
  * facts per case for the Perl test to assert on. A case is the script tag the
  * engine adds: none (a page that loads the helper itself), a name, or an empty

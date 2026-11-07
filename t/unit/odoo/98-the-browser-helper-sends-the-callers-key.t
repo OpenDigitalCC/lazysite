@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# SM1223, the browser half: starter/assets/lazysite-odoo.js sends a page's key as the
+# SM1223, the browser half: extensions/odoo/assets/lazysite-odoo.js sends a page's key as the
 # Idempotency-Key header of ONE call - write() and confirm(), with or without a file -
 # and keeps it when the call is sent again (a stale token), which is the point of a
 # key. A call given none sends no header. The key is never in the body or the token GET.
@@ -12,7 +12,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root  = repo_root();
-my $asset = "$root/starter/assets/lazysite-odoo.js";
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
 my $node  = `sh -c 'command -v node || command -v nodejs' 2>/dev/null`;
 chomp $node;
 plan skip_all => 'node is not installed' unless length $node && -x $node;

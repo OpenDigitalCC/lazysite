@@ -1,4 +1,4 @@
-/* SM1347: the not-kept half of starter/assets/lazysite-odoo.js, driven under node
+/* SM1347: the not-kept half of extensions/odoo/assets/lazysite-odoo.js, driven under node
  * with a stand-in DOM and a fake fetch. Loaded by t/unit/odoo/124; prints one JSON
  * object of facts for the Perl test to assert on: what write(), confirm() and a
  * settled resume draw into [data-ls-odoo-not-kept] (as text), and that a page

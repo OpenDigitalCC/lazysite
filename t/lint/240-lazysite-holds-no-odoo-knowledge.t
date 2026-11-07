@@ -40,7 +40,8 @@ my $root = repo_root();
 
 my @files = sort( glob("$root/*.pl"), glob("$root/lazysite-processor/*.pm"),
     glob("$root/extensions/*.pl"), glob("$root/tools/*.pl"), glob("$root/tools/*.sh"),
-    _pm_under("$root/lib"),     glob("$root/starter/assets/*.js") );
+    _pm_under("$root/lib"),     glob("$root/starter/assets/*.js"),
+    glob("$root/extensions/*/assets/*.js") );    # SM1369 X5: an extension's declared assets
 cmp_ok( scalar @files, '>', 50, 'the functional files were found' );
 
 # `mail.` is left out: lazysite's own config keys use it (`mail.per_hour`), and

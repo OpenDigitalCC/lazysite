@@ -16,14 +16,16 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root run_processor site_tempdir);
+use TestHelper qw(repo_root run_processor site_tempdir index_extensions);
 
 my $root = repo_root();
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub site {
     my (%o) = @_;
-    my $d = site_tempdir();
+    # SM1369 X5: the component and the helper are the extension's, found through
+    # the hook index the manager writes on enable; built here as it would be.
+    my $d = site_tempdir( extensions => 1 );
     system( 'cp', '-r', "$root/starter/.", $d ) == 0 or die 'copy starter';
     make_path("$d/lazysite/cache");
     my $conf = "site_name: Probe\n";
@@ -36,16 +38,17 @@ sub site {
     $conf .= "extensions:\n  - extensions/odoo.pl\n" if $o{extension};
     spit( "$d/lazysite/lazysite.conf", $conf );
     spit( "$d/lazysite/odoo.conf", "odoo_site_signin: $o{signin}\n" ) if defined $o{signin};
+    index_extensions($d) if $o{extension};
     return $d;
 }
 sub status_of { my ($r) = @_; my ($s) = $r =~ /Status:\s*(\d+)/; return $s // 200 }
 
 my $page = "$root/starter/lazysite/templates/system/odoo-signin.md";
-my $comp = "$root/starter/lazysite/templates/components/odoo-signin.tt";
+my $comp = "$root/extensions/odoo/templates/components/odoo-signin.tt";
 
 subtest 'the engine default ships with the system pages, with no inline style' => sub {
     ok( -f $page, 'lazysite/templates/system/odoo-signin.md' );
-    ok( -f $comp, 'and the built-in component it uses, lazysite/templates/components/odoo-signin.tt' );
+    ok( -f $comp, 'and the component it uses, the extension\'s own extensions/odoo/templates/components/odoo-signin.tt (SM1369 X5)' );
     like( do { open my $fh, '<', $page or die $!; local $/; <$fh> }, qr/^::: odoo-signin\n:::$/m, 'the page uses it' );
     my $src = join '', map { open my $fh, '<', $_ or die $!; local $/; <$fh> } $page, $comp;
     unlike( $src, qr/<style\b/i, 'no <style> block' );

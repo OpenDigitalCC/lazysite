@@ -25,7 +25,7 @@ use warnings;
 use Exporter 'import';
 use Lazysite::Paths ();
 
-our @EXPORT_OK = qw(locate extensions_dir registry_key payload_lib add_payload_lib engine_root require_payload);
+our @EXPORT_OK = qw(locate extensions_dir registry_key payload_dir payload_lib add_payload_lib engine_root require_payload);
 
 # The directory's name under an install root, and the package's copy. The
 # registry key a site's lazysite.conf lists is the same name and the file:
@@ -76,11 +76,21 @@ sub locate {
 #
 # The payload's lib, or undef: a real directory at each step, never a link, so
 # a link planted beside a descriptor cannot point the loader at code elsewhere.
-sub payload_lib {
+#
+# SM1369 X5: the payload directory itself, by the same rule, for the files an
+# extension declares beyond its modules (assets/, templates/).
+sub payload_dir {
     my ($descriptor) = @_;
     return undef unless defined $descriptor && $descriptor =~ m{\A(.+)/([A-Za-z0-9_-][A-Za-z0-9_-]*)\.pl\z};
     my $payload = "$1/$2";
     return undef if -l $payload || !-d $payload;
+    return $payload;
+}
+
+sub payload_lib {
+    my ($descriptor) = @_;
+    my $payload = payload_dir($descriptor);
+    return undef unless defined $payload;
     my $lib = "$payload/lib";
     return undef if -l $lib || !-d $lib;
     return $lib;

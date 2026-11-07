@@ -2,7 +2,7 @@
 # SM1168 (OOM Lab, session mode): a POST for a `credential: session` binding from
 # a visitor with NO Odoo session answered 403 kind csrf, because the token check
 # ran first and, with no session, had no token to fit. The helper
-# (starter/assets/lazysite-odoo.js) opens its sign-in prompt only on 401
+# (extensions/odoo/assets/lazysite-odoo.js) opens its sign-in prompt only on 401
 # signin-required, so the person was never asked to sign in.
 #
 # Held here:

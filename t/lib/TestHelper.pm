@@ -14,7 +14,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     gate_caps gate_predicates mirror_engine
-    site_tempdir link_engine_extensions build_site_index
+    site_tempdir link_engine_extensions build_site_index index_extensions
     repo_root processor_path
     load_processor silence_stdout
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
@@ -492,6 +492,39 @@ sub build_site_index {
         stderr => 'inherit' );
     die "the extension index of $docroot was not built: $r->{out}\n" if $r->{status};
     return $r->{out};
+}
+
+# SM1369 X5: THE HOOK INDEX A FIXTURE SITE NEEDS before the processor serves,
+# injects, includes or renders anything an extension declares (its assets, its
+# components, its template variables). On a real site the manager writes it on
+# enable, disable, save and upgrade; a test that writes `extensions:` into the
+# conf by hand builds it here, from the copies site_tempdir(extensions => 1)
+# laid at DOCROOT/../extensions (made here when the test did not ask for them).
+# Returns what rebuild_hook_index returns.
+sub index_extensions {
+    my ($docroot) = @_;
+    my $base = $docroot;
+    $base =~ s{/[^/]+/?\z}{};
+    unless ( -d "$base/extensions" ) {
+        my $src = repo_root() . '/extensions';
+        make_path("$base/extensions");
+        opendir my $pd, $src or die "$src: $!";
+        for my $f ( grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
+            File::Copy::copy( "$src/$f", "$base/extensions/$f" ) or die "copy $f: $!";
+            ( my $stem = $f ) =~ s/\.pl\z//;
+            _copy_tree( "$src/$stem", "$base/extensions/$stem" ) if -d "$src/$stem" && !-l "$src/$stem";
+        }
+        closedir $pd;
+    }
+    require Lazysite::Manager::Extensions;
+    no warnings 'once';
+    local $Lazysite::Manager::Extensions::DOCROOT = $docroot;
+    # The build checks that a hook's module is found nowhere on @INC but the
+    # fixture's own payload lib (C-3). This process carries the repository's
+    # in-tree payload libs on @INC for its own `use` lines (above); a site's
+    # processes never do, so they are left out of the build's view.
+    local @INC = grep { ref || !m{/extensions/[A-Za-z0-9_-]+/lib\z} } @INC;
+    return Lazysite::Manager::Extensions::rebuild_hook_index();
 }
 
 sub _copy_tree {

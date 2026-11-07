@@ -10,7 +10,8 @@ package main;
 # OWNS    what a component fence becomes on the page.
 # CALLS   convert_fenced_divs, convert_fenced_include, convert_md, the
 #         markdown/json/url_safe filters, log_event (lazysite-processor.pl);
-#         _odoo_display_name (render.pm, on first ask);
+#         _extension_component_dir, _extension_component_dirs and
+#         _extension_template_vars (extensions.pm, SM1369 X5);
 #         Template (loaded by the script before its parts load).
 # READS   $LAZYSITE_DIR (the script's, declared `our` there).
 #
@@ -36,6 +37,9 @@ sub _component_exists {
     # Built-in components (e.g. ::: qr) ship under lazysite/templates/components
     # and are available on ANY layout - a layout component of the same name wins.
     return 1 if -f "$LAZYSITE_DIR/templates/components/$name.tt";
+    # SM1369 X5: a component an enabled extension declares, in its own payload,
+    # after the layout's and the engine's own.
+    return 1 if _extension_component_dir($name);
     return 0;
 }
 
@@ -60,7 +64,8 @@ sub convert_fenced_components {
     # exist (::: qr and friends work even on a layout that ships none).
     return $text
         unless ( defined $layout_dir && -d "$layout_dir/components" )
-        || -d "$LAZYSITE_DIR/templates/components";
+        || -d "$LAZYSITE_DIR/templates/components"
+        || _extension_component_dirs();    # SM1369 X5: or an enabled extension declares one
     return $text unless $text =~ /^:::[ \t]+[\w-]+/m;    # fast bail
 
     my @lines = split /\n/, $text, -1;
@@ -158,7 +163,8 @@ sub _render_component {
         EVAL_PERL => 0,
         # Layout components win; built-in components (lazysite/templates) are the
         # fallback so ::: qr resolves on any layout.
-        INCLUDE_PATH => [ grep { defined } ( $layout_dir, "$LAZYSITE_DIR/templates" ) ],
+        # SM1369 X5: then the enabled extensions' declared components, in id order.
+        INCLUDE_PATH => [ grep { defined } ( $layout_dir, "$LAZYSITE_DIR/templates", _extension_component_dirs() ) ],
         FILTERS      => {
             markdown => \&_markdown_filter,
             json     => \&_json_filter,
@@ -168,9 +174,9 @@ sub _render_component {
     my $rendered = '';
     $tt->process( "components/$name.tt",
         { content => $content, attrs => \%attrs, slots => \%slots,
-            # SM1328: the built-in odoo-signin's button names Odoo by the site's name
-            # for it; asked only by a component that says it, as the page's own is.
-            odoo_display_name => sub { _odoo_display_name() } }, \$rendered )
+            # SM1369 X5: the variables the enabled extensions declare, each asked
+            # only by a component that says it, as the page's own are (SM1328).
+            %{ _extension_template_vars() } }, \$rendered )
         or do {
         log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'component render failed',
             component => $name, error => $tt->error() );

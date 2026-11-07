@@ -10,7 +10,7 @@ package main;
 #         _section_indexes, _section_theme, _theme_version,
 #         _render_fallback_layout; generate_theme_css (the processor's theme
 #         token generator, lint 61); the injectors that edit the finished
-#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_odoo_helper, _inject_app, _inject_form_base, _inject_meta,
+#         HTML - _inject_auth_sync, _inject_data_helper, _inject_account_helper, _inject_app, _inject_form_base, _inject_meta,
 #         _inject_canonical, and the admin bar (_inject_admin_bar,
 #         _admin_bar_choice, _inject_admin_bar_live); _enabled_extensions,
 #         _manager_style, _asset_fingerprint; _engine_mtime and
@@ -21,7 +21,7 @@ package main;
 #         engine version and install time a render is keyed and stamped with.
 # CALLS   render_content, _tt_render, _cgi_can_write, _content_abs, _draft_requested,
 #         _content_rel, _esc_html, _is_manager, _json_filter, _markdown_filter,
-#         _url_safe_filter, _odoo_display_name, fetch_url, log_event (the script and its parts);
+#         _url_safe_filter, _inject_extension_assets, fetch_url, log_event (the script and its parts);
 #         decode_json, sha256_hex, dirname and make_path (imported by the
 #         script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, $LAYOUT_DIR, $LAYOUT_CACHE_DIR,
@@ -563,7 +563,7 @@ sub render_template {
         # template that does not know what the body contains.
         $output = _inject_data_helper($output);
         $output = _inject_account_helper($output);    # SM1043
-        $output = _inject_odoo_helper($output);       # SM747 D
+        $output = _inject_extension_assets($output);   # SM1369 X5
         $output = _inject_app( $output, $vars );      # SM1155
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
@@ -692,7 +692,7 @@ sub render_template {
     $output = _inject_auth_sync($output);
     $output = _inject_data_helper($output);
     $output = _inject_account_helper($output);    # SM1043
-    $output = _inject_odoo_helper($output);       # SM747 D
+    $output = _inject_extension_assets($output);   # SM1369 X5
     $output = _inject_app( $output, $vars );      # SM1155
     $output = _inject_form_base($output);         # SM1289
 
@@ -809,25 +809,10 @@ sub _inject_form_base {
     return $html;
 }
 
-# SM747 D (OA6): the Odoo helper, on the same terms as the data and account
-# helpers - only for a page whose rendered markup carries a region or a control it
-# binds (`data-ls-odoo`, `data-ls-odoo-signin`, `data-ls-odoo-signout`), before the
-# LAST </body>. Every page that talks to the Odoo endpoint uses this one module
-# (the CSRF token with one retry, the sign-in prompt, regions filled as text), so
-# none writes its own.
-sub _inject_odoo_helper {
-    my ($html) = @_;
-    return $html unless $html =~ m{</body>}i;
-    return $html unless $html =~ m{\bdata-ls-odoo\b};
-    return $html if $html =~ m{/assets/lazysite-odoo\.js};
-    # SM1328: the script tag carries the site's name for Odoo, which the helper's
-    # dialog and messages say ('' for none); a page that loads the helper itself
-    # has no attribute, and the helper says "Odoo".
-    my $script = '<script src="/assets/lazysite-odoo.js?v=' . _lazysite_version() . '"'
-        . ' data-ls-odoo-display-name="' . _esc_html( _odoo_display_name() ) . '" defer></script>';
-    $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
-    return $html;
-}
+# SM747 D (OA6) was the Odoo helper, injected here on the same terms as the data
+# and account helpers. SM1369 X5: it is now an asset the extension DECLARES
+# (`inject_when`), and _inject_extension_assets (lazysite-processor/extensions.pm)
+# adds every such asset on those terms; this file names no extension.
 
 # SM112: read the installed release version once (from the install state).
 my $LAZYSITE_VERSION;

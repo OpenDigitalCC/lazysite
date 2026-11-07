@@ -53,8 +53,10 @@ my $root = repo_root();
 # extensions/odoo/lib, since SM1369 X7 part one, outside the lib/ scanned here.
 my %OWN = (
     odoo => [
-        qr{\Astarter/assets/lazysite-odoo\.js\z},
-        qr{\Astarter/lazysite/templates/(?:components|system)/odoo-signin\.(?:tt|md)\z},
+        # SM1369 X5: the browser helper and the sign-in component are in the
+        # payload (extensions/odoo/assets, extensions/odoo/templates), outside the
+        # files scanned here; the sign-in system page stays until H-10's rest.
+        qr{\Astarter/lazysite/templates/system/odoo-signin\.md\z},
     ],
 );
 
@@ -69,7 +71,8 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 # since X2 (the actions, capabilities and refusal kinds are declared); 27 since
 # X3 (SM1369, n769) put the page sources (sources.pm, auth.pm, app.pm,
 # Config.pm, Validate.pm, one line of the processor) and the handler type
-# (Handlers.pm, AddressRefs.pm) on their hooks. It may only shrink.
+# (Handlers.pm, AddressRefs.pm) on their hooks; 24 since X5's asset part moved the
+# helper, the component and the banner behind hooks (SM1369 X5). It may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
@@ -77,11 +80,8 @@ my %ALLOWED = (
     'installers/nginx/vhost-fcgi.conf.example'   => 1,
     'lazysite-auth.pl'                           => 1,
     'lazysite-processor.pl'                      => 7,
-    'lazysite-processor/components.pm'           => 1,
     'lazysite-processor/front-door.pm'           => 11,    # X3: the pool preloads no Odoo module; the hook modules load on first use
-    'lazysite-processor/layout.pm'               => 7,
-    'lazysite-processor/pipeline.pm'             => 1,
-    'lazysite-processor/render.pm'               => 15,
+    'lazysite-processor/render.pm'               => 4,     # SM1369 X5: the system page's switch stays until H-10's rest
     'lib/Lazysite/Auth/GroupRefs.pm'             => 7,    # SM1387: a binding's and odoo.conf's group names
     'lib/Lazysite/Auth/Identity.pm'              => 1,
     'lib/Lazysite/Auth/Session.pm'               => 33,

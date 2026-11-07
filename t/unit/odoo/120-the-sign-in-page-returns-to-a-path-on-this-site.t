@@ -20,7 +20,7 @@ my $root = repo_root();
 chomp( my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null` );
 plan skip_all => 'node is not installed' unless length $node && -x $node;
 
-my $r = run_child( [ $node, "$root/t/lib/odoo-next-harness.js", "$root/starter/assets/lazysite-odoo.js" ],
+my $r = run_child( [ $node, "$root/t/lib/odoo-next-harness.js", "$root/extensions/odoo/assets/lazysite-odoo.js" ],
     stderr => 'merge' );
 my $f = eval { decode_json( $r->{out} ) };
 ok( $f && !$f->{error}, 'the harness ran' ) or BAIL_OUT( "harness: " . ( $r->{out} // '' ) );

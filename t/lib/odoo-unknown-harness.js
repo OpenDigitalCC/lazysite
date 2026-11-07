@@ -1,4 +1,4 @@
-/* SM1277: the unknown-write half of starter/assets/lazysite-odoo.js, driven under
+/* SM1277: the unknown-write half of extensions/odoo/assets/lazysite-odoo.js, driven under
  * node with a stand-in DOM and a fake fetch that records every request. Loaded by
  * t/unit/odoo/111; prints one JSON object of facts for the Perl test to assert on:
  * what resume() sends, what showUnknown() draws (as text) for a person who may say

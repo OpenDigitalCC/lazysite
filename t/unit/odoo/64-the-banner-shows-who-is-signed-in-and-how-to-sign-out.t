@@ -13,7 +13,7 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root  = repo_root();
-my $asset = "$root/starter/assets/lazysite-odoo.js";
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
 my $node  = `sh -c 'command -v node || command -v nodejs' 2>/dev/null`;
 chomp $node;
 plan skip_all => 'node is not installed' unless length $node && -x $node;

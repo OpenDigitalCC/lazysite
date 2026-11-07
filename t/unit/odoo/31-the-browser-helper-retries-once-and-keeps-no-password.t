@@ -23,8 +23,8 @@ use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
 
 my $root  = repo_root();
-my $asset = "$root/starter/assets/lazysite-odoo.js";
-ok( -f $asset, 'the helper is a shipped asset' ) or BAIL_OUT('starter/assets/lazysite-odoo.js is missing');
+my $asset = "$root/extensions/odoo/assets/lazysite-odoo.js";
+ok( -f $asset, 'the helper is a shipped asset' ) or BAIL_OUT('extensions/odoo/assets/lazysite-odoo.js is missing');
 
 my $js = do { open my $fh, '<', $asset or die $!; local $/; <$fh> };
 

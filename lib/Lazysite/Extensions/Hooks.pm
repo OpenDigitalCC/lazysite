@@ -51,7 +51,7 @@ our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
     check_functions index_path read_index enabled_keys call_hook
     declared_entry mirror mirror_index unmirror mirror_state index_signature
     index_failed_path note_index_failure declared_refusal_status
-    cross_problems page_sources handler_types);
+    cross_problems page_sources handler_types check_payload_files names_payload_files);
 
 # The hook vocabulary. `hook` is the proposal's H-n, `slice` the slice that
 # builds its consumer. A live kind carries its shape:
@@ -68,6 +68,9 @@ our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
 #   required   the keys a map must carry
 #   check      a function run over the whole declaration once its shape is
 #              sound, for the kind's own vocabulary (X3); returns problems
+#   check_values  a function ( id, kind, value ) run once the declaration has no
+#              problem, for the values a record names (X5: a file, an
+#              attribute, a path); returns problems
 #
 # The names of the kinds that are not live are the proposal's; a slice may
 # rename its kind before making it live, since nothing can declare it until then.
@@ -105,9 +108,22 @@ our %KINDS = (
     api_actions => { hook => 'H-9', slice => 'X2', live => 1, form => 'records', functions => ['handler'],
         validate => \&_validate_api_actions },
     refusal_kinds => { hook => 'H-9', slice => 'X2', live => 1, form => 'record', validate => \&_validate_refusal_kinds },
-    assets            => { hook => 'H-10', slice => 'X5' },
-    components        => { hook => 'H-10', slice => 'X5' },
-    template_vars     => { hook => 'H-10', slice => 'X5' },
+
+    # SM1369 X5, the asset part of H-10 (n770). LIVE: the processor serves a
+    # declared asset from the extension's payload at /assets/<id>-<file> (and at
+    # its alias), adds it to a page whose rendered markup carries the attribute
+    # `inject_when` names, finds a declared component in the payload's
+    # templates/components, and gives a layout each declared template variable,
+    # rendered by its function when a template asks for it. `attrs` is a
+    # function returning the data attributes the injected script tag carries.
+    # Every file a declaration names must be in the payload (check_payload_files).
+    assets => { hook => 'H-10', slice => 'X5', live => 1, form => 'records',
+        functions => [qw(attrs)], fields => [qw(file inject_when alias)], required => [qw(file)] },
+    components => { hook => 'H-10', slice => 'X5', live => 1, form => 'records',
+        fields => [qw(file)], required => [qw(file)] },
+    template_vars => { hook => 'H-10', slice => 'X5', live => 1, form => 'records',
+        functions => [qw(render)], fields => [qw(name)], required => [qw(name render)] },
+
     system_pages      => { hook => 'H-10', slice => 'X5' },
     docs              => { hook => 'H-10', slice => 'X5' },
     tests             => { hook => 'H-12', slice => 'X7' },
@@ -195,7 +211,8 @@ sub validate_hooks {
     return ( _err( $id, 'hooks', 'hooks must be a mapping' ) ) unless ref $hooks eq 'HASH';
     my @bad;
     for my $kind ( sort keys %$hooks ) {
-        my $spec = $KINDS{$kind};
+        my $spec   = $KINDS{$kind};
+        my $before = @bad;
         unless ($spec) {
             push @bad, _err( $id, "hooks.$kind",
                 "unknown hook '$kind' (known: " . join( ', ', hook_kinds() ) . ')' );
@@ -254,6 +271,9 @@ sub validate_hooks {
         else {
             push @bad, _err( $id, "hooks.$kind", "hook '$kind' has no shape in this engine" );
         }
+        # A kind may check its values beyond their shape (a file name, an
+        # attribute, a path), once the shape is sound.
+        push @bad, $spec->{check_values}->( $id, $kind, $v ) if $spec->{check_values} && @bad == $before;
     }
     return @bad;
 }
@@ -410,6 +430,117 @@ sub handler_types {
         }
     }
     return %out;
+}
+
+# ---- SM1369 X5, the asset part of H-10: the values a declaration may carry ----
+#
+# A file is a plain name with an extension, never a path, so it cannot name a
+# file outside the payload directory it is looked up in. `inject_when` is a data
+# attribute. An alias is a path under /assets/ that is not one of the engine's
+# own assets, which an extension can neither replace nor claim. A template
+# variable's name is a plain identifier that no core variable uses.
+my %CORE_ASSETS = map { $_ => 1 } qw(lazysite-chrome.css lazysite-chrome.js lazysite-data.js
+    lazysite-account.js lazysite-app.js qrcode.js);
+my %CORE_VARS = map { $_ => 1 } qw(content page_title page_subtitle page_meta_title page_meta_desc
+    page_author page_url page_url_raw page_modified request_uri site_name site_url nav layout_name
+    theme_name theme theme_assets theme_css theme_version authenticated auth_user auth_name
+    auth_groups manager manager_path lazysite_version enabled_extensions auth_control sections
+    editor year search_enabled languages site_lang page_lang t client_ip params);
+
+sub _plain_file {
+    my ($f) = @_;
+    return defined $f && !ref $f && $f =~ /\A[A-Za-z0-9_-][A-Za-z0-9_.-]*\.[A-Za-z0-9]+\z/ ? 1 : 0;
+}
+
+sub _check_assets {
+    my ( $id, $kind, $v ) = @_;
+    my ( @bad, %seen );
+    for my $i ( 0 .. $#$v ) {
+        my $a = $v->[$i];
+        push @bad, _err( $id, "hooks.$kind", "assets[$i].file must be a file name with an extension, not a path" )
+            unless _plain_file( $a->{file} );
+        push @bad, _err( $id, "hooks.$kind", "assets[$i].file '$a->{file}' is declared twice" )
+            if _plain_file( $a->{file} ) && $seen{ $a->{file} }++;
+        push @bad, _err( $id, "hooks.$kind", "assets[$i].inject_when must be a data attribute (data-...)" )
+            if exists $a->{inject_when} && !( defined $a->{inject_when} && $a->{inject_when} =~ /\Adata-[a-z0-9-]+\z/ );
+        if ( exists $a->{alias} ) {
+            my ($name) = ( $a->{alias} // '' ) =~ m{\A/assets/([A-Za-z0-9_-][A-Za-z0-9_.-]*)\z};
+            push @bad, _err( $id, "hooks.$kind", "assets[$i].alias must be a path under /assets/ (one file name, no directory)" )
+                unless defined $name && _plain_file($name);
+            push @bad, _err( $id, "hooks.$kind", "assets[$i].alias '$a->{alias}' is one of the engine's own assets" )
+                if defined $name && $CORE_ASSETS{$name};
+        }
+    }
+    return @bad;
+}
+
+sub _check_components {
+    my ( $id, $kind, $v ) = @_;
+    my ( @bad, %seen );
+    for my $i ( 0 .. $#$v ) {
+        my $f = $v->[$i]{file};
+        push @bad, _err( $id, "hooks.$kind", "components[$i].file must be a component's file name, <name>.tt" )
+            unless _plain_file($f) && $f =~ /\A[\w-]+\.tt\z/;
+        push @bad, _err( $id, "hooks.$kind", "components[$i].file '$f' is declared twice" )
+            if defined $f && !ref $f && $seen{$f}++;
+    }
+    return @bad;
+}
+
+sub _check_template_vars {
+    my ( $id, $kind, $v ) = @_;
+    my ( @bad, %seen );
+    for my $i ( 0 .. $#$v ) {
+        my $n = $v->[$i]{name};
+        push @bad, _err( $id, "hooks.$kind", "template_vars[$i].name must be a plain identifier (letters, digits, _)" )
+            unless defined $n && !ref $n && $n =~ /\A[a-z][a-z0-9_]*\z/;
+        push @bad, _err( $id, "hooks.$kind", "template_vars[$i].name '$n' is a variable the engine gives every layout" )
+            if defined $n && !ref $n && $CORE_VARS{$n};
+        push @bad, _err( $id, "hooks.$kind", "template_vars[$i].name '$n' is declared twice" )
+            if defined $n && !ref $n && $seen{$n}++;
+    }
+    return @bad;
+}
+
+$KINDS{assets}{check_values} = \&_check_assets;
+$KINDS{components}{check_values} = \&_check_components;
+$KINDS{template_vars}{check_values} = \&_check_template_vars;
+
+# THE FILES A DECLARATION NAMES ARE THE EXTENSION'S OWN, as its hook modules are:
+# an asset is a regular file in the payload's assets/, a component one in its
+# templates/components/, neither a link. Checked at the index build, so the
+# processor serves what the index names from the payload and nothing else.
+# Returns ( $payload_dir, @problems ); the dir is undef when nothing is named.
+sub check_payload_files {
+    my ( $id, $descriptor, $hooks ) = @_;
+    return (undef) unless ref $hooks eq 'HASH';
+    my @want;
+    push @want, map { [ 'asset', "assets/$_->{file}" ] } grep { ref $_ eq 'HASH' && _plain_file( $_->{file} ) }
+        @{ ref $hooks->{assets} eq 'ARRAY' ? $hooks->{assets} : [] };
+    push @want, map { [ 'component', "templates/components/$_->{file}" ] }
+        grep { ref $_ eq 'HASH' && _plain_file( $_->{file} ) }
+        @{ ref $hooks->{components} eq 'ARRAY' ? $hooks->{components} : [] };
+    return (undef) unless @want;
+    my $dir = Lazysite::Extensions::payload_dir($descriptor);
+    return ( undef,
+        _err( $id, 'hooks', 'the hooks name files, and the extension has no payload '
+                . '(a directory, not a link, named for its descriptor)' ) )
+        unless defined $dir;
+    my @bad;
+    for my $w (@want) {
+        my ( $what, $rel ) = @$w;
+        push @bad, _err( $id, 'hooks', "the $what $rel is not a file in the extension's payload" )
+            if -l "$dir/$rel" || !-f "$dir/$rel";
+    }
+    return ( $dir, @bad );
+}
+
+# Does a declaration name files to serve or render, beyond functions to call?
+sub names_payload_files {
+    my ($hooks) = @_;
+    return 0 unless ref $hooks eq 'HASH';
+    return ( ref $hooks->{assets} eq 'ARRAY' && @{ $hooks->{assets} } )
+        || ( ref $hooks->{components} eq 'ARRAY' && @{ $hooks->{components} } ) ? 1 : 0;
 }
 
 # `requires`: the ids of the extensions this one builds on. Enabling it while
