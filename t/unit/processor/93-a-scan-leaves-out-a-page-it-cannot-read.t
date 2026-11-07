@@ -63,7 +63,9 @@ sub with_log {
 
 for my $walk (
     [ 'resolve_scan', sub { map { $_->{title} } @{ main::resolve_scan('/blog/*.md') } }, ['A'] ],
-    [ 'scan_pages', sub { map { $_->{url} } main::scan_pages($d) }, ['/blog/a'] ],
+    # SM1357: scan_pages also returns the unregistered public pages (/, /list) now;
+    # the walk under test is the blog folder.
+    [ 'scan_pages', sub { map { $_->{url} } grep { $_->{url} =~ m{\A/blog/} } main::scan_pages($d) }, ['/blog/a'] ],
     )
 {
     my ( $name, $code, $want ) = @$walk;

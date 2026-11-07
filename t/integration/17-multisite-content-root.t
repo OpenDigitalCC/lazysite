@@ -373,9 +373,14 @@ sub _slurp {
     ok( $sm =~ /<urlset/, 'bare-docroot sitemap is generated' );
     like( $sm, qr{https://agency\.example/</loc>},
         'bare sitemap lists the agency root page (its own)' );
-    unlike( $sm, qr{clienta|clientb|/menu|/about|/only-b|CLIENT_},
+    # SM1357: sites/clienta-secret is NOT a declared content root - it is a
+    # folder of the docroot, and the bare host serves its page publicly - so the
+    # sitemap, which now lists every public page, lists it. What §7 holds is
+    # that no DECLARED client root is enumerated.
+    like( $sm, qr{/sites/clienta-secret/leak</loc>}, 'an undeclared folder is the docroot\'s own content, listed' );
+    unlike( $sm, qr{clienta(?!-secret)|clientb|/menu|/about|/only-b|CLIENT_},
         'bare sitemap excludes every client subtree (§7)' );
-    unlike( $sm, qr{/sites/}, 'bare sitemap has no /sites/ paths' );
+    unlike( $sm, qr{/sites/(?!clienta-secret/)}, 'bare sitemap has no declared root\'s /sites/ paths' );
 }
 {
     my $out = run_processor( $docroot, '/find', HTTP_HOST => 'stranger.example' );
