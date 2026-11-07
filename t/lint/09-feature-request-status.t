@@ -11,8 +11,10 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
 
-my %ALLOWED    = map { $_ => 1 } qw(shipped partial parked candidate superseded);
-my %NEEDS_NOTE = map { $_ => 1 } qw(partial superseded);
+# `withdrawn` (ruling 159, SM1403/SM1406): built on a branch and dropped before
+# landing by a ruling; nothing of it ships, and its note names the ruling.
+my %ALLOWED    = map { $_ => 1 } qw(shipped partial parked candidate superseded withdrawn);
+my %NEEDS_NOTE = map { $_ => 1 } qw(partial superseded withdrawn);
 
 # SM658: the archive is checked too. A settled filing keeps its status
 # vocabulary - archiving is a change of location, not of standard, and a
