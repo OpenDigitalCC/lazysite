@@ -1454,7 +1454,7 @@ my %TOOLS = (
         },
     },
     domain_set => {
-        description => 'Set ONE presentation or routing key on ONE configured domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first). Does NOT create or remove domains. The host (default) is the primary site\'s row, which takes allowed_groups, locked_users and locked_groups only: grants add, so a group named on a secondary domain reaches the primary too only when the primary\'s row names it.',
+        description => 'Set ONE presentation or routing key on ONE configured domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first; until the theme is set, the layout call warns that the domain\'s theme is not one of the layout\'s and mirrors nothing), or call activate_layout with host, layout and theme. Does NOT create or remove domains. The host (default) is the primary site\'s row, which takes allowed_groups, locked_users and locked_groups only: grants add, so a group named on a secondary domain reaches the primary too only when the primary\'s row names it.',
         cap         => 'manage_domains',
         inputSchema => { type => 'object',
             properties => {

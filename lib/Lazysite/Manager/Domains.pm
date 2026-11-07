@@ -1389,10 +1389,20 @@ sub domain_set {
     # An agent binding a theme to a domain got ok:1 and no indication whether
     # anything had been published. That is how a fully unstyled site was handed
     # over on edge2 in August with every page returning 200.
-    my $mirror;
+    my ( $mirror, $foreign );
     if ( $key eq 'layout' || $key eq 'theme' ) {
         my ( $l, $t ) = _effective_presentation($host);
-        if ( length $l && length $t ) {
+        # SM1409: a pair whose theme is not one of the layout's. A layout set
+        # alone keeps the theme the domain had, which is usually the OLD
+        # layout's, and the mirror then "expected" lazysite/layouts/<new
+        # layout>/themes/<old theme>/assets - a path that mixes the two and
+        # names nothing anybody made. The set stays accepted (the documented
+        # two-call binding sends the layout first, and activate_layout with a
+        # host does the same), the mirror is not run on the mixed pair, and the
+        # answer says in words what is wrong and what to send.
+        $foreign = _foreign_theme_warning( $l, $t )
+            if length $l && length $t && $l =~ /\A[A-Za-z0-9_-]+\z/ && $t =~ /\A[A-Za-z0-9_-]+\z/;
+        if ( length $l && length $t && !defined $foreign ) {
             local $@;
             eval {
                 # Loaded and imported at RUNTIME: Themes uses this module, so a
@@ -1414,6 +1424,10 @@ sub domain_set {
     }
 
     my $res = { ok => 1, host => $host, key => $key, value => $value };
+    if ( defined $foreign ) {
+        $res->{assets_mirrored} = 0;
+        push @{ $res->{warnings} ||= [] }, $foreign;
+    }
     if ( ref $mirror eq 'HASH' ) {
         $res->{assets_mirrored} = $mirror->{mirrored};
         # Themes is loaded by the block above - a mirror result only exists
@@ -1577,6 +1591,30 @@ sub domain_access_edit {
 # SM241: the layout+theme a host actually resolves to - its own override where it
 # has one, the base site's value otherwise. Same resolution domain_usage uses, so
 # what gets mirrored is what gets served.
+# SM1409: undef when the theme is one of the layout's (its directory is under
+# the layout's themes/), else the warning domain_set returns: in words, naming
+# the theme, the layout and the layout's own themes, and never a path built from
+# the two names, which would point at a directory nobody made.
+sub _foreign_theme_warning {
+    my ( $layout, $theme ) = @_;
+    my $ldir = _lz() . "/layouts/$layout";
+    return undef if -d "$ldir/themes/$theme";
+    my $tail = 'Until then this domain will render with no stylesheet, and every page will still return 200.';
+    return "no theme assets were mirrored for this domain: layout '$layout' is not installed on this site. "
+        . $tail
+        unless -d $ldir;
+    my @own;
+    if ( opendir my $dh, "$ldir/themes" ) {
+        @own = sort grep { /\A[A-Za-z0-9_-]+\z/ && -d "$ldir/themes/$_" } readdir $dh;
+        closedir $dh;
+    }
+    my $has = @own ? " (its themes: @{[ join ', ', @own ]})" : ' (it has no themes)';
+    return "no theme assets were mirrored for this domain: its theme '$theme' is not a theme "
+        . "of layout '$layout'$has. Send the layout and one of its themes together - "
+        . 'layout-activate, or activate_layout over MCP, with host, layout and theme - or set '
+        . "this domain's theme to one of them next. $tail";
+}
+
 sub _effective_presentation {
     my ($host) = @_;
     my ( $base, $ov ) = _parse();

@@ -306,6 +306,14 @@ Archive
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.
+- SM1409 (PENDING) **a layout set without a theme of its own says so in words.**
+  `domain-set` of the layout alone, with the domain's theme still the other layout's,
+  mirrored the mixed pair and warned that assets belong under a path naming the new
+  layout and the old theme. The set stays accepted (the two-call binding sends the layout
+  first); the mixed pair is not mirrored, and the warning names the theme that is not the
+  layout's, the layout's own themes and what to send: layout and theme together
+  (t/unit/manager/481).
+
 - SM1408 (PENDING) **a token's group refusal says what it is.** Every token deletes and
   changes only the groups it created, and the refusal called it "a domain-confined
   caller", which a token confined to no domain read as wrong. The rule stands; the
