@@ -3202,7 +3202,7 @@ walked
 : At the 0.16.7 compliance walk (2026-11-07), against the code on the stack's tip
   (58d5d6e26): core's `lib/` holds no `Lazysite/Odoo.pm`, `Lazysite/Odoo/` or
   `Daemon/Service/Oomd.pm`; the fifteen files are renames into `extensions/odoo/lib/`
-  (git reads fourteen as identical, `SiteSignin.pm` and `OdooEndpoint.pm` with the
+  (git reads thirteen as identical, `SiteSignin.pm` and `OdooEndpoint.pm` with the
   SM1381 and depth changes), so the SBOM's component count does not move for them
   (463 at 0.16.7, the one more being `lib/Lazysite/Auth/GroupRefs.pm`, SM1387).
   `require_payload` puts the payload lib on `@INC` with `push`, and no `unshift` is in

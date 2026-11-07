@@ -97,10 +97,9 @@ page now passes through `/cgi-bin/lazysite-odoo.pl?renew=1` and back to the page
 Odoo has ended their session they reach the site's sign-in page instead
 (`auth_redirect`, else `/login`), with `next` kept; `/login?action=session` goes
 through the same step. The step needs no configuration. A front end that sends
-`/cgi-bin/lazysite-odoo.pl` to the engine already sends it there; a front end that
-answers that path itself, or blocks `?renew=1`, sends every stale session to the
-sign-in instead, as before. The step sets a short-lived cookie, `lzs_renewed`, which
-stops a loop: one renewal a minute, then the sign-in. The refusal is logged at INFO.
+`/cgi-bin/lazysite-odoo.pl` to the engine already sends it there. The step sets a
+short-lived cookie, `lzs_renewed`, which stops a loop: one renewal a minute, then the
+sign-in. The refusal is logged at INFO.
 
 **Deleting a group is refused while anything names it (SM1387).** The Groups page's
 Delete, and the new `group-delete` (control API) and `delete_group` (MCP), refuse a
