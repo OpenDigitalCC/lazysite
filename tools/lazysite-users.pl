@@ -4538,9 +4538,14 @@ sub _bootstrapped {
     return scalar grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} } keys %{ $gs || {} };
 }
 
+sub _store_marked {
+    my ($gs) = @_;
+    return scalar grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} && $gs->{$_}{seeded} } keys %$gs;
+}
+
 sub _shipped_groups {
     my ($gs) = @_;
-    my $marked = grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} && $gs->{$_}{seeded} } keys %$gs;
+    my $marked = _store_marked($gs);
     return { map { $_ => 1 } grep { ref $gs->{$_} eq 'HASH' && ( !$marked || $gs->{$_}{seeded} ) } keys %$gs };
 }
 
@@ -4618,6 +4623,74 @@ sub _adopt_agent_roles {
     return;
 }
 
+# SM1407: THE TWO ROLES OF THE BUNDLE LAYER NO ADOPTION NAMED REACH AN OLDER SITE,
+# ONCE.
+#
+# `analysts` and `lead-readers` shipped with the bundle layer (SM631, 0.11.2) in
+# the seed alone. _adopt_added_bundles adopts the bundles the nesting map lists
+# and _adopt_agent_roles the agent roles, so a site bootstrapped before the
+# seed had them never got either (0.16.7 edge, T-103). They are adopted here by
+# the same rules as the agent roles - a BOOTSTRAPPED site, an ABSENT role only,
+# never rewriting one that exists, once (the had-record), with NO MEMBERS, so
+# nobody's access changes - and two more, because these are roles OF the
+# bundle layer and grant through it:
+#
+#   - only where the bundle layer is there (a shipped bundle present, as
+#     _adopt_added_bundles asks). On a site without it `analysts` would be a
+#     role that grants nothing to the account put in it;
+#   - each is nested into the shipped bundles present that list it, as a new
+#     install nests it. A bundle only it draws on (cap-audit) is absent until
+#     _adopt_added_bundles, which runs next, adopts it with the role inside.
+#
+# AND NOT ON A STORE THE MARK REACHED. The mark (SM608, 0.11.3) came after
+# these roles, so the seed that wrote it wrote them: absent there is an
+# operator's delete from before the had-record kept deletes (SM1262), and it is
+# recorded as had and never undone. On a store with no marked manager group
+# absent says nothing, and the role is adopted.
+sub _layer_role_names { return qw(analysts lead-readers) }
+
+sub _adopt_layer_roles {
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    return unless ref $gs eq 'HASH';
+    return unless _bootstrapped($gs);
+    my $nesting = _default_group_nesting();
+    my $shipped = _shipped_groups($gs);
+    return unless grep { $shipped->{$_} } keys %{$nesting};
+    my ( $had, $readable ) = _bundles_had();
+    return unless $readable;
+    my $marked = _store_marked($gs);
+    my $seed   = _default_group_seed();
+    my $was    = join ',', sort keys %$had;
+    my @added;
+    for my $role ( _layer_role_names() ) {
+        if ( ref $gs->{$role} eq 'HASH' ) { $had->{$role} = 1; next }
+        next if $had->{$role};
+        $had->{$role} = 1;
+        next if $marked;
+        next unless ref $seed->{$role} eq 'HASH';
+        $gs->{$role} = { %{ $seed->{$role} }, seeded => 1 };
+        my @into;
+        for my $bundle ( sort keys %{$nesting} ) {
+            push @into, $bundle if $shipped->{$bundle} && grep { $_ eq $role } @{ $nesting->{$bundle} || [] };
+        }
+        push @added, [ $role, \@into ];
+    }
+    my $changed = join( ',', sort keys %$had ) ne $was;
+    unless (@added) { _write_bundles_had($had) if $changed; return }
+    write_group_settings($gs);
+    my %groups = read_groups();
+    for my $item (@added) {
+        my ( $role, $into ) = @{$item};
+        for my $bundle ( @{$into} ) {
+            push @{ $groups{$bundle} }, $role unless grep { $_ eq $role } @{ $groups{$bundle} || [] };
+        }
+    }
+    write_groups(%groups);
+    _write_bundles_had($had);
+    log_event( 'INFO', $_->[0], 'role added for this release (SM1407)' ) for @added;
+    return;
+}
+
 # Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
 # from the effective lookup so the seeder never recurses through itself.
 sub _conf_manager_groups {
@@ -4660,6 +4733,9 @@ sub _ensure_groups_seeded {
         # operator had was left a backend group nobody could be assigned to
         # (t/unit/users/34). A store the flag has reached is a no-op here.
         _migrate_group_assignable();
+        # SM1407: the layer roles first, so a bundle only they draw on
+        # (cap-audit) is adopted by the next call with them nested in it.
+        _adopt_layer_roles();
         _adopt_added_bundles();
         _adopt_agent_roles();
         my $gs = Lazysite::Auth::Settings::read_group_settings();

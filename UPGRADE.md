@@ -203,6 +203,12 @@ its edit lock with a POST, so opening a file no longer shows "This action must b
 as POST." beside the toolbar, and a second editor on the same file is told who has it.
 Nothing to do but the upgrade, which replaces the page.
 
+**Two roles reach an older site (SM1407).** On a site bootstrapped before 0.11.3 that
+has the role bundles, the next Users or Groups page load adds the `analysts` and
+`lead-readers` roles it lacks, with no members, nested into their bundles as on a new
+install (and the `cap-audit` bundle with `analysts`). Nobody's access changes until an
+operator puts an account in one. A role deleted after it was added stays deleted.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

@@ -4439,3 +4439,50 @@ residual risk
 verdict
 : proposed: accepted, no trigger fired; recorded because the summary and the sitemap now
   list by default and pages gain machine-readable copies of table rows.
+
+### 2026-11-07 - SM1407 (0.16.8): analysts and lead-readers reach a site bootstrapped before them
+
+Assessment drafted by the developer agent for the release manager's confirmation.
+
+what changed
+: The users tool adopts the two roles the seed alone carried, `analysts` and
+  `lead-readers` (SM631, 0.11.2), on a site that lacks them (`_adopt_layer_roles`, run
+  before `_adopt_added_bundles` in `_ensure_groups_seeded`). The rules are the agent
+  roles' (SM1371, SM1393): a bootstrapped site, an absent role only, adopted with no
+  member, once through `bundles-adopted.json`, which an unreadable record stops. Two
+  more: only where the bundle layer is there (a shipped bundle present), and never on a
+  store whose manager group carries the `seeded` mark - the mark came after the roles,
+  so absent there is an operator's delete, recorded as had. Each adopted role is nested
+  into the shipped bundles present that list it (`analysts` into cap-analytics and
+  ch-ui, `lead-readers` into ch-script), and cap-audit, which only `analysts` draws on,
+  is then adopted by `_adopt_added_bundles` with it inside.
+
+threat delta
+: Elevation of privilege is the question. A role is adopted with no member, so no
+  account's capabilities change until an operator puts one in it; its grants are a new
+  install's (`analysts` reads analytics and the audit trail through its bundles;
+  `lead-readers` holds `read_submissions` and the script channel). The bundles it is
+  nested into gain a sub-group with no member, which confers nothing. What a name alone
+  could get wrong - an operator's own group under one of the two names - is not
+  touched: a present group is never rewritten or nested. No trigger of ADR 0007's four
+  fires: no interface, method, dependency or data is added; the stores and their modes
+  are unchanged.
+
+controls
+: t/unit/users/73: a store from before the two roles gains both on first use, as
+  shipped, with no member, nested as a new install nests them, cap-audit with
+  `analysts` inside, and the next use changes nothing; a role the had-record names does
+  not come back, nor one an operator deletes after adoption; on a marked store neither
+  is adopted and both are recorded as had; a site without the bundle layer gets
+  neither. With the change reverted, subtests 1 to 3 fail. t/unit/users/72 passes
+  unchanged.
+
+residual risk
+: An operator who deleted either role on an unmarked store before the had-record
+  existed (SM1262, 0.16.1) gets it back once, with no member, as SM1371's roles would
+  have been; deleting it again is final. A pre-0.11.3 store whose manager group was
+  later rewritten by `setup-sysop` (which marks it) reads as marked and adopts
+  neither.
+
+verdict
+: drafted, for the release manager's confirmation; no trigger fired.

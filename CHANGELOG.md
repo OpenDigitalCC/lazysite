@@ -306,6 +306,14 @@ Archive
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.
+- SM1407 (PENDING) **`analysts` and `lead-readers` reach a site bootstrapped before
+  them.** The two roles shipped with the bundle layer (0.11.2) in the seed only, and no
+  adoption named them, so an older site got the agent roles and the bundles and never
+  these. They are adopted once, with no member, through the had-record, where the bundle
+  layer is there, nested into their bundles as a new install nests them (cap-audit with
+  them), and never on a store whose manager group carries the `seeded` mark, whose seed
+  wrote them (t/unit/users/73).
+
 - SM1411 (PENDING) **the editor takes and renews its lock with a POST.** The editor sent
   `lock` and `renew-lock` as GETs; both are declared mutating and the API refuses a
   mutating action sent as GET, so from 0.7.19 no editor open was granted its lock, and from
