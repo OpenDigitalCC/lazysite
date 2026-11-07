@@ -3452,3 +3452,50 @@ residual risk
 
 verdict
 : proposed accepted, for the release manager's confirmation; no trigger fired.
+
+### 2026-11-07 - SM1392 (0.16.7): the editor opens a form's own conf, and every door names manage_forms for it
+
+Assessment drafted by the developer agent for the release manager's confirmation.
+
+what changed
+: `starter/manager/edit.md`'s `isReservedPath` exempts `lazysite/forms/<name>.conf`
+  (`isFormConfPath`, never `smtp.conf`, `handlers.conf` or `schedule.conf`), so the page
+  asks the server's `read` and `save`, whose gate (`carveout_requirement`,
+  `Manager::Files::_form_conf_refusal`, SM1371) requires `manage_forms`. In
+  `lazysite-mcp.pl`'s tool gate, `read_file` and `write_file` on a path
+  `form_conf_name` recognises ask `manage_forms` in place of the tool's `manage_content`,
+  as a `lazysite/layouts/` path asks `manage_themes or manage_layouts`; the carve-out
+  pass and the write's rules (targets naming existing handlers, reach, bindable handlers)
+  run after it unchanged.
+
+threat delta
+: The editor change moves a client-side stop to the server's gate: the page could never
+  grant anything (the `read` and `save` actions decide), so a manager without
+  `manage_forms` now sees the server's refusal where it saw the page's text. The MCP
+  change widens one door for one grant: `manage_forms` without `manage_content` now
+  reads and writes a form's own conf through `read_file`/`write_file`, which it has
+  done over WebDAV since 0.8.1 and which the cookie `read`/`save` already allowed; the
+  file names handlers and nothing else (`form_conf_problems`), and the three non-form
+  files stay with the blocklist. `manage_content` without `manage_forms` is refused as
+  it was, now told the capability the path needs. Every other path keeps the tool's
+  capability (t/unit/manager/475: a page still needs `manage_content`). The tool
+  listing (`_tool_callable`) is unchanged: a `manage_forms`-only grant is not offered
+  `read_file`/`write_file` and may call them for this path alone - the SM210 shape, left
+  for the release manager (SM1392's filing). No trigger of ADR 0007's four fires.
+
+controls
+: t/unit/manager/475: the rule's source and, under node, thirteen paths through
+  `isReservedPath`; the Files page's link for a `.conf`; over MCP a grant holding
+  neither is refused `needs manage_forms` (not `manage_content`) and a page still
+  `needs manage_content`; `manage_forms` alone reads and writes the conf and nothing
+  else; the cookie `read` without `manage_forms` names it. With the change reverted the
+  rule reserves the conf and the MCP refusal names `manage_content`.
+  t/unit/manager/461, 137, t/unit/mcp/23, t/lint/90 and 92 pass unchanged.
+
+residual risk
+: The editor's exemption is by path shape; a site that keeps a non-form `.conf` under
+  `lazysite/forms/` by another name opens it to `manage_forms` on every door already,
+  the editor now included.
+
+verdict
+: proposed accepted, for the release manager's confirmation; no trigger fired.

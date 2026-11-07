@@ -176,6 +176,18 @@ Archive
   does not, a group present under its shipped name is what the store can say. SM1262's record
   keeps the rest: a deleted role or bundle never returns, an unreadable record adopts nothing.
 
+- SM1392 (PENDING) **The manager's editor opens a form's own conf to `manage_forms`, and every
+  door names that capability for it.** SM1371 opened `lazysite/forms/<name>.conf` to
+  `manage_forms` over MCP, WebDAV and the control API's read and save, but the editor page
+  marked every `lazysite/` path "system file (read-only)" before asking the server. The editor
+  now exempts a form's own conf (never `smtp.conf`, `handlers.conf` or `schedule.conf`); the
+  server's gate decides, and a manager without `manage_forms` sees its refusal naming the
+  capability. Over MCP, `read_file` and `write_file` on that path ask `manage_forms`, the
+  path's own capability, in place of `manage_content` - as a layout path asks the design
+  capabilities - so a caller without it is told what it needs, and one holding `manage_forms`
+  alone reaches the file as it has over WebDAV since 0.8.1. Every other path keeps the tool's
+  capability.
+
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 
 - SM1380 (0e503772) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and

@@ -4923,6 +4923,21 @@ elsif ( $method eq 'tools/call' ) {
                 $need   = 'manage_themes or manage_layouts';
                 $cap_ok = ( $caps->{manage_themes} || $caps->{manage_layouts} ) ? 1 : 0;
             }
+            # SM1392: A FORM'S OWN CONFIGURATION ASKS ITS OWN CAPABILITY HERE,
+            # as a layout path asks the design ones. SM1371 made
+            # lazysite/forms/<name>.conf manage_forms's on every door, and the
+            # carve-out below requires it; but this gate still asked read_file
+            # and write_file for manage_content first, so a caller without it
+            # was told "needs manage_content" for a file manage_content never
+            # reaches, and one holding manage_forms alone - admitted over WebDAV
+            # since 0.8.1 - was refused. The two tools SM1371 opened, and no
+            # other path: everything else keeps the tool's cap.
+            elsif ( ( $name eq 'read_file' || $name eq 'write_file' )
+                && defined Lazysite::Manager::Common::form_conf_name($p) )
+            {
+                $need   = 'manage_forms';
+                $cap_ok = $caps->{manage_forms} ? 1 : 0;
+            }
         }
     }
     unless ($cap_ok) {

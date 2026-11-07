@@ -131,6 +131,15 @@ nested only into roles already there, so nobody's access changes; delete any you
 want and it stays deleted. A group an operator made under a shipped name on a site that
 carries the mark is left alone, as before. The site's audit log records each adoption.
 
+**A form's own conf opens in the manager's editor (SM1392).** An account holding
+`manage_forms` can open `lazysite/forms/<name>.conf` in the editor from the Files page;
+without the capability the server's refusal names it. Over MCP, `read_file` and
+`write_file` on that path now ask `manage_forms` rather than `manage_content`: a grant
+holding `manage_forms` without `manage_content` reaches a form's own conf through the
+connector as it has over WebDAV; a grant holding `manage_content` without `manage_forms`
+is refused it, as it was. If an account holds `manage_forms` it should not, this is the
+release to check. No other path changes.
+
 ## The primary's content leaves out the other domains, and the rest of 0.16.6
 
 **The primary site's content leaves out the other domains' folders (SM1372).** On an

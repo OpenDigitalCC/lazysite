@@ -135,6 +135,14 @@ The editor at `/manager/edit` shows:
   file's History panel in Files - the same View, Diff and Restore as above
 - Collaborative edit lock - only one user can edit a file at a time
 
+The `lazysite/` control area is not editable here: a path under it opens as
+"system file (read-only)" and names the manager page that owns it. The one
+exception is a form's own configuration, `lazysite/forms/<name>.conf`, which
+opens in the editor for an account holding `manage_forms` (SM1371, SM1392),
+as it does over WebDAV and MCP; without the capability the server's refusal
+names it. `smtp.conf`, `handlers.conf` and `schedule.conf` under
+`lazysite/forms/` are not forms and stay closed.
+
 Locks expire after 5 minutes and are renewed automatically while the
 editor is open. Leaving with unsaved changes prompts a browser warning
 first; cancelling the warning keeps your edit lock, confirming releases

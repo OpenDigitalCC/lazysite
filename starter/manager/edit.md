@@ -179,8 +179,23 @@ var backUrl = '/manager/files' + (backFolder ? '?path=' + encodeURIComponent(bac
 // Reserved control-area files (the lazysite/ tree, CGI scripts) are not editable
 // via Files by design - manage them through their dedicated manager pages. The
 // editor warns rather than opening a blank box on a blocked read.
+//
+// SM1392: EXCEPT A FORM'S OWN CONFIGURATION, lazysite/forms/<name>.conf, which
+// SM1371 opened to manage_forms on every door (the server's read and save ask
+// it: Manager::Files::_form_conf_refusal). This page stopped every lazysite/
+// path here, before the server was asked, so the one door SM1371 named for
+// people showed "system file (read-only)" to a manager who held the
+// capability. The three files under lazysite/forms/ that are not a form -
+// smtp.conf, handlers.conf, schedule.conf - stay reserved, as the server keeps
+// them (Manager::Common::form_conf_name). A caller without manage_forms now
+// sees the server's refusal, which names the capability.
+function isFormConfPath(p) {
+  var m = String(p || '').replace(/^\/+/, '').match(/^lazysite\/forms\/([A-Za-z0-9_-]+)\.conf$/);
+  return !!m && m[1] !== 'smtp' && m[1] !== 'handlers' && m[1] !== 'schedule';
+}
 function isReservedPath(p) {
   p = String(p || '').replace(/^\/+/, '');
+  if (isFormConfPath(p)) return false;
   return /^lazysite\//i.test(p) || /^cgi-bin\//i.test(p) || /\.(?:pl|cgi)$/i.test(p);
 }
 var isMdFile = filePath && /\.md$/i.test(filePath);

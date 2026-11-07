@@ -115,7 +115,7 @@ WebDAV: its targets name existing handlers only (`- handler: <id>`).
 Your capabilities and path scope come from the brief (and `whoami`). The content
 tree, assets, the layout/theme files under `lazysite/layouts/`, `lazysite/nav.conf`,
 and a form's dispatch config `lazysite/forms/<name>.conf` (the last two with
-`manage_config`) are writable within scope. These paths are **denied** and the
+`manage_nav` and `manage_forms` respectively) are writable within scope. These paths are **denied** and the
 server rejects writes to them:
 
 `/cgi-bin/`
