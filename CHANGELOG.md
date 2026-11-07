@@ -100,6 +100,47 @@ Archive
   loses seven files. The hook index is rebuilt on every upgrade, so a site using Odoo
   gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
   `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted.
+  `odoo:` always did. Tests: t/unit/extensions/72, 73. Register entry drafted.
+- SM1369 (PENDING) **An extension declares its assets, components and template
+  variables (X5, the asset part of H-10).** Three hook kinds go live in
+  `Lazysite::Extensions::Hooks`: `assets` (a file in the payload, served at
+  `/assets/<id>-<file>` and at a declared alias on every domain, injected into a page
+  whose markup carries the attribute `inject_when` names, with the data attributes an
+  `attrs` function answers), `components` (a `::: name` component in the payload's
+  `templates/components`) and `template_vars` (a layout variable rendered by the
+  extension's function when a template names it). The index build refuses a file not in
+  the payload; a new processor part, `lazysite-processor/extensions.pm`, reads the
+  index module-free and the enabled list again. Odoo declares its helper (alias
+  `/assets/lazysite-odoo.js`, the display name on the tag), `odoo-signin.tt`,
+  `odoo_signin_banner` and `odoo_display_name`; the helper and the component move into
+  `extensions/odoo/` and the four core lines that knew them leave (lint 321: 39 files).
+  With the extension off, the helper is neither injected nor served. New:
+  t/unit/extensions/76; t/integration/174, 171 and 172 build the index as the manager
+  would.
+
+- SM1396 (PENDING) **The offline kit is an engine extension, `app-offline`.** Ruling 53,
+  built on the asset hooks as their second consumer (ruling 74): one declared script
+  (`/assets/app-offline-kit.js`) and one variable, `[% app_offline_kit %]`, the tag while
+  the extension is on and nothing otherwise; `requires: odoo`. The kit wraps the Odoo
+  helper: a connection banner, kept reads (the last good answer, given when a read fails
+  for want of a network), a write guard and queue (a change made offline or cut off is
+  queued and sent once with its `Idempotency-Key`, so a resend never writes twice),
+  install and update status, and sign-out. What the browser keeps is owned by login:
+  `?csrf=1` answers `owner`, a label of the login (the identity cookie carries it as
+  `who`), and an item with no owner is dropped. Slots `data-ls-app-banner`, `-show-out`,
+  `-show-in`, `-status`; docs under /docs/app and in the layouts briefing. New:
+  t/unit/extensions/77, 78 (a 127.0.0.1 endpoint stand-in); t/unit/odoo/28, 41.
+
+- SM1397 (PENDING) **A site with no favicon answers with the engine's.** `/favicon.ico`
+  and `/favicon.svg` that reach the engine on a site with no such file are answered with
+  a small neutral mark (an SVG, and a real 16x16 ICO), cacheable for an hour; a file the
+  site has wins. t/unit/processor/181.
+
+- SM1398 (PENDING) **`page_url_raw`, the raw twin of `page_url`** for JSON-LD through
+  `| json`, under the SM824 contract. t/unit/processor/144.
+
+- Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
+  as a candidate.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

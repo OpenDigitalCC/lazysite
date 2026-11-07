@@ -1865,6 +1865,11 @@ sub main {
     # a link nobody else answers and can never shadow site content.
     return if _remap_redirect();
 
+    # SM1397: a site with no favicon of its own answers /favicon.ico and
+    # /favicon.svg with the engine's, so a hand-made layout that links one does
+    # not 404 on a fresh site. Last, after every file, page, alias and rule.
+    return if _serve_favicon_fallback($uri);
+
     # No source found - serve 404 page
     not_found($uri);
 }

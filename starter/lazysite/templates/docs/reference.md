@@ -216,6 +216,10 @@ See [Configuration](/docs/configuration) for full details.
   never the query. Already escaped, so write it as `[% page_url %]` in
   `og:url` and `<link rel="canonical">`. Empty when `site_url` is not set.
 
+`page_url_raw`
+: The same address, unescaped, for JSON-LD through `| json` and nowhere else
+  (SM1398): `"url": [% page_url_raw | json %]`.
+
 `page_source`
 : Docroot-relative path of the source `.md` file, e.g. `/about.md`.
   Useful for admin bar and edit links.

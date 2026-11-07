@@ -430,6 +430,10 @@ sub _render_stash {
         # request's Host) and the path, no query - escaped ONCE, so a layout writes
         # `[% page_url %]` for og:url and the canonical link without `| html`.
         page_url => _esc_html( _canonical_page_url( \%site_vars ) ),
+        # SM1398: its raw twin, under the SM824 contract above - never in markup,
+        # only inside `| json`, so a layout can put the address into JSON-LD
+        # without `&#39;` or `&amp;` landing in a JSON string.
+        page_url_raw => _canonical_page_url( \%site_vars ),
         # The visitor's address, via SM929's one definition: the direct peer unless
         # it is a trusted proxy, and then the rightmost hop of X-Forwarded-For that
         # a trusted peer did not contribute. Per-request, so only correct on a

@@ -53,8 +53,17 @@ sub present {
     my ($id) = @_;
     return undef unless ref $id eq 'HASH';
     my %o;
-    for my $k (qw(name lang tz)) {
+    for my $k (qw(name lang tz who)) {
         $o{$k} = "$id->{$k}" if defined $id->{$k} && !ref $id->{$k} && length $id->{$k};
+    }
+    # SM1396 (ruling 53): `who`, the label of the login - the hash the records
+    # already name a sign-in by (Session::login_label), never the login itself -
+    # so that what a browser keeps for a person (the offline kit's reads and
+    # queued writes) is owned by login and shown to no other. Derived here, at
+    # the mint, from the login OOM gave; a cookie carries the label alone.
+    if ( !defined $o{who} && defined $id->{login} && !ref $id->{login} && length $id->{login} ) {
+        require Lazysite::Odoo::Session;
+        $o{who} = Lazysite::Odoo::Session::login_label( $id->{login} );
     }
     $o{company_id} = 0 + $id->{company_id} if defined $id->{company_id} && !ref $id->{company_id} && $id->{company_id} =~ /\A[0-9]+\z/;
     $o{company_ids} = [ map { 0 + $_ } grep { defined && !ref && /\A[0-9]+\z/ } @{ ref $id->{company_ids} eq 'ARRAY' ? $id->{company_ids} : [] } ];
@@ -89,6 +98,15 @@ sub shown {
     return undef unless ref $id eq 'HASH';
     my %o = map { ( $_ => $id->{$_} ) } grep { defined $id->{$_} && length $id->{$_} } qw(name);
     return %o ? \%o : undef;
+}
+
+# SM1396: the owner label of an identity (`who`, above), for `?csrf=1`'s `owner`,
+# or undef when the identity carries none. Checked to its shape, so nothing
+# else a cookie might carry is answered under this name.
+sub owner_label {
+    my ($id) = @_;
+    return undef unless ref $id eq 'HASH' && defined $id->{who} && !ref $id->{who};
+    return $id->{who} =~ /\Asignin:[0-9a-f]{16}\z/ ? $id->{who} : undef;
 }
 
 sub _b64u {

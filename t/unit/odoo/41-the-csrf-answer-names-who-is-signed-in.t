@@ -88,6 +88,20 @@ subtest '?csrf=1 names the person from the identity cookie, and asks Odoo nothin
     is( scalar @{ $http->posts },      $posts, 'no round trip to Odoo through the session' );
     is( scalar @{ $conn_fake->calls }, $calls, 'and none as the connection user' );
     unlike( $raw, qr/company|groups|lang|Europe|login|jane\@example/, 'nothing else about the person: no login, company, groups, language or zone' );
+    # SM1396 (ruling 53): and `owner`, the label of the login (the one the records
+    # use), beside the identity - what the offline kit keeps for a person is owned
+    # by it, and the label names nobody to a reader.
+    like( $j->{owner} // '', qr/\Asignin:[0-9a-f]{16}\z/, 'the owner label, in the shape the records use' );
+    is( $j->{owner}, Lazysite::Odoo::Session::login_label('jane@example.com'), 'the label of this login' );
+};
+
+subtest 'the owner label goes with the identity, and nobody signed in has none' => sub {
+    my ( undef, undef, $j ) = request( 'GET', 'csrf=1', undef, HTTP_COOKIE => "$VC; $SESSION" );
+    ok( !exists $j->{owner}, 'no identity cookie: no owner (nothing is kept for nobody)' );
+    ( undef, undef, $j ) = request( 'GET', 'csrf=1', undef, HTTP_COOKIE => "$VC; $IDENT" );
+    ok( !exists $j->{owner}, 'an identity with no Odoo session behind it: no owner' );
+    ( undef, undef, $j ) = request( 'GET', 'csrf=1' );
+    ok( !exists $j->{owner}, 'a visitor: no owner' );
 };
 
 subtest 'the identity is shown only while it can be trusted' => sub {

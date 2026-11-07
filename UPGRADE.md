@@ -99,6 +99,40 @@ built by hand before Odoo was enabled, the check names it (`enabled extensions w
 declarations are indexed and whose hooks are not`) and the actions answer "cannot run
 now" until the index is rebuilt the same way.
 
+**The Odoo browser helper and the sign-in component are the extension's (SM1369,
+X5's asset part).** `/assets/lazysite-odoo.js` is no longer a file in the docroot: the
+upgrade removes `{DOCROOT}/assets/lazysite-odoo.js` (it left the manifest; an edited
+copy is kept with its orphan warning, and then still served by the front end as a
+static file, so delete it to get the engine's) and lays the file out at
+`{DOCROOT}/../extensions/odoo/assets/lazysite-odoo.js`, where the engine serves it
+from at the same path, `/assets/lazysite-odoo.js` (and at `/assets/odoo-lazysite-odoo.js`),
+on every domain, while the Odoo extension is on. The component `::: odoo-signin` moves
+from `{LAZYSITE}/templates/components/` to `{DOCROOT}/../extensions/odoo/templates/components/`
+and renders as before. The upgrade rebuilds the hook index, which is how the engine
+finds both; a site that enables Odoo by editing `lazysite.conf` by hand must run
+`lazysite upgrade` or `reinstall`, or save the extension's settings once, for the index
+to be built. Nothing a layout references changes: `[% odoo_signin_banner %]`,
+`[% odoo_display_name %]`, `data-ls-odoo-*` and the helper's path stay.
+
+What does change: **with the Odoo extension off, the helper is not served and not added
+to a page** (before, the docroot carried a copy whatever the conf said). A site that
+used the helper with the extension disabled had nothing for it to talk to.
+
+The front end needs nothing: a request for a missing `/assets/...` path already reaches
+the engine on the shipped nginx and Apache configurations (`try_files` and
+`FallbackResource`).
+
+**The offline kit (SM1396).** A new extension, `app-offline`, off until enabled on the
+Extensions page; it needs the Odoo extension on. Enabling it adds nothing to a page
+until a layout renders `[% app_offline_kit %]`. The page endpoint's `?csrf=1` answers
+one more field, `owner` (a label of the signed-in login), and the identity cookie
+carries it as `who`; a person signed in before the upgrade gets it when their identity
+cookie is next refreshed (`odoo_identity_ttl`, default 15 minutes), and until then the
+kit keeps nothing for them.
+
+**A favicon for a site with none (SM1397)** and **`page_url_raw` (SM1398)** need
+nothing from an operator.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

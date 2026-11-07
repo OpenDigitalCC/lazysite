@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL: X0, X1 shipped in 0.16.6; X7 part one in 0.16.7. Built for 0.16.8: X2 on n768 (capability_info, api_actions, refusal_kinds live; Odoo's ten actions and two capabilities declared, wire unchanged); X3 on n769 (page sources and handler types declared; Odoo's sources and type on the hooks). Next X5 asset part, X8; X4, X6, X7's rest in 0.16.9."
+status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7. Built for 0.16.8: X2 on n768 (capabilities, actions, refusal kinds; Odoo's declared, wire unchanged); X3 on n769 (page sources, handler types); X5's asset part on n770 (assets, components, template_vars; Odoo's helper, component, banner), X8 (SM1396) on it. Next X4, X5's endpoint and services, X6, X7's rest (0.16.9)."
 ---
 
 # The ruling
@@ -359,6 +359,58 @@ Tests
   relied on the type or the source being core's. Each fails with its change
   reverted.
 
+# X5, the asset part: assets, components and template variables (H-10)
+
+Built on n770 for 0.16.8, as ruling 74 (D-9) places it: before the offline kit,
+which is the hooks' second consumer (SM1396). The endpoint kit (H-4), the
+services (H-5) and H-10's system pages and docs stay for 0.16.9.
+
+The declaration
+: Three kinds go live in `Lazysite::Extensions::Hooks`:
+  `assets => [ { file, inject_when, alias, attrs } ]`, `components => [ { file } ]`
+  and `template_vars => [ { name, render } ]`. Each is checked beyond its shape:
+  a file is one name with an extension, never a path; `inject_when` is a data
+  attribute; an alias is a path under `/assets/` that is not one of the engine's
+  own assets; a variable's name is a plain identifier that no core variable
+  uses. The index build refuses a declaration whose file is not a regular file
+  in the payload (`assets/<file>`, `templates/components/<file>`), indexes an
+  entry that names files even when it names no function, and records the
+  payload directory.
+
+What core does with it
+: A new processor part, `lazysite-processor/extensions.pm`, reads the index
+  module-free (R-4) and reads the enabled list again (G-1). It serves a declared
+  asset from the payload at `/assets/<id>-<file>` and at its alias, on every
+  domain, as the engine's own assets are served; it adds a declared script to a
+  page whose rendered markup carries the `inject_when` attribute, once, with the
+  data attributes the `attrs` function answers, escaped; it gives a layout and a
+  component each declared variable as a code reference the template engine calls
+  only when a template names it; and it finds a declared component after the
+  layout's and the engine's own. An extension's function is reached only through
+  `Hooks::call_hook`.
+
+Odoo's declaration
+: The helper (`lazysite-odoo.js`, `inject_when` `data-ls-odoo`, alias
+  `/assets/lazysite-odoo.js`, the display name on the tag through
+  `Name::script_attrs`), the `odoo-signin.tt` component, and the variables
+  `odoo_signin_banner` (`SiteSignin::banner`) and `odoo_display_name`
+  (`Name::display_name_var`). The helper and the component move into the
+  payload (`extensions/odoo/assets`, `extensions/odoo/templates/components`) and
+  install there; the pipeline line, `_inject_odoo_helper`, `_odoo_signin_banner`
+  and `_odoo_display_name` leave core. Lint 321's allow-list is 39 files. A
+  behaviour change to note: with the extension off, the helper is neither
+  injected nor served (off means off), where before the docroot carried a copy.
+
+Tests
+: `t/unit/extensions/76` (a fixture extension's asset served at both paths and
+  injected once with its attributes, its variable and component rendered,
+  nothing of it when disabled or absent from the conf, the two index readers
+  agree, the refusals); `t/unit/extensions/70` covers the live kinds;
+  `t/integration/174` serves the alias and the declared path on the primary and
+  on a content-rooted domain, and nothing with the extension off; 171, 172 and
+  the Odoo tests build the index as the manager would
+  (`TestHelper::index_extensions`).
+
 # Choices made
 
 Each of these is a point the proposal leaves open where the choice changes
@@ -393,6 +445,9 @@ C-20 | X3: the dying source's log | Two lines: the loader's, naming the extensio
 C-21 | X3: `AddressRefs` loads the handler catalogue | It asks `Lazysite::Handlers` which fields of which types name profiles, so an extension's type is found as a core one is | A second, hand-kept list of fields, which is the drift the module's own header refuses
 C-22 | X3: the field type's name | `address_profiles`: the proposal and the brief say `address_list` (I-13, written before SM1343), and ruling 56 (lint 320) refuses that vocabulary in a functional file | `address_list`, exempted in lint 320 by name
 C-23 | X3: the pool's preload | The pool preloads `Lazysite::Extensions::Hooks` and no Odoo module (lint 269: the list is what the processor's parts name); a hook's modules load in a worker on first use | Keep Odoo's four modules preloaded for the warm path, which lint 269 refuses as modules nothing names
+C-24 | The injected tag's path (X5) | The alias when one is declared (`/assets/lazysite-odoo.js`), so a page that loads the helper by the documented path is not given it twice | The declared path, `/assets/<id>-<file>`, with the alias answering as well
+C-25 | A declared asset with the extension off (X5) | Not served and not injected: off means off (G-1); before, the docroot carried the helper whatever the conf said | Keep serving a file whose extension is off
+C-26 | What the index build sees on `@INC` (X5) | The test helper builds a fixture's index with the in-tree payload libs off `@INC`, as a site's processes have it; the rule C-3 stands unchanged | Relax C-3's "found nowhere else" for a copy under the engine's own tree
 ```
 
 # ADR 0007

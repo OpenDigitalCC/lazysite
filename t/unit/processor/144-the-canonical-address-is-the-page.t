@@ -27,9 +27,11 @@ spit( "$d/lazysite/layouts/test/layout.tt",
     . '<link rel="canonical" href="[% site_url | html %][% request_uri | html %]">'
     . '<meta property="og:url" content="[% site_url | html %][% request_uri | html %]">'
     . '<meta name="x-page-url" content="[% page_url %]">'
+    . '<script type="application/ld+json">{"url":[% page_url_raw | json %]}</script>'
     . '</head><body>[% content %]<nav>[% request_uri %]</nav></body></html>' );
 spit( "$d/about.md", "---\ntitle: About\n---\nAbout.\n" );
 spit( "$d/bare.md",  "---\ntitle: Bare\n---\nBare.\n" );
+spit( "$d/it's.md",  "---\ntitle: Quote\n---\nQuote.\n" );
 
 # A front end that sets REDIRECT_URL to the path, and one that sets only the raw
 # REQUEST_URI (the edge's case): both must come out the same.
@@ -65,6 +67,19 @@ for my $mode ( [ redirect => \&get_redirect ], [ raw => \&get_raw ] ) {
         is_deeply( [ $canon, $og, $pu ], [ ('https://site.test/bare') x 3 ], 'all three name the page' );
     };
 }
+
+# SM1398: page_url arrived escaped with no `_raw` twin, unlike the other page_*
+# variables (SM824), so a layout could not put it into JSON-LD through `| json`
+# without `&#39;` landing in a JSON string. page_url_raw is the same address,
+# raw, for `| json` alone.
+subtest 'page_url_raw is the address for JSON-LD, through | json' => sub {
+    my $o = get_redirect( '/about', '' );
+    like( $o, qr{<script type="application/ld\+json">\{"url":"https://site\.test/about"\}</script>}, 'a plain address, as JSON' );
+    my $q = get_redirect( q{/it's}, '' );
+    like( $q, qr{content="https://site\.test/it&#39;s"},    'page_url is escaped for markup' );
+    like( $q, qr{\{"url":"https://site\.test/it's"\}},     'page_url_raw through | json is the address itself' );
+    unlike( $q, qr{"url":"https://site\.test/it&#39;s"}, 'and no entity reaches the JSON' );
+};
 
 subtest 'a cached hit opened with another query carries no query' => sub {
     get_redirect( '/about', 'first=visitor&secret=1' );    # the render that fills the cache

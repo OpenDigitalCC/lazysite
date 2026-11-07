@@ -22,6 +22,7 @@ use TestHelper qw(site_tempdir);
 
 use Lazysite::Odoo::Identity ();
 use Lazysite::Odoo::Visitor  ();
+use Lazysite::Odoo::Session  ();
 
 my $d = site_tempdir();
 {
@@ -43,8 +44,12 @@ subtest 'a cookie carries what a page may show, and not a key to anything' => su
     is( $got->{company_id}, 1,               'the company' );
     is_deeply( $got->{company_ids}, [ 1, 3 ], 'and those allowed' );
     is_deeply( $got->{groups}, [], 'and the groups, as many as OOM gives (none, until it gives any)' );
-    is_deeply( [ sort keys %$got ], [qw(company_id company_ids groups lang name tz)],
+    # SM1396 (ruling 53): and `who`, the label of the login the records already use
+    # (Session::login_label) - never the login - so what a browser keeps is owned by it.
+    is_deeply( [ sort keys %$got ], [qw(company_id company_ids groups lang name tz who)],
         'and nothing else: no id, no login, no admin flag, no session, no password' );
+    is( $got->{who}, Lazysite::Odoo::Session::login_label('jane@example.com'), 'who is the login\'s label, the one the records use' );
+    unlike( $got->{who}, qr/jane|example/, '...and not the login' );
     unlike( $c, qr/sidabcdef0123456789|hunter2|jane\@example/, 'and none of it is in the cookie value either' );
     my ($b64) = split /\./, $c;
     require MIME::Base64;

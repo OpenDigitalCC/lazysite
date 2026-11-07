@@ -748,6 +748,31 @@
       "path": "{DOCROOT}/../extensions/odoo/templates/components",
       "mode": "0755",
       "why": "as ../extensions/odoo - SM1369 X5, the ::: odoo-signin component (owns.hooks.components)"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/app-offline",
+      "mode": "0755",
+      "why": "as ../extensions - SM1396, the offline kit extension's payload beside its descriptor (ruling 53)"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/app-offline/lib",
+      "mode": "0755",
+      "why": "as ../lib - the offline kit's own module (its payload lib, the X1 layout)"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/app-offline/lib/Lazysite",
+      "mode": "0755",
+      "why": "as ../lib"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/app-offline/lib/Lazysite/Ext",
+      "mode": "0755",
+      "why": "as ../lib - Lazysite::Ext::<Extension>, the shape ruling 68 gives an extension's modules"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/app-offline/assets",
+      "mode": "0755",
+      "why": "as ../extensions/app-offline - the kit (owns.hooks.assets), served by the processor from here at /assets/app-offline-kit.js"
     }
   ]
 }

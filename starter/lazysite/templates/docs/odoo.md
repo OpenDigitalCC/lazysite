@@ -685,9 +685,14 @@ The two cookies:
 
 `lzs_odoo_identity`
 : Who the person is, for a page to show: name, language, time zone, companies
-  and groups. Signed, `HttpOnly`, `SameSite=Lax`, valid for `odoo_identity_ttl`, and
-  refreshed from the session by the next call that reaches Odoo once it has ended.
-  Presentation only: nothing in the engine reads it to permit anything.
+  and groups, and a label of the login (`who`: the hash the call records name a
+  sign-in by, never the login). Signed, `HttpOnly`, `SameSite=Lax`, valid for
+  `odoo_identity_ttl`, and refreshed from the session by the next call that
+  reaches Odoo once it has ended. Presentation only: nothing in the engine reads
+  it to permit anything. `?csrf=1` answers the label as `owner`, beside
+  `identity`, while the person is signed in and the identity is inside its time:
+  it is what the offline kit (the `app-offline` extension) owns a person's kept
+  data by.
 
 A call, once signed in:
 
@@ -872,7 +877,10 @@ site without it behaves as it always did.
 
 `/assets/lazysite-odoo.js` is the one module a page uses to talk to the endpoint. It
 is added to a page whose markup carries `data-ls-odoo`, `data-ls-odoo-signin` or
-`data-ls-odoo-signout`, and to no other.
+`data-ls-odoo-signout`, and to no other. It is the extension's own file, served by
+the engine from the extension while the extension is on (an asset the extension
+declares; the path is its alias, and `/assets/odoo-lazysite-odoo.js` is the same
+file). With the extension off, the path is not found.
 
 ```
 <div data-ls-odoo="shop-list" data-ls-odoo-limit="10">

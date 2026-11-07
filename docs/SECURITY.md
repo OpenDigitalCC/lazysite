@@ -3851,3 +3851,131 @@ verdict
   compliance walk. No ADR 0007 trigger fires; recorded because the request path and the
   handler catalogue gain their first callers of boundary 15's loader, as the X1 entry
   said each slice would be.
+### 2026-11-07 - SM1369 X5, the asset part (0.16.8): an extension's files and variables reach the page through the index
+
+Assessment drafted by the developer agent (n770) for the release manager's confirmation.
+Ruling 55; the design is the extension-hooks proposal's H-10 and "How a hook is found
+and run".
+
+what changed
+: Three hook kinds go live: `assets` (a file in the extension's payload, served by the
+  processor at `/assets/<id>-<file>` and at a declared alias, on every domain, and
+  added to a page whose rendered markup carries the attribute `inject_when` names, with
+  the data attributes an `attrs` function answers), `components` (a component template
+  in the payload) and `template_vars` (a layout variable rendered by the extension's
+  function). A new processor part, `lazysite-processor/extensions.pm`, reads the hook
+  index module-free and reads the enabled list again, and reaches an extension's
+  function only through `Hooks::call_hook`. Odoo's helper, sign-in component, banner
+  and display name become declarations; the helper and the component move into
+  `extensions/odoo/`; the four core lines that knew them leave.
+
+threat delta
+: None of ADR 0007's four triggers fires. No new external interface: the asset paths
+  are the existing `/assets/` surface, serving files the package already shipped into
+  the docroot, now from the extension's payload; a template variable and a component
+  are rendered server side as the core ones are. No new sign-in method, no new
+  dependency, no new restricted data. The questions are Tampering and Information
+  disclosure through what a declaration can name, and Elevation of privilege through
+  the code it reaches. A declaration could name a file outside the payload, an alias
+  that replaces an engine asset, a variable that shadows a core one, a module that is
+  not the extension's, or an attribute that is not a data attribute; an index left
+  behind could serve a disabled extension's file.
+
+controls
+: A file is one name with an extension, never a path (`_plain_file`), and the index
+  build refuses a declaration whose file is not a regular file, not a link, in the
+  payload's `assets/` or `templates/components/` (`check_payload_files`); the
+  processor serves only a path built from the index's id and the declared name,
+  under the payload the index names, re-checked as a regular file, of a type in
+  `%STATIC_CT`. An alias is a path under `/assets/` that is not one of the engine's
+  own assets (`%CORE_ASSETS`); a variable's name is a plain identifier that no core
+  variable uses (`%CORE_VARS`); an injected attribute is dropped unless it is
+  `data-*` with a plain value, and its value is escaped. A function is reached only
+  through `call_hook`: the extension and what it requires on at the call, the module
+  the extension's own and found nowhere else on `@INC` (C-3, unchanged); a function
+  that dies answers nothing. The processor reads the enabled list again
+  (`_extension_entries`), so an index left behind serves nothing of an extension the
+  conf does not list. t/unit/extensions/76 covers each: served at both paths, injected
+  once with the escaped attribute and the non-data attribute dropped, nothing when
+  disabled or absent from the conf, the two index readers to one answer, and the
+  refusals (a file not in the payload, an alias of a core asset, a path as a file
+  name, a non-data `inject_when`, a core variable's name).
+
+residual risk
+: A shipped extension is trusted code (the proposal's "What the model does not
+  claim"): its `attrs` and `render` functions run in the processor as the site user
+  and answer what they answer; only the attribute names and the escaping are core's.
+  With the extension off the helper is not served, where before the docroot carried a
+  copy: a page that loaded it with the extension off loses a script that had nothing
+  to talk to.
+
+verdict
+: drafted: no trigger fires; recorded because the processor now serves files and
+  renders markup named by an extension's declaration, under the checks above.
+
+### 2026-11-07 - SM1396 (0.16.8): the offline kit keeps a person's reads and queued writes in their browser, owned by login
+
+Assessment drafted by the developer agent (n770) for the release manager's confirmation.
+Ruling 53 (the condition: owned by login, an item with no owner is nobody's), ruling 74.
+SM1397 (a favicon fallback: two fixed public bytes-strings, a site's file winning) and
+SM1398 (`page_url_raw`, under the SM824 raw-twin contract) move no control.
+
+what changed
+: A new extension, `app-offline` (`requires: odoo`), declares one script and one
+  template variable through SM1369 X5's hooks. The script wraps the Odoo browser
+  helper: it keeps the last good answer to each read, queues a change made with no
+  signal (or cut off before an answer) and sends it once the signal is back with the
+  `Idempotency-Key` the endpoint already honours (SM1223), and shows the connection,
+  the signed-in state and the app's install and update state in a layout's slots. The
+  page endpoint's `?csrf=1` answers one more field, `owner`: `Session::login_label`, the
+  hash of the login the call records already name a sign-in by. The identity cookie
+  carries it as `who`, derived at the mint from the login OOM gave (`Session::_facts`);
+  on a site whose Odoo sign-in is the site sign-in it comes from the site session's
+  identity. The kit stores what it keeps in the browser's localStorage, under the
+  site's origin, keyed by owner.
+
+threat delta
+: None of ADR 0007's four triggers fires: the kit posts to the existing endpoint
+  through the existing helper and header; no sign-in method, dependency or restricted
+  data is added (the label is what the records already hold). The questions are
+  Information disclosure on a shared browser (one person's kept answers or queued
+  changes shown to, or sent as, another), Tampering of the queue (a change sent twice,
+  or a change kept for nobody sent as whoever signs in next), and the identity cookie
+  now naming the person by a label.
+
+controls
+: Owned by login: a kept read or a queued change is stored under the owner the
+  endpoint named, shown only while the same owner is signed in, and a flush sends
+  only the current owner's queue; a write with no owner is refused (`no-owner`) and
+  kept nowhere; signing out drops the person's kept reads. The label is a truncated
+  SHA-256 of the login under a fixed prefix (`signin:` + 16 hex), checked to that
+  shape before it is answered (`Identity::owner_label`) and before the kit accepts it;
+  it names nobody to a reader and authorises nothing (OI4: the identity cookie permits
+  nothing, unchanged). Sent once: every change carries an `Idempotency-Key`, a queued
+  change is sent again only with the same key, one flush runs at a time, and an item
+  leaves the queue on any answer. The store holds what the endpoint answered a page
+  and what the page asked to send: never the visitor token, a cookie (HttpOnly, the
+  script cannot read them) or a password. t/unit/extensions/78 drives the kit against
+  a 127.0.0.1 endpoint stand-in: two `online` events send each queued change once; a
+  cut-off send is sent again with the same key; no owner is refused; another login's
+  queue is not sent and stays theirs; another login finds no kept read; sign-out drops
+  the reads and keeps the queue; the store holds no token. t/unit/odoo/41: `owner` is
+  the label, absent for a visitor, a lapsed identity and an identity with no session;
+  t/unit/odoo/28: the cookie's keys.
+
+residual risk
+: What the browser keeps is as safe as the browser's storage for that origin: a
+  person who leaves a shared device signed in leaves their kept answers readable by
+  the next person at that device, as the page itself would be; signing out drops them.
+  A queued change waits in storage until its owner signs in again, or the person
+  clears the site's data. The identity cookie now carries a hash of the login where it
+  carried none (OI2 named "a login" among what it never carries; a hash of one is
+  added, the same hash the audit records carry); t/unit/odoo/28 pins the cookie's keys
+  and was changed accordingly. For the release manager: confirm that the label in the
+  cookie is within the cookie's contract, or rule that the kit learns the owner from
+  the sign-in answer in the browser instead (SM1396 K-1).
+
+verdict
+: drafted: no trigger fires; recorded because a browser now keeps a person's data
+  across pages under a label the server gives, and the identity cookie's contents
+  changed by one key.

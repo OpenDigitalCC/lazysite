@@ -222,6 +222,69 @@ window.addEventListener('lazysite-app-update', function (e) {
 A page that adds its listener late reads `window.lazysiteApp.apply`, which is set
 while an update waits. Calling it posts `skip-waiting` to the new worker.
 
+## The offline kit (the `app-offline` extension)
+
+A page the worker keeps opens with no signal; the offline kit makes it work with
+none. It is an engine extension, `app-offline`, off until a sysop enables it on
+the Extensions page, and it needs the Odoo extension: what it keeps and sends
+goes through the Odoo browser helper and the page endpoint. Nothing is added to
+a page until a layout asks for it.
+
+What a layout does
+: Render `[% app_offline_kit %]` once, in `<head>` or before `</body>`. It is
+  the script tag while the extension is on and nothing otherwise, so a layout
+  can carry it on every site. No layout ships a script of its own: the kit is
+  the engine's, at `/assets/app-offline-kit.js`.
+: Carry the slots it fills, each an element with one attribute:
+  `data-ls-app-banner` (shown while the browser is offline, hidden while it is
+  online; write its text yourself), `data-ls-app-show-out` (shown while nobody
+  is signed in) and `data-ls-app-show-in` (shown while somebody is), and
+  `data-ls-app-status` (the kit writes "Installed as an app" or "Running in
+  the browser", the number of changes waiting, and "A new version is ready -
+  tap to update" when the worker holds one under `app_update: wait`; a tap
+  applies it). Each is toggled with `hidden` and marked `data-ls-app-state`,
+  so a stylesheet can style the states.
+
+What the kit does
+: **A connection banner**, from the browser's own online and offline events
+  and from a call that could not be made.
+: **Kept reads.** The last good answer to each read a page makes through the
+  helper (`LazysiteOdoo.read`, and the regions it fills) is kept; when the same
+  read fails for want of a network, the kept answer is given instead, marked
+  `kept` with the time it was kept, and a region is marked
+  `data-ls-app-kept="<time>"`. A read never made is not invented.
+: **A write guard.** `LazysiteAppOffline.write(binding, params, opts)` takes what
+  `LazysiteOdoo.write` takes. Online, the change is sent at once with an
+  `Idempotency-Key` (the page's `opts.idempotencyKey`, or one the kit makes) and
+  the answer is the endpoint's. With no signal, or when the send was cut off
+  before an answer came, the change is queued and the answer says
+  `{kind: "queued", key}`. A queued change is sent once the signal is back, in
+  order, with the same key - so a send the network cut off is sent again
+  without the server writing twice (see the Odoo guide, "A write sent twice").
+  A change that carries a file is never queued.
+: **The queue.** Sent when the browser comes online, when the page is shown
+  again, after a sign-in, and when the page loads; one flush at a time. A
+  change leaves the queue when any answer comes back, and the page is told
+  through a `lazysite-app-offline` event on `window` (`detail.type` is `queued`
+  or `sent`, with the key, the binding, and for `sent` the status and the
+  answer). It stays when the send was cut off, or when the endpoint says the
+  person must sign in again.
+: **Install and update status**, in the status slot, from the app worker's
+  `lazysite-app-update` event.
+: **Sign-out.** Signing out through the helper drops what was kept for the
+  person. A queued change waits for them.
+
+Whose it is
+: What the browser keeps is owned by the signed-in login: the page endpoint's
+  `?csrf=1` names the person by `owner`, a label of their login (the one the
+  call records use, never the login itself), and a kept read or a queued change
+  is stored under it, shown to and sent for no other login on the same browser.
+  A change made while nobody is signed in, or while the identity has lapsed
+  (`odoo_identity_ttl`), is refused as `no-owner` and kept nowhere. The store
+  is the browser's own, under the site's origin; it holds what the endpoint
+  answered a page and what a page asked to send, never a token, a cookie or a
+  password.
+
 ## When the app does not install
 
 The worker needs a secure context: https, or `localhost`. A phone on

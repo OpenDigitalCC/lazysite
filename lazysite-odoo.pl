@@ -254,14 +254,24 @@ sub main {
             $visitor = $key;
             push @EXTRA, Lazysite::Odoo::Visitor::set_cookie_header( $cookie, secure => $ENV{HTTPS} ? 1 : 0 );
         }
-        my $who = $odoo_session ? _who_is_signed_in() : undef;
+        my ( $who, $owner ) = $odoo_session ? _who_is_signed_in() : ();
         if ( Lazysite::Odoo::SiteSignin::enabled( Lazysite::Paths::lazysite_dir($docroot) ) ) {
             ( $user, $who, $odoo_session ) = _site_state( $docroot, $user, $who, $odoo_session );
+        }
+        # SM1396 (ruling 53): `owner`, the label of the signed-in login - what a
+        # browser keeps for a person is owned by it. From the identity cookie's
+        # label, or on an opted-in site from the site session's identity
+        # (`odoo:<login>`); absent when nobody is signed in or the identity has
+        # lapsed, and a page then keeps nothing and sends nothing kept.
+        $owner = undef unless $odoo_session;
+        if ( !defined $owner && length $user && $user =~ /\Aodoo:(.+)\z/s ) {
+            $owner = Lazysite::Odoo::Session::login_label($1);
         }
         return reply( '200 OK',
             { ok => 1, visitor_token => Lazysite::Odoo::Visitor::csrf_token($visitor),
                 odoo_signed_in => ( $odoo_session ? 1 : 0 ),
                 ( $who ? ( identity => $who ) : () ),
+                ( defined $owner && length $owner ? ( owner => $owner ) : () ),
                 ( length $user ? ( token => Lazysite::Auth::Session::generate_csrf_token($user) ) : () ) } );
     }
 
@@ -410,11 +420,12 @@ sub _address_refusal {
 # absent, ended or altered. Nothing is asked of Odoo here (the next call that
 # reaches Odoo freshens an ended cookie, OI3), so a page that only wants a name
 # costs no Odoo call. Presentation only (OI4): nothing is permitted by it.
+# ( what a page is shown, the owner label ) - the second for SM1396's `owner`.
 sub _who_is_signed_in {
     require Lazysite::Odoo::Identity;
     my $id = Lazysite::Odoo::Identity::identity_from_cookie( $ENV{HTTP_COOKIE} // '',
         ttl => Lazysite::Odoo::Identity::configured_ttl() );
-    return Lazysite::Odoo::Identity::shown($id);
+    return ( Lazysite::Odoo::Identity::shown($id), Lazysite::Odoo::Identity::owner_label($id) );
 }
 
 # One POST that names a binding, or confirms a plan: ( status, data ) for reply.

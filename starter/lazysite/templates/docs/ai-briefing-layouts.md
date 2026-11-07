@@ -140,6 +140,21 @@ Always available:
 - `request_uri` - current URL path (no query string)
 - `page_url` - the page's full address with no query, already escaped: use it
   for `og:url` and the canonical link, as `[% page_url %]`
+- `page_url_raw` - the same address, raw, for JSON-LD alone: `[% page_url_raw | json %]`.
+  Never in markup (the `_raw` rule above).
+
+Variables an extension gives a layout, present only while that extension is
+on and empty otherwise, so a layout may render them on any site:
+
+- `odoo_signin_banner` (the Odoo extension) - "Signed in as <name>" with a
+  sign-out, on a site whose Odoo sign-in is the site sign-in; `odoo_display_name`,
+  the name the site gives Odoo (text: escape it)
+- `app_offline_kit` (the `app-offline` extension) - the offline kit's script tag,
+  for a site installed as an app. Render it once, and carry the kit's slots:
+  `data-ls-app-banner` (shown offline), `data-ls-app-show-out` and
+  `data-ls-app-show-in` (signed out, signed in) and `data-ls-app-status` (the
+  install state and a waiting update). See /docs/app, "The offline kit". No
+  layout ships a script: the kit, like the Odoo helper, is the engine's.
 
 D013 additions:
 

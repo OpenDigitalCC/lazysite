@@ -12,7 +12,8 @@ package main;
 #         sanitise_uri(), confine_content_root() and _path_under(), the path
 #         confinement; the escapers - _esc_html, _esc_query_value, _data_inert,
 #         _esc_query_stash, _tt_inert; _serve_content_static() (lint 127) with
-#         %STATIC_DENY, _is_engine_asset and _static_cache_control; the source
+#         %STATIC_DENY, _is_engine_asset and _static_cache_control;
+#         _serve_favicon_fallback with its SVG and ICO (SM1397); the source
 #         alternate (_wants_source_alternate, _source_alternate,
 #         @SOURCE_ALTERNATE_KEYS); _chrome_lang, _chrome and fetch_url, the
 #         lazily loaded helpers; peek_ttl, peek_content_type, peek_query_params;
@@ -275,6 +276,80 @@ sub _is_engine_asset {
             || _extension_asset($uri) ) ? 1 : 0;
 }
 
+
+# SM1397: A FAVICON FOR A SITE THAT HAS NONE. A layout with no `default_theme`
+# and no resolving theme emits `<link rel="icon" href="/favicon.svg">` (the
+# catalogue's layouts do), and on a fresh site the file is not there: every page
+# view costs a 404 in the log and a broken tab icon. Where a request for
+# /favicon.ico or /favicon.svg reaches the engine - the front ends hand a path
+# that maps to no file here - it is answered with the engine's own: a small
+# neutral document mark, as SVG and as a real 16x16 ICO (built here, 1.1 KB).
+#
+# A FILE THE SITE HAS WINS, from the domain's content root or the docroot, as a
+# registry's or the app's does (SM293, SM1155): the fallback answers only when
+# nothing else would. It is last in the pipeline, after every page, alias and
+# remap rule. Cacheable for an hour: a site that adds its own icon later is
+# served the file by its front end at once, and a browser that kept the
+# fallback asks again within the hour.
+sub _serve_favicon_fallback {
+    my ($uri) = @_;
+    return 0 unless defined $uri;
+    $uri =~ s/\?.*\z//;
+    return 0 unless $uri eq '/favicon.ico' || $uri eq '/favicon.svg';
+    my ($name) = $uri =~ m{/([a-z.]+)\z};
+    my $croot = _request_croot();
+    for my $root ( grep { defined && length } ( $croot, $DOCROOT ) ) {
+        return _serve_content_static( $root, $name, $uri ) if -f "$root/$name";
+    }
+    my ( $ct, $body ) = $name eq 'favicon.svg' ? ( 'image/svg+xml', _favicon_svg() ) : ( 'image/x-icon', _favicon_ico() );
+    $ACCESS_REC{s}  = 200;
+    $ACCESS_REC{ch} = 'registry';    # an engine answer, not a page view
+    binmode(STDOUT);
+    print "Status: 200 OK\n";
+    print "Content-Type: $ct\n";
+    print "$_\n" for _security_headers();
+    print "$_\n" for _timing_header();    # SM1144
+    print "Cache-Control: public, max-age=3600\n";
+    print 'Content-Length: ' . length($body) . "\n";
+    print "\n";
+    print $body unless ( $ENV{REQUEST_METHOD} // 'GET' ) eq 'HEAD';
+    $ACCESS_REC{b} = length $body;
+    return 1;
+}
+
+# The mark: a grey rounded square with a white page on it, 16 by 16.
+sub _favicon_svg {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+        . '<rect width="16" height="16" rx="3" fill="#6b7280"/>'
+        . '<path d="M4 3h5l3 3v7H4z" fill="#ffffff"/><path d="M9 3v3h3" fill="#d1d5db"/></svg>';
+}
+
+# The same mark as an ICO: one 16x16 entry, a 32-bit BMP (BITMAPINFOHEADER,
+# the height doubled for the AND mask, rows bottom-up, BGRA) and an all-zero
+# mask, so every pixel is drawn. Built once per process.
+my $FAVICON_ICO;
+
+sub _favicon_ico {
+    return $FAVICON_ICO if defined $FAVICON_ICO;
+    my ( $w, $h ) = ( 16, 16 );
+    my $grey  = pack( 'C4', 0x80, 0x72, 0x6b, 0xff );    # #6b7280, BGRA
+    my $white = pack( 'C4', 0xff, 0xff, 0xff, 0xff );
+    my $fold  = pack( 'C4', 0xdb, 0xd5, 0xd1, 0xff );    # #d1d5db
+    my $clear = pack( 'C4', 0,    0,    0,    0 );
+    my $px    = '';
+    for my $y ( reverse 0 .. $h - 1 ) {                   # bottom row first
+        for my $x ( 0 .. $w - 1 ) {
+            my $corner = ( $x <= 1 || $x >= 14 ) && ( $y <= 1 || $y >= 14 ) && ( $x == 0 || $x == 15 || $y == 0 || $y == 15 );
+            my $page   = $x >= 4 && $x <= 11 && $y >= 3 && $y <= 12;
+            my $foldp  = $x >= 9 && $y >= 3 && $y <= 5 && $page;
+            $px .= $corner ? $clear : $foldp ? $fold : $page ? $white : $grey;
+        }
+    }
+    my $mask = "\0" x ( $h * 4 );                          # 16 rows, 4 bytes each
+    my $dib  = pack( 'VVVvvVVVVVV', 40, $w, $h * 2, 1, 32, 0, length($px) + length($mask), 0, 0, 0, 0 ) . $px . $mask;
+    $FAVICON_ICO = pack( 'vvv', 0, 1, 1 ) . pack( 'CCCCvvVV', $w, $h, 0, 0, 1, 32, length($dib), 22 ) . $dib;
+    return $FAVICON_ICO;
+}
 
 # SM416: the asset Cache-Control, in one place for both the 200 and 304 paths.
 #
