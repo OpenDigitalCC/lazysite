@@ -48,7 +48,7 @@ sub slurp {
 }
 
 # Today and tomorrow in London, and the epoch of the next London midnight.
-my ( $today, $tomorrow_midnight ) = Lazysite::Data::Schedule::_in_zone( 'Europe/London', sub {
+my ( $today, $tomorrow_midnight ) = Lazysite::Data::Schedule::in_zone( 'Europe/London', sub {
     my @lt = localtime(time);
     my $t  = sprintf( '%04d-%02d-%02d', $lt[5] + 1900, $lt[4] + 1, $lt[3] );
     return ( $t, POSIX::mktime( 0, 0, 0, $lt[3] + 1, $lt[4], $lt[5], 0, 0, -1 ) );
@@ -69,7 +69,7 @@ apply_schema( $docroot, $_ ) for qw(opening offers);
 # Open 09:00 to 17:00 every day, and closed today by an exception - so whatever
 # the hour this runs, the page says the same thing until London's midnight.
 insert_row( $docroot, 'opening', { kind => 'period', day => $_, opens => '09:00', closes => '17:00' } )
-    for @Lazysite::Data::Schedule::DAYS;
+    for Lazysite::Data::Schedule::days();
 insert_row( $docroot, 'opening',
     { kind => 'exception', date_from => $today, closed => 'true', note => '<script>alert(1)</script>' } );
 insert_row( $docroot, 'offers', { name => 'OFFER-A', shows_until => '2099-12-31' } );
@@ -174,7 +174,7 @@ subtest 'a db: page with a ttl: refreshes on a row write, and expires with its d
     like( $out, qr{<li>OFFER-A</li>}, 'the rows render' );
     my $d = $deps->('offers');
     like( $d, qr{^=\Q$docroot\E/lazysite/db/stamps/offers$}m, 'the db: binding records its table\'s stamp' );
-    my $end = Lazysite::Data::Schedule::_in_zone( 'Europe/London',
+    my $end = Lazysite::Data::Schedule::in_zone( 'Europe/London',
         sub { POSIX::mktime( 0, 0, 0, 1, 0, 2100 - 1900, 0, 0, -1 ) } );
     like( $d, qr/^\@$end$/m, 'and the dated row\'s window is its expiry (the midnight after shows_until)' );
 

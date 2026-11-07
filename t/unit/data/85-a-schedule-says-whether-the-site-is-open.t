@@ -104,25 +104,25 @@ subtest 'a row the schedule could not read is refused at the write' => sub {
 
 subtest 'open now, across a period boundary' => sub {
     # Monday 2 March 2026 (GMT, no summer time yet).
-    my $s = Lazysite::Data::Schedule::state( \@week, $TZ, at( 2026, 3, 2, 11, 59 ) );
+    my $s = Lazysite::Data::Schedule::state_at( \@week, $TZ, at( 2026, 3, 2, 11, 59 ) );
     ok( $s->{open}, '11:59 on a Monday is open' );
     is( $s->{label}, 'Open now until 12:00', 'until the morning period closes' );
     is( $s->{expires}, at( 2026, 3, 2, 12, 0 ), 'and expires as it closes' );
 
-    $s = Lazysite::Data::Schedule::state( \@week, $TZ, at( 2026, 3, 2, 12, 0 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@week, $TZ, at( 2026, 3, 2, 12, 0 ) );
     ok( !$s->{open}, '12:00 is the lunch closure' );
     is( $s->{label}, 'Opens at 13:00', 'and opens again at 13:00' );
     is( $s->{expires}, at( 2026, 3, 2, 13, 0 ), 'which is when it expires' );
 
-    $s = Lazysite::Data::Schedule::state( \@week, $TZ, at( 2026, 3, 2, 17, 30 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@week, $TZ, at( 2026, 3, 2, 17, 30 ) );
     is( $s->{label}, 'Opens tomorrow at 09:00', 'after the last period, tomorrow' );
     is( $s->{expires}, at( 2026, 3, 3, 0, 0 ), 'expiring at midnight, when "tomorrow" becomes "today"' );
 
-    $s = Lazysite::Data::Schedule::state( \@week, $TZ, at( 2026, 3, 3, 17, 30 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@week, $TZ, at( 2026, 3, 3, 17, 30 ) );
     is( $s->{label}, 'Opens Friday at 18:00', 'further ahead, the day by name' );
 
     # Saturday 00:30 is inside Friday's 18:00-01:00.
-    $s = Lazysite::Data::Schedule::state( \@week, $TZ, at( 2026, 3, 7, 0, 30 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@week, $TZ, at( 2026, 3, 7, 0, 30 ) );
     ok( $s->{open}, 'a period past midnight is open the next morning' );
     is( $s->{label}, 'Open now until 01:00', 'until it closes' );
 
@@ -140,7 +140,7 @@ subtest 'an exception replaces the week' => sub {
         { kind => 'exception', date_from => '2026-03-20', date_until => '2026-03-22', closed => 1 },
         { kind => 'exception', date_from => '2026-02-01', closed => 1 },    # passed
     );
-    my $s = Lazysite::Data::Schedule::state( \@rows, $TZ, at( 2026, 3, 2, 10, 0 ) );
+    my $s = Lazysite::Data::Schedule::state_at( \@rows, $TZ, at( 2026, 3, 2, 10, 0 ) );
     ok( !$s->{open}, 'a closed date is closed at an hour the week is open' );
     is( $s->{label}, 'Opens tomorrow at 10:00', 'and the next opening is the next day\'s exception hours' );
     ok( $s->{today}{exception} && $s->{today}{closed}, 'today says it is an exception, closed' );
@@ -148,12 +148,12 @@ subtest 'an exception replaces the week' => sub {
     is( $s->{next_exception}{note}, 'Stocktake', 'with its note' );
     ok( !grep( { $_->{date_from} eq '2026-02-01' } @{ $s->{exceptions} } ), 'a passed exception is not listed' );
 
-    $s = Lazysite::Data::Schedule::state( \@rows, $TZ, at( 2026, 3, 3, 15, 0 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@rows, $TZ, at( 2026, 3, 3, 15, 0 ) );
     ok( !$s->{open}, 'other hours replace the week\'s: 15:00 on the 3rd is closed' );
     is( $s->{next_exception}{label}, 'Tuesday 3 March: open 10:00 to 14:00',
         'and the next exception names its hours' ) or diag explain $s->{next_exception};
 
-    $s = Lazysite::Data::Schedule::state( \@rows, $TZ, at( 2026, 3, 4, 9, 0 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@rows, $TZ, at( 2026, 3, 4, 9, 0 ) );
     is( $s->{next_exception}{label}, 'Closed Friday 20 March to Sunday 22 March', 'a range is named as one' );
 };
 
@@ -161,23 +161,23 @@ subtest 'the site\'s zone, across a change of the clocks' => sub {
     # Spring: at 01:00 UTC on 29 March 2026 London goes from 01:00 GMT to 02:00 BST.
     my @spring = ( { kind => 'period', day => 'sat', opens => '22:00', closes => '02:00' },
         { kind => 'period', day => 'sun', opens => '09:00', closes => '17:00' } );
-    my $s = Lazysite::Data::Schedule::state( \@spring, $TZ, at( 2026, 3, 29, 0, 30 ) );
+    my $s = Lazysite::Data::Schedule::state_at( \@spring, $TZ, at( 2026, 3, 29, 0, 30 ) );
     ok( $s->{open}, '00:30 GMT on the night the clocks go forward is open' );
     is( $s->{expires}, at( 2026, 3, 29, 1, 0 ), 'and 02:00 local that night is 01:00 UTC, the moment the clocks change' );
-    $s = Lazysite::Data::Schedule::state( \@spring, $TZ, at( 2026, 3, 29, 1, 30 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@spring, $TZ, at( 2026, 3, 29, 1, 30 ) );
     is( $s->{label}, 'Opens at 09:00', 'after it, closed' );
     is( $s->{expires}, at( 2026, 3, 29, 8, 0 ), '09:00 BST is 08:00 UTC' );
 
     # Autumn: at 01:00 UTC on 25 October 2026 London goes from 02:00 BST back to 01:00 GMT.
     my @autumn = ( { kind => 'period', day => 'sun', opens => '00:00', closes => '03:00' } );
-    $s = Lazysite::Data::Schedule::state( \@autumn, $TZ, at( 2026, 10, 24, 23, 30 ) );
+    $s = Lazysite::Data::Schedule::state_at( \@autumn, $TZ, at( 2026, 10, 24, 23, 30 ) );
     ok( $s->{open}, '00:30 BST on the night the clocks go back is open' );
     is( $s->{expires}, at( 2026, 10, 25, 3, 0 ), '03:00 GMT that night is 03:00 UTC - four hours after midnight BST' );
 
     # The same wall-clock period in summer and in winter is an hour apart in UTC.
     my @mon = ( { kind => 'period', day => 'mon', opens => '09:00', closes => '17:00' } );
-    my $summer = Lazysite::Data::Schedule::state( \@mon, $TZ, at( 2026, 6, 1, 6, 0 ) );
-    my $winter = Lazysite::Data::Schedule::state( \@mon, $TZ, at( 2026, 12, 7, 6, 0 ) );
+    my $summer = Lazysite::Data::Schedule::state_at( \@mon, $TZ, at( 2026, 6, 1, 6, 0 ) );
+    my $winter = Lazysite::Data::Schedule::state_at( \@mon, $TZ, at( 2026, 12, 7, 6, 0 ) );
     is( $summer->{expires}, at( 2026, 6, 1, 8, 0 ),  'in summer 09:00 opens at 08:00 UTC' );
     is( $winter->{expires}, at( 2026, 12, 7, 9, 0 ), 'in winter at 09:00 UTC' );
 };

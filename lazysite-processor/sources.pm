@@ -913,7 +913,7 @@ sub resolve_schedule {
     }
     my ( $tz, $tz_why ) = Lazysite::Data::Schedule::site_zone($DOCROOT);
     log_event( 'WARN', $ENV{REDIRECT_URL} // '-', $tz_why, key => $key ) if length $tz_why;
-    my $s = Lazysite::Data::Schedule::state( $r->{rows}, $tz );
+    my $s = Lazysite::Data::Schedule::state_at( $r->{rows}, $tz );
     _tt_dep_expires( $s->{expires} );
     _tt_dep_expires( $r->{expires} );
     log_event( 'WARN', $ENV{REDIRECT_URL} // '-',

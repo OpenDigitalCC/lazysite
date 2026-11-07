@@ -14,7 +14,6 @@
 #   * the summary carries titles, descriptions and the organisation entry;
 #   * `llms_txt: off` turns the summary off - not generated, not served - and
 #     leaves the sitemap as it was;
-#   * the system page names here are the script's %SYSTEM_PAGES.
 use strict;
 use warnings;
 use Test::More;
@@ -24,7 +23,7 @@ use File::Copy     qw(copy);
 use JSON::PP       ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
-use TestHelper qw(setup_test_site site_tempdir run_processor repo_root processor_path);
+use TestHelper qw(setup_test_site site_tempdir run_processor repo_root);
 
 sub spit {
     my ( $p, $t ) = @_;
@@ -111,19 +110,6 @@ subtest 'llms_txt: off turns the summary off, and only the summary' => sub {
     my $on = site();
     like( run_processor( $on, '/llms.txt' ), qr{^Status: 200}m, 'on by default' );
     ok( -e "$on/lazysite/cache/registries/_root/llms.txt", 'and generated where the off site has none' );
-};
-
-subtest 'the system page names are the script\'s' => sub {
-    open my $fh, '<', processor_path() or die $!;
-    my $src = do { local $/; <$fh> };
-    close $fh;
-    my ($list) = $src =~ /my %SYSTEM_PAGES = map \{ \$_ => 1 \} qw\(([^)]*)\)/;
-    ok( defined $list, 'the script\'s list is found' );
-    open my $rf, '<', "$root/lazysite-processor/registries.pm" or die $!;
-    my $reg = do { local $/; <$rf> };
-    close $rf;
-    my ($mine) = $reg =~ /my %sys = map \{ \( "\/\$_" => 1 \) \} qw\(([^)]*)\)/;
-    is_deeply( [ sort split ' ', $mine // '' ], [ sort split ' ', $list // '' ], 'and the registries\' copy is the same set' );
 };
 
 done_testing();

@@ -22,7 +22,7 @@ package main;
 #         rebuilt by a detached child, not inside the request that found it).
 # OWNS    what a scan lists and in what order; where a registry is cached and
 #         when it is regenerated; the content type it is served as.
-# CALLS   parse_yaml_front_matter, _scan_hidden, _registry_hidden, _scan_scalar,
+# CALLS   parse_yaml_front_matter, _scan_hidden, _registry_hidden, _scan_scalar, _system_page_names,
 #         _draft_requested,
 #         peek_search_default, peek_conf_key, _language_set, resolve_site_vars,
 #         confine_content_root, _content_rel, _private_twin, _path_under_content,
@@ -188,12 +188,10 @@ sub _listed_by_default {
 # The engine's own pages at a content root - sign-in, sign-out, the error pages -
 # which a site may keep its own copy of (SM201). Not content, so not listed by
 # default; a copy that registers itself keeps what it says. The names are the
-# script's %SYSTEM_PAGES (t/unit/processor/187 holds the two lists equal): a sub
-# with its own literal, because a file-scoped hash in a part is empty when a
-# request is served (the SM522 shape).
+# script's own %SYSTEM_PAGES, asked through _system_page_names - one list.
 sub _registry_system_page {
     my ($url) = @_;
-    my %sys = map { ( "/$_" => 1 ) } qw(login claim forgot logout account maintenance odoo-signin 402 403 404);
+    my %sys = map { ( "/$_" => 1 ) } _system_page_names();
     return $sys{$url} ? 1 : 0;
 }
 

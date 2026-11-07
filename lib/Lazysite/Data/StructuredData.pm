@@ -51,7 +51,7 @@ our $MAX_DEPTH = 3;      # nesting of objects inside a mapping
 
 # Properties whose value is a link: a value with a scheme that is not a web or
 # mail address is dropped rather than published (the same rule as | url_safe).
-my %LINK_PROP = map { $_ => 1 } qw(url sameAs image logo photo thumbnailUrl contentUrl);
+sub _link_prop { my %p = map { $_ => 1 } qw(url sameAs image logo photo thumbnailUrl contentUrl); return $p{ $_[0] } }
 
 # The types lazysite check knows the essentials of. A type outside this list is
 # emitted as mapped and named as unchecked, never refused: schema.org has
@@ -75,8 +75,11 @@ my %REQUIRED = (
     PostalAddress             => [],
     OpeningHoursSpecification => [qw(opens closes)],
 );
-my %DATE_PROP = map { $_ => 1 } qw(startDate endDate datePosted validFrom validThrough
-    datePublished dateModified dateCreated birthDate);
+sub _date_prop {
+    my %p = map { $_ => 1 } qw(startDate endDate datePosted validFrom validThrough
+        datePublished dateModified dateCreated birthDate);
+    return $p{ $_[0] };
+}
 
 sub known_type { return exists $REQUIRED{ $_[0] // '' } ? 1 : 0 }
 
@@ -179,7 +182,7 @@ sub _value {
     if ( exists $spec->{literal} ) { return $spec->{literal} }
     my $v = $row->{ $spec->{field} };
     return undef unless defined $v && length $v;
-    return undef if $LINK_PROP{$prop} && Lazysite::Util::unsafe_link_scheme($v);
+    return undef if _link_prop($prop) && Lazysite::Util::unsafe_link_scheme($v);
     return $v;
 }
 
@@ -241,7 +244,7 @@ sub objects_for {
         my $o = _build( $map, {} );
         $o->{openingHoursSpecification}
             = Lazysite::Data::Schedule::opening_hours_spec( $r->{rows}, $tz, $opt{now} );
-        my $s = Lazysite::Data::Schedule::state( $r->{rows}, $tz, $opt{now} );
+        my $s = Lazysite::Data::Schedule::state_at( $r->{rows}, $tz, $opt{now} );
         return { ok => 1, objects => [$o], expires => _sooner( $r->{expires}, $s->{expires} ) };
     }
     my $r = Lazysite::Data::Tables::resolve_binding( $docroot, "$table(limit=$MAX_ROWS)", $anon );
@@ -305,7 +308,7 @@ sub organisation {
                 my ($tz) = Lazysite::Data::Schedule::site_zone($docroot);
                 my $spec = Lazysite::Data::Schedule::opening_hours_spec( $r->{rows}, $tz, $opt{now} );
                 $o{openingHoursSpecification} = $spec if @$spec;
-                $expires = Lazysite::Data::Schedule::state( $r->{rows}, $tz, $opt{now} )->{expires};
+                $expires = Lazysite::Data::Schedule::state_at( $r->{rows}, $tz, $opt{now} )->{expires};
                 ${ $opt{lines} } = Lazysite::Data::Schedule::hours_lines( $r->{rows}, $tz, $opt{now} )
                     if ref $opt{lines} eq 'SCALAR';
             }
@@ -332,9 +335,9 @@ sub object_findings {
             push @f, object_findings( $v, $v->{'@type'} // '', "$where $p" );
             next;
         }
-        next unless $DATE_PROP{$p} && defined $v && !ref $v;
+        next unless _date_prop($p) && defined $v && !ref $v;
         push @f, "$where: $p '$v' is not an ISO 8601 date"
-            unless $v =~ /\A\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?)?\z/;
+            unless $v =~ /\A \d{4}-\d{2}-\d{2} (?: [T ] \d{2}:\d{2} (?: :\d{2} )? (?: Z | [+-]\d{2}:?\d{2} )? )? \z/x;
     }
     return @f;
 }

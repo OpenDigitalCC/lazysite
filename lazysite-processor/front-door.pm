@@ -72,6 +72,8 @@ our @POOL_PRELOAD = qw(
     Lazysite::I18n
     Lazysite::Fetch
     Lazysite::Data::Tables
+    Lazysite::Data::Schedule
+    Lazysite::Data::StructuredData
     Lazysite::Extensions
     Lazysite::Extensions::Hooks
     Lazysite::Auth::Session

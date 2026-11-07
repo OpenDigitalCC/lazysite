@@ -1184,7 +1184,7 @@ that shows the hours it costs nothing between changes.
 **An exception is removed once its date has passed** (the release manager's
 ruling). The daemon's `schedule-exceptions` job does it hourly, under the job
 account's `manage_data`, and writes each removal to the audit trail with the
-exception it removed (action `data-schedule-exception-removed`, the row as JSON
+exception it removed (action `schedule-exception-removed`, the row as JSON
 in the line's detail), so the history reads back. **With the audit trail off
 (`audit_trail: off`) nothing is removed**: the removal is kept only where the
 trail can hold it. A passed exception changes nothing a visitor sees either way

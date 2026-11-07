@@ -244,6 +244,8 @@ my %T = (
         '$ENGINE_HOME_MD'        => [ exempt => 'a path derived from the docroot once' ],    # SM1285
         '@TT_DEPS'               => [ reset  => 'process_md' ],
         '$TT_DEP_LIVE'           => [ reset  => 'process_md' ],
+        '@TT_DEP_STAMPS'         => [ reset  => 'reset_request_state' ],    # SM1357
+        '$TT_DEP_EXPIRES'        => [ reset  => 'reset_request_state' ],    # SM1356
         '%AUTH_CONTEXT'          => [ reset  => 'handle_one_request' ],
         '%ACCESS_REC'            => [ reset  => 'handle_one_request' ],
         '$RESPONSE_LANG'         => [ reset  => 'reset_request_state' ],
@@ -386,7 +388,8 @@ my %T = (
         '$_readable'                   => [ exempt => $STATUS ],
     },
     'lib/Lazysite/Data/Owned.pm'  => { '%RESERVED' => [ exempt => 'derived from constants' ], '%STAMPED' => [ exempt => 'derived from constants' ] },
-    'lib/Lazysite/Data/Tables.pm' => { '%_descriptor_cache' => [ exempt => $KEYED ] },
+    'lib/Lazysite/Data/Tables.pm' => { '%_descriptor_cache' => [ exempt => $KEYED ],
+        '$NOW' => [ exempt => 'a test\'s clock for the dated-row window (SM1356); nothing in the engine sets it' ] },
     'lib/Lazysite/I18n.pm'        => { '%CACHE' => [ exempt => 'the per-language chrome strings, keyed on (docroot, language); site content, not a visitor\'s' ] },
     'extensions/odoo/lib/Lazysite/Odoo.pm' => {
         '%CALL_FIELD' => [ exempt => 'derived from a constant list' ],

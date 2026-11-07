@@ -85,7 +85,7 @@ leaves it, which the page records as its expiry. The `manage_data` surfaces list
 
 The daemon job `schedule-exceptions` (hourly, `needs => manage_data`) calls
 `Schedule::sweep_passed`: every exception whose last day is before today in the site's
-zone is written to the **audit trail** - action `data-schedule-exception-removed`, target
+zone is written to the **audit trail** - action `schedule-exception-removed`, target
 `<table>/<id>`, the row as JSON in the line's detail field - and then deleted.
 `Schedule::removed_exceptions` reads the trail back. The audit trail rather than the row
 history because SM1355's history (n772) was not on this base; at the restack the delete

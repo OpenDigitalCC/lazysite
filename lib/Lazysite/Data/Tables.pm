@@ -1154,7 +1154,7 @@ sub _shown_now {
     require Lazysite::Data::Schedule;
     my ($tz) = Lazysite::Data::Schedule::site_zone($docroot);
     my $now  = $NOW // time;
-    my $date = Lazysite::Data::Schedule::_in_zone( $tz, sub {
+    my $date = Lazysite::Data::Schedule::in_zone( $tz, sub {
             my @lt = localtime($now);
             sprintf( '%04d-%02d-%02d', $lt[5] + 1900, $lt[4] + 1, $lt[3] );
     } );
@@ -1180,10 +1180,10 @@ sub _shows_next {
         next unless defined $v && length $v;
         if ( $t eq 'date' ) {
             require Lazysite::Data::Schedule;
-            my $day = $edge eq 'until' ? Lazysite::Data::Schedule::_add_days( $v, 1 ) : $v;
+            my $day = $edge eq 'until' ? Lazysite::Data::Schedule::add_days( $v, 1 ) : $v;
             next unless defined $day;
-            push @at, Lazysite::Data::Schedule::_in_zone( $shown->{tz},
-                sub { Lazysite::Data::Schedule::_local_epoch( $day, 0 ) } );
+            push @at, Lazysite::Data::Schedule::in_zone( $shown->{tz},
+                sub { Lazysite::Data::Schedule::local_epoch( $day, 0 ) } );
         }
         elsif ( $v =~ /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z\z/ ) {
             my $e = eval { Time::Local::timegm( $6, $5, $4, $3, $2 - 1, $1 ) };

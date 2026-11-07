@@ -201,6 +201,10 @@ our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 # at it to send a visitor there for a page that needs a sign-in.
 my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account maintenance odoo-signin 402 403 404);
 
+# SM1357: the set, for the registries part (registries.pm _registry_system_page),
+# which leaves these pages out of the sitemap and the summary by default.
+sub _system_page_names { return keys %SYSTEM_PAGES }
+
 sub _system_page_md {
     my ( $base, $croot ) = @_;
     return undef unless defined $base && $SYSTEM_PAGES{$base};
