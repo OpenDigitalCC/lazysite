@@ -186,7 +186,10 @@ Archive
   path's own capability, in place of `manage_content` - as a layout path asks the design
   capabilities - so a caller without it is told what it needs, and one holding `manage_forms`
   alone reaches the file as it has over WebDAV since 0.8.1. Every other path keeps the tool's
-  capability.
+  capability. Ruling 152: such a grant is also OFFERED the two tools, each saying it reaches a
+  form's own configuration and nothing else - the tools declare it (`cap_path`), and the gate,
+  the listing, whoami's `tools_by_reach` (now with `path_only_reach`) and the capability map
+  read that one declaration; no other tool or path shape is offered to a path grant.
 
 ## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
 

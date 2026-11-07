@@ -41,6 +41,8 @@ our %TOOLS;
         or BAIL_OUT('SM653 note has no rule to derive from');
     like( $src, qr/_path_only_for\(\s*\$name,\s*\$TOOLS\{\$name\},\s*\$caps\s*\)/,
         'and the listing calls it' );
+    # SM1392 (ruling 152): the rule answers WHERE - theme and layout paths, a
+    # form's own configuration, or both - and the note prints that answer.
 
     # The note must be built from the tool's OWN declared capability, not a
     # literal - otherwise it names the wrong capability for some tools and
@@ -51,14 +53,17 @@ our %TOOLS;
     # unanchored match read that block instead and asserted the note's rule
     # against three lines that push a name onto an array.
     my ($block) = $src
-        =~ /defined \$caps && _path_only_for\( \$name, \$TOOLS\{\$name\}, \$caps \) \) \{(.*?)\n        \}/s;
+        =~ /defined \$caps && \( my \$reach = _path_only_for\( \$name, \$TOOLS\{\$name\}, \$caps \) \) \) \{(.*?)\n        \}/s;
     ok( defined $block, 'the note block was found' ) or BAIL_OUT('cannot read it');
     like( $block, qr/\$TOOLS\{\$name\}\{cap\}/,
         'the note names the tool\'s own capability, not a hardcoded one' )
         or diag( 'A literal here is right for most tools and wrong for some, '
             . 'which is the kind of wrong that survives review.' );
-    like( $block, qr/theme and layout paths/,
-        'and says which paths it IS callable on' );
+    like( $block, qr/callable only\W+on \$reach/,
+        'and says which paths it IS callable on, as the rule answered' );
+    my ($rule) = $src =~ /(sub _path_only_for \{.*?\n\})/s;
+    like( $rule, qr/theme and layout paths/,
+        'the rule names theme and layout paths for the override' );
 }
 
 # THE REAL SUB, lifted out of the script and compiled here.
@@ -82,7 +87,11 @@ my $po;
     my ($also) = $src =~ /(sub _cap_also \{.*?\n\})/s;
     ok( defined $also, 'and the cap_also reader it calls' )
         or BAIL_OUT('cannot test the real rule, and will not test a copy');
-    $po = eval "package SM653Real; $also; $sub; \\&_path_only_for"
+    # SM1392 (ruling 152): and the cap_path reader, the same way.
+    my ($paths) = $src =~ /(sub _cap_paths \{.*?\n\})/s;
+    ok( defined $paths, 'and the cap_path reader it calls' )
+        or BAIL_OUT('cannot test the real rule, and will not test a copy');
+    $po = eval "package SM653Real; $also; $paths; $sub; \\&_path_only_for"
         or BAIL_OUT("could not compile the extracted sub: $@");
 }
 sub _po { return $po->(@_) }

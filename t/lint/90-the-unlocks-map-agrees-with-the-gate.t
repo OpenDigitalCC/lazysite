@@ -63,7 +63,12 @@ while ( $tools_block =~ /^\s{4}(\w+)\s*=>\s*\{(.*?)^\s{4}\},/gms ) {
     my @ca;
     if ( my ($one) = $body =~ /^\s*cap_also\s*=>\s*'([^']+)'/m ) { @ca = ($one) }
     elsif ( my ($list) = $body =~ /^\s*cap_also\s*=>\s*\[([^\]]*)\]/m ) { @ca = $list =~ /'([^']+)'/g }
-    $gate{$name}       = [ grep { defined && length } ( $c, @ca ) ];
+    # SM1392 (ruling 152): cap_path names a capability that admits the tool on
+    # one path shape ({ capability => shape }); the tool is offered to that
+    # grant and its description says where, so the map lists it there too.
+    my @cp;
+    if ( my ($shapes) = $body =~ /^\s*cap_path\s*=>\s*\{([^}]*)\}/m ) { @cp = $shapes =~ /(\w+)\s*=>/g }
+    $gate{$name} = [ grep { defined && length } ( $c, @ca, @cp ) ];
     # NOT line-anchored: path_aware is declared on the same line as cap
     # (`cap => 'manage_content', path_aware => 1,`), so /^\s*path_aware/ matched
     # none of the 29 and the exclusion set came back empty - which the

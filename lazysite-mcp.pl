@@ -713,12 +713,18 @@ my %TOOLS = (
                 # SM653/SM525: the same list, split by where it can be CALLED.
                 # `tools` stays the whole set so no existing reader changes.
                 tools_by_reach => do {
-                    my ( $anywhere, $path_only ) = _tool_classes($caps);
+                    # SM1392 (ruling 152): WHERE each path_only tool is callable,
+                    # from the same rule - theme and layout paths through the
+                    # override, or the paths the tool's own cap_path names.
+                    my ( $anywhere, $path_only, $reach ) = _tool_classes($caps);
                     { anywhere => $anywhere,
-                        path_only => $path_only,
-                        note      => @{$path_only}
+                        path_only       => $path_only,
+                        path_only_reach => $reach,
+                        note            => @{$path_only}
                         ? 'The path_only tools are callable on theme and layout '
-                            . 'paths only, through the path-aware override. On any '
+                            . 'paths only, through the path-aware override, or on '
+                            . 'the paths path_only_reach names for each (a form\'s '
+                            . 'own configuration, for manage_forms). On any '
                             . 'other path they are refused - hold the capability '
                             . 'each names to call it anywhere.'
                         : 'Every tool offered is callable on any path this grant '
@@ -983,8 +989,9 @@ my %TOOLS = (
     },
     read_file => {
         path_args   => [qw(path)],
-        description => 'Read the contents of a text file by site-relative path.',
+        description => 'Read the contents of a text file by site-relative path. With manage_forms and not manage_content, this tool reaches a form\'s own configuration, lazysite/forms/<name>.conf, and nothing else (SM1392, ruling 152).',
         cap         => 'manage_content', path_aware => 1,
+        cap_path    => { manage_forms => 'form_conf' },
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required   => ['path'], additionalProperties => JSON::PP::false },
@@ -1024,8 +1031,9 @@ my %TOOLS = (
     },
     write_file => {
         path_args => [qw(path)],
-        description => 'Create or overwrite a text file with the given content. TO CHANGE A FILE ANOTHER WRITER MAY ALSO BE CHANGING, pass `base_mtime`: the `mtime` read_file returned (read_page calls it `modified`). If the file has been saved since that read, nothing is written and the answer is a conflict (kind conflict) naming the file\'s current mtime: read it again, make the change on what it holds now, and write with the new mtime. Without base_mtime the file is written whatever it holds. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no sysop-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
+        description => 'Create or overwrite a text file with the given content. TO CHANGE A FILE ANOTHER WRITER MAY ALSO BE CHANGING, pass `base_mtime`: the `mtime` read_file returned (read_page calls it `modified`). If the file has been saved since that read, nothing is written and the answer is a conflict (kind conflict) naming the file\'s current mtime: read it again, make the change on what it holds now, and write with the new mtime. Without base_mtime the file is written whatever it holds. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no sysop-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form. With manage_forms and not manage_content, this tool reaches a form\'s own configuration, lazysite/forms/<name>.conf, and nothing else (SM1392, ruling 152): its targets must name existing handlers.',
         cap         => 'manage_content', path_aware => 1,
+        cap_path    => { manage_forms => 'form_conf' },
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' }, content => { type => 'string' },
                 base_mtime => { type => 'integer',
@@ -4529,15 +4537,19 @@ sub _tool_names { my ($caps) = @_; return [ map { $_->{name} } @{ tool_list($cap
 # would be wrong the first time a tool gained a capability.
 sub _tool_classes {
     my ($caps) = @_;
-    my ( @anywhere, @path_only );
+    my ( @anywhere, @path_only, %reach );
     for my $t ( @{ tool_list($caps) } ) {
         my $name = $t->{name};
-        if ( $TOOLS{$name} && _path_only_for( $name, $TOOLS{$name}, $caps ) ) {
+        # SM1392 (ruling 152): the rule answers WHERE a path-only tool is
+        # callable (theme and layout paths, a form's own configuration, or
+        # both); whoami reports that per tool as path_only_reach.
+        if ( $TOOLS{$name} && ( my $where = _path_only_for( $name, $TOOLS{$name}, $caps ) ) ) {
             push @path_only, $name;
+            $reach{$name} = $where;
         }
         else { push @anywhere, $name }
     }
-    return ( \@anywhere, \@path_only );
+    return ( \@anywhere, \@path_only, \%reach );
 }
 
 # SM196: which tools an AUTHENTICATED session may invoke - the same gate as
@@ -4556,15 +4568,62 @@ my %INTROSPECTION_TOOLS = ( whoami => 1, describe_capabilities => 1 );
 # DERIVED FROM THE SAME RULE rather than a second list of tool names. A hand-kept
 # list of "the path-only ones" is a sixth place to update when the rule changes
 # (SM662), and it would be wrong the first time a tool gained a capability.
+#
+# SM1392 (ruling 152): the answer is WHERE, not yes or no. A tool reached
+# through the theme/layout override is callable on theme and layout paths; one
+# reached through its own `cap_path` on the paths that shape names; both, on
+# both. The return is that sentence fragment (true), or 0 when the tool is
+# offered on its own merits or not at all. One rule for the note in the
+# listing, the whoami split and the gate's declaration.
 sub _path_only_for {
     my ( $name, $tool, $caps ) = @_;
     return 0 unless $tool->{path_aware};
-    return 0 unless $caps->{manage_themes} || $caps->{manage_layouts};
+    my @reach;
+    push @reach, 'theme and layout paths' if $caps->{manage_themes} || $caps->{manage_layouts};
+    push @reach, map { _cap_path_reach( $_->[1] ) } grep { $caps->{ $_->[0] } } _cap_paths($tool);
+    return 0 unless @reach;
     # Offered on its own merits? Then it is not path-only, whatever the flag.
     return 0 if !defined $tool->{cap};
     return 0 if $caps->{ $tool->{cap} };
     return 0 if grep { $caps->{$_} } _cap_also($tool);
-    return 1;
+    return join ' and ', @reach;
+}
+
+# SM1392 (ruling 152): `cap_path` - a capability that admits the tool on ONE
+# PATH SHAPE, declared on the tool as { capability => shape }. The shape names
+# a rule (what matches, and the words the listing uses for it), kept here so a
+# tool declares a name and never a regex of its own; the gate in tools/call,
+# _tool_callable and _path_only_for all read the declaration, which is what
+# keeps discovery and enforcement one fact (SM210's lesson). The first shape:
+# a form's own configuration, lazysite/forms/<name>.conf, which SM1371 made
+# manage_forms's on every door (Manager::Common::form_conf_name decides).
+#
+# Assigned one shape at a time, not as a literal: t/lint/23 and 85 take every
+# name opening a hash at the tool table's indent for a tool, and a literal here
+# read as one called form_conf. (t/lint/39 counts braces in comments too.)
+my %CAP_PATH_SHAPE;
+$CAP_PATH_SHAPE{form_conf} = {
+    reach => "a form's own configuration (lazysite/forms/<name>.conf)",
+    match => sub { defined Lazysite::Manager::Common::form_conf_name( $_[0] ) },
+};
+
+sub _cap_paths {
+    my ($tool) = @_;
+    my $cp = $tool->{cap_path};
+    return () unless ref $cp eq 'HASH';
+    return map { [ $_, $cp->{$_} ] } sort keys %$cp;
+}
+
+sub _cap_path_reach {
+    my ($shape) = @_;
+    my $s = $CAP_PATH_SHAPE{$shape} or die "lazysite-mcp.pl: no cap_path shape '$shape'\n";
+    return $s->{reach};
+}
+
+sub _cap_path_matches {
+    my ( $shape, $path ) = @_;
+    my $s = $CAP_PATH_SHAPE{$shape} or die "lazysite-mcp.pl: no cap_path shape '$shape'\n";
+    return defined $path && length $path && $s->{match}->($path) ? 1 : 0;
 }
 
 # SM842: `cap_also` names one more capability, or a list of them - the handler
@@ -4604,6 +4663,10 @@ sub _tool_callable {
     return 1 if grep { $caps->{$_} } _cap_also($tool);
     return 1
         if $tool->{path_aware} && ( $caps->{manage_themes} || $caps->{manage_layouts} );
+    # SM1392 (ruling 152): a capability the tool admits on one path shape
+    # (`cap_path`) is offered the tool too - discovery agrees with the gate,
+    # and the listing's description says which paths (_path_only_for).
+    return 1 if grep { $caps->{ $_->[0] } } _cap_paths($tool);
     return 0;
 }
 
@@ -4668,9 +4731,11 @@ sub tool_list {
                 . 'describe_capabilities exist on this server; they appear here once '
                 . 'your credential reaches them. -- ' . $desc;
         }
-        if ( defined $caps && _path_only_for( $name, $TOOLS{$name}, $caps ) ) {
+        # SM1392 (ruling 152): the rule answers WHERE (theme and layout paths,
+        # a form's own configuration, or both), and the note says that.
+        if ( defined $caps && ( my $reach = _path_only_for( $name, $TOOLS{$name}, $caps ) ) ) {
             $desc .= ' NOTE: with your current grant this tool is callable only'
-                . ' on theme and layout paths; elsewhere it will be refused.'
+                . " on $reach; elsewhere it will be refused."
                 . " Reaching other paths needs the $TOOLS{$name}{cap} capability.";
         }
 
@@ -4930,13 +4995,12 @@ elsif ( $method eq 'tools/call' ) {
             # and write_file for manage_content first, so a caller without it
             # was told "needs manage_content" for a file manage_content never
             # reaches, and one holding manage_forms alone - admitted over WebDAV
-            # since 0.8.1 - was refused. The two tools SM1371 opened, and no
-            # other path: everything else keeps the tool's cap.
-            elsif ( ( $name eq 'read_file' || $name eq 'write_file' )
-                && defined Lazysite::Manager::Common::form_conf_name($p) )
-            {
-                $need   = 'manage_forms';
-                $cap_ok = $caps->{manage_forms} ? 1 : 0;
+            # since 0.8.1 - was refused. Ruling 152: the tool DECLARES it
+            # (`cap_path`), and the listing reads the same declaration, so what
+            # a grant is offered and what it is admitted to cannot disagree.
+            elsif ( my ($cp) = grep { _cap_path_matches( $_->[1], $p ) } _cap_paths($tool) ) {
+                $need   = $cp->[0];
+                $cap_ok = $caps->{ $cp->[0] } ? 1 : 0;
             }
         }
     }

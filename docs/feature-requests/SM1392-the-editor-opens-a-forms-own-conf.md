@@ -66,14 +66,23 @@ WebDAV already asked `manage_forms`. So every door names it now.
   shape, the shape the server already admits to `manage_forms`. What it adds is
   the MCP reach of a `manage_forms`-only grant to a form's own conf, which
   WebDAV gave such a grant since 0.8.1; said in UPGRADE.md.
-- The tool LISTING (`_tool_callable`, `_path_only_for`) is unchanged: a
-  `manage_forms`-only grant is not offered `read_file`/`write_file` and may call
-  them for this path alone. The layouts case lists every path-aware tool for a
-  design grant as "callable on some paths"; doing the same for `manage_forms`
-  would list `delete_file`, `copy_file` and the rest for a grant that reaches
-  none of them. Left for the release manager: whether `read_file`/`write_file`
-  should carry a `cap_path` of their own for discovery (SM210's lesson,
-  discovery agreeing with enforcement).
+- The tool LISTING, ruling 152 (2026-11-07): widened, by the narrowest shape.
+  The first commit left `_tool_callable` alone, so a `manage_forms`-only grant
+  was admitted to `read_file`/`write_file` on the form conf and never offered
+  them - SM210's shape. The release manager ruled that discovery matches
+  enforcement, and that the rule must not list every path-aware tool for every
+  path grant (the layouts override does that for a design grant, which is
+  SM653's note). So each of the two tools DECLARES it: `cap_path => {
+  manage_forms => 'form_conf' }`, a capability that admits the tool on one path
+  shape, where the shape (`%CAP_PATH_SHAPE`) names its matcher
+  (`form_conf_name`) and the words the listing uses for it. The gate in
+  tools/call, `_tool_callable` and `_path_only_for` read that one declaration;
+  `_path_only_for` now answers WHERE (theme and layout paths, a form's own
+  configuration, or both), the listing's NOTE prints that answer, whoami's
+  `tools_by_reach` gains `path_only_reach` per tool, each tool's description
+  says what the `manage_forms` grant reaches, `manage_forms`'s `unlocks.mcp`
+  names the two, and t/lint/90 reads `cap_path` as a gate. No other tool, and
+  no other path shape, is offered to a path grant.
 - `ai-connector-tools.md` said `nav.conf` and a form's conf are writable "with
   `manage_config`"; corrected to `manage_nav` and `manage_forms`, which is what
   the gates ask.

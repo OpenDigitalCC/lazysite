@@ -3479,9 +3479,12 @@ threat delta
   files stay with the blocklist. `manage_content` without `manage_forms` is refused as
   it was, now told the capability the path needs. Every other path keeps the tool's
   capability (t/unit/manager/475: a page still needs `manage_content`). The tool
-  listing (`_tool_callable`) is unchanged: a `manage_forms`-only grant is not offered
-  `read_file`/`write_file` and may call them for this path alone - the SM210 shape, left
-  for the release manager (SM1392's filing). No trigger of ADR 0007's four fires.
+  listing, ruling 152: a `manage_forms`-only grant is now OFFERED `read_file` and
+  `write_file`, with each description saying it reaches a form's own configuration and
+  nothing else - discovery widened to match the gate, through the one declaration
+  (`cap_path`) the gate reads, so the two cannot disagree; no other tool and no other
+  path shape is offered to a path grant (t/unit/mcp/75). What a grant can DO is
+  unchanged by the listing. No trigger of ADR 0007's four fires.
 
 controls
 : t/unit/manager/475: the rule's source and, under node, thirteen paths through

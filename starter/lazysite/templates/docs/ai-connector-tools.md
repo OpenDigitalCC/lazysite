@@ -107,7 +107,10 @@ any capability you hold that none of them grants.
 
 `manage_forms` reads and writes a form's own configuration,
 `lazysite/forms/<name>.conf`, through `read_file` and `write_file` as well as
-WebDAV: its targets name existing handlers only (`- handler: <id>`).
+WebDAV: its targets name existing handlers only (`- handler: <id>`). A grant
+holding `manage_forms` without `manage_content` is offered the two tools for
+that path alone - their listing says so, and `whoami.tools_by_reach` names the
+reach under `path_only_reach`.
 `smtp.conf`, `handlers.conf` and `schedule.conf` are not forms and stay closed.
 
 ## Scope and denied paths

@@ -175,9 +175,13 @@ my %ACTION_INFO = (
             api => [ qw(form-delete form-targets-read form-targets-save form-uploads-save form-notify-save
                     handler-list handler-save handler-delete
                     schedule-list schedule-save schedule-delete) ],
+            # SM1392 (ruling 152): read_file and write_file on a form's own
+            # configuration only - the tools declare it (cap_path), the
+            # listing says it, and t/lint/90 reads the declaration.
             mcp => [ qw(bind_form delete_form set_form_uploads set_form_notify
                     list_handlers save_handler delete_handler
-                    list_schedule save_schedule delete_schedule) ],
+                    list_schedule save_schedule delete_schedule
+                    read_file write_file) ],
             webdav => ['lazysite/forms/<name>.conf (its targets name existing handlers; not smtp.conf, handlers.conf or schedule.conf)'],
         },
     },
