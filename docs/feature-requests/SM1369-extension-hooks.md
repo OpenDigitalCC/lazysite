@@ -216,7 +216,8 @@ The index
   are, so a capability is grantable while its extension is installed and an action of
   an extension that is off is known. The toggles and the save build when the extension
   in hand declares hooks, an index exists, or any installed extension declares. A
-  failed write leaves `extensions.index.failed` beside the index; the check reports it.
+  fresh install builds it as the upgrade does, by the same call (ruling 166), so a new
+  site can grant a declared capability from the start. A failed write leaves `extensions.index.failed` beside the index; the check reports it.
 
 The mirror
 : `Declared::mirror($lz)` (the full scope; `Hooks::mirror` is the light one a grant resolver uses) reads the site's index once per process (a stat afterwards) and
@@ -262,7 +263,7 @@ Tests
   (the capture); lint 76 reads the index; lints 14, 23, 52, 90 and 218 read the merged
   table; 70, 71, odoo/15 and odoo/105 learn X2's facts; odoo/04, 17, 106, 110,
   integration/171 and 114 hand the override capability ruling 71 names; tools/330 reads
-  the declared view the upgrade builds. Each fails with its change reverted.
+  the declared view the upgrade builds, tools/338 the one a fresh install builds. Each fails with its change reverted.
 
 # Choices made
 
@@ -289,7 +290,7 @@ C-11 | When a toggle builds (X2) | When the extension in hand declares hooks, an
 C-12 | A capability's api and mcp unlocks (X2) | Derived from the gate rows that name it; only `ui` is declared | Declared, and held equal to the gate by a lint, as core's are
 C-13 | Which refusal kinds move (X2) | The kinds only Odoo produces (thirty) go to its declaration; `expired`, `internal`, `unavailable`, `busy`, `maintenance` stay core's | All of the block, and core redeclares what it uses
 C-14 | The handler type's capability | `Handlers.pm`'s `odoo` type stays `manage_connectors`' until X3 declares the type (its file is n769's); the top-up keeps the reach equal | Changed here to manage_odoo
-C-15 | The older extensions' capabilities (data, briefs, daemon) | Stay mirrored in the core literal: each owns its capabilities (`owns.capabilities`) and describes none, and a fresh install builds no index yet, so moving them would leave a new site unable to grant `manage_data` until its first upgrade or toggle. Lint 76 holds one state each: described and indexed, or owned and literal. Each moves when it describes its own and the fresh install builds | Describe all three here and build the index on a fresh install too
+C-15 | The older extensions' capabilities (data, briefs, daemon) | Stay mirrored in the core literal in 0.16.8: each owns its capabilities (`owns.capabilities`) and describes none. A fresh install now builds the index as the upgrade does (ruling 166), so nothing stops the move but the work: the data, briefs and daemon extensions describe their own capabilities and leave the literal in 0.16.9, with X6 (ruling 166). Lint 76 holds one state each meanwhile: described and indexed, or owned and literal | Describe all three here
 C-16 | What a grant resolver mirrors | The light scope - the capability names and the refusal statuses, from `Auth::Settings` alone - so the processor's pooled workers carry no action table (lint 269); the doors, the tools and the lints mirror the full scope before deriving their tables | One scope everywhere, and the action tables resident in the processor
 ```
 

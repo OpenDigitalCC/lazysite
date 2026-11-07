@@ -60,7 +60,8 @@ Archive
   `api_actions` (one row per action in `%ACTION`'s shape, with its gate, its MCP twin's
   description and input schema, and the handler in the payload lib) and
   `refusal_kinds`. The extension index gains a `declared` view, built from every
-  installed extension's descriptor by the same validation (a row without a gate, an
+  installed extension's descriptor by the same validation, and a fresh install builds
+  the index as the upgrade does (ruling 166) (a row without a gate, an
   ALWAYS row without its reason, a name not prefixed by the extension's id, a core
   name shadowed, an owned capability nobody describes, a twin requiring what the
   action does not: each refused by name, and the extension is not enabled). One

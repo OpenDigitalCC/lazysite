@@ -1000,15 +1000,22 @@ sub cmd_install {
 
     # ---- the extension hook index (SM1369 X1) ----
     #
-    # On every upgrade or reinstall, after the steps above have settled which
-    # extensions are on: the new release's descriptors may declare hooks, or stop
-    # declaring them, so the index is rebuilt from them. The INSTALLED code does
-    # it, as a separate process, for the reason the handler conversion gives. A
-    # site whose extensions declare no hooks gets no index and nothing is printed.
-    if ( $mode ne 'fresh' ) {
+    # On every install, after the steps above have settled which extensions are
+    # on: the new release's descriptors may declare hooks, or stop declaring
+    # them, so the index is rebuilt from them. The INSTALLED code does it, as a
+    # separate process, for the reason the handler conversion gives. A site whose
+    # extensions declare no hooks gets no index and nothing is printed.
+    #
+    # X2 (ruling 166): a FRESH install builds it too, the same call. The index
+    # carries the capabilities and actions the installed extensions declare, so
+    # a new site without one could not grant them until its first upgrade or
+    # toggle.
+    {
         my ( $ok, $why ) = run_hook_index_build( $o->{docroot}, \%subs );
-        push @$warnings, 'HOOKS: the extension hook index was not rebuilt (' . $why . ') - '
-            . 'the previous one stands; enable or save an extension in the manager to rebuild it'
+        push @$warnings, 'HOOKS: the extension hook index was not '
+            . ( $mode eq 'fresh' ? 'built' : 'rebuilt' ) . ' (' . $why . ') - '
+            . ( $mode eq 'fresh' ? ''      : 'the previous one stands; ' )
+            . 'enable or save an extension in the manager to rebuild it'
             unless $ok;
     }
 

@@ -75,7 +75,7 @@ The ten `odoo-*` control-API actions and `odoo_*` MCP tools, their parameters, t
 gates, the tools' descriptions and schemas, and the capabilities `settle_odoo_writes`
 and the new `manage_odoo` are declared by `extensions/odoo.pl` and read by the engine
 from the extension index (`lazysite/extensions.index.json`), which the upgrade rebuilds
-on every site and the manager rebuilds when an extension is enabled, disabled or saved.
+on every site, a new site's install builds, and the manager rebuilds when an extension is enabled, disabled or saved.
 The wire names, the parameters and the listing an agent sees are unchanged. Nothing a
 site configures changes.
 

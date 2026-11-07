@@ -4,9 +4,9 @@
 # A release's descriptors may declare hooks, or stop declaring them, so every
 # upgrade rebuilds lazysite/extensions.index.json from the enabled extensions,
 # with the installed code, as the site user (install.pl, run_hook_index_build).
-# A site provisioned and then reinstalled in place by the real install.pl (the
-# step runs for every mode but a fresh install, and a reinstall is the way to run
-# it at the version under test):
+# A site provisioned and then reinstalled in place by the real install.pl (a
+# reinstall is the way to run the upgrade's step at the version under test; a
+# fresh install runs it too since ruling 166, t/tools/338):
 #
 #   - with no hooks declared, has no index after the upgrade and the summary
 #     says nothing about hooks;
