@@ -342,6 +342,17 @@ Archive
   with Save disabled (the first change enabled it, so saves went through, unlocked). Both
   are POSTs now, as `unlock` was. A lint keeps every manager page's fetch of a mutating
   action a POST (t/unit/manager/480, t/lint/340).
+- SM1414 (PENDING) **A member saves content over their own session (ruling 169).** Since
+  SM1057 (0.15.5) the manager API refused every signed-in account without `ui`, so a member
+  app's authors could not save a file. A new capability, `write_content`, passes `read`,
+  `save`, `mkdir`, `move` and `delete` on that door for a holder without `ui`, and no other
+  action. A write lands only where the access rule on the file or its folder names the
+  account or its group as a writer; a path no rule governs is refused. Paths are inside the
+  content root of the domain the session is signed in on, and the engine's `lazysite/` tree
+  is never reached. CSRF, the audit row and the file checks are unchanged. It implies
+  nothing, no shipped role holds it, and a `ui` holder is unchanged. Docs: `/docs/auth`,
+  `/docs/ai-briefing-authoring`, UPGRADE.md, a register assessment (ADR 0007 new external
+  interface). `t/integration/377`.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

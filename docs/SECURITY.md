@@ -4486,3 +4486,84 @@ residual risk
 
 verdict
 : drafted, for the release manager's confirmation; no trigger fired.
+
+### 2026-11-07 - SM1414 (0.16.8): a member saves content over their own session
+
+Assessment drafted by the developer agent (n775) for the release manager's confirmation.
+
+what changed
+: A new capability, `write_content`, opens the manager API's cookie door
+  (`/cgi-bin/lazysite-manager-api.pl` over a signed-in session) to an account that
+  holds it and does not hold `ui`, for five actions: `read`, `save`, `mkdir`, `move`
+  and `delete` (declared `member_content` in `Lazysite::ControlApi::Actions`). Since
+  SM1057 (0.15.5) that door refused every such account. Every other action keeps
+  SM1057's refusal, as does every account holding neither capability. A `ui` holder
+  never takes this door and is unchanged. The capability implies nothing and no
+  shipped role holds it. The operator group is topped up with it, as with every
+  capability (SM645), which changes nothing for an operator.
+
+threat delta
+: ADR 0007's new-external-interface trigger fires: an authenticated write door is
+  opened to a class of account (members, who may number in the hundreds and are not
+  managers) that it was closed to. No sign-in method is added (the session is the
+  existing cookie, verified by the auth wrapper). No dependency is added, and no
+  restricted data is processed in a new way. The other three triggers do not fire.
+  The questions are SM1057's two causes and the reach of the door:
+  - Elevation of privilege: could a member write a path no rule governs, or a file
+    whose rule names someone else? (SM1057's first cause: an ungoverned path is open
+    to every writer.)
+  - Tampering: could a domain member's path land in the primary's tree or another
+    domain's? (SM1057's second cause.) Could a path reach the engine's tree
+    (`lazysite/`: the auth store, the ACLs, nav, forms)?
+  - Elevation of privilege: could a member reach any other action (acl-set, config,
+    users, uploads, copy) or widen a rule?
+  - Spoofing and Tampering: could a cross-site page drive a member's session?
+
+controls
+: The set is closed. The `ui` gate admits a `write_content` holder only for an action
+  declared `member_content`, and a load-time check in Actions refuses that
+  declaration on any action outside the ruled five, or on one that is not scoped
+  and on the file surface. acl-set, acl-remove, copy, file-upload, the locks, list,
+  config and users all answer SM1057's refusal.
+: A write is an allow-list. For save, mkdir, delete and both ends of a move, the rule
+  governing the path for writing (its own key, its page stem, the longest ancestor
+  folder, the site-wide rule) must name the account or one of its groups in its write
+  list (`Lazysite::Auth::Acl::write_rule_names`). An ungoverned path is refused, a
+  rule naming others is refused, and an owner who is not in the list is not admitted.
+  A folder moved is refused when any rule beneath it does not name the caller. The
+  handler's own rule check, blocklist and extension guards run after this one. An
+  unreadable ACL store refuses (`cannot-tell`).
+: The paths are the session's domain's. `path` and `to` are refused empty, climbing
+  (`..`), with a NUL or a backslash, or in the reserved tree (before and after
+  resolution). They are then resolved inside the content root of the domain the
+  request arrived on, in place, so the scope check, the carve-out check, the handler
+  and the audit row read the one file that is written. The caller is confined to its
+  own domain scopes where its domain access resolves any (a locked member stays
+  locked), else to the session's content root; on the primary that is the docroot
+  less the other domains' roots (SM1372).
+: A member creates no rule: acl-set is outside the set, and the manager's
+  manage_content gate is not what admits it, so a rule's first-rule and widening
+  checks (SM1057, SM1309) are not reachable from this door.
+: CSRF is the door's own (method-keyed, before any gate), and every write and every
+  refusal is one audit row naming the account, the action and the docroot path.
+: t/integration/377 covers each: saves, reads, mkdir, move and delete where a rule
+  names the group, landing in the domain signed in on (two domains and the
+  primary); refusals where a rule names others, where none governs, of the domain's
+  tree from the primary, of the engine's tree and of a climbing path; acl-set,
+  config-read, config-set, users, list, copy and lock refused; an account without
+  either capability refused as SM1057 refuses it. Each control reverted fails a
+  subtest. t/integration/220 and 221 pass unchanged.
+
+residual risk
+: A member whose group a folder rule names may overwrite or delete any file under it,
+  another author's included, unless a rule on that file names only its author: the
+  rule is the operator's statement of who writes there, as for a manager. Content a
+  member writes is published as written (front matter included), within what any
+  writer of that path could already do; the content checks a save applies to every
+  writer apply to it. A site-wide rule whose write list names a members' group admits
+  that group everywhere it governs, which is what the rule says.
+
+verdict
+: drafted by the developer agent: accept. The trigger fires and the change is
+  contained by the closed set, the allow-list, the domain resolution and the reserved
+  tree, so the ADR 0007 waiver would stand. For the release manager's confirmation.

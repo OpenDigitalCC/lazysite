@@ -673,6 +673,44 @@ Capabilities on groups are the mechanism of record. (The legacy
 `manager_groups:` conf key is retired: on upgrade any group it named receives
 its capabilities explicitly and the conf line is removed.)
 
+### Members who save content without the manager
+
+An account without `ui` gets nothing from the manager API. The exception is
+**`write_content`** (Content files where a rule names you), the content twin of
+`write_data`. It is for the authors of a member app, such as a blog whose writers
+are members and never open `/manager`. Over their own signed-in session they may
+call `read`, `save`, `mkdir`, `move` and `delete` on the manager API, and nothing
+else:
+
+- **A write needs a rule that names them.** `save`, `mkdir`, `delete`, and both
+  ends of a `move`, land only where the access rule on the file or its folder
+  names the account or one of its groups in its **write** list. A new file
+  follows its folder's rule. A path no rule governs is refused. (For a manager it
+  is open.) A folder is moved only when every rule inside it names them too.
+- **A read follows the read list**, as it does everywhere.
+- **The paths are the domain's.** On a domain with its own content root, a member
+  signed in there who saves `/post/hello.md` writes that domain's
+  `post/hello.md`, under the rule keyed by that domain's path. An account whose
+  domain access is limited stays limited.
+- **The engine's own tree (`lazysite/`) is never reached**, and the CSRF token,
+  the file checks and the audit row are the same as for a manager's save.
+
+The capability implies nothing and no shipped role holds it. An account that
+holds `ui` uses the manager as before, and `write_content` changes nothing for
+it. To set up a blog's authors:
+
+```bash
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
+  group-set authors write_content on
+```
+
+Then, as the operator, give the posts folder a rule naming the group as a writer
+(the Files page's access panel, or `acl-set` with `{"write":["@authors"]}` on
+`post`). The app's page script fetches a token from `?action=csrf-token` and
+sends `POST /cgi-bin/lazysite-manager-api.pl?action=save&path=/post/hello.md`
+with `X-CSRF-Token` and `{"content":"..."}`. See
+[AI briefing - authoring](/docs/ai-briefing-authoring).
+
 ## TT variables
 
 These variables are available in page content and the view template:

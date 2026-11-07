@@ -67,6 +67,7 @@ var CHANNELS = [
 var ACTIONS = [
   ['manage_content', 'Content (pages)'],
   ['publish_copies', 'Publish page copies (agents; off by default)'],    // SM1354
+  ['write_content', 'Content files where a rule names you (no manager)'],
   ['manage_nav', 'Navigation'],
   ['manage_forms', 'Forms'],
   ['manage_themes', 'Themes'],

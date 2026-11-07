@@ -1195,4 +1195,56 @@ sub move_widening_refusal {
     return undef;
 }
 
+# SM1414 (ruling 169): DOES A RULE NAME THIS CALLER AS A WRITER? The member
+# content door's question, which is narrower than _acl_allows: there a path no
+# rule governs is open to every writer and a rule's owner passes it, and here
+# only a write list that names the account, or one of its groups (nesting
+# included, case-insensitive, as _acl_allows reads them), admits. The rule is
+# the one that governs $rel for writing - its own key, its page stem, the
+# longest ancestor folder (so a new file is governed by its folder's rule), the
+# site-wide rule last.
+#
+# Returns ( $state, $key ): 'named' or 'other' with the governing key,
+# 'ungoverned' when no rule carries a write list for $rel, 'cannot-tell' when
+# the store exists and cannot be read (SM1024).
+sub write_rule_names {
+    my ( $rel, $user ) = @_;
+    my $map = load_acls();
+    return ('cannot-tell') if $ACLS_FAULT;
+    my ( $e, $key ) = _acl_entry_and_key( $map, $rel, 'write' );
+    return ('ungoverned') unless $e;
+    return ( _write_list_names( $e, $user ) ? 'named' : 'other', $key );
+}
+
+# The rule keys strictly beneath folder $rel whose write list does not name the
+# caller - what a member's move of a folder would carry along. Sorted.
+sub write_rules_below_not_naming {
+    my ( $rel, $user ) = @_;
+    my $map = load_acls();
+    $rel = _acl_norm($rel) // '';
+    $rel =~ s{/+\z}{};
+    return () unless length $rel;
+    return grep {
+        my $e = $map->{$_};
+        ( my $k = _acl_norm($_) ) =~ s{/+\z}{};
+        index( $k, "$rel/" ) == 0
+            && ref $e eq 'HASH' && ref $e->{write} eq 'ARRAY' && @{ $e->{write} }
+            && !_write_list_names( $e, $user )
+    } sort keys %$map;
+}
+
+sub _write_list_names {
+    my ( $e, $user ) = @_;
+    my %grp = map { lc($_) => 1 } do {
+        local $Lazysite::Auth::Settings::AUTH_DIR = _settings_dir();
+        Lazysite::Auth::Settings::group_closure(@user_groups);
+    };
+    for my $entry ( @{ $e->{write} || [] } ) {
+        next unless defined $entry && length $entry;
+        if    ( $entry =~ /\A\@(.+)\z/ ) { return 1 if $grp{ lc $1 } }
+        elsif ( defined $user && length $user && $entry eq $user ) { return 1 }
+    }
+    return 0;
+}
+
 1;

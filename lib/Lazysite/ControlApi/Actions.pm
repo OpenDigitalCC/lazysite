@@ -387,7 +387,14 @@ our %GATE = (
 #                              No capability, cookie-only (never in %GATE), and no
 #                              parameter may name an account - refused at load
 #                              below and by t/lint/246
-#   mcp => 'tool_name'         SM943 stage 2: the action's MCP twin - the tool that
+#   member_content => 1        SM1414 (ruling 169): the cookie door serves it to a
+#                              holder of write_content without `ui` - a write only
+#                              where a file rule names the caller, paths inside the
+#                              signed-in domain's content root. Closed to read,
+#                              save, mkdir, move and delete; each must be scoped and
+#                              on the file surface, and none is a self action
+#                              (checked at load below)
+#   mcp => 'tool_name'        SM943 stage 2: the action's MCP twin - the tool that
 #                              does the same thing through the other door. The
 #                              twin's readOnly, destructive and changesAccess hints
 #                              are DERIVED from this entry (mcp_annotations), so
@@ -561,7 +568,7 @@ our %ACTION = (
     'data-safety-export-read' => { mcp => 'read_data_safety_export', cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query', required => 1 } ] },
     # [mcp] restore_data_safety_export: writes rows into a live table
     'data-safety-export-restore' => { mcp => 'restore_data_safety_export', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'file', in => 'query_or_body', required => 1 }, { name => 'apply', in => 'query_or_body' } ] },
-    'delete' => { mutates => 1, content_write => 1, destructive => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'delete' => { mutates => 1, content_write => 1, member_content => 1, destructive => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'describe-capabilities' => { params => [] },
 
     # SM778: resolve logins the caller ALREADY HOLDS to display names. No
@@ -786,8 +793,8 @@ our %ACTION = (
     'list' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
     'lock' => { mutates => 1, content_write => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'migrate-to-local' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
-    'mkdir' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
-    'move' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
+    'mkdir' => { mutates => 1, content_write => 1, member_content => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
+    'move' => { mutates => 1, content_write => 1, member_content => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'to', in => 'query' } ] },
     'nav-read' => { mcp => 'read_nav', params => [ { name => 'host', in => 'query' } ] }, # SM568
     'nav-save' => { mcp => 'set_nav', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_nav', params => [ { name => 'items', in => 'body', required => 1 }, { name => 'host', in => 'query_or_body' } ] },
     # [mcp] SM918: the notice bell, read by both doors through one reader
@@ -841,7 +848,7 @@ our %ACTION = (
     # lists, which is the same disclosure acl-get carries per file - so it
     # takes the same capability, and the response is scope-filtered on top.
     'protected-sections' => { cookie_cap => 'manage_content', params => [ { name => 'path', in => 'query' } ] },
-    'read' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
+    'read' => { member_content => 1, scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
     'recent-changes'        => { params => [ { name => 'window', in => 'query' } ] },
     # [mcp] SM301: was an MCP-only entry whose recorded reason was "the API path can
     # add one when someone asks for it". A live site asked, having taken its own
@@ -849,7 +856,7 @@ our %ACTION = (
     'regenerate-registries' => { mcp => 'regenerate_registries', mcp_open_world => 1, mutates => 1, audited => 0, params => [] },
     'renew-lock' => { mutates => 1, content_write => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'rotate-auth-secret' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_config', cookie_only_reason => 'rotating the signing secret invalidates every live session, including the caller\'s own, so it is done by a human who can see what breaks', params => [] },
-    'save' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'content', in => 'body' }, { name => 'mtime', in => 'body' } ] },
+    'save' => { mutates => 1, content_write => 1, member_content => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' }, { name => 'content', in => 'body' }, { name => 'mtime', in => 'body' } ] },
     'session-revoke' => { mutates => 1, params => [] },
     'sessions-list'     => { params => [] },
 # [destructive] SM572 follow-through: site-backup-apply REPLACES the live content tree with
@@ -1030,13 +1037,16 @@ sub need_caps {
 my %FIELD = map { $_ => 1 } qw(
     params caps mutates destructive changes_access audited scoped file_surface
     cookie_cap cookie_gates_itself cookie_only_reason mcp mcp_open_world
-    instance_wide content_write self
+    instance_wide content_write self member_content
     extension handler always_reason description input_schema
 );
 # SM1369 X2: the five fields only a declared row carries - whose it is, the
 # function that runs it, why an ALWAYS gate needs nothing, and the twin's
 # description and schema (which core's twins keep in lazysite-mcp.pl's table).
 my %DECLARED_FIELD = map { $_ => 1 } qw(extension handler always_reason description input_schema);
+# SM1414 (ruling 169): the member content door's set, closed. A new action joins
+# it by a ruling and an edit here, never by a declaration alone.
+my %MEMBER_CONTENT_SET = map { $_ => 1 } qw(read save mkdir move delete);
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
     for my $k ( sort keys %{$spec} ) {
@@ -1057,6 +1067,18 @@ for my $name ( sort keys %ACTION ) {
         if defined $t && $t !~ /\A[a-z][a-z_]*\z/;
     die "Lazysite::ControlApi::Actions: '$name' declares mcp_open_world with no mcp twin\n"
         if exists $spec->{mcp_open_world} && !defined $t;
+
+    # SM1414: the member content door reaches these actions without `ui` and
+    # without manage_content, so each is a path action the scope and carve-out
+    # gates see, and the set is the ruled one.
+    if ( $spec->{member_content} ) {
+        die "Lazysite::ControlApi::Actions: '$name' is not in the ruled member content set\n"
+            unless $MEMBER_CONTENT_SET{$name};
+        die "Lazysite::ControlApi::Actions: member content action '$name' must declare $_\n"
+            for grep { !$spec->{$_} } qw(scoped file_surface);
+        die "Lazysite::ControlApi::Actions: member content action '$name' is a self action\n"
+            if $spec->{self};
+    }
 
     # SM1043: a self action acts on the caller alone - so no token reaches it, no
     # capability opens it, no MCP twin serves it, it writes no site content and
@@ -1237,6 +1259,9 @@ sub renamed_refusal {
 
 # SM1043: the actions whose subject is always the signed-in caller (`self`).
 sub self_actions { return _flagged('self') }
+
+# SM1414: the actions the member content door serves (`member_content`).
+sub member_content_actions { return _flagged('member_content') }
 
 # Audited by default exactly when it mutates; `audited` states the exceptions.
 sub audited {

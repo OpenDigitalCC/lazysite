@@ -674,6 +674,129 @@ sub _confine_scope {
     }
 }
 
+# --- SM1414 (ruling 169): THE MEMBER CONTENT DOOR -----------------------------
+#
+# A member app's authors hold write_content and not `ui`. SM1057 shut this door
+# on every such session, for two causes: a path no rule governs was open to
+# every writer, and a domain member's paths resolved against the primary's
+# docroot. This door answers both for the five actions it serves
+# (Actions::member_content_actions): a write lands only where a file rule names
+# the caller as a writer, an ungoverned path is refused, and the paths sent are
+# inside the content root of the domain the session is signed in on.
+
+# The content root (docroot-relative, no slashes; '' for the docroot) of the
+# domain this request arrived on: its own content_root, else the primary's
+# (a host that is not a configured domain is served as the primary).
+my ( $MEMBER_ROOT, %MEMBER_SENT ) = ('');    # the session's root; each field as sent
+
+# The site path a member sent for a docroot-relative path or rule key: the
+# session's content root taken off, so a refusal names what the caller knows.
+sub _member_shown {
+    my ($p) = @_;
+    ( my $r = $p // '' ) =~ s{^/+}{};
+    $r = substr( $r, length($MEMBER_ROOT) + 1 ) if length $MEMBER_ROOT && index( $r, "$MEMBER_ROOT/" ) == 0;
+    $r = '' if length $MEMBER_ROOT && $r eq $MEMBER_ROOT;
+    return "/$r";
+}
+
+sub _session_content_root {
+    ( my $host = lc( $ENV{HTTP_HOST} // '' ) ) =~ s/:\d+\z//;
+    my $cr = length $host ? domain_content_root($host) : undef;
+    unless ( defined $cr ) {
+        my ($prim) = grep { $_->{is_primary} } @{ domains_list()->{domains} || [] };
+        $cr = $prim ? ( $prim->{content_root} // '' ) : '';
+    }
+    $cr =~ s{^/+|/+$}{}g;
+    return $cr;
+}
+
+# Check the paths the caller sent and resolve them inside the session's content
+# root, in place ($path, $params{path}, $params{to}), so every gate, the handler
+# and the audit row read the file that is written. Returns the scopes this caller
+# is confined to: its own, when its domain access resolved any (a locked member
+# is held to its domains, so signing in elsewhere reaches nothing), else the
+# session's content root - the primary's content less the other domains' roots
+# (SM1372) when that is the docroot.
+sub _member_door_paths {
+    my ($caps) = @_;
+    my $root   = $MEMBER_ROOT = _session_content_root();
+    my @names  = ( 'path', ( $action eq 'move' ? 'to' : () ) );
+    for my $n (@names) {
+        my $p = $params{$n};
+        _refuse( { ok => 0, kind => 'missing-parameter', field => $n,
+                error => "$n is required (in the query). Name the file by its path on this site, "
+                    . 'such as ?path=/post/hello.md. Nothing was changed.' },
+            'ui', "missing-parameter: $n missing - member content door", '' )
+            unless defined $p && length $p;
+        _refuse( { ok => 0, kind => 'invalid-path', field => $n,
+                error => "'$p' is not a valid path: paths on this site are forward, with no '..' "
+                    . 'segment. Nothing was changed.' },
+            'ui', 'denied: member content door - invalid path', $p )
+            if $p =~ m{(?:\A|/)\.\.(?:/|\z)} || $p =~ /[\0\\]/;
+        ( my $rel = $p ) =~ s{^/+}{};
+        my $resolved = length $root ? "/$root/$rel" : "/$rel";
+        _refuse( { ok => 0, kind => 'forbidden', field => $n,
+                error => "'$p' is in the engine's own tree, which a member's session never reaches. "
+                    . 'Nothing was changed.' },
+            'ui', 'denied: member content door - reserved tree', $p )
+            if Lazysite::Manager::Common::path_is_reserved($rel)
+            || Lazysite::Manager::Common::path_is_reserved( $resolved =~ s{^/+}{}r );
+        $MEMBER_SENT{$n} = $p;
+        $params{$n}      = $resolved;
+        $path            = $resolved if $n eq 'path';
+    }
+    my @own = grep { defined && length } @{ $caps->{dav_scopes} || [] };
+    return [@own] if @own;
+    return length $root ? [$root] : [];
+}
+
+# A write on this door: the rule that governs each target for writing must name
+# the caller (Acl::write_rule_names). A move checks its source and its target,
+# and a folder moved carries the rules beneath it, each of which must name the
+# caller too. A read is left to the file's read list, as everywhere (the handler).
+sub _member_door_rules {
+    return if $action eq 'read';
+    my @targets = ( [ $path, 'path' ], ( $action eq 'move' ? [ $params{to}, 'to' ] : () ) );
+    for my $t (@targets) {
+        my ( $p, $field ) = @$t;
+        my $v = validate_path($p);
+        next unless $v->{ok};    # the handler refuses it, with its own reason
+        my ( $state, $key ) = Lazysite::Auth::Acl::write_rule_names( $v->{rel}, $auth_user );
+        next if $state eq 'named';
+        # SM1024: the store's fault, not a rule - the cannot-tell answer (503).
+        _refuse( { ok => 0, kind => 'cannot-tell', store => 'lazysite/auth/acls.json',
+                repair => 'lazysite check --docroot <docroot>',
+                error => 'Cannot tell whether you may write this file: lazysite/auth/acls.json '
+                    . 'exists and cannot be read or does not decode. This is a fault on the host, '
+                    . 'not a rule about this file; the site operator repairs it.' },
+            'ui', 'denied: member content door - cannot tell', $p )
+            if $state eq 'cannot-tell';
+        my $sent = $MEMBER_SENT{$field} // _member_shown($p);
+        _refuse( { ok => 0, kind => 'permission', field => $field,
+                error => $state eq 'ungoverned'
+                ? "No access rule governs '$sent', so your session cannot write it. A member writes "
+                    . 'only where a rule on the file or its folder names them or their group as a '
+                    . 'writer; the site operator sets those rules. Nothing was changed.'
+                : "The access rule on '" . _member_shown($key) . "' does not name you or your group "
+                    . "as a writer, so your session cannot write '$sent'. Nothing was changed." },
+            'ui', "denied: member content door - $state", $p );
+    }
+    if ( $action eq 'move' ) {
+        my $v = validate_path($path);
+        if ( $v->{ok} && -d $v->{full} ) {
+            my @below = Lazysite::Auth::Acl::write_rules_below_not_naming( $v->{rel}, $auth_user );
+            _refuse( { ok => 0, kind => 'permission', field => 'path',
+                    error => "The folder '" . ( $MEMBER_SENT{path} // $path ) . "' holds content whose "
+                        . 'access rule does not name you as a writer ('
+                        . join( ', ', map { _member_shown($_) } @below ) . '), so your session cannot '
+                        . 'move it. Nothing was changed.' },
+                'ui', 'denied: member content door - rule below', $path )
+                if @below;
+        }
+    }
+    return;
+}
+
 $body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my $len = $ENV{CONTENT_LENGTH} // 0;
@@ -902,6 +1025,8 @@ if ( !$token_auth ) {
     my %CONTENT_WRITE = Lazysite::ControlApi::Actions::content_writes();
     # SM1043: the caller-only actions, which the `ui` gate below lets through.
     my %SELF_ACTION = Lazysite::ControlApi::Actions::self_actions();
+    # SM1414: the actions the member content door serves.
+    my %MEMBER_CONTENT = Lazysite::ControlApi::Actions::member_content_actions();
     if ( !_operator() ) {
         my $caps = _user_caps($auth_user);
 
@@ -926,16 +1051,29 @@ if ( !$token_auth ) {
         # /account is for. The set is the declaration's (Actions::self_actions,
         # whose load-time checks and t/lint/246 keep it to caller-only actions),
         # never a list kept here. csrf-token is answered above this gate.
-        unless (
-            $SELF_ACTION{$action}
-            || $caps->{manager_ui}
-            || Lazysite::Auth::Settings::groups_grant_cap( 'ui', Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) ) )
-        {
+        #
+        # SM1414 (ruling 169): AND THE MEMBER CONTENT DOOR - a holder of
+        # write_content who does not hold `ui`, for the actions declared
+        # `member_content` (read, save, mkdir, move, delete) and no others. Its
+        # paths and rules are asked below (_member_door_paths, _member_door_rules)
+        # in place of the manager's manage_content gate. A `ui` holder never takes
+        # this door, so the manager is unchanged.
+        my $ui_by_group = Lazysite::Auth::Settings::groups_grant_cap( 'ui',
+            Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) );
+        my $holds_wc = !( $caps->{manager_ui} || $ui_by_group )
+            && ( $caps->{write_content}
+            || Lazysite::Auth::Settings::groups_grant_cap( 'write_content', Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) ) );
+        my $member_door = ( $holds_wc && $MEMBER_CONTENT{$action} && !$SELF_ACTION{$action} ) ? 1 : 0;
+        unless ( $SELF_ACTION{$action} || $caps->{manager_ui} || $ui_by_group || $member_door ) {
             _refuse(
                 { ok => 0, kind => 'forbidden',
                     error => "This account does not have manager access (the 'ui' permission), "
-                        . 'so the manager API does nothing for it. An administrator can grant '
-                        . 'it on the Groups page.' },
+                        . 'so the manager API does nothing for it'
+                        . ( $holds_wc
+                        ? '; its write_content permission reaches read, save, mkdir, move and delete '
+                            . "only, and '$action' is not one of them"
+                        : '' )
+                        . '. An administrator can grant it on the Groups page.' },
                 'ui', 'denied: manager channel capability' );
         }
 
@@ -951,7 +1089,8 @@ if ( !$token_auth ) {
             return $caps->{manage_content}
                 || Lazysite::Auth::Settings::groups_grant_cap( 'manage_content', Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) );
         };
-        if ( $CONTENT_WRITE{$action} ) {
+        # SM1414: the member content door asks its own, narrower question below.
+        if ( $CONTENT_WRITE{$action} && !$member_door ) {
             my @content = grep { defined && !m{\A/*lazysite(?:/|\z)} } ( $path, $params{to} );
             if ( @content && !$holds_content->() ) {
                 _refuse(
@@ -1034,8 +1173,13 @@ if ( !$token_auth ) {
         # interactive channel too, so a delegated domain editor cannot reach
         # another domain's content through the manager UI.
         _refuse_unread_or_missing_path('ui');    # SM1103
-        _confine_scope( $caps->{dav_scopes}, 'ui' );
-        @REQUEST_SCOPES = @{ $caps->{dav_scopes} || [] };
+
+        # SM1414: a member's paths are resolved inside its session's domain first,
+        # and it is confined to that domain unless its own access says otherwise.
+        my $scopes = $member_door ? _member_door_paths($caps) : $caps->{dav_scopes};
+        _confine_scope( $scopes, 'ui' );
+        _member_door_rules() if $member_door;
+        @REQUEST_SCOPES = @{ $scopes || [] };
         # SM648: resolved, therefore CONFINED - even if the resolution is empty.
         # This block is inside !_operator(), so an operator never reaches it and
         # stays unconfined, which is the distinction the flag exists to carry.

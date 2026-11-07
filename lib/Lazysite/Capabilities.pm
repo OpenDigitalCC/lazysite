@@ -88,6 +88,30 @@ my %ACTION_INFO = (
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
         },
     },
+    # SM1414 (ruling 169): THE MEMBER'S CONTENT DOOR, the content twin of
+    # write_data. A member app's authors (members without `ui`) save files over
+    # their own signed-in session: the manager API's cookie door, for read, save,
+    # mkdir, move and delete only. A WRITE IS AN ALLOW-LIST, as write_data's
+    # writable_by is: only a file rule whose write list names the account or its
+    # group admits it, and a path no rule governs is refused - where for a
+    # manager it is open. Implies nothing and is implied by nothing: a
+    # manage_content holder without `ui` is refused this door, and a `ui` holder
+    # never uses it. Granted to no shipped role.
+    write_content => {
+        section => 'Content',
+        title => 'Write content files where a file rule names you, over your own signed-in session.',
+        grants => 'Read, save, make folders in, move and delete content files through the '
+            . 'manager API over your own signed-in session, without the manager. A write lands '
+            . 'only where a file rule on the file or its folder names you or one of your groups in '
+            . 'its write list; a path no rule governs is refused, and the engine\'s own tree is never '
+            . 'reached. Paths are inside the content root of the domain you signed in on. Grant '
+            . 'this to an app\'s own authors where `manage_content` and the manager would be far '
+            . 'too wide. It grants nothing to an account that holds `ui`, which uses the manager.',
+        unlocks => {
+            ui => [ 'the manager API over a signed-in session, without the manager: read, save, '
+                    . 'mkdir, move and delete, where a file rule names you' ],
+        },
+    },
     manage_nav => {
         section => 'Content',
         title   => 'Edit site navigation.',

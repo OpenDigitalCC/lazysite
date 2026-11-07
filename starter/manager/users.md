@@ -235,7 +235,7 @@ function loadUsers() {
 
 var PERM_LABELS = {
   ui: 'Manager UI', webdav: 'WebDAV', api: 'API', mcp: 'MCP',
-  manage_content: 'Content', manage_nav: 'Navigation', manage_forms: 'Forms',
+  manage_content: 'Content', write_content: 'Content files where a rule names you (no manager)', manage_nav: 'Navigation', manage_forms: 'Forms',
   publish_copies: 'Publish page copies',
   manage_themes: 'Themes', manage_layouts: 'Layouts', manage_data: 'Data tables', write_data: 'Data rows (named tables only)', manage_briefs: 'Authoring briefs',
   run_jobs: 'Run scheduled jobs',

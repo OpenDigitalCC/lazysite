@@ -216,6 +216,16 @@ run. A script that staged and then checked `staged` needs no change; one that to
 alone as "kept" now sees the refusal. Empty runs kept by earlier releases stay in the
 import list until removed there.
 
+**Members can be let back into the manager API to save content (SM1414, ruling 169).**
+A new capability, `write_content`, lets an account without `ui` call `read`, `save`,
+`mkdir`, `move` and `delete` on `/cgi-bin/lazysite-manager-api.pl` over its own
+signed-in session, writing only where an access rule names it or its group as a
+writer. Nothing changes for a site that grants no `write_content`: no group holds it
+after the upgrade except the operator group, whose access it does not change, and an
+account without `ui` is refused as before. To let a member app's authors save posts,
+grant their group `write_content` on the Groups page and give the folder they write
+a rule naming the group in its write list. See `/docs/auth`.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

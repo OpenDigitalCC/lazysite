@@ -133,7 +133,7 @@ subtest 'a described capability is mirrored from the index, an undescribed one i
 # simply one no extension claims, which would make this assertion vacuous.
 my %CORE = map { $_ => 1 } qw(
     ui webdav api mcp
-    manage_content manage_nav manage_forms manage_themes manage_layouts
+    manage_content write_content manage_nav manage_forms manage_themes manage_layouts
     manage_domains manage_config manage_services manage_users
     analytics audit notifications feedback read_submissions
     delete_submissions approve_accounts

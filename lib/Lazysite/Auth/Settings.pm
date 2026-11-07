@@ -49,7 +49,7 @@ sub resolve_token_ttl {
 # the per-account flag onto this list in the clean-cut phase.
 our @CAP_KEYS = qw(
     ui webdav api mcp
-    manage_content manage_nav manage_forms
+    manage_content write_content manage_nav manage_forms
     manage_themes manage_layouts manage_domains manage_config manage_services
     manage_users analytics audit notifications feedback read_submissions
     delete_submissions approve_accounts

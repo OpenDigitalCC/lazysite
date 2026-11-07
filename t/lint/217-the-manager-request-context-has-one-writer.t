@@ -253,8 +253,10 @@ sub imported_facts {
     # S33a: %params has one writer in the script, the query-string parse.
     # SM1047 (P-9) adds the one other: the path an action declares
     # `query_or_body`, resolved once from the body before the scope check.
+    # SM1414 adds the member content door's: path and to, resolved once inside the
+    # session's domain before the scope check (_member_door_paths).
     is_deeply( [ map { s/^line \d+: //r } writes( $code, 'params', '' ), writes( $code, 'params', $Q ) ],
-        [ '$params{$k} = $v;', '$params{path} = $bp;' ],
+        [ '$params{$k} = $v;', '$params{$n}      = $resolved;', '$params{path} = $bp;' ],
         'the script writes %params only where it parses the query string, and the one resolved path' );
     my @mine = grep { $code =~ /^(?:my|our|state)\b\s*(?:\([^)]*?)?\Q$SIGIL{$_}$_\E\b/m } @FACTS;
     is_deeply( \@mine, [], 'the script declares none of them at file scope (no private copy beside the shared one)' );

@@ -560,3 +560,36 @@ auth_groups:
 ```
 
 Protected pages are never cached.
+
+### A member app that saves files (`write_content`)
+
+For an app whose users write content files, such as a blog whose authors are
+members and never use the manager. The operator does two things, and the app's
+page script does the rest:
+
+1. The operator grants the authors' group `write_content` (Groups page), and
+   **not** `ui`.
+2. The operator sets a rule on the folder the authors write, naming the group in
+   its write list (for example `{"write":["@authors"]}` on `post`). A path no rule
+   governs is refused to them, and a new file follows its folder's rule.
+
+The page script, running in the signed-in author's browser on the site's own
+origin:
+
+```js
+const api = '/cgi-bin/lazysite-manager-api.pl';
+const { token } = await (await fetch(api + '?action=csrf-token')).json();
+const r = await fetch(api + '?action=save&path=/post/hello.md', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+  body: JSON.stringify({ content: '---\ntitle: Hello\n---\n\nFirst post.\n' }),
+});
+const answer = await r.json();   // { ok: 1, ... } or { ok: 0, kind, error }
+```
+
+The same door serves `read`, `mkdir`, `move` (`&to=`) and `delete`, each with
+`path` in the query string. Every other action answers that the account does not
+have manager access. Paths are the site's own: on a domain with its own content
+root, `/post/hello.md` is that domain's post, and the answer's `path` names the
+file the engine wrote. A refusal says why: `kind: permission` when no rule names
+the author, or when no rule governs the path.
