@@ -68,7 +68,7 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.16.7)
+## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl
 modules now install beside its descriptor, in `{DOCROOT}/../extensions/odoo/lib/`, and
@@ -87,7 +87,7 @@ than run the stale copy, and the error the web server logs names the file:
 .../lib/Lazysite/Odoo/<Name>.pm - a copy an earlier release left outside the
 extension; remove it`. Keep any change you need from that file (the released copy
 is in `extensions/odoo/lib/`), delete the named file, and Odoo answers again; no
-restart is needed.
+restart is needed. A site that edited none has nothing to do.
 
 Odoo still ships in the same package as the engine. The separate package is 0.16.9.
 
@@ -95,41 +95,51 @@ Odoo still ships in the same package as the engine. The separate package is 0.16
 `odoo_site_signin: on`, a person idle past `odoo_identity_ttl` who opens a protected
 page now passes through `/cgi-bin/lazysite-odoo.pl?renew=1` and back to the page. If
 Odoo has ended their session they reach the site's sign-in page instead
-(`auth_redirect`, else `/login`), with `next` kept. The step needs no
-configuration. A front end that sends `/cgi-bin/lazysite-odoo.pl` to the engine already
-sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a loop.
+(`auth_redirect`, else `/login`), with `next` kept; `/login?action=session` goes
+through the same step. The step needs no configuration. A front end that sends
+`/cgi-bin/lazysite-odoo.pl` to the engine already sends it there; a front end that
+answers that path itself, or blocks `?renew=1`, sends every stale session to the
+sign-in instead, as before. The step sets a short-lived cookie, `lzs_renewed`, which
+stops a loop: one renewal a minute, then the sign-in. The refusal is logged at INFO.
 
-- **An account named `v1` cannot hold a session, and cannot be created (SM1390).** `v1`
-  is the theme-preview cookie's marker, and a session payload beginning with it is
-  refused, so a site with an account of that exact name has it sign in and be refused on
-  every request: `lazysite check` names it; rename it (`users rename v1 NEW-NAME`). The
-  users tool, the manager and an accounts import refuse the name from now on. A session
-  cookie whose issue time is more than 300 seconds ahead of the
-  server's clock is refused as well; a host whose clock runs that far ahead of the one
-  that minted the cookie sees sign-ins refused until the clocks agree.
-- **A hand-written schedule entry under the 300-second floor is now reported (SM1391).**
-  It never ran before and still does not; `lazysite check` names it, and the daemon's
-  run record holds a refusal for it. Set `every:` to 300 or more.
+**Deleting a group is refused while anything names it (SM1387).** The Groups page's
+Delete, and the new `group-delete` (control API) and `delete_group` (MCP), refuse a
+group a page, an access rule, a domain, a data table, a binding or a connector still
+names, and say which: remove the group from those first. A group with a member is
+refused too. The operator group is never deleted, even when there is more than one
+(before, only the last was kept). A domain-confined token or MCP grant deletes only a
+group it created with `group-set`. An empty agent role (SM1371) may be deleted;
+`reset-groups` restores a shipped one. Each deletion is audited.
 
-- **Deleting a group is refused while anything names it** (SM1387). The Groups page's
-  Delete, and the new `group-delete` (control API) and `delete_group` (MCP), refuse a
-  group a page, an access rule, a domain, a data table, a binding or a connector still
-  names, and say which: remove the group from those first. The operator group is never
-  deleted, even when there is more than one (before, only the last was kept).
+**An account named `v1` cannot hold a session, and cannot be created (SM1390).** `v1`
+is the theme-preview cookie's marker, and a session payload beginning with it is
+refused, so a site with an account of that exact name has it sign in and be refused on
+every request: `lazysite check` names it; rename it (`users rename v1 NEW-NAME`). The
+users tool, the manager and an accounts import refuse the name from now on. A session
+cookie whose issue time is more than 300 seconds ahead of the server's clock is
+refused as well; a host whose clock runs that far ahead of the one that minted the
+cookie sees sign-ins refused until the clocks agree.
+
+**A hand-written schedule entry under the 300-second floor is now reported (SM1391).**
+It never ran before and still does not; `lazysite check` names it, and the daemon's
+run record (`lazysite/daemon/schedule-runs.json`) holds a refusal for it, written once
+and logged. Set `every:` to 300 or more.
 
 **The agent roles and the shipped bundles appear on an older site (SM1393).** 0.16.6's
 note said the four agent roles appear on a site's first Users or Groups page load after
 the upgrade. On a site bootstrapped before the `seeded` mark existed (before 0.11.3, or
-whose manager group came from `lazysite.conf`'s `manager_groups`) they did not, and nor did any
-bundle a release had added since (`cap-tidy`, `cap-services`, `cap-maintenance`,
-`cap-audit-switch`, `ch-files`, as the site's roles draw on them). After this release,
-the first Users or Groups page load (or any users-tool command that reads the group
-store, such as `group-add`; the CLI `groups` listing is not one) adds the four
-roles and, on a site that has the bundle layer, the bundles it lacks, nested into the
-roles present under their shipped names. The roles have no members and the bundles are
-nested only into roles already there, so nobody's access changes; delete any you do not
-want and it stays deleted. A group an operator made under a shipped name on a site that
-carries the mark is left alone, as before. The site's audit log records each adoption.
+whose manager group came from `lazysite.conf`'s `manager_groups`) they did not, and nor
+did any bundle a release had added since (`cap-tidy`, `cap-services`,
+`cap-maintenance`, `cap-audit-switch`, `ch-files`, as the site's roles draw on them).
+After this release, the first Users or Groups page load (or any users-tool command
+that reads the group store, such as `group-add`; the CLI `groups` listing is not one)
+adds the four roles and, on a site that has the bundle layer, the bundles it lacks,
+nested into the roles present under their shipped names. The roles have no members and
+the bundles are nested only into roles already there, so nobody's access changes;
+delete any you do not want and it stays deleted. A group an operator made under a
+shipped name on a site that carries the mark is left alone, as before. The site's
+audit log records each adoption. On such a site `reset-groups` and the Groups page's
+"shipped" badge still read the mark, so they answer for the roles as they did.
 
 **A form's own conf opens in the manager's editor (SM1392).** An account holding
 `manage_forms` can open `lazysite/forms/<name>.conf` in the editor from the Files page;
@@ -139,6 +149,40 @@ holding `manage_forms` without `manage_content` reaches a form's own conf throug
 connector as it has over WebDAV; a grant holding `manage_content` without `manage_forms`
 is refused it, as it was. If an account holds `manage_forms` it should not, this is the
 release to check. No other path changes.
+
+**A check line that goes away (SM1389).** On a site with a protected folder's history
+on (`history: true`, SM1324), 0.16.6's `lazysite check` reported the history repository
+in the private store (`<store>/lazysite/git`) as stray public copies of the docroot's
+`lazysite/git`, and the site NOT SERVICEABLE. The walk now skips that one repository;
+nothing to do. A layout a rule moved into the store, and a copy beside it, are still
+reported.
+
+**Smaller changes, nothing to do.**
+
+- A theme is deleted by its path, under any layout (SM1385): `delete_theme` (MCP),
+  `theme-delete` (control API) and the manager's Themes page take
+  `lazysite/layouts/<layout>/themes/<name>` as `theme-copy` does; the bare name still
+  means the active layout's theme, and the same refusals apply by path (the active
+  theme, a theme a domain serves, a theme another account made, a path into a served
+  copy). The Themes page offers Delete under every layout.
+- A theme install warns when its stylesheets are outside `assets/` (SM1386), on every
+  install door (`theme-upload`, MCP `install_theme`, the layout installs), naming each
+  stylesheet and where it belongs; warned, never refused. Only `assets/` is served, so
+  such a theme previews with no CSS until the files are moved.
+- A rule with `history: true` on a folder that does not exist yet is refused with a
+  sentence that says so and to create the folder first (SM1388); it said "is not a
+  folder", which read as a file.
+- Live data is a scheduled connector answer in a table row (SM1382): the "Live data"
+  section of `/docs/ai-briefing-building-sites` is the recipe, with its measured limits
+  (a 300-second floor, an interval rounded up to a multiple of 300, fixed fields, one
+  row per poll, `ttl:` the only freshness bound). A connector cannot express a
+  submit-poll-read job protocol; that is filed as SM1384, a candidate.
+- The session cookie's format is an external contract (SM1383):
+  `docs/architecture/session-cookie-contract.md` states what an outside process on the
+  same host verifies, read-only, and the format changes only versioned, reader before
+  writer. Nothing changes for a site. A site that gives a process read access to its
+  `auth/` directory trusts it as far as the web server, because the key is symmetric
+  (OBLIGATIONS.md).
 
 ## The primary's content leaves out the other domains, and the rest of 0.16.6
 
