@@ -4244,7 +4244,7 @@ sub report_stray_public {
     # store there (measured, tmp/n764-layout-move-probe.pl), so a copy left
     # beside such a layout is still a stray copy and is still reported.
     require Lazysite::ProtectedHistory;
-    my $history = Lazysite::ProtectedHistory::_git_dir_in($root);
+    my $history = Lazysite::ProtectedHistory::history_git_dir($root);
 
     my @stray;
     find_noting( 'the protected-content check',

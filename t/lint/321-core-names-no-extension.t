@@ -85,6 +85,7 @@ my %ALLOWED = (
     'lazysite-processor/render.pm'               => 15,
     'lazysite-processor/sources.pm'              => 36,
     'lib/Lazysite/Auth/AddressRefs.pm'           => 2,
+    'lib/Lazysite/Auth/GroupRefs.pm'             => 7,    # SM1387: a binding's and odoo.conf's group names
     'lib/Lazysite/Auth/Identity.pm'              => 1,
     'lib/Lazysite/Auth/Session.pm'               => 33,
     'lib/Lazysite/Auth/Settings.pm'              => 1,

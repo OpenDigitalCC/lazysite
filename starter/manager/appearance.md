@@ -268,14 +268,14 @@ function renderInstalled(layouts, byLayout) {
           if (tUsed.length) {
             html += '<span class="mg-file-meta">cannot delete</span>';
           } else {
-            html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Delete</button>';
+            html += '<button class="mg-btn mg-btn-sm mg-btn-danger" data-impact="destroy" onclick="deleteTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Delete</button>';
           }
         }
       } else if (tUsed.length) {
         html += '<span class="mg-file-meta">cannot delete</span>';
       } else {
         // SM1385: a theme under a layout that is not active is deleted by its path.
-        html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Delete</button>';
+        html += '<button class="mg-btn mg-btn-sm mg-btn-danger" data-impact="destroy" onclick="deleteTheme(\'' + escHtml(t) + '\',\'' + escHtml(L) + '\')">Delete</button>';
       }
       html += '</div></div></div>';
     }

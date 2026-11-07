@@ -21,10 +21,9 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use File::Path   qw(make_path);
-use File::Temp   qw(tempdir);
 use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use TestHelper     qw(repo_root env_passthrough run_child);
+use TestHelper     qw(repo_root env_passthrough run_child site_tempdir);
 use ManagerSession qw(new_site);
 
 plan skip_all => 'Archive::Zip is not installed' unless eval { require Archive::Zip; 1 };
@@ -82,7 +81,7 @@ use strict; use warnings; use JSON::PP qw(encode_json);
 print encode_json( { ok => 1, settings => { mcp => 1, manage_themes => 1 } } );
 STUB
 chmod 0755, "$d/users-stub.pl";
-my $logs = tempdir( CLEANUP => 1 );
+my $logs = site_tempdir();
 sub mcp_install {
     my ($zip) = @_;
     my $body = encode_json( { jsonrpc => '2.0', id => 1, method => 'tools/call',
@@ -133,7 +132,7 @@ subtest 'no warning when assets/ has CSS, or when the theme has none' => sub {
 };
 
 subtest 'the layout installs\' door carries it' => sub {
-    my $src = tempdir( CLEANUP => 1 );
+    my $src = site_tempdir();
     spit( "$src/theme.json", encode_json( { name => 'fromrepo', version => '1.0', layouts => ['default'] } ) );
     spit( "$src/main.css", "x{}\n" );
     require Lazysite::Manager::Themes;

@@ -169,7 +169,7 @@ sub refs {
             if ( $l =~ /^(allowed_groups|locked_groups)\s*:\s*(.*?)\s*$/ ) {
                 push @refs, { where => 'domain', ref => "(default) $1", name => $_ } for _names($2);
             }
-            elsif ( $l =~ /^alias\.(\S+?)\.(allowed_groups|locked_groups)\s*:\s*(.*?)\s*$/ ) {
+            elsif ( $l =~ /^alias\.(\S+?)\.(allowed_groups|locked_groups)\s*:\s*(.*?)\s*$/x ) {
                 push @refs, { where => 'domain', ref => "$1 $2", name => $_ } for _names($3);
             }
             elsif ( $l =~ /^auth_group_map\s*:\s*(.*?)\s*$/ ) {

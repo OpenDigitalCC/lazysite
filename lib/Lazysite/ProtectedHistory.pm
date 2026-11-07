@@ -46,6 +46,10 @@ sub _store_engine_dir { my ($root) = @_; return "$root/lazysite" }
 
 sub _git_dir_in { return _store_engine_dir( $_[0] ) . '/git' }
 
+# SM1389: the repository's directory for a store root, for a reader outside this
+# module (`lazysite check`'s stray-copy walk prunes it).
+sub history_git_dir { return _git_dir_in( $_[0] ) }
+
 # The private store root, registered with Lazysite::Git so its plumbing reads
 # and writes this repository. undef when the docroot has no store name.
 sub root {

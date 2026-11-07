@@ -156,6 +156,8 @@ users_api( { action => 'add', username => 'admin', password => 'pw-admin-0123456
 grant_caps( $tpl_doc, 'admin', 'manage_users', 'notifications', 'manage_config', 'audit_switch' );
 # SM1138: the address profiles are the operator's to change, so admin is in the operator group.
 users_tool( 'group-set', 'role-admin', 'manager', 'on' );
+# SM1387: an empty group nothing names, for group-delete's control.
+users_api( { action => 'group-create', group => 'unused-group' } );
 
 spit( "$tpl_doc/page.md",   "---\ntitle: Page\n---\nx\n" );
 spit( "$tpl_doc/page.html", "<p>x</p>\n" );                     # page.md's render cache
@@ -309,6 +311,7 @@ my %REQ = (
     'notify-outbox-retry' => { body => { rule => 'unused' } },    # SM1107
     'handler-save' => { body => { id => 'h2', type => 'file', name => 'H2', path => 'lazysite/forms/submissions' } },
     'group-set'    => { body => { group => 'newgroup', caps => {} } },    # SM1050
+    'group-delete' => { body => { group => 'unused-group' } },              # SM1387
     'key-revoke'       => { body  => { username => 'bot' } },
     'layout-activate'  => { query => 'layout=extra' },
     'layout-delete'    => { query => 'layout=extra' },
