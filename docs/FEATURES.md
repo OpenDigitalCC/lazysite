@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.5"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.6"
 brand: plain
 ---
 
@@ -2041,6 +2041,16 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.6** (2026-11-07, edge) - **The primary site's content leaves out the
+  other domains, agents hold roles, and extensions can declare hooks.** the
+  primary's content, granted or unbound, leaves out every other domain's
+  folder, and a listing leaves them out too (SM1372); agent accounts hold
+  roles, and manage_forms reaches a form's own config on every door (SM1371); a
+  token follows its account's grant (SM1370); an extension's hooks are found in
+  an index and loaded from its own lib, with no hook kind live yet (SM1369 X0,
+  X1); a form can mail its owner and answer the submitter (SM1362); the data
+  endpoint and data-rows refuse a parameter they do not read (SM1377); an
+  extension's settings read answers only its own keys (SM1373)
 - **0.16.5** (2026-11-06, edge) - **Address lists become address profiles, a
   theme's copies follow its source, and protected folders may keep a history.**
   address profiles, allowed or denied by the rule that names them, and the

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "rulings 126 and 137 (release manager, 2026-11-06), from the SM1332-SM1334 register entry's residual risk; planned as n759"
 area: auth
-status-note: "SHIPPED (PENDING) on n759: DomainAccess::foreign_root_of, asked by Common (outside_all_scopes, caller_may_reach_path), the MCP gate and walks and WebDAV authorise (ruling 126); Files action_list, MCP list_files and WebDAV PROPFIND leave the roots out (ruling 137). The operator is the operator group (SM991). t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74."
+status-note: "SHIPPED (0.16.6) on n759: DomainAccess::foreign_root_of, asked by Common (outside_all_scopes, caller_may_reach_path), the MCP gate and walks and WebDAV authorise (ruling 126); Files action_list, MCP list_files and WebDAV PROPFIND leave the roots out (ruling 137). The operator is the operator group (SM991). t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74."
 ---
 
 # What happened

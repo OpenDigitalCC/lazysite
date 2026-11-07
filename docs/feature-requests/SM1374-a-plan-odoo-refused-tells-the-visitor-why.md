@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (triage T-62)"
 area: odoo
-status-note: "SHIPPED (PENDING) on n759: a validation or user error shows Odoo's message without the prefix, validation: 1; any other failure answers a plain sentence and its text is withheld; counts stay in result, journal and log. Register entry confirmed (ruling 140). t/unit/odoo/125, 77."
+status-note: "SHIPPED (0.16.6) on n759: a validation or user error shows Odoo's message without the prefix, validation: 1; any other failure answers a plain sentence and its text is withheld; counts stay in result, journal and log. Register entry confirmed (ruling 140). t/unit/odoo/125, 77."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (triage T-57)"
 area: extensions
-status-note: "SHIPPED (PENDING) on n759: extension-read answers only the keys config_schema or config_keys names, password fields still dropped; a cookie session with manage_config only, no token. Register entry confirmed (ruling 140); judged a hardening, not a vulnerability fix, at the 0.16.6 walk (SM1380). t/unit/manager/445."
+status-note: "SHIPPED (0.16.6) on n759: extension-read answers only the keys config_schema or config_keys names, password fields still dropped; a cookie session with manage_config only, no token. Register entry confirmed (ruling 140); judged a hardening, not a vulnerability fix, at the 0.16.6 walk (SM1380). t/unit/manager/445."
 ---
 
 # What happened

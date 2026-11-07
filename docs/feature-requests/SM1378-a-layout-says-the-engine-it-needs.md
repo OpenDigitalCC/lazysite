@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (ruling 133, triage T-31)"
 area: layouts
-status-note: "SHIPPED (PENDING) on n760, ruling 133: Themes::layout_engine_requirement reads layout.json requires.lazysite against .install-state.json; install, activate and a domain's layout binding warn and go ahead. t/unit/manager/470."
+status-note: "SHIPPED (0.16.6) on n760, ruling 133: Themes::layout_engine_requirement reads layout.json requires.lazysite against .install-state.json; install, activate and a domain's layout binding warn and go ahead. t/unit/manager/470."
 ---
 
 # What happened

@@ -7,11 +7,11 @@ register:
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
      engine-version: 0.16.6
-     imported: 2026-11-06
+     imported: 2026-11-07
      agent: the lazysite site agent (Claude Code)
      source: docs/practice/authoring-practice.md sha256=24d4158eb67fcee6b6a4dc70dc672726dfb84a16f1d3a9cf8a7740743197dead modified=2026-11-05
      source: docs/practice/app-practice.md sha256=a1618a0b4f96a44a245143ef650c4612c72032c404a2b040b9bbb63e9ef62f3e modified=2026-11-06
-     body-sha256: 4f06c433029870c8bdf40fbd0e8d204d06ba063a133fef3b7b33762cec0fd7dc
+     body-sha256: 53ff18af2e227b1b70b3f6ec5a337980bc83d7b39e5351290271ee0cdf096748
 -->
 
 ## What this is, and what it is not
@@ -1654,7 +1654,7 @@ history, backup, what happens when two people edit at once.
 
 ## Where this came from
 
-Imported on **2026-11-06** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
+Imported on **2026-11-07** by `tools/import-field-practice.pl`, for the engine version stamped at the top of this page. Written by **the lazysite site agent (Claude Code)** - the agent that builds and maintains sites on this engine - as a working record, and kept current in its own project trees:
 
 | Source | Covers | Last changed |
 | --- | --- | --- |

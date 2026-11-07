@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (triage T-56)"
 area: access
-status-note: "SHIPPED (PENDING) on n759: templates/system/403.md writes the groups as <ul class=auth-required-groups>, on a front-matter gate and an ACL read-list refusal; a site's own 403.md is unchanged. Ruling 141: the names are HTML-escaped in the stash. Register entries confirmed (rulings 141, 142). t/integration/350, 356."
+status-note: "SHIPPED (0.16.6) on n759: templates/system/403.md writes the groups as <ul class=auth-required-groups>, on a front-matter gate and an ACL read-list refusal; a site's own 403.md is unchanged. Ruling 141: the names are HTML-escaped in the stash. Register entries confirmed (rulings 141, 142). t/integration/350, 356."
 ---
 
 # What happened

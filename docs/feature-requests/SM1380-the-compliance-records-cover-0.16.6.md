@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "the compliance check run alone for 0.16.6 (tmp/n761-compliance-check.sh): two blocking findings, as the 0.16.2 to 0.16.5 gates had (SM1306, SM1337, SM1367, SM1368)"
 area: release
-status-note: "SHIPPED (PENDING) on n761. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.6; ten confirmed entries walked; SM1375/SM1378 entry, boundary 15 and three STRIDE rows drafted; four operate-side rows; the 403 page's unescaped group names found; filings SM1373-SM1375; UPGRADE.md's 0.16.6 section; install.pl names an unreadable directory (t/tools/331)."
+status-note: "SHIPPED (0.16.6) on n761. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.6; ten confirmed entries walked; SM1375/SM1378 entry, boundary 15 and three STRIDE rows drafted; four operate-side rows; the 403 page's unescaped group names found; filings SM1373-SM1375; UPGRADE.md's 0.16.6 section; install.pl names an unreadable directory (t/tools/331)."
 ---
 
 # What was asked

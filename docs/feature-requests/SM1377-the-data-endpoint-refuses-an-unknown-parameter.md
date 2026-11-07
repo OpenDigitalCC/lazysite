@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (ruling 131)"
 area: data
-status-note: "SHIPPED (PENDING) on n760, ruling 131: lazysite-data.pl refuses an unknown query parameter, 400 kind unknown-parameter naming it and the four it reads; `_` accepted and unread. Ruling 139: the control API data-rows refuses one the same way. Supersedes SM606 in part. t/integration/355."
+status-note: "SHIPPED (0.16.6) on n760, ruling 131: lazysite-data.pl refuses an unknown query parameter, 400 kind unknown-parameter naming it and the four it reads; `_` accepted and unread. Ruling 139: the control API data-rows refuses one the same way. Supersedes SM606 in part. t/integration/355."
 ---
 
 # What happened

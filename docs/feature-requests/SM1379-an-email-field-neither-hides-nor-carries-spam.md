@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (ruling 133, triage T-34)"
 area: forms
-status-note: "SHIPPED (PENDING) on n760, ruling 133: _one_value_everywhere leaves email fields out; _email_field_injection quarantines quotes or SQL in an email field, naming the field only; ruling 138: one apostrophe in the local part passes. Register entry confirmed (ruling 140). t/unit/forms/75."
+status-note: "SHIPPED (0.16.6) on n760, ruling 133: _one_value_everywhere leaves email fields out; _email_field_injection quarantines quotes or SQL in an email field, naming the field only; ruling 138: one apostrophe in the local part passes. Register entry confirmed (ruling 140). t/unit/forms/75."
 ---
 
 # What happened

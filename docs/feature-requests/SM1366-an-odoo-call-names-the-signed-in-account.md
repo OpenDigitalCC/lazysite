@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager, from an operator reading the audit log"
 area: odoo
-status-note: "SHIPPED (PENDING) on n759, ruling 124: lazysite-odoo.pl sets Lazysite::Odoo::$SIGNED_IN per request; record_call names that account as actor and keeps the session hash in the new `session` field (session= on the audit row). No identity: the hash stays the actor. t/unit/odoo/126, 63."
+status-note: "SHIPPED (0.16.6) on n759, ruling 124: lazysite-odoo.pl sets Lazysite::Odoo::$SIGNED_IN per request; record_call names that account as actor and keeps the session hash in the new `session` field (session= on the audit row). No identity: the hash stays the actor. t/unit/odoo/126, 63."
 ---
 
 # What happens

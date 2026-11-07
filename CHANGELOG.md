@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1380 (PENDING) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and
+## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
+
+- SM1380 (0e503772) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.6 stack and stamped 0.16.6. The ten register
   entries the branches wrote, each confirmed by the release manager (rulings 134, 140), are
   walked against the code; SM1369's new-external-interface and SM1362's
@@ -72,7 +74,7 @@ Archive
   upgrade again as root or the site's owner; the step is then not recorded, so the next
   upgrade tries again.
 
-- SM1379 (PENDING) **A form's quarantine leaves email fields out of the repetition rule and
+- SM1379 (94fc2820) **A form's quarantine leaves email fields out of the repetition rule and
   quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
   counted the email field, so a random address defeated it; email fields (named so, or
   holding only an address) are now left out. An email field holding quotes, an
@@ -80,14 +82,14 @@ Archive
   one apostrophe in an address's local part (`o'brien@example.org`) passes (ruling 138).
   Quarantined, never refused. Register entry confirmed (ruling 140).
 
-- SM1378 (PENDING) **A layout says the engine it needs, and installing or activating it on an
+- SM1378 (e38805a8) **A layout says the engine it needs, and installing or activating it on an
   older one warns.** Ruling 133: `requires.lazysite` in `layout.json`, which the layouts
   catalogue writes in every layout, was read nowhere. Installing a layout, activating it, or
   binding it to a domain now compares it with the site's engine version and, when the engine
   is older, answers with `requires` and a `warning` naming both versions - as SM337 does for
   a layout with no `[% nav %]`. It goes ahead either way.
 
-- SM1377 (PENDING) **The data endpoint refuses a query parameter it does not read.** Ruling
+- SM1377 (478aafdb) **The data endpoint refuses a query parameter it does not read.** Ruling
   131: `/cgi-bin/lazysite-data.pl` named an unknown parameter (`ignored`, a warning) and
   still answered every row, so `?table=t&chunk=AAA` looked like a filtered answer. It now
   answers 400 with `kind: unknown-parameter`, naming the parameter and the four it reads
@@ -97,7 +99,7 @@ Archive
   (it reads `table`, `order_by`, `order`, `limit`, `offset`; `_` and `csrf_token` are
   accepted). UPGRADE.md says who is affected. Register entry confirmed (ruling 140).
 
-- SM1372 (PENDING) **The primary site's content leaves out the other domains' folders.** Ruling
+- SM1372 (7fdd5ade) **The primary site's content leaves out the other domains' folders.** Ruling
   126: an account given nothing, or granted the primary's row, read the whole document root
   as its content, and so reached every secondary domain's folder (`sites/...`) through it.
   Now the primary's content is the document root less the other domains' content roots, on
@@ -106,7 +108,7 @@ Archive
   PROPFIND) leaves those folders out too, for a caller refused them. The operator (a member of the operator group) and an account granted a domain keep that
   reach. UPGRADE.md says how to give an account the domain it relied on. Register entry confirmed (ruling 140).
 
-- SM1362 (PENDING) **A form tells the site's owner by email, and can answer the submitter.**
+- SM1362 (a467caee) **A form tells the site's owner by email, and can answer the submitter.**
   Ruling 123 re-scoped the filing: a bare form already saves (the shipped local-storage
   handler). `owner_contact:` in `lazysite/notify.conf` names one address, and each form's
   notice is also mailed there through the existing notice mail (the Form SMTP extension,
@@ -117,7 +119,7 @@ Archive
   address in that field under the email handler's caps (3 an hour per address, 60 per
   site, counted together). Register entry confirmed (ruling 140): the owner notice under `notify: full` fires ADR 0007's new-processing-of-restricted-data, contained.
 
-- SM1366 (PENDING) **An Odoo call's record names the signed-in account.** A call made under a
+- SM1366 (75447078) **An Odoo call's record names the signed-in account.** A call made under a
   person's Odoo session was recorded, and written to the audit log, as `session:<hash>`
   alone, so an operator could not tell who acted. Where the request is signed in to the site
   (a local account, or `odoo:<login>`), the record's `actor` and the audit line name that
@@ -125,7 +127,7 @@ Archive
   row). With no site identity the hash is the actor, as before. Who owns a plan is unchanged,
   a refused sign-in keeps its login hash, and no session id or typed login is written.
 
-- SM1374 (PENDING) **A plan Odoo refused tells the visitor why, in Odoo's words or plainly.** An
+- SM1374 (50da6727) **A plan Odoo refused tells the visitor why, in Odoo's words or plainly.** An
   Odoo plan that failed at Odoo answered "the plan did not apply completely - see the
   counts", an operator's sentence. When Odoo refused the data (a validation or user error)
   the answer's `error` is now Odoo's own message, without the "Odoo Server Error:" prefix,
@@ -135,14 +137,14 @@ Archive
   operation itself raises keeps its sentence. The counts stay in the result, the journal
   and a log line for the operator. A change whose answer never came is unchanged.
 
-- SM1373 (PENDING) **An extension's settings read answers only its own keys.** `extension-read`
+- SM1373 (2e379ccf) **An extension's settings read answers only its own keys.** `extension-read`
   for an extension kept in `lazysite.conf` (bad-url-blocker, log) answered every key in the
   site's main config, and one with its own file any key its schema does not name; only its
   own password fields were dropped. It now answers the keys the extension's `config_schema`
   or `config_keys` names, whatever its file. The action is reachable by a manager session
   with `manage_config` only (no token reaches it). Register entry confirmed (ruling 140).
 
-- SM1375 (PENDING) **The 403 page lists the groups a page needs.** The shipped `403.md` named
+- SM1375 (b9add76d) **The 403 page lists the groups a page needs.** The shipped `403.md` named
   them as "- reviewers" lines run into one paragraph, on a front-matter group gate and on an
   ACL read-list refusal alike: Markdown reads the page before Template Toolkit fills it, and
   the loop's directive line kept the list from starting. The template writes the list as
@@ -152,7 +154,7 @@ Archive
   A hardening (only an account that can write a page's markup writes a read list's names).
   Register entry confirmed (ruling 141).
 
-- SM1370 (PENDING) **A token follows its account's grant (ruling 121).** Measured first: no
+- SM1370 (68c433d3) **A token follows its account's grant (ruling 121).** Measured first: no
   token door fixes a capability into a credential - an lzs_ token verifies through
   `verify_credential` and `caps_for` at each request, an OAuth token resolves its partner
   through `partner-caps` at each call, WebDAV asks once per CGI process. So a grant added at
@@ -162,7 +164,7 @@ Archive
   block saying so, with the remedy for a client whose tool list predates the grant (list the
   tools again; no new pairing key). The layouts briefing stops advising a token rotation.
 
-- SM1371 (PENDING) **Agent accounts hold roles (ruling 122).** Four agent roles ship as
+- SM1371 (7e0906da) **Agent accounts hold roles (ruling 122).** Four agent roles ship as
   assignable groups (ADR 0003): `content-agent`, `data-agent`, `forms-reader` and
   `analytics-agent`, each one job over MCP, and an existing site adopts them once, with no
   members. `whoami` (both doors) and the Users page name the roles an account holds and any
@@ -172,7 +174,7 @@ Archive
   `read_file`/`write_file` and the manager's file editor, as WebDAV has since 0.8.1, with
   WebDAV's binding rules; `smtp.conf`, `handlers.conf` and `schedule.conf` stay closed.
 
-- SM1369 (PENDING) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
+- SM1369 (767cc0fc) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
   and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
   names Odoo (odoo, OOM, oomd; ruling 136 counts Odoo's names only); the 43 files that do today
   are an allow-list that may only shrink, and X7 empties it. X1: an extension's `owns` may declare `hooks` and

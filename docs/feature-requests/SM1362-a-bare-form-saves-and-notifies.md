@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion: 'the default save to file storage is a sensible form default')"
 area: forms
-status-note: "SHIPPED (PENDING) on n759, ruling 123: notify.conf owner_contact mails each submission notice through SM485's send_mail (Form SMTP, mail.per_hour); a form's acknowledge_field and acknowledge_message answer the submitter in the form's own words under SM877's caps. t/unit/forms/68."
+status-note: "SHIPPED (0.16.6) on n759, ruling 123: notify.conf owner_contact mails each submission notice through SM485's send_mail (Form SMTP, mail.per_hour); a form's acknowledge_field and acknowledge_message answer the submitter in the form's own words under SM877's caps. t/unit/forms/68."
 ---
 
 # What was filed
