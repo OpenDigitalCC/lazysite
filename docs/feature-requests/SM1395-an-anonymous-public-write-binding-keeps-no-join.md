@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 154), 0.16.8 wave 1"
 area: odoo
-status-note: "SHIPPED (PENDING) on n771: Odoo::Binding::parse takes anonymous (public bindings only); Odoo.pm writes the call line and its audit row without ip and visitor (_rec_base, _anon_rec) and nulls the values of a spent plan's records (_redact_spent_plan: plan, run, result, journal, the daemon's run folder too); the rate cap counts by the hash as before. t/unit/odoo/136; SECURITY.md entry drafted."
+status-note: "SHIPPED (PENDING) on n771: Binding::parse takes anonymous (public bindings only); the call line and audit row carry no ip or visitor (_rec_base, _anon_rec); a spent plan's records lose the parameter values and, ruling 160, the visitor hash (owner and OOM's actors become visitor) in the plan and daemon run folders. t/unit/odoo/136, 137; SECURITY.md entry drafted."
 ---
 
 # What happened
@@ -46,9 +46,17 @@ binding that keeps none of it.
   `recent.jsonl`, a rolling hour's counter that no call line now joins to. An
   `Idempotency-Key` still works: it is hashed with its scope (SM1223) and the
   key OOM holds stays on the line.
-- `meta.json` keeps the owner `visitor:<hash>`, so a plan is still confirmed
-  by its maker and nobody else; with the parameters gone and no address
-  anywhere, it is joined to nothing a person sent.
+- Ruling 160 (second pass): the visitor's hash leaves a spent plan's records
+  too. `_redact_spent_plan` also turns every `visitor:<hash>` label to
+  `visitor` (`_unhash_visitor`) in `meta.json`'s owner and in OOM's own
+  records - `plan.json`'s `actor`, `run.json`'s `planned`, `approval` and
+  `applied` `by`, the journal's and `audit.jsonl`'s `actor` - in the plan
+  folder and the daemon's run folder. A plan waiting for its confirm keeps
+  the hash in its owner, so it is still confirmed by its maker and nobody
+  else: the ownership check runs before the apply that spends it. A spent
+  plan is nobody's; a later confirm or withdraw is refused as not found, and
+  that refusal's line, built once the plan's binding is known, carries no
+  hash (`_anon_rec`).
 - `/docs/odoo`: the setting under *Bindings*, a line under *The anonymous
   write path* and one under *The call record*. SECURITY.md: an entry drafted
   for the release manager's confirmation (less processing of personal data; no
@@ -66,3 +74,11 @@ its parameters until the confirm and loses them after; a binding without the
 setting records as before. Fails with the setting reverted (the binding cannot
 be saved) and with the record writers reverted (the lines carry both and the
 records keep their values).
+
+Ruling 160: `t/unit/odoo/136` also checks that the owner keeps the hash until
+the confirm, that the maker's confirm still works, that afterwards (and after
+an immediate apply) the owner is `visitor` and no file in the plan folder names
+the hash, and that a second confirm is not found with no hash on its line.
+`t/unit/odoo/137` does the same through the real oomd, for a confirmed plan and
+an immediate apply, in the plan folder and in the daemon's run folder (which
+names the hash before the confirm). Both fail with the second pass reverted.

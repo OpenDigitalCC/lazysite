@@ -387,8 +387,13 @@ says what a request may set and who may cause it:
   withdrawn or dismissed) the parameters leave the plan and run records - in
   `plan.json`, `run.json` and the journal each value is redacted to `null` and
   the field names stay, with the fingerprint, the counts and the ids made - and
-  the call line (and its audit row) is written without `ip` and without
-  `visitor`; the binding, the time, the phase and the outcome stay. The
+  the visitor's hash leaves them too: the plan's owner and every record of who
+  planned, approved or applied it name `visitor`, with no hash. Until then the
+  plan's owner names the visitor's hash, so only its maker can confirm it; a
+  spent plan is nobody's, and a later confirm or withdraw of it answers as for a
+  plan that does not exist. The call line (and its audit row) is written
+  without `ip` and without `visitor`; the binding, the time, the phase and the
+  outcome stay. The
   per-visitor rate cap still counts by the visitor's hash, in the rolling
   counter (`recent.jsonl`) no call line joins to, and an `Idempotency-Key`
   still works (it is hashed with its scope). Refused on a binding with no
@@ -784,7 +789,8 @@ which OOM enforces before any call leaves. The engine adds:
   read, the call is refused. Over a cap the answer is `429` (`rate`).
 - **The record names a hash of the key**, never the key. With `anonymous: 1`
   on the binding it names neither the hash nor the address, and the plan's
-  parameters leave its records once the call is applied (see *Bindings*).
+  parameters and the hash leave its records once the call is applied (see
+  *Bindings*).
 
 ## A grant's own Odoo account
 

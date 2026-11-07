@@ -3998,11 +3998,18 @@ what changed
   dismissed - the parameters leave the plan and run records
   (`_redact_spent_plan`: in `plan.json`, `run.json`, `result.json` and the journal,
   here and in the daemon's run folder, every value under `params`, `vals`, `before`,
-  `after` and `values` is set to null and the keys stay). The per-visitor rate cap is
-  unchanged: it counts by the visitor's hash in `recent.jsonl`, a rolling hour's
-  counter no call line now joins to. The plan's `meta.json` keeps its owner
-  (`visitor:<hash>`) so a plan is still confirmed by its maker and nobody else.
-  Default off: a binding without the setting records as before.
+  `after` and `values` is set to null and the keys stay); (3) ruling 160, at the same
+  point the visitor's hash leaves them too: `meta.json`'s owner and OOM's own records
+  in the plan and run folders (`plan.json`'s `actor`, `run.json`'s `planned`,
+  `approval` and `applied` `by`, the journal's and OOM's `audit.jsonl`'s `actor`)
+  become `visitor`, with no hash (`_unhash_visitor`). Until the plan is spent its
+  owner keeps the hash, so a plan is still confirmed by its maker and nobody else:
+  the confirm's ownership check reads it before the apply that spends the plan. A
+  spent plan is nobody's: a later confirm or withdraw of it is refused as not found,
+  and that refusal line, built once the plan's binding is known, carries no hash
+  either. The per-visitor rate cap is unchanged: it counts by the visitor's hash in
+  `recent.jsonl`, a rolling hour's counter no call line now joins to. Default off: a
+  binding without the setting records as before.
 
 threat delta
 : Information disclosure, narrowed: less processing of personal data, which is the
@@ -4011,9 +4018,11 @@ threat delta
   who sent what from where: the parameters and the owner hash in the plan store, the
   address and the same hash on every call line. The hash was the join. After, on an
   anonymous binding, no stored record holds the address, and the parameters are gone
-  once nothing will read them again; what remains is the owner hash in the plan
-  store beside redacted field names, and the hash in the rate counter for an hour -
-  a pseudonymous key joined to a binding and a time, and to nothing a person sent.
+  once nothing will read them again, and so is the hash (ruling 160); what remains
+  is the hash in a plan waiting for its confirm (at most `$PLAN_TTL`, then the plan
+  is refused as expired and kept until its retention ends) and in the rate counter
+  for an hour - a pseudonymous key joined to a binding and a time, and to nothing a
+  person sent once the plan is spent.
   Nothing is widened: the setting takes nothing away from the gate (mode, switch,
   OOM, connection), the caps, the CSRF token or the plan's ownership; a confirm is
   still refused to anyone but the maker. Repudiation, slightly widened by design: an
@@ -4031,15 +4040,26 @@ controls
   per-visitor cap still trips and is counted by the hash in `recent.jsonl`; a
   confirmed plan keeps its parameters until the confirm and loses them after, with
   both lines bare; a binding without the setting records the address and the hash as
-  before. Fails with the setting reverted (the binding cannot be saved) and with the
-  record and redaction reverted (the lines carry both, the records keep the values).
+  before. Ruling 160: the owner keeps the hash until the confirm, the maker's confirm
+  still works, and after it (and after an immediate apply) the owner is `visitor`
+  and no file in the plan folder names the hash; a second confirm is not found and
+  its line names no hash. t/unit/odoo/137, through the real oomd: the same for a
+  confirmed plan and an immediate apply, in both the plan folder and the daemon's run
+  folder (which names the hash before the confirm). Fails with the setting reverted
+  (the binding cannot be saved) and with the record and redaction reverted (the lines
+  carry both, the records keep the values and the hash).
   t/unit/odoo/03 (the record takes fixed fields only), 11 (the caps), 12 and 69 (a
   plan's life) still pass.
 
 residual risk
-: The owner hash stays in `meta.json` for the plan's retention, and OOM's own records
-  (`run.json`'s `planned.by`, the journal's `actor`) name the same `visitor:<hash>`;
-  it is joined to no address and no values. The engine's event log carries the
+: Ruling 160 closes what the first draft left: once the plan is spent no record in
+  the plan or run folder names the visitor's hash. What remains: a plan that is never
+  confirmed, withdrawn or dismissed - one left to expire, or one whose apply left a
+  change unknown and is kept for its resume (SM1279) - keeps the owner hash, and the
+  parameters, until its retention ends, since it is not spent; the hash is joined
+  there to the values a visitor sent but to no address. A file the redaction cannot
+  rewrite is left as it is (as `purge_plan_blobs` leaves one), so a failed write
+  keeps the hash in that file. The engine's event log carries the
   binding and the operation for a refusal, never the parameters, as before. A page
   that puts personal data into a parameter the operation writes to Odoo puts it in
   Odoo, which this does not touch. A binding switched from anonymous to not keeps the

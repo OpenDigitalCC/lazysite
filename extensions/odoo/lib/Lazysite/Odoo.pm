@@ -1366,7 +1366,7 @@ sub confirm {
     my $dir  = plans_dir() . "/$pid";
     my $meta = _read_json_file("$dir/meta.json");
     my $who  = _owner(%c);
-    return ( _refusal( \%base, 'not-found', $not_found->{error} ) )[1]
+    return ( _refusal( ( ref $meta eq q{HASH} ? _anon_rec( \%base, $meta->{binding} ) : \%base ), 'not-found', $not_found->{error} ) )[1]
         unless ref $meta eq 'HASH' && !$meta->{withdrawn}
         && ( ( length $who && ( $meta->{owner} // '' ) eq $who )
         || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
@@ -1521,8 +1521,16 @@ sub purge_plan_blobs {
 # together said who sent what from where. Once the plan is spent - applied,
 # withdrawn, or refused for good - nothing reads the values again, so each is
 # redacted to its field name: the keys stay, the values are null. The fingerprint,
-# the counts, the ids made and the journal's outcomes stay. Returns how many
-# values went.
+# the counts, the ids made and the journal's outcomes stay.
+#
+# SM1395 (ruling 160): THE VISITOR HASH GOES TOO. The plan's owner in meta.json
+# and OOM's own records of who did it - plan.json's actor, run.json's planned,
+# approval and applied `by`, the journal's and OOM's audit.jsonl's actor - name
+# the visitor as visitor:<hash>; once the plan is spent each becomes `visitor`,
+# with no hash. The confirm's ownership check reads the owner before the plan is
+# spent, so nothing that still needs the hash loses it; a spent plan answers a
+# later confirm or withdraw as a plan that is not the caller's. Returns how many
+# values and labels went.
 sub _redact_spent_plan {
     my ( $b, $pid ) = @_;
     return 0 unless ref $b eq 'HASH' && $b->{anonymous};
@@ -1533,38 +1541,63 @@ sub _redact_spent_plan {
     push @dirs, store_dir() . "/runs/$run" if $run =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/;
     my $n = 0;
     for my $dir (@dirs) {
-        for my $f ( map { "$dir/$_" } qw(plan.json run.json result.json) ) {
+        for my $f ( map { "$dir/$_" } qw(meta.json plan.json run.json result.json) ) {
             next unless -f $f;
             my $d = _read_json_file($f) or next;
-            my $k = _redact_values($d);
+            my $k = _redact_values($d) + _unhash_visitor($d);
             next unless $k;
             eval { _write_json_file( $f, $d ); 1 } or next;
             secure_write_perms( $f, 0660 );
             $n += $k;
         }
-        my $j = "$dir/journal.jsonl";
-        next unless -f $j;
-        open my $in, '<:raw', $j or next;
-        my ( @lines, $k );
-        while ( my $l = <$in> ) {
-            my $r = eval { JSON::PP::decode_json($l) };
-            if ( ref $r eq 'HASH' && ( my $c = _redact_values($r) ) ) {
-                $k += $c;
-                $l = JSON::PP->new->canonical->encode($r) . "\n";
+        for my $j ( map { "$dir/$_" } qw(journal.jsonl audit.jsonl) ) {
+            next unless -f $j;
+            open my $in, '<:raw', $j or next;
+            my ( @lines, $k );
+            while ( my $l = <$in> ) {
+                my $r = eval { JSON::PP::decode_json($l) };
+                if ( ref $r eq 'HASH' && ( my $c = _redact_values($r) + _unhash_visitor($r) ) ) {
+                    $k += $c;
+                    $l = JSON::PP->new->canonical->encode($r) . "\n";
+                }
+                push @lines, $l;
             }
-            push @lines, $l;
+            close $in;
+            next unless $k;
+            open my $out, '>:raw', "$j.tmp.$$" or next;
+            print {$out} @lines;
+            close $out;
+            secure_write_perms( "$j.tmp.$$", 0660 );
+            rename "$j.tmp.$$", $j or unlink "$j.tmp.$$";
+            $n += $k;
         }
-        close $in;
-        next unless $k;
-        open my $out, '>:raw', "$j.tmp.$$" or next;
-        print {$out} @lines;
-        close $out;
-        secure_write_perms( "$j.tmp.$$", 0660 );
-        rename "$j.tmp.$$", $j or unlink "$j.tmp.$$";
-        $n += $k;
     }
-    log_event( 'INFO', 'odoo', 'the parameters of an anonymous call left its records', plan => $pid, values => $n )
+    log_event( 'INFO', 'odoo', 'the parameters and the visitor of an anonymous call left its records',
+        plan => $pid, values => $n )
         if $n;
+    return $n;
+}
+
+# Every string that is a visitor label (visitor:<hash>), anywhere in the
+# structure, to `visitor`. How many were changed.
+sub _unhash_visitor {
+    my ($v) = @_;
+    my $n = 0;
+    if ( ref $v eq 'HASH' ) {
+        for my $k ( keys %$v ) {
+            if ( !ref $v->{$k} && defined $v->{$k} && $v->{$k} =~ /\Avisitor:./s ) {
+                $v->{$k} = 'visitor';
+                $n++;
+            }
+            else { $n += _unhash_visitor( $v->{$k} ) }
+        }
+    }
+    elsif ( ref $v eq 'ARRAY' ) {
+        for my $e (@$v) {
+            if ( !ref $e && defined $e && $e =~ /\Avisitor:./s ) { $e = 'visitor'; $n++ }
+            else                                                  { $n += _unhash_visitor($e) }
+        }
+    }
     return $n;
 }
 
@@ -1607,7 +1640,7 @@ sub withdraw {
     my $dir  = plans_dir() . "/$pid";
     my $meta = _read_json_file("$dir/meta.json");
     my $who  = _owner(%c);
-    return ( _refusal( \%base, 'not-found', $nf ) )[1]
+    return ( _refusal( ( ref $meta eq q{HASH} ? _anon_rec( \%base, $meta->{binding} ) : \%base ), 'not-found', $nf ) )[1]
         unless ref $meta eq 'HASH' && !$meta->{withdrawn}
         && ( ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
     my $wrec = _anon_rec( \%base, $meta->{binding} );    # SM1395

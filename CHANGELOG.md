@@ -176,8 +176,13 @@ Archive
   names kept - and the call line, its refusals and its audit row are written without `ip`
   and without `visitor` (binding, time, phase, outcome and the idempotency key stay). The
   per-visitor rate cap still counts by the hash in `recent.jsonl`, which no call line joins
-  to. Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md
-  entry drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/136`.
+  to. Ruling 160: at the same point the visitor's hash leaves the plan and run records too -
+  `meta.json`'s owner and OOM's own records (`run.json`'s `planned.by` and the approval's and
+  apply's `by`, the plan's and the journal's `actor`, OOM's `audit.jsonl`) name `visitor`
+  with no hash; until then the owner keeps it, so the maker's confirm works as before, and a
+  spent plan answers a later confirm or withdraw as not found. Docs: `/docs/odoo` (bindings,
+  the anonymous write path, the call record). SECURITY.md entry drafted (less processing of
+  personal data; no ADR 0007 trigger). `t/unit/odoo/136`, `t/unit/odoo/137` (through oomd).
 
 - SM1405 (PENDING) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
   handed a notice to the Form SMTP extension as a form submission (the subject as
