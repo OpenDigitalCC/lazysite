@@ -9,7 +9,11 @@
 # In-process is t/unit/odoo/136. The pack LazysiteTest::OdooMade makes a partner
 # in oomd's world.
 #
-# Reverted, the hash and the name sent stay in both folders.
+# Ruling 168: a repeat of the spent plan's confirm with the same Idempotency-Key
+# gets the daemon's first outcome, from its run folder, naming no hash.
+#
+# Reverted, the hash and the name sent stay in both folders; with ruling 168's
+# pass reverted, the repeat is not found.
 use strict;
 use warnings;
 use Test::More;
@@ -105,6 +109,34 @@ subtest 'an immediate apply: the same, as it answers' => sub {
     is_deeply( \@h, [], 'no record in either folder names the hash' ) or diag explain \@h;
     my @v = holding( [ $plan, $run ], 'Anon-Now-Name' );
     is_deeply( \@v, [], 'nor the name sent' ) or diag explain \@v;
+};
+
+# SM1395 (ruling 168): a repeat of a spent plan's confirm with the same
+# Idempotency-Key gets the first stored outcome - here the daemon's, from its run
+# folder - and nothing in either folder, the call record or the audit names the
+# hash. Without the key, not found. In-process, and the withdraw: t/unit/odoo/138.
+subtest 'a repeated confirm with the key gets the daemon\'s first outcome' => sub {
+    my ($key) = Lazysite::Odoo::Visitor::mint();
+    my $hash = Lazysite::Odoo::Visitor::visitor_id($key);
+    my $K    = 'queue-item-137-confirm';
+    my $p    = call_b( 'anon_later', { name => 'Anon-Again-Name' }, visitor_key => $key, idem_key => $K );
+    ok( $p->{planned}, 'planned with a key' ) or diag explain $p;
+    my %cc = ( mode => 'public', visitor_key => $key, ip => $IP, idem_key => $K );
+    my ( undef, $c ) = quiet( sub { Lazysite::Odoo::confirm( $p->{plan}, %cc ) } );
+    ok( $c->{ok} && $c->{applied}, 'the confirm applied' ) or diag explain $c;
+    is( Lazysite::Odoo::last_via(), 'daemon', 'by the daemon' );
+    my ( $plan, $run ) = folders( $p->{plan} );
+    ok( -f "$run/result.json" && !-f "$plan/result.json", 'the outcome is kept in the daemon\'s run folder' );
+    my ( undef, $again ) = quiet( sub { Lazysite::Odoo::confirm( $p->{plan}, %cc ) } );
+    ok( $again->{ok} && $again->{applied} && $again->{repeat}, 'the repeat gets the first outcome' )
+        or diag explain $again;
+    is_deeply( $again->{result}{counts}, $c->{result}{counts}, 'its counts' );
+    my ( undef, $bare ) = quiet( sub { Lazysite::Odoo::confirm( $p->{plan}, %cc, idem_key => undef ) } );
+    is( $bare->{kind}, 'not-found', 'without the key, not found' ) or diag explain $bare;
+    my @h = holding( [ $plan, $run ], $hash, 'Anon-Again-Name' );
+    is_deeply( \@h, [], 'no record in either folder names the hash or the name sent' ) or diag explain \@h;
+    unlike( slurp( Lazysite::Odoo::calls_file() ), qr/\Q$hash\E/, 'no call line names the hash' );
+    unlike( slurp("$d/lazysite/logs/audit.log"), qr/\Q$hash\E/, 'nor the audit' );
 };
 
 oomd_stop($svc);

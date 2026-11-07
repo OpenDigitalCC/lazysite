@@ -451,7 +451,7 @@ sub _post_one {
     if ( $req->{withdraw} ) {
         my %ctx = _ctx( undef, %$who );
         return _csrf_pair( \%ctx ) unless _csrf_ok( \%ctx, $req );
-        return _settle( _timed( sub { Lazysite::Odoo::withdraw( $req->{plan}, %ctx ) } ), $who );
+        return _settle( _timed( sub { Lazysite::Odoo::withdraw( $req->{plan}, %ctx, _idem_ctx( \%o ) ) } ), $who );
     }
 
     # SM1275 (rulings 10a, 10b): a run that ended unknown is resumed: {run, resume: true},

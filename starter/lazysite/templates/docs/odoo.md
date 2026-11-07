@@ -391,7 +391,11 @@ says what a request may set and who may cause it:
   planned, approved or applied it name `visitor`, with no hash. Until then the
   plan's owner names the visitor's hash, so only its maker can confirm it; a
   spent plan is nobody's, and a later confirm or withdraw of it answers as for a
-  plan that does not exist. The call line (and its audit row) is written
+  plan that does not exist - unless it is a repeat carrying the same
+  `Idempotency-Key`: that gets the first outcome back, marked `repeat`, as any
+  repeat does, matched by the key's scoped hash the plan keeps and never by the
+  visitor (a queue that flushes again is told its confirm or withdraw worked). A
+  withdraw takes the `Idempotency-Key` header as a confirm does. The call line (and its audit row) is written
   without `ip` and without `visitor`; the binding, the time, the phase and the
   outcome stay. The
   per-visitor rate cap still counts by the visitor's hash, in the rolling

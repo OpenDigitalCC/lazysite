@@ -1366,10 +1366,15 @@ sub confirm {
     my $dir  = plans_dir() . "/$pid";
     my $meta = _read_json_file("$dir/meta.json");
     my $who  = _owner(%c);
-    return ( _refusal( ( ref $meta eq q{HASH} ? _anon_rec( \%base, $meta->{binding} ) : \%base ), 'not-found', $not_found->{error} ) )[1]
-        unless ref $meta eq 'HASH' && !$meta->{withdrawn}
+    unless ( ref $meta eq 'HASH' && !$meta->{withdrawn}
         && ( ( length $who && ( $meta->{owner} // '' ) eq $who )
-        || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
+        || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) ) )
+    {
+        my $again = _spent_repeat( 'confirm', $pid, $meta, $idem_in, %c );    # SM1395, ruling 168
+        return $again if $again;
+        return ( _refusal( ( ref $meta eq q{HASH} ? _anon_rec( \%base, $meta->{binding} ) : \%base ), 'not-found',
+                    $not_found->{error} ) )[1];
+    }
     return ( _refusal( { %{ _anon_rec( \%base, $meta->{binding} ) }, binding => $meta->{binding} // '' }, 'expired',
             'this plan is more than an hour old - make it again' ) )[1]
         if time - ( $meta->{created} // 0 ) > $PLAN_TTL;
@@ -1405,6 +1410,9 @@ sub confirm {
         return ( _refusal( \%rec, 'invalid', 'this plan was made with another Idempotency-Key' ) )[1]
             if defined $idem && $idem ne $k2;
         $idem = $k2;
+        # SM1395 (ruling 168): the plan keeps the key its first confirm carried, so
+        # a repeat of that confirm is matched once the plan is spent and nobody's
+        _keep_idem( $dir, $meta, $idem ) unless defined $meta->{idem};
     }
     $c{idem} = $rec{idem} = $idem if defined $idem;
     my ( $capok, $capwhy ) = _take_cap( $b, $class, %c );
@@ -1621,6 +1629,66 @@ sub _redact_values {
     return $n;
 }
 
+# SM1395 (ruling 168): A SPENT ANONYMOUS PLAN ANSWERS ITS OWN KEY. Once spent, an
+# anonymous binding's plan names no visitor (owner `visitor`), so the ownership
+# check of a confirm or a withdraw cannot find it - and a queue that flushes again
+# (the offline kit's resend) was told "not found" for a confirm or withdraw that had
+# worked. A repeat carrying the same Idempotency-Key is answered as SM1223 answers
+# every other caller's: the first stored outcome, nothing sent to Odoo. The match is
+# by the plan's idempotency record (meta.json's `idem`, the key scoped to binding and
+# sender, as idem_derive makes it), never by the visitor: the hash is derived here
+# from the request and compared, and written nowhere. The repeat's call line is the
+# binding's (_rec_base: no ip, no visitor), carrying `idem` and `repeat`; it takes
+# no rate count, as the not-found it replaces took none (the counter is by the hash).
+# A repeat with no key, with another key, or on a plan with no stored outcome of
+# that kind gets undef here and stays not found. A confirm's repeat still passes the
+# gate and the hour a confirm has, as any confirm's does; a withdraw has neither.
+sub _spent_repeat {
+    my ( $phase, $pid, $meta, $idem_in, %c ) = @_;
+    return undef unless defined $idem_in && !length idem_problem($idem_in);
+    return undef unless ref $meta eq 'HASH' && ( $meta->{owner} // '' ) eq 'visitor' && length( $meta->{idem} // '' );
+    my ($b) = find_binding( $meta->{binding} );
+    return undef unless ref $b eq 'HASH' && $b->{anonymous};
+    my ($k) = idem_derive( $b, $idem_in, %c );
+    return undef unless defined $k && $k eq $meta->{idem};
+    my %rec = ( _rec_base( $b, %c, phase => $phase ), idem => $k );
+
+    if ( $phase eq 'withdraw' ) {
+        return undef unless $meta->{withdrawn};
+        record_call( %rec, outcome => 'answered', repeat => 1 );
+        return { ok => 1, withdrawn => 1, plan => $pid, repeat => 1 };
+    }
+
+    return undef if $meta->{withdrawn};
+    my $dir = plans_dir() . "/$pid";
+    my $run = $meta->{run_id} // '';
+    my ($rdir) = grep { -f "$_/result.json" }
+        ( $dir, ( $run =~ /\A[A-Za-z0-9][\w.-]{0,127}\z/ ? store_dir() . "/runs/$run" : () ) );
+    return undef unless defined $rdir;
+    return ( _refusal( \%rec, 'expired', 'this plan is more than an hour old - make it again' ) )[1]
+        if time - ( $meta->{created} // 0 ) > $PLAN_TTL;
+    my ( $ok, $conn ) = gate( $b, %c, phase => $phase );
+    return $conn unless $ok;
+    $LAST_VIA = undef;
+    my $t0  = _now_hires();
+    my $res = eval {
+        _load_oom();
+        my $first = _idem_result( $rdir, {} );
+        { ok => ( $first->ok ? 1 : 0 ), applied => 1, plan => $pid, repeat => 1, result => _result_summary($first) };
+    };
+    return _finish( { %rec, login => _as_account( $conn, $c{account} )->{login} }, $res, $@, $t0, 'apply' );
+}
+
+# The key a plan's first confirm or withdraw carried, kept in its meta.json (the
+# scoped key, never the caller's own).
+sub _keep_idem {
+    my ( $dir, $meta, $k ) = @_;
+    $meta->{idem} = $k;
+    eval { _write_json_file( "$dir/meta.json", $meta ); 1 } or return 0;
+    secure_write_perms( "$dir/meta.json", 0660 );
+    return 1;
+}
+
 # withdraw( $plan_id, %ctx ) -> { ok, withdrawn } or a refusal
 #
 # SM1162: the maker of an unapplied plan gives it up. Its file bytes go at once, it
@@ -1629,7 +1697,8 @@ sub _redact_values {
 # not exist here either; one already applied cannot be withdrawn.
 sub withdraw {
     my ( $pid, %ctx ) = @_;
-    my $sess = delete $ctx{odoo_session};
+    my $sess    = delete $ctx{odoo_session};
+    my $idem_in = delete $ctx{idem_key};    # SM1395 (ruling 168)
     my $swho = length( $sess // '' ) ? do { require Lazysite::Odoo::Session; Lazysite::Odoo::Session::session_label($sess) } : '';
     my %c    = _with_visitor(%ctx);
     my %base = ( call_id => new_call_id(), actor => $c{actor} // '',
@@ -1640,16 +1709,33 @@ sub withdraw {
     my $dir  = plans_dir() . "/$pid";
     my $meta = _read_json_file("$dir/meta.json");
     my $who  = _owner(%c);
-    return ( _refusal( ( ref $meta eq q{HASH} ? _anon_rec( \%base, $meta->{binding} ) : \%base ), 'not-found', $nf ) )[1]
-        unless ref $meta eq 'HASH' && !$meta->{withdrawn}
-        && ( ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) );
+    unless ( ref $meta eq 'HASH' && !$meta->{withdrawn}
+        && ( ( length $who && ( $meta->{owner} // '' ) eq $who ) || ( length $swho && ( $meta->{owner} // '' ) eq $swho ) ) )
+    {
+        my $again = _spent_repeat( 'withdraw', $pid, $meta, $idem_in, %c );    # SM1395, ruling 168
+        return $again if $again;
+        return ( _refusal( ( ref $meta eq q{HASH} ? _anon_rec( \%base, $meta->{binding} ) : \%base ), 'not-found', $nf ) )[1];
+    }
     my $wrec = _anon_rec( \%base, $meta->{binding} );    # SM1395
+    my ($wb) = find_binding( $meta->{binding} );
+
+    # SM1395 (ruling 168): a key on the withdraw is checked as a confirm's is, and
+    # kept on a plan made without one, so a repeat of this withdraw is matched by it
+    # once the plan is spent and nobody's.
+    if ( defined $idem_in ) {
+        my $bad = idem_problem($idem_in);
+        return ( _refusal( { %$wrec, binding => $meta->{binding} // '' }, 'invalid', $bad ) )[1] if length $bad;
+        my ($k) = $wb ? idem_derive( $wb, $idem_in, %c ) : ();
+        return ( _refusal( { %$wrec, binding => $meta->{binding} // '' }, 'invalid',
+                'this plan was made with another Idempotency-Key' ) )[1]
+            if defined $k && defined $meta->{idem} && $meta->{idem} ne $k;
+        $meta->{idem} //= $k if defined $k;
+    }
     return ( _refusal( { %$wrec, binding => $meta->{binding} // '' }, 'applied', 'this plan has already been applied' ) )[1]
         if -e "$dir/journal.jsonl";
     $meta->{withdrawn} = time;
     _write_json_file( "$dir/meta.json", $meta );
     my $n = purge_plan_blobs( $pid, $meta );
-    my ($wb) = find_binding( $meta->{binding} );
     _redact_spent_plan( $wb, $pid ) if $wb;    # SM1395: withdrawn is spent too
     record_call( %$wrec, binding => $meta->{binding} // '', operation => $meta->{operation} // '',
         outcome => 'answered' );

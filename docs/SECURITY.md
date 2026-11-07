@@ -4009,7 +4009,21 @@ what changed
   and that refusal line, built once the plan's binding is known, carries no hash
   either. The per-visitor rate cap is unchanged: it counts by the visitor's hash in
   `recent.jsonl`, a rolling hour's counter no call line now joins to. Default off: a
-  binding without the setting records as before.
+  binding without the setting records as before. (4) Ruling 168: a repeat of a spent
+  plan's confirm or withdraw that carries the same `Idempotency-Key` gets the first
+  stored outcome back (`Lazysite::Odoo::_spent_repeat`), as SM1223 answers any
+  caller: `ok`, `repeat`, the outcome from `result.json` (the plan folder's, or the
+  daemon's run folder's), which the redaction has already stripped of values, and
+  nothing sent to Odoo. The match is by the plan's own idempotency record - the key
+  scoped to binding and sender (`idem_derive`) that `meta.json` keeps as `idem` -
+  derived from the request and compared, never by the visitor: no hash is written to
+  the line (`_rec_base`, carrying `idem` and `repeat`), the audit row, the plan or run
+  records or the rate counter (the repeat takes no rate count, as the not-found it
+  replaces took none). A confirm's repeat passes the gate and the plan's hour, as any
+  confirm does. Without the key, with another, or from another visitor holding the
+  key, it stays not found. The withdraw takes the endpoint's `Idempotency-Key` too,
+  checked as a confirm's (malformed, or other than the plan's, refused), and a key
+  the first confirm or withdraw carried is kept on a plan made without one.
 
 threat delta
 : Information disclosure, narrowed: less processing of personal data, which is the
@@ -4028,9 +4042,13 @@ threat delta
   still refused to anyone but the maker. Repudiation, slightly widened by design: an
   operator reading the record of an anonymous binding can no longer say which
   visitor made which call or from where - the trade the ruling makes, taken only
-  where the operator sets it, per binding. ADR 0007: no trigger fires - no new
-  interface, sign-in method, dependency or data; a setting on an existing door that
-  stores less.
+  where the operator sets it, per binding. Ruling 168 widens nothing: a repeat is
+  answered only to a request whose visitor key and Idempotency-Key derive the plan's
+  own scoped key, with the outcome that request's first send was already given, and
+  nothing reaches Odoo. ADR 0007: no trigger fires - no new interface, sign-in
+  method, dependency or data; a setting on an existing door that stores less, and an
+  answer on an existing door (the withdraw now reads the header the confirm already
+  read).
 
 controls
 : t/unit/odoo/136: after an anonymous immediate apply the call line and its audit
@@ -4048,8 +4066,20 @@ controls
   folder (which names the hash before the confirm). Fails with the setting reverted
   (the binding cannot be saved) and with the record and redaction reverted (the lines
   carry both, the records keep the values and the hash).
+  Ruling 168: t/unit/odoo/138 (in-process) - a repeated confirm with the plan's key
+  gets the first outcome (`repeat`, the same counts, nothing sent to Odoo, no value in
+  the answer), its line is bare and carries the scoped key, it adds no rate count, and
+  no file in the plan folder, call line or audit row names the hash (which the same
+  measure finds before the confirm); without the key, with another, or from another
+  visitor with the key, not found; a confirm's or a withdraw's own key on a plan made
+  without one is kept (scoped, never the caller's) and matched; a withdraw refuses a
+  malformed key and one other than the plan's, and its repeat with the key answers
+  `withdrawn` and `repeat`, without the key or with another not found.
+  t/unit/odoo/137 adds the confirm's repeat through the real oomd, answered from the
+  daemon's run folder, with neither folder, the call record nor the audit naming the
+  hash. Each fails with the change reverted (every repeat is not found).
   t/unit/odoo/03 (the record takes fixed fields only), 11 (the caps), 12 and 69 (a
-  plan's life) still pass.
+  plan's life), 96 and 97 (SM1223) still pass.
 
 residual risk
 : Ruling 160 closes what the first draft left: once the plan is spent no record in
@@ -4064,6 +4094,13 @@ residual risk
   that puts personal data into a parameter the operation writes to Odoo puts it in
   Odoo, which this does not touch. A binding switched from anonymous to not keeps the
   records it wrote while anonymous as they are (bare), and vice versa.
+  Ruling 168: the scoped key in `meta.json` is a hash of the binding, the visitor's
+  hash and the caller's key; it names no visitor, and can be matched only by someone
+  holding both the visitor's key and the caller's Idempotency-Key, who learns the
+  first outcome they were already given. A repeat answered from a file takes no rate
+  count, so its cost is a file read, as a not-found refusal's is. A spent plan whose
+  first answer was a refusal (stale, applied elsewhere) has no stored outcome and a
+  repeat of it stays not found.
 
 verdict
 : drafted by the developer agent: accept as a hardening (less processing of personal

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 154), 0.16.8 wave 1"
 area: odoo
-status-note: "SHIPPED (PENDING) on n771: Binding::parse takes anonymous (public bindings only); the call line and audit row carry no ip or visitor (_rec_base, _anon_rec); a spent plan's records lose the parameter values and, ruling 160, the visitor hash (owner and OOM's actors become visitor) in the plan and daemon run folders. t/unit/odoo/136, 137; SECURITY.md entry drafted."
+status-note: "SHIPPED (PENDING) on n771: anonymous on public bindings; no ip or visitor on the call line or audit row; a spent plan loses its values and (ruling 160) the visitor hash; ruling 168, a repeated confirm or withdraw with the same Idempotency-Key gets the first outcome, matched by the plan's scoped key (_spent_repeat). t/unit/odoo/136-138; SECURITY.md entry drafted."
 ---
 
 # What happened
@@ -57,6 +57,26 @@ binding that keeps none of it.
   plan is nobody's; a later confirm or withdraw is refused as not found, and
   that refusal's line, built once the plan's binding is known, carries no
   hash (`_anon_rec`).
+- Ruling 168 (third pass): a spent plan answers its own key. Ruling 160 left a
+  spent plan nobody's, so a queue that flushed again - the offline kit's resend
+  on an anonymous binding - was told "not found" for a confirm or withdraw that
+  had worked. `_spent_repeat`, asked where a confirm or a withdraw would answer
+  not found: a request carrying an `Idempotency-Key` on a spent plan of an
+  anonymous binding (owner `visitor`) has its key derived as SM1223 derives any
+  (`idem_derive`: binding, sender, key) and compared with the plan's own
+  idempotency record, `meta.json`'s `idem`. A match gets the first stored outcome
+  as SM1223 gives every caller: a confirm, `ok`, `applied`, `repeat` and the
+  result from `result.json` (the plan folder's in-process, the daemon's run
+  folder's through oomd), already stripped of its values, after the gate and
+  within the plan's hour as any confirm; a withdraw, `ok`, `withdrawn`, `repeat`.
+  Nothing is sent to Odoo; the line is the binding's (no ip, no visitor) with
+  `idem` and `repeat`; no rate count is taken (the counter is by the hash, and
+  the not-found it replaces took none). No key, another key, or the key from
+  another visitor: not found, as before. The withdraw now takes the endpoint's
+  `Idempotency-Key` (`lazysite-odoo.pl`), checked as a confirm's (malformed or
+  other than the plan's, refused), and the key a plan's first confirm or withdraw
+  carried is kept on a plan made without one (`_keep_idem`), so its repeat is
+  matched too.
 - `/docs/odoo`: the setting under *Bindings*, a line under *The anonymous
   write path* and one under *The call record*. SECURITY.md: an entry drafted
   for the release manager's confirmation (less processing of personal data; no
@@ -82,3 +102,14 @@ the hash, and that a second confirm is not found with no hash on its line.
 `t/unit/odoo/137` does the same through the real oomd, for a confirmed plan and
 an immediate apply, in the plan folder and in the daemon's run folder (which
 names the hash before the confirm). Both fail with the second pass reverted.
+
+Ruling 168: `t/unit/odoo/138` (in-process) - a repeated confirm with the plan's
+key gets the first outcome (`repeat`, the same counts, nothing sent to Odoo, no
+value in the answer, a bare line carrying the scoped key, no rate count), and no
+file in the plan folder, call line or audit row names the hash; without the key,
+with another, or from another visitor with the key, not found; a confirm's or a
+withdraw's own key on a plan made without one is kept and matched; a withdraw
+refuses a malformed key and one other than the plan's, and its repeat with the
+key answers `withdrawn`, without it not found. `t/unit/odoo/137` adds the
+confirm's repeat through the real oomd, answered from the daemon's run folder.
+Both fail with the third pass reverted (every repeat is not found).

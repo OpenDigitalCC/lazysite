@@ -180,9 +180,16 @@ Archive
   `meta.json`'s owner and OOM's own records (`run.json`'s `planned.by` and the approval's and
   apply's `by`, the plan's and the journal's `actor`, OOM's `audit.jsonl`) name `visitor`
   with no hash; until then the owner keeps it, so the maker's confirm works as before, and a
-  spent plan answers a later confirm or withdraw as not found. Docs: `/docs/odoo` (bindings,
-  the anonymous write path, the call record). SECURITY.md entry drafted (less processing of
-  personal data; no ADR 0007 trigger). `t/unit/odoo/136`, `t/unit/odoo/137` (through oomd).
+  spent plan answers a later confirm or withdraw as not found. Ruling 168: a repeat of that
+  confirm or withdraw carrying the same `Idempotency-Key` gets the first stored outcome back,
+  as SM1223 answers every caller (`repeat`, nothing sent to Odoo, no parameter value), matched
+  by the plan's own scoped key (`meta.json`'s `idem`), never by the visitor, and writing no
+  hash anywhere; without the key or with another it stays not found. A withdraw now takes the
+  key too (checked as a confirm's), and a key a plan's first confirm or withdraw carried is
+  kept on a plan made without one, so the offline kit's resend on an anonymous binding works.
+  Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md entry
+  drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/136`,
+  `t/unit/odoo/137` (through oomd), `t/unit/odoo/138`.
 
 - SM1405 (PENDING) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
   handed a notice to the Form SMTP extension as a form submission (the subject as
