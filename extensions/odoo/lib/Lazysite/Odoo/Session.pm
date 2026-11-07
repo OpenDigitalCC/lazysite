@@ -355,12 +355,7 @@ sub complete_totp {
 # zone and the companies.
 sub _facts {
     my ($id) = @_;
-    my %f = map { ( $_ => $id->{$_} ) } grep { defined $id->{$_} } qw(name lang tz company_id company_ids groups);
-    # SM1396 (ruling 53): the label of the login - the one a record names a
-    # sign-in by - and never the login, so the identity cookie can say whose
-    # kept data this is (Identity `who`, ?csrf=1 `owner`).
-    $f{who} = login_label( $id->{login} ) if defined $id->{login} && !ref $id->{login} && length $id->{login};
-    return \%f;
+    return { map { ( $_ => $id->{$_} ) } grep { defined $id->{$_} } qw(name lang tz company_id company_ids groups) };
 }
 
 # identity_of( \%connection, $sid ) -> { ok, identity } or { ok => 0, kind, error[, clear_session] }

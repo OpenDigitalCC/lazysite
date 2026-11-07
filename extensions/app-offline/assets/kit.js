@@ -27,6 +27,8 @@
  * kept read or a queued change is stored under that owner, shown to and sent
  * for no other login on the same browser, and one made with no owner - nobody
  * signed in, or an identity that has lapsed - is dropped, never queued. The
+ * endpoint names an owner only on a site whose Odoo sign-in is the site
+ * sign-in (odoo_site_signin: on); elsewhere nothing is kept. The
  * store is this browser's localStorage, under this site's origin; it holds
  * what the endpoint answered a page and what a page asked to send, never a
  * token, a cookie or a password.

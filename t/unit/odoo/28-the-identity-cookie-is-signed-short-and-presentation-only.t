@@ -44,17 +44,36 @@ subtest 'a cookie carries what a page may show, and not a key to anything' => su
     is( $got->{company_id}, 1,               'the company' );
     is_deeply( $got->{company_ids}, [ 1, 3 ], 'and those allowed' );
     is_deeply( $got->{groups}, [], 'and the groups, as many as OOM gives (none, until it gives any)' );
-    # SM1396 (ruling 53): and `who`, the label of the login the records already use
-    # (Session::login_label) - never the login - so what a browser keeps is owned by it.
-    is_deeply( [ sort keys %$got ], [qw(company_id company_ids groups lang name tz who)],
+    is_deeply( [ sort keys %$got ], [qw(company_id company_ids groups lang name tz)],
         'and nothing else: no id, no login, no admin flag, no session, no password' );
-    is( $got->{who}, Lazysite::Odoo::Session::login_label('jane@example.com'), 'who is the login\'s label, the one the records use' );
-    unlike( $got->{who}, qr/jane|example/, '...and not the login' );
     unlike( $c, qr/sidabcdef0123456789|hunter2|jane\@example/, 'and none of it is in the cookie value either' );
     my ($b64) = split /\./, $c;
     require MIME::Base64;
     ( my $std = $b64 ) =~ tr{-_}{+/};
     unlike( MIME::Base64::decode_base64($std), qr/sidabcdef|hunter2|uid|login/, 'not even encoded' );
+};
+
+# SM1396 (rulings 161, 163): the cookie carries no label of the login either - not
+# the hash the records name a sign-in by (Session::login_label), not under `who`
+# nor any other key - whether minted from what OOM gave, from what the sign-in
+# keeps of it (Session::_facts), or from a caller that hands one in.
+subtest 'the cookie carries no login label' => sub {
+    my $label = Lazysite::Odoo::Session::login_label('jane@example.com');
+    my %handed = ( %ID, who => $label, owner => $label );
+    for my $case ( [ 'what OOM gave', \%ID ], [ 'the sign-in facts', Lazysite::Odoo::Session::_facts( \%ID ) ],
+        [ 'a label handed in', \%handed ] )
+    {
+        my ( $what, $id ) = @$case;
+        my $c = Lazysite::Odoo::Identity::mint_cookie($id);
+        ok( $c, "minted from $what" );
+        my $got = Lazysite::Odoo::Identity::identity_from_cookie("lzs_odoo_identity=$c");
+        ok( !exists $got->{who} && !exists $got->{owner}, "$what: no who, no owner" );
+        my ($b64) = split /\./, $c;
+        ( my $std = $b64 ) =~ tr{-_}{+/};
+        require MIME::Base64;
+        my $body = MIME::Base64::decode_base64($std);
+        unlike( $body, qr/signin:|\Q$label\E|"who"/, "$what: no login label in the cookie body" );
+    }
 };
 
 subtest 'a tampered cookie is no identity' => sub {

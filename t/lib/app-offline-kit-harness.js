@@ -137,6 +137,30 @@ server.listen(0, '127.0.0.1', async () => {
       const r = await w.kit.write('basket', { product: 4 });
       facts.no_owner = { answer: r.data.kind, posts: w.posts().length - before, owners: Object.keys(w.stored().owners) };
     }
+    /* C2. a default Odoo site (rulings 161, 163): signed in to Odoo, named, and no
+     * owner - the endpoint names one only where the Odoo sign-in is the site
+     * sign-in. A change is refused offline and online, sent never; a read is
+     * answered live and kept for nobody. */
+    {
+      cfg.owner = null; cfg.signedIn = true;
+      const w = world(base);
+      await w.kit.flush();
+      const before = w.posts().length;
+      w.win.navigator.onLine = false;
+      const off = await w.kit.write('basket', { product: 41 });
+      w.win.navigator.onLine = true;
+      fire(w, 'online');
+      await w.kit.flush();
+      const on = await w.kit.write('basket', { product: 42 });
+      const live = await w.odoo.read('shop-list', { limit: 2 });
+      w.win.down = true;
+      let kept;
+      try { kept = await w.odoo.read('shop-list', { limit: 2 }); } catch (e) { kept = 'rejected'; }
+      w.win.down = false;
+      facts.default_site = { owner: w.kit.owner(), offline: off.data.kind, online: on.data.kind,
+        posts: w.posts().length - before, queued: w.kit.queued(), live_status: live.status,
+        kept_read: kept === 'rejected' ? 'rejected' : 'answered', owners: Object.keys(w.stored().owners) };
+    }
     /* D. another login on the same browser: A's queue is not sent as B, and stays A's */
     {
       cfg.owner = A; cfg.signedIn = true;

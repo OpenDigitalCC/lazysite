@@ -20,7 +20,9 @@
 # WHAT IS KEPT IS OWNED BY LOGIN (ruling 53): the endpoint's ?csrf=1 names the
 # signed-in person by `owner`, a label of the login (never the login), and a kept
 # read or a queued write belongs to that owner, is shown to and sent for no
-# other login on the same browser, and one made with no owner is dropped.
+# other login on the same browser, and one made with no owner is dropped. The
+# endpoint names an owner only on a site whose Odoo sign-in is the site sign-in
+# (rulings 161, 163); elsewhere the kit keeps nothing.
 #
 # The slot contract a layout may carry (the layouts briefing names it):
 #   data-ls-app-banner     shown while the browser is offline

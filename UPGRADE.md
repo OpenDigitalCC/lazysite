@@ -123,12 +123,13 @@ the engine on the shipped nginx and Apache configurations (`try_files` and
 `FallbackResource`).
 
 **The offline kit (SM1396).** A new extension, `app-offline`, off until enabled on the
-Extensions page; it needs the Odoo extension on. Enabling it adds nothing to a page
-until a layout renders `[% app_offline_kit %]`. The page endpoint's `?csrf=1` answers
-one more field, `owner` (a label of the signed-in login), and the identity cookie
-carries it as `who`; a person signed in before the upgrade gets it when their identity
-cookie is next refreshed (`odoo_identity_ttl`, default 15 minutes), and until then the
-kit keeps nothing for them.
+Extensions page; it needs the Odoo extension on, and the Odoo sign-in as the site
+sign-in (`odoo_site_signin: on`) to keep anything. Enabling it adds nothing to a page
+until a layout renders `[% app_offline_kit %]`. On a site with the Odoo site sign-in,
+the page endpoint's `?csrf=1` answers one more field, `owner` (a label of the
+signed-in login, from the site session); a person already signed in has it at once.
+On a default Odoo site `?csrf=1` names no owner and the kit keeps no reads and queues
+no changes. The identity cookie is unchanged.
 
 **A favicon for a site with none (SM1397)** and **`page_url_raw` (SM1398)** need
 nothing from an operator.

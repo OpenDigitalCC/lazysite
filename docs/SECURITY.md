@@ -3928,10 +3928,11 @@ what changed
   `Idempotency-Key` the endpoint already honours (SM1223), and shows the connection,
   the signed-in state and the app's install and update state in a layout's slots. The
   page endpoint's `?csrf=1` answers one more field, `owner`: `Session::login_label`, the
-  hash of the login the call records already name a sign-in by. The identity cookie
-  carries it as `who`, derived at the mint from the login OOM gave (`Session::_facts`);
-  on a site whose Odoo sign-in is the site sign-in it comes from the site session's
-  identity. The kit stores what it keeps in the browser's localStorage, under the
+  hash of the login the call records already name a sign-in by, taken from the site
+  session's identity (`odoo:<login>`), so only on a site whose Odoo sign-in is the site
+  sign-in (`odoo_site_signin: on`; rulings 161, 163). The identity cookie is unchanged
+  and carries no label of the login; `?csrf=1` asks Odoo nothing; on a default Odoo
+  site there is no owner and the kit keeps nothing. The kit stores what it keeps in the browser's localStorage, under the
   site's origin, keyed by owner.
 
 threat delta
@@ -3940,18 +3941,18 @@ threat delta
   data is added (the label is what the records already hold). The questions are
   Information disclosure on a shared browser (one person's kept answers or queued
   changes shown to, or sent as, another), Tampering of the queue (a change sent twice,
-  or a change kept for nobody sent as whoever signs in next), and the identity cookie
-  now naming the person by a label.
+  or a change kept for nobody sent as whoever signs in next). The identity cookie is
+  unchanged (rulings 161, 163).
 
 controls
 : Owned by login: a kept read or a queued change is stored under the owner the
   endpoint named, shown only while the same owner is signed in, and a flush sends
   only the current owner's queue; a write with no owner is refused (`no-owner`) and
   kept nowhere; signing out drops the person's kept reads. The label is a truncated
-  SHA-256 of the login under a fixed prefix (`signin:` + 16 hex), checked to that
-  shape before it is answered (`Identity::owner_label`) and before the kit accepts it;
-  it names nobody to a reader and authorises nothing (OI4: the identity cookie permits
-  nothing, unchanged). Sent once: every change carries an `Idempotency-Key`, a queued
+  SHA-256 of the login under a fixed prefix (`signin:` + 16 hex,
+  `Session::login_label`), made from the verified site session's user and only while
+  its Odoo session stands, and checked to that shape before the kit accepts it; it
+  names nobody to a reader and authorises nothing. Sent once: every change carries an `Idempotency-Key`, a queued
   change is sent again only with the same key, one flush runs at a time, and an item
   leaves the queue on any answer. The store holds what the endpoint answered a page
   and what the page asked to send: never the visitor token, a cookie (HttpOnly, the
@@ -3959,21 +3960,21 @@ controls
   a 127.0.0.1 endpoint stand-in: two `online` events send each queued change once; a
   cut-off send is sent again with the same key; no owner is refused; another login's
   queue is not sent and stays theirs; another login finds no kept read; sign-out drops
-  the reads and keeps the queue; the store holds no token. t/unit/odoo/41: `owner` is
-  the label, absent for a visitor, a lapsed identity and an identity with no session;
-  t/unit/odoo/28: the cookie's keys.
+  the reads and keeps the queue; the store holds no token; on a default Odoo site's
+  answer (signed in, no owner) nothing is kept, queued or sent. t/unit/odoo/63: on a
+  site with the Odoo site sign-in `owner` is the login's label; t/unit/odoo/41: a
+  default Odoo site, signed in and named, answers no owner and asks Odoo nothing, nor
+  does a visitor; t/unit/odoo/28: the cookie's keys are the contract's, and it carries
+  no login label however it is minted.
 
 residual risk
 : What the browser keeps is as safe as the browser's storage for that origin: a
   person who leaves a shared device signed in leaves their kept answers readable by
   the next person at that device, as the page itself would be; signing out drops them.
   A queued change waits in storage until its owner signs in again, or the person
-  clears the site's data. The identity cookie now carries a hash of the login where it
-  carried none (OI2 named "a login" among what it never carries; a hash of one is
-  added, the same hash the audit records carry); t/unit/odoo/28 pins the cookie's keys
-  and was changed accordingly. For the release manager: confirm that the label in the
-  cookie is within the cookie's contract, or rule that the kit learns the owner from
-  the sign-in answer in the browser instead (SM1396 K-1).
+  clears the site's data. The kit keeps data only on a site with the Odoo site
+  sign-in; on any other Odoo site it keeps nothing, which is the safe failure (SM1396
+  K-1, answered by rulings 161 and 163: the identity cookie stays as OI2 states).
 
 verdict
 : drafted: no trigger fires; recorded because a browser now keeps a person's data

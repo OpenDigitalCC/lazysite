@@ -126,10 +126,13 @@ Archive
   for want of a network), a write guard and queue (a change made offline or cut off is
   queued and sent once with its `Idempotency-Key`, so a resend never writes twice),
   install and update status, and sign-out. What the browser keeps is owned by login:
-  `?csrf=1` answers `owner`, a label of the login (the identity cookie carries it as
-  `who`), and an item with no owner is dropped. Slots `data-ls-app-banner`, `-show-out`,
-  `-show-in`, `-status`; docs under /docs/app and in the layouts briefing. New:
-  t/unit/extensions/77, 78 (a 127.0.0.1 endpoint stand-in); t/unit/odoo/28, 41.
+  `?csrf=1` answers `owner`, a label of the login, and an item with no owner is dropped.
+  The kit needs the Odoo site sign-in (`odoo_site_signin: on`): `owner` comes from the
+  site session's `odoo:<login>`, the identity cookie carries no label of the login, and
+  on a default Odoo site the kit keeps nothing (rulings 161, 163). Slots
+  `data-ls-app-banner`, `-show-out`, `-show-in`, `-status`; docs under /docs/app and in
+  the layouts briefing. New: t/unit/extensions/77, 78 (a 127.0.0.1 endpoint stand-in);
+  t/unit/odoo/28, 41, 63.
 
 - SM1397 (PENDING) **A site with no favicon answers with the engine's.** `/favicon.ico`
   and `/favicon.svg` that reach the engine on a site with no such file are answered with

@@ -280,7 +280,11 @@ Whose it is
   call records use, never the login itself), and a kept read or a queued change
   is stored under it, shown to and sent for no other login on the same browser.
   A change made while nobody is signed in, or while the identity has lapsed
-  (`odoo_identity_ttl`), is refused as `no-owner` and kept nowhere. The store
+  (`odoo_identity_ttl`), is refused as `no-owner` and kept nowhere.
+: **The kit needs the Odoo site sign-in** (`odoo_site_signin: on`, see /docs/odoo):
+  `owner` comes from the site session. On a site where the Odoo sign-in is not
+  the site sign-in, `?csrf=1` names no owner, so the kit keeps no reads, refuses
+  every change as `no-owner`, and its slots show the signed-out state. The store
   is the browser's own, under the site's origin; it holds what the endpoint
   answered a page and what a page asked to send, never a token, a cookie or a
   password.

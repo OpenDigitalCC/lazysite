@@ -88,18 +88,23 @@ subtest '?csrf=1 names the person from the identity cookie, and asks Odoo nothin
     is( scalar @{ $http->posts },      $posts, 'no round trip to Odoo through the session' );
     is( scalar @{ $conn_fake->calls }, $calls, 'and none as the connection user' );
     unlike( $raw, qr/company|groups|lang|Europe|login|jane\@example/, 'nothing else about the person: no login, company, groups, language or zone' );
-    # SM1396 (ruling 53): and `owner`, the label of the login (the one the records
-    # use), beside the identity - what the offline kit keeps for a person is owned
-    # by it, and the label names nobody to a reader.
-    like( $j->{owner} // '', qr/\Asignin:[0-9a-f]{16}\z/, 'the owner label, in the shape the records use' );
-    is( $j->{owner}, Lazysite::Odoo::Session::login_label('jane@example.com'), 'the label of this login' );
 };
 
-subtest 'the owner label goes with the identity, and nobody signed in has none' => sub {
-    my ( undef, undef, $j ) = request( 'GET', 'csrf=1', undef, HTTP_COOKIE => "$VC; $SESSION" );
-    ok( !exists $j->{owner}, 'no identity cookie: no owner (nothing is kept for nobody)' );
-    ( undef, undef, $j ) = request( 'GET', 'csrf=1', undef, HTTP_COOKIE => "$VC; $IDENT" );
-    ok( !exists $j->{owner}, 'an identity with no Odoo session behind it: no owner' );
+# SM1396 (rulings 161, 163): `owner` is named only on a site whose Odoo sign-in is
+# the site sign-in (t/unit/odoo/63 holds that half). This is a default Odoo site:
+# the person is signed in and named, the identity cookie carries no login label,
+# and Odoo is asked nothing, so there is no owner and the offline kit keeps
+# nothing (t/unit/extensions/78, 'a default Odoo site').
+subtest 'a default Odoo site names no owner' => sub {
+    my $posts = scalar @{ $http->posts };
+    my ( undef, undef, $j, $raw ) = request( 'GET', 'csrf=1', undef, HTTP_COOKIE => "$VC; $SESSION; $IDENT" );
+    is( $j->{odoo_signed_in}, 1, 'signed in' );
+    is( $j->{identity}{name}, 'Jane <b>Doe</b>', 'and named' );
+    ok( !exists $j->{owner}, 'and no owner' );
+    unlike( $raw, qr/signin:/, 'no login label anywhere in the answer' );
+    is( scalar @{ $http->posts }, $posts, 'and Odoo was not asked to find one' );
+    ( undef, undef, $j ) = request( 'GET', 'csrf=1', undef, HTTP_COOKIE => "$VC; $SESSION" );
+    ok( !exists $j->{owner}, 'no identity cookie: no owner' );
     ( undef, undef, $j ) = request( 'GET', 'csrf=1' );
     ok( !exists $j->{owner}, 'a visitor: no owner' );
 };

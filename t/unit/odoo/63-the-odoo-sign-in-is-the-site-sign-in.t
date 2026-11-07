@@ -224,6 +224,7 @@ subtest 'opt-in OFF: nothing changes' => sub {
     is( scalar @ASKED, 0, 'Odoo was not asked about groups' );
     my $t = fresh_tokens();
     is( $t->{identity}{name}, 'Jane', '?csrf=1 names the person from the identity cookie, as before' );
+    ok( !exists $t->{owner}, 'SM1396 (rulings 161, 163): and names no owner - the offline kit keeps nothing here' );
     sign_out();
     my ( $ps, $page ) = page('/');
     unlike( $page, qr/data-ls-odoo-banner/, 'the page carries no Signed-in-as banner' );
@@ -316,6 +317,14 @@ subtest 'opt-in ON: the Odoo sign-in is the site sign-in, with the mapped groups
     my ($rec) = grep { $_->{odoo} } registry();
     is_deeply( $rec->{groups}, [qw(staff wholesale)], 'the groups are in the server-side record' );
     is( $rec->{user}, 'odoo:jane@example.com', 'under the identity' );
+
+    # SM1396 (rulings 53, 161, 163): ?csrf=1 names the owner here, and only here - the
+    # label of the site session's login, never the login (t/unit/odoo/28: the identity
+    # cookie carries none).
+    my $tok = fresh_tokens();
+    is( $tok->{owner}, Lazysite::Odoo::Session::login_label('jane@example.com'),
+        '?csrf=1 names the owner: the label of the login the site session is for' );
+    unlike( $tok->{owner} // '', qr/jane|example/, '...and not the login' );
 
     # pages, through the wrapper and the real processor
     my $c = site_cookie_header();

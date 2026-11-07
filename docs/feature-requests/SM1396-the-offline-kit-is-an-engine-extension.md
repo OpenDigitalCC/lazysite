@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "ruling 53 (release manager, 2026-11-04, triage Q8); ruling 74 (D-9); planned as X8 of SM1369, n770"
 area: extensions
-status-note: "SHIPPED (PENDING) on n770: extensions/app-offline.pl (requires odoo; declares assets/kit.js and the variable app_offline_kit), Lazysite::Ext::AppOffline, the kit; ?csrf=1 answers `owner` (a label of the login) and the identity cookie carries it as `who`; docs under /docs/app and in the layouts briefing. t/unit/extensions/77, 78 (a 127.0.0.1 endpoint stand-in), t/unit/odoo/28, 41."
+status-note: "SHIPPED (PENDING) on n770: extensions/app-offline.pl (requires odoo; declares assets/kit.js and the variable app_offline_kit), Lazysite::Ext::AppOffline, the kit; ?csrf=1 answers `owner` (a label of the login) only with the Odoo site sign-in, the identity cookie unchanged (rulings 161, 163); docs under /docs/app and in the layouts briefing. t/unit/extensions/77, 78, t/unit/odoo/28, 41, 63."
 ---
 
 # The ruling
@@ -54,11 +54,13 @@ The kit (`extensions/app-offline/assets/kit.js`)
 Owned by login
 : `?csrf=1` on the page endpoint answers `owner`, a label of the signed-in
   login: `Session::login_label`, the hash the call records already name a
-  sign-in by, never the login. It comes from the identity cookie, which now
-  carries it as `who` (derived at the mint from the login OOM gave), or on a
-  site whose Odoo sign-in is the site sign-in from the site session's identity
-  (`odoo:<login>`); it is absent when nobody is signed in or the identity has
-  lapsed. The kit stores a kept read or a queued change under the owner, shows
+  sign-in by, never the login. It comes from the site session's identity
+  (`odoo:<login>`), so only on a site whose Odoo sign-in is the site sign-in
+  (`odoo_site_signin: on`; rulings 161, 163); it is absent when nobody is
+  signed in or the Odoo session has ended. The identity cookie stays as its
+  contract (OI2) states and carries no label of the login, and `?csrf=1` asks
+  Odoo nothing, so on a default Odoo site there is no owner and the kit keeps
+  no reads and refuses every change as `no-owner`. The kit stores a kept read or a queued change under the owner, shows
   and sends for no other login on the same browser, and refuses a change with
   no owner (`no-owner`), keeping it nowhere. The store is localStorage under the
   site's origin; it holds what the endpoint answered and what a page asked to
@@ -77,7 +79,7 @@ columns: Ref | Choice | Taken | The other option
 widths: 1cm | 4cm | X | X
 text: 3
 ---
-K-1 | How the kit learns the owner | A server label (`owner`, from the identity cookie's `who` or the site session), fetched by the kit from `?csrf=1`; the identity cookie gains one key, a hash the records already use | The kit remembers the login from the sign-in answer in the browser: stale after a sign-in made elsewhere, and names people by what the browser kept
+K-1 | How the kit learns the owner | Answered by rulings 161 and 163: a server label (`owner`), fetched by the kit from `?csrf=1`, from the site session alone, so the kit keeps data only on a site with the Odoo site sign-in; the identity cookie carries no label of the login | Built first and withdrawn: the identity cookie carrying the label as `who`. Not taken: the kit remembering the login from the sign-in answer in the browser (stale after a sign-in made elsewhere); `?csrf=1` asking Odoo who the person is (an Odoo call per page)
 K-2 | The kit's placement | One template variable, `app_offline_kit`, as the brief asks; the asset declares no `inject_when` | `inject_when: data-ls-app-banner`, so the slots alone pull the script in
 K-3 | A queued change whose answer is a refusal (4xx, 5xx) | Leaves the queue, and the page is told through the event: an answer came, and the server's own unknown-write handling (SM1277) covers an apply that never finished | Keep it queued and send again, which would resend a change the server refused
 K-4 | Sign-out | Drops the person's kept reads; keeps their queued changes for their next sign-in | Drop both
@@ -91,5 +93,5 @@ endpoint through the existing helper, with the existing `Idempotency-Key`
 header; `?csrf=1` gains one field. No new sign-in method, no new dependency, no
 new restricted data: the owner label is the hash the records already carry. The
 register entry in `docs/SECURITY.md` is drafted for the release manager's
-confirmation, with the one question the identity cookie raises (it now carries
-`who`, a hash of the login; test 28 pins the cookie's keys and was changed).
+confirmation. The identity cookie is unchanged (rulings 161, 163): test 28 pins
+its keys as the contract gives them and that it carries no login label.

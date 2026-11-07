@@ -150,7 +150,8 @@ on and empty otherwise, so a layout may render them on any site:
   sign-out, on a site whose Odoo sign-in is the site sign-in; `odoo_display_name`,
   the name the site gives Odoo (text: escape it)
 - `app_offline_kit` (the `app-offline` extension) - the offline kit's script tag,
-  for a site installed as an app. Render it once, and carry the kit's slots:
+  for a site installed as an app whose Odoo sign-in is the site sign-in (on any other
+  site the kit keeps nothing). Render it once, and carry the kit's slots:
   `data-ls-app-banner` (shown offline), `data-ls-app-show-out` and
   `data-ls-app-show-in` (signed out, signed in) and `data-ls-app-status` (the
   install state and a waiting update). See /docs/app, "The offline kit". No

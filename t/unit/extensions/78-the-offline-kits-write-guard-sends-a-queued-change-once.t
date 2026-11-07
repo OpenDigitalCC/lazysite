@@ -75,6 +75,21 @@ subtest 'nobody signed in: refused, queued nowhere' => sub {
     is_deeply( $f->{no_owner}{owners}, [], 'and kept for nobody' );
 };
 
+# Rulings 161, 163: on a default Odoo site (the site sign-in off) ?csrf=1 names
+# the person and no owner (t/unit/odoo/41 holds the endpoint's half); the kit
+# then keeps nothing and sends nothing kept.
+subtest 'a default Odoo site: signed in, no owner, nothing kept' => sub {
+    my $s = $f->{default_site};
+    is( $s->{owner}, undef, 'no owner is learnt from an answer that names none' );
+    is( $s->{offline}, 'no-owner', 'a change made offline is refused by kind' );
+    is( $s->{online},  'no-owner', 'and one made online' );
+    is( $s->{posts},   0,          'neither is sent' );
+    is( $s->{queued},  0,          'nor queued' );
+    is( $s->{live_status}, 200, 'a read is answered live' );
+    is( $s->{kept_read}, 'rejected', 'and is not kept for when the network is gone' );
+    is_deeply( $s->{owners}, [], 'the store keeps nothing for anybody' );
+};
+
 subtest 'another login on the same browser' => sub {
     my $o = $f->{other_login};
     is( $o->{queued}, 'queued', 'the first login\'s change was queued' );

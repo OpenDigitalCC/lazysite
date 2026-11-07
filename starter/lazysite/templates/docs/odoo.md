@@ -442,6 +442,13 @@ The page endpoint, `/cgi-bin/lazysite-odoo.pl`
   no `identity` until the next call that reaches Odoo freshens it. Presentation
   only: nothing is permitted by it.
 
+  On a site whose Odoo sign-in is the site sign-in (`odoo_site_signin: on`, below)
+  the answer also carries `owner` while the person is signed in: a label of their
+  login (the hash the call records name a sign-in by, never the login), taken
+  from the site session. It is what the offline kit (the `app-offline` extension)
+  owns a person's kept data by. A default Odoo site answers no `owner`, and the
+  kit keeps nothing there.
+
   `POST {calls: [{binding, params}, ...]}` runs several calls in one request, so a
   page with several reads pays the endpoint's start-up once. At most **10** calls
   (`invalid` beyond that, before any call is made). The answer is
@@ -685,14 +692,9 @@ The two cookies:
 
 `lzs_odoo_identity`
 : Who the person is, for a page to show: name, language, time zone, companies
-  and groups, and a label of the login (`who`: the hash the call records name a
-  sign-in by, never the login). Signed, `HttpOnly`, `SameSite=Lax`, valid for
-  `odoo_identity_ttl`, and refreshed from the session by the next call that
-  reaches Odoo once it has ended. Presentation only: nothing in the engine reads
-  it to permit anything. `?csrf=1` answers the label as `owner`, beside
-  `identity`, while the person is signed in and the identity is inside its time:
-  it is what the offline kit (the `app-offline` extension) owns a person's kept
-  data by.
+  and groups. Signed, `HttpOnly`, `SameSite=Lax`, valid for `odoo_identity_ttl`, and
+  refreshed from the session by the next call that reaches Odoo once it has ended.
+  Presentation only: nothing in the engine reads it to permit anything.
 
 A call, once signed in:
 
