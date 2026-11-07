@@ -32,13 +32,19 @@ A theme has two parts, stored in separate locations:
 
     public_html/lazysite/layouts/default/themes/odcc/
       theme.json          <- manifest (required)
-      main.css            <- layout-scoped stylesheet
-      assets/             <- fonts, images, etc. (optional)
+      assets/             <- everything a browser fetches
+        main.css          <- the theme's stylesheet
+        logo.svg
+        fonts/...
 
     public_html/lazysite-assets/default/odcc/
-      main.css            <- web-served copy (auto-placed on install)
+      main.css            <- web-served copy of assets/ (placed on install)
       logo.svg
       fonts/...
+
+Only `assets/` is copied to `lazysite-assets/`: a stylesheet beside
+`theme.json` is never served, and a theme whose CSS is all outside
+`assets/` renders unstyled.
 
 The split is deliberate: `lazysite/` is blocked from direct web
 access (`<Location /lazysite/>` denies all in the Hestia
@@ -160,7 +166,11 @@ Every entry is checked before any is extracted: an absolute path, a
 `.cgi`, `.pl` and the rest) refuses the whole archive, and so does an
 archive over the site's upload limit (`manager_upload_max_mb`). A theme
 whose name is already installed is installed beside it under a dated
-name (`YYYYMMDD-name`), never over it. Nothing is activated.
+name (`YYYYMMDD-name`), never over it. Nothing is activated. A theme
+with stylesheets outside `assets/` and none inside it is installed with
+a warning in `warnings` naming each file and where it belongs
+(`assets/main.css` for a `main.css` at the root); every install says so,
+the layout installs in `theme_warnings`.
 
 **Over MCP.** `install_theme` takes the same zip, base64-encoded, and
 installs it through the same code with the same checks - so a theme's

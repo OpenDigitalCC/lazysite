@@ -459,7 +459,12 @@ function uploadTheme() {
       { method: 'POST', body: e.target.result })
       .then(function(r){ return r.json(); }).then(function(d) {
         if (!d.ok) { showStatus(d.error, true); return; }
-        showStatus('Theme uploaded: ' + (d.name || file.name));
+        // SM1386: installed, with any warning (stylesheets outside assets/) shown.
+        if (d.warnings && d.warnings.length) {
+          showStatus('Theme uploaded: ' + (d.name || file.name) + ' - ' + d.warnings.join('; '), true);
+        } else {
+          showStatus('Theme uploaded: ' + (d.name || file.name));
+        }
         fi.value = ''; loadAll();
       }).catch(function(err){ showStatus('Upload failed: ' + err.message, true); });
   };
@@ -563,6 +568,9 @@ function installLayout(layout, theme, update) {
       var msg = 'Installed ' + layout + ' with ' + n + ' theme' + (n === 1 ? '' : 's');
       if (d.theme_errors && d.theme_errors.length) {
         showStatus(msg + ' - ' + d.theme_errors.join('; '), true);
+      } else if (d.theme_warnings && d.theme_warnings.length) {
+        // SM1386: installed, and told why it will look unstyled.
+        showStatus(msg + ' - ' + d.theme_warnings.join('; '), true);
       } else {
         showStatus(msg + (d.activated ? ' and activated.' : ' - use Activate to switch to it.'));
       }

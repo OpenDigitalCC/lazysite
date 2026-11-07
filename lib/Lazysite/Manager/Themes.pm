@@ -2324,12 +2324,50 @@ sub _install_theme_from_dir {
         layouts => join( ',', @installed ),
         user    => $user );
 
+    # SM1386: warned, never refused - a theme whose stylesheets are all outside
+    # assets/ installs, and is served with no CSS.
+    my $css_warning = _css_outside_assets_warning( $extract_dir, $install_name );
+    log_event( 'WARN', $action_label, 'theme stylesheets outside assets/',
+        name => $install_name, user => $user ) if defined $css_warning;
+
     return {
         ok           => 1,
         name         => $install_name,
         installed_as => $install_name,
         layouts      => \@installed,
+        ( defined $css_warning ? ( warnings => [$css_warning] ) : () ),
     };
+}
+
+# SM1386: A THEME'S STYLESHEETS BELONG IN assets/. Only assets/ is mirrored to
+# /lazysite-assets/<layout>/<theme>/, which is what a page links, so a zip with
+# main.css at its root beside theme.json installed, previewed and activated
+# with no CSS at all and nothing said why. Returns the warning, naming each
+# stylesheet and where it belongs, when the theme has a .css file outside
+# assets/ and none inside it; undef otherwise (a theme with CSS in assets/ may
+# keep sources elsewhere, and a theme with no CSS is the layout's own styling).
+sub _css_outside_assets_warning {
+    my ( $dir, $name ) = @_;
+    return undef unless defined $dir && -d $dir;
+    my ( @outside, $inside );
+    File::Find::find( { no_chdir => 1, wanted => sub {
+                my $f = $File::Find::name;
+                return unless -f $f && $f =~ /\.css\z/i;
+                ( my $rel = substr( $f, length $dir ) ) =~ s{\A/+}{};
+                if ( $rel =~ m{\Aassets/} ) { $inside = 1 }
+                else                        { push @outside, $rel }
+    } }, $dir );
+    return undef if $inside || !@outside;
+    @outside = sort @outside;
+    my $n = @outside;
+    return "theme '$name' has "
+        . ( $n == 1 ? 'a stylesheet' : "$n stylesheets" )
+        . ' outside assets/ and none inside it: '
+        . join( ', ', map { "$_ (belongs at assets/$_)" } @outside )
+        . ". Only assets/ is served (/lazysite-assets/<layout>/$name/), so the theme is "
+        . 'installed and every page it styles has no CSS. Move '
+        . ( $n == 1 ? 'it' : 'them' )
+        . ' into assets/ in the theme (or the zip) and install it again.';
 }
 
 sub _cleanup_tmp {

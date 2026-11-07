@@ -972,6 +972,7 @@ sub action_layout_install {
     # 2. Theme package(s).
     my @themes_installed;
     my @theme_errors;
+    my @theme_warnings;    # SM1386
     for my $t ( @{ $plan->{themes} } ) {
         my $tname = $t->{name};
         my ( $tok, $tdir ) =
@@ -988,6 +989,7 @@ sub action_layout_install {
         if ( $tr->{ok} ) {
             _mirror_theme_assets( $layout, $tname );
             push @themes_installed, $tname;
+            push @theme_warnings,   @{ $tr->{warnings} || [] };
         }
         else {
             push @theme_errors, "$tname: $tr->{error}";
@@ -1018,6 +1020,7 @@ sub action_layout_install {
         layout           => $layout,
         themes_installed => \@themes_installed,
         theme_errors     => \@theme_errors,
+        ( @theme_warnings ? ( theme_warnings => \@theme_warnings ) : () ),
         active_theme     => $primary,
         activated        => $activated,
 

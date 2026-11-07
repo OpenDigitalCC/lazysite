@@ -118,6 +118,14 @@ Archive
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+- SM1386 (PENDING) **A theme install warns when its stylesheets are outside assets/.** Only a
+  theme's `assets/` is served, so a zip with `main.css` at its root beside `theme.json`
+  installed and previewed with no CSS. Every install door - `theme-upload` (the manager's
+  Upload Theme), MCP `install_theme`, and the layout installs (`layouts-install`,
+  `layout-install`, MCP `install_layout`) - now installs such a theme with a warning naming
+  each stylesheet and where it belongs (`warnings`; `theme_warnings` for `layout-install`).
+  Warned, never refused. The themes doc's on-disk picture put `main.css` beside
+  `theme.json`; it now shows it in `assets/`.
 
 - SM1385 (PENDING) **A theme is deleted by its path, under any layout.** `delete_theme`
   (MCP), `theme-delete` (control API) and the manager's Themes page found a theme only under
