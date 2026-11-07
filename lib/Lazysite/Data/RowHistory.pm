@@ -26,19 +26,13 @@ package Lazysite::Data::RowHistory;
 use strict;
 use warnings;
 use Exporter 'import';
-use JSON::PP       ();
-use Lazysite::Util qw(log_event);
+use JSON::PP               ();
+use Lazysite::Util         qw(log_event);
+use Lazysite::Data::SQLite ();              # the engine-specific parts (t/unit/data/12)
 
 our @EXPORT_OK = qw(record_change list_changes get_change mark_undone);
 
 my $TABLE = '_row_changes';
-
-sub _ddl {
-    return qq{CREATE TABLE IF NOT EXISTS "$TABLE" (}
-        . '"id" INTEGER PRIMARY KEY AUTOINCREMENT, "at" TEXT NOT NULL, "actor" TEXT NOT NULL, '
-        . '"tbl" TEXT NOT NULL, "row_key" TEXT NOT NULL, "op" TEXT NOT NULL, "source" TEXT NOT NULL, '
-        . '"before" TEXT, "after" TEXT, "undoes" INTEGER, "undone_by" INTEGER)';
-}
 
 sub _now {
     my @t = gmtime( time() );
@@ -53,7 +47,7 @@ my $JSON = JSON::PP->new->canonical->allow_nonref;
 sub record_change {
     my ( $dbh, %c ) = @_;
     my $id = eval {
-        $dbh->do( _ddl() );
+        $dbh->do( Lazysite::Data::SQLite::row_changes_table_sql() );
         $dbh->do(
             qq{INSERT INTO "$TABLE" ("at","actor","tbl","row_key","op","source","before","after","undoes") }
                 . 'VALUES (?,?,?,?,?,?,?,?,?)', undef,
@@ -63,7 +57,7 @@ sub record_change {
             ( defined $c{before} ? $JSON->encode( $c{before} ) : undef ),
             ( defined $c{after}  ? $JSON->encode( $c{after} )  : undef ),
             $c{undoes} );
-        $dbh->last_insert_id( undef, undef, $TABLE, 'id' );
+        Lazysite::Data::SQLite::row_changes_last_id($dbh);
     };
     unless ( defined $id ) {
         log_event( 'WARN', $c{table} // 'data', 'row change not recorded - the write itself succeeded',
@@ -91,9 +85,7 @@ sub list_changes {
     my $limit = ( ( $opt{limit} // '' ) =~ /\A[1-9][0-9]{0,2}\z/ ) ? 0 + $opt{limit} : 50;
     $limit = 200 if $limit > 200;
     my $rows = eval {
-        my $have = $dbh->selectrow_array(
-            q{SELECT name FROM sqlite_master WHERE type='table' AND name=?}, undef, $TABLE );
-        return [] unless $have;
+        return [] unless Lazysite::Data::SQLite::row_changes_exist($dbh);
         my ( $sql, @b ) = ( qq{SELECT * FROM "$TABLE" WHERE "tbl" = ?}, $table );
         if ( defined $opt{key} && length $opt{key} ) { $sql .= ' AND "row_key" = ?'; push @b, "$opt{key}" }
         $sql .= ' ORDER BY "id" DESC LIMIT ' . $limit;
@@ -106,9 +98,7 @@ sub get_change {
     my ( $dbh, $table, $id ) = @_;
     return undef unless defined $id && $id =~ /\A[1-9][0-9]{0,17}\z/;
     my $h = eval {
-        my $have = $dbh->selectrow_array(
-            q{SELECT name FROM sqlite_master WHERE type='table' AND name=?}, undef, $TABLE );
-        return undef unless $have;
+        return undef unless Lazysite::Data::SQLite::row_changes_exist($dbh);
         $dbh->selectrow_hashref( qq{SELECT * FROM "$TABLE" WHERE "id" = ? AND "tbl" = ?}, undef, $id, $table );
     };
     return _row($h);

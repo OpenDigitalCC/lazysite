@@ -655,4 +655,26 @@ sub history_rows_sql {
         . 'WHERE "tbl" = ? ORDER BY "at" DESC LIMIT 50';
 }
 
+# SM1355: the row-change history (Lazysite::Data::RowHistory), internal as the
+# schema history is and for the same reasons. The engine-specific parts - the
+# auto-assigned id, whether the table exists yet, the id an insert was given -
+# are here, so RowHistory names no engine.
+sub row_changes_table_sql {
+    return 'CREATE TABLE IF NOT EXISTS "_row_changes" ('
+        . '"id" INTEGER PRIMARY KEY AUTOINCREMENT, "at" TEXT NOT NULL, "actor" TEXT NOT NULL, '
+        . '"tbl" TEXT NOT NULL, "row_key" TEXT NOT NULL, "op" TEXT NOT NULL, "source" TEXT NOT NULL, '
+        . '"before" TEXT, "after" TEXT, "undoes" INTEGER, "undone_by" INTEGER)';
+}
+
+sub row_changes_exist {
+    my ($dbh) = @_;
+    return $dbh->selectrow_array( q{SELECT name FROM sqlite_master WHERE type='table' AND name=?},
+        undef, '_row_changes' ) ? 1 : 0;
+}
+
+sub row_changes_last_id {
+    my ($dbh) = @_;
+    return $dbh->last_insert_id( undef, undef, '_row_changes', 'id' );
+}
+
 1;

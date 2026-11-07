@@ -213,7 +213,7 @@ function copyPageOf(p) {
 function isReservedPath(p) {
   p = String(p || '').replace(/^\/+/, '');
   if (isFormConfPath(p)) return false;
-  if (copyPageOf(p) !== null) return false;
+  if (/^lazysite\/copies\/pages\/.+\.md$/i.test(p)) return false;    // SM1354: a page's copy (see copyPageOf)
   return /^lazysite\//i.test(p) || /^cgi-bin\//i.test(p) || /\.(?:pl|cgi)$/i.test(p);
 }
 var isMdFile = filePath && /\.md$/i.test(filePath);

@@ -53,6 +53,7 @@ my @gap;
 for my $g ( sort keys %$gs ) {
     next unless ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
     push @gap, map { "$g/$_" } grep { !exists $gs->{$g}{$_} }
+        grep { my $c = $_; !grep { $_ eq $c } @Lazysite::Auth::Settings::OFF_BY_DEFAULT }    # SM1354, as the real check
         grep { $_ ne 'api' && $_ ne 'mcp' } @Lazysite::Auth::Settings::CAP_KEYS;
 }
 print @gap

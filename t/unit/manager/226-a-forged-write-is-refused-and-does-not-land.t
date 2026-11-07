@@ -208,7 +208,7 @@ setup( 'odoo-secret-set', body => { secret => 'k3y-set-before' } );    # SM747: 
 $S{backup} = setup('backup-create')->{name} // '';
 setup( 'data-table-save', body => { table => 'notes', descriptor => "title: Notes\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-migrate',       query => 'table=notes' );
-setup( 'data-row-save',      body  => { table => 'notes', row  => { slug => 'a' } } );
+$S{change} = setup( 'data-row-save', body => { table => 'notes', row => { slug => 'a' } } )->{change} // 0;
 setup( 'data-table-acl-set', body  => { table => 'notes', read => ['admin'] } );
 setup( 'data-table-save', body => { table => 'old', descriptor => "title: Old\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-migrate',  query => 'table=old' );
@@ -233,6 +233,15 @@ setup( 'data-row-save', body => { table => 'wide', row => { slug => 'w', extra =
 setup( 'data-table-save', body => { table => 'wide', descriptor => "title: Wide\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 setup( 'data-table-save', body => { table => 'pending', descriptor => "title: Pending\nkey: slug\nfields:\n  slug:\n    type: text\n" } );
 # SM1053: an import staged for the operator to apply.
+# SM1354: an open copy for page-copy-publish and page-copy-discard to close. SM1355: a
+# table with an availability field for data-row-switch, and a wizard for data-wizard-run.
+setup( 'page-copy', query => 'path=other.md' );
+setup( 'data-table-save', body => { table => 'avail',
+        descriptor => "title: Avail\nkey: slug\navailability: on\nfields:\n  slug:\n    type: text\n  on:\n    type: boolean\n" } );
+setup( 'data-migrate',  query => 'table=avail' );
+setup( 'data-row-save', body  => { table => 'avail', row => { slug => 'x' } } );
+setup( 'data-wizard-save', body => { wizard => 'w1',
+        definition => "table: notes\nsteps:\n  - field: slug\n    ask: Slug\n    type: text\n    required: true\n" } );
 $S{import} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp1' } ] } )->{id} // '';
 # n571: a second, for its stager to remove.
 $S{import_rm} = setup( 'accounts-import-stage', body => { accounts => [ { username => 'imp3' } ] } )->{id} // '';
@@ -292,6 +301,14 @@ my %REQ = (
     'data-rebuild'    => { body  => { table => 'wide',  confirm_lost => ['extra'] } },
     'data-row-delete' => { body  => { table => 'notes', key          => 'a' } },
     'data-row-save'   => { body  => { table => 'notes', row => { slug => 'c' } } },
+    'data-row-switch' => { body => { table => 'avail', key => 'x', available => JSON::PP::true } },    # SM1355
+    'data-row-undo'   => { body => { table => 'notes', change => $S{change} } },
+    'data-wizard-run' => { body => { wizard => 'w1', answers => { slug => 'z' }, save => JSON::PP::true } },
+    'data-wizard-save' => { body => { wizard => 'w2',
+            definition => "table: notes\nsteps:\n  - field: slug\n    ask: Slug\n    type: text\n    required: true\n" } },
+    'page-copy'         => { query => 'path=page.md' },    # SM1354
+    'page-copy-discard' => { query => 'path=other.md' },
+    'page-copy-publish' => { query => 'path=other.md' },
     'data-safety-export-delete'  => { body  => { file => $S{export} } },
     'data-safety-export-restore' => { body  => { file => $S{export}, apply => 1 } },
     'data-table-acl-remove'      => { query => 'table=notes' },
