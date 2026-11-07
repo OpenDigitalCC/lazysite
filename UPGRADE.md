@@ -68,6 +68,39 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased (0.16.8)
+
+**Odoo's actions and capabilities are the extension's own declaration (SM1369, X2).**
+The ten `odoo-*` control-API actions and `odoo_*` MCP tools, their parameters, their
+gates, the tools' descriptions and schemas, and the capabilities `settle_odoo_writes`
+and the new `manage_odoo` are declared by `extensions/odoo.pl` and read by the engine
+from the extension index (`lazysite/extensions.index.json`), which the upgrade rebuilds
+on every site and the manager rebuilds when an extension is enabled, disabled or saved.
+The wire names, the parameters and the listing an agent sees are unchanged. Nothing a
+site configures changes.
+
+**`manage_odoo` (ruling 71).** The Odoo connection user's key, the connection's state
+and the call record (`odoo-status`, `odoo-calls`, `odoo-secret-set`, `odoo-secret-clear`
+and their tools) were `manage_connectors`' and are now the extension's own capability,
+`manage_odoo`, which also stands in for manage_connectors as the capability that may run
+any Odoo binding. Every group holding `manage_connectors` is topped up with it the next
+time the site's accounts are touched (the users tool's ordinary use: a login, a grant,
+the API's reads), so nothing changes for a group; a group whose operator has set it off
+is left as decided. The Groups and Users pages show it as "Odoo connection" under Site.
+A token holding manage_connectors alone, on a site where no account has been touched
+since the upgrade, is refused the four actions until the top-up runs: run
+`lazysite-users.pl --docroot <docroot> group-reach <group>` once, or grant
+`manage_odoo` by hand.
+
+**If the index did not build.** The upgrade prints `declarations indexed: odoo` for a
+site with Odoo installed. Should the build fail (a full disk, an unwritable
+`lazysite/`), the previous index stands, the upgrade warns, and `lazysite check` says
+so (`the extension index was not rebuilt by the last build`) until an extension is
+enabled or saved in the manager or the upgrade is run again. On a site whose index was
+built by hand before Odoo was enabled, the check names it (`enabled extensions whose
+declarations are indexed and whose hooks are not`) and the actions answer "cannot run
+now" until the index is rebuilt the same way.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

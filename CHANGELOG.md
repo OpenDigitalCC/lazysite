@@ -53,6 +53,31 @@ Archive
 
 ## Unreleased
 
+- SM1369 (PENDING) **X2: an extension declares its capabilities and its control-API
+  and MCP actions, and core carries them from the index (H-7, H-9; rulings 71, 135).**
+  `owns.hooks` gains three live kinds: `capability_info` (each owned capability's
+  section, grid label, title, grant sentence, UI unlocks and what tops it up),
+  `api_actions` (one row per action in `%ACTION`'s shape, with its gate, its MCP twin's
+  description and input schema, and the handler in the payload lib) and
+  `refusal_kinds`. The extension index gains a `declared` view, built from every
+  installed extension's descriptor by the same validation (a row without a gate, an
+  ALWAYS row without its reason, a name not prefixed by the extension's id, a core
+  name shadowed, an owned capability nobody describes, a twin requiring what the
+  action does not: each refused by name, and the extension is not enabled). One
+  mirror fills `@CAP_KEYS`, the capability map, `%GATE`/`%ACTION` and the refusal
+  statuses from it, once per process; the manager API and MCP dispatch a declared
+  action through one table-driven branch to the extension's handler, through the X1
+  loader, so an extension that is off answers "this extension is off" and the tool
+  listing does not change with the toggle. Odoo's ten actions, its refusal kinds and
+  its two capabilities are its own declaration now; the wire is held to a 0.16.7
+  capture (t/unit/odoo/136). Ruling 71: `manage_odoo` is the extension's admin
+  capability (status, calls, the keys; the binding override); every group holding
+  manage_connectors is topped up with it on next use. The parity lints read the merged
+  table; the Groups and Users grids draw a declared capability from served labels;
+  `lazysite check` reads the index's capabilities and reports a failed build or an
+  enabled extension whose hooks are not indexed. Lint 321's allow-list falls from 42
+  files to 34.
+
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 
 - SM1394 (def213ea) **docs: the compliance records cover 0.16.7.** OBLIGATIONS.md and

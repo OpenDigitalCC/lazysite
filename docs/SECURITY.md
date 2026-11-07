@@ -3154,6 +3154,70 @@ verdict
 : accepted, confirmed by the release manager on 2026-11-06 (ruling 141). No trigger
   fired; 0.16.6 stays edge and not security-critical (ruling 142).
 
+### 2026-11-07 - SM1369 X2 (0.16.8): an extension's capabilities and actions reach core's tables from the index
+
+Assessment drafted by the developer agent (n768) for the release manager's confirmation.
+Rulings 71 (D-6) and 135; the design is the extension-hooks proposal's H-7 and H-9.
+Ruling 134 asked X2 to reassess X1's new-external-interface finding when the first
+caller lands; this is that caller.
+
+what moves
+: Out of core: the ten Odoo rows of `%GATE` and `%ACTION`, the ten `elsif` branches of
+  the manager API, the ten `%TOOLS` entries of the MCP server, `settle_odoo_writes` in
+  `@CAP_KEYS`, the capability map, the check's list and the two grids, and the Odoo
+  refusal kinds of `%REFUSAL_STATUS`. Into the extension's descriptor
+  (`extensions/odoo.pl`, `owns.hooks`): `capability_info` (two capabilities, one new:
+  `manage_odoo`, topped up from `manage_connectors`), `api_actions` (ten rows, each with
+  its gate, its twin's description and schema, and a handler in
+  `extensions/odoo/lib/Lazysite/Odoo/Actions.pm`) and `refusal_kinds`. Into core: the
+  validators (`Lazysite::Extensions::Hooks`), a `declared` view of the index built from
+  every installed extension's descriptor, one mirror that fills the four tables from it
+  once per process, one table-driven branch per door, and the loader call that runs the
+  handler.
+
+the boundary
+: No action without a gate row: the index build refuses a row with none, an ALWAYS row
+  with no reason, a row whose name or twin is not prefixed by the extension's id, a row
+  or capability or refusal kind that names something core has, a cookie gate weaker
+  than the token gate, a twin requiring what the action does not; the extension is then
+  not enabled (X1's C-7), and the mirror refuses the same things a second time from a
+  hand-edited index. Every declared row then meets every rule a core row does, because
+  it is the same row in the same tables: the token gate, the CSRF gate, the required-
+  parameter check, the instance-wide and scope rules, the audit decision and the parity
+  lints (14, 23, 52, 58, 90, 98, 218) all read the merged table. A declared action runs
+  only through `Hooks::run_action`: the extension must be on in `lazysite.conf` at the
+  call (a stale index answers "this extension is off" and runs nothing), its hooks
+  indexed, its handler a file in its own payload lib found nowhere else on `@INC`. A
+  capability is grantable while its extension is installed and never shadows a core
+  name. The request path reads one file; nothing runs `--describe` there.
+
+threat delta
+: ADR 0007's new-external-interface trigger, which X1 found fired by the loader with no
+  caller, now has its first callers: the two doors run an extension's own Perl in a
+  core process for ten actions that were core's own branches before. The code that
+  runs is the engine's `Lazysite::Odoo` functions, reached through a thin adapter in the
+  payload lib instead of a branch in the door; the identity, capabilities, groups,
+  address and door handed to it are what the branches handed before. No sign-in
+  method, no new dependency, no new processing of restricted data. The names on the
+  wire, the parameters, the hints and the listing are unchanged (t/unit/odoo/136 holds
+  them to a 0.16.7 capture). The one grant change is ruling 71's, and the top-up keeps
+  every group's reach as it was. Tampering: a descriptor or an index that declares a
+  core name, or a handler outside the payload lib - refused at the build and again at
+  the mirror and the call. Elevation: a declared ALWAYS row that gates nothing - refused
+  without a reason, and the extension's own code still decides (the binding, as before).
+
+residual risk
+: An extension is Perl running as the site user; the hooks are a contract, not a
+  sandbox (the proposal's "What the model does not claim"), and trust comes from what
+  is installed, as before. A site whose index build failed keeps the previous index:
+  the check says so, and a declared capability stays grantable there until the rebuild.
+  Groups saved while an extension is off keep their grant (the declaration is indexed
+  while the extension is installed).
+
+verdict
+: drafted as contained: the trigger X1 recorded is now exercised, by the same code
+  behind the same names, under the same gates; for the release manager to confirm.
+
 ### 2026-11-07 - SM1369 X7 part one (0.16.7): Odoo's modules load from the extension's payload lib
 
 Assessment drafted by the developer agent; confirmed by the release manager on 2026-11-07 (ruling 149).

@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL: X0 and X1 shipped in 0.16.6. X7 part one (ruling 135) built on n762: Odoo's modules in extensions/odoo/lib, reached by require_payload; tests and the OOM snapshot stay for 0.16.9. Next X2 actions and capabilities, X3 sources and handlers, X4 identity, X5 endpoint, services, assets, X6 check, panels, secrets, X7's rest, X8 the offline kit."
+status-note: "PARTIAL: X0, X1 shipped in 0.16.6; X7 part one in 0.16.7. X2 built on n768 for 0.16.8: capability_info, api_actions and refusal_kinds live; the index's declared view; one mirror fills the tables; both doors dispatch through one branch; Odoo's ten actions and two capabilities (manage_odoo, ruling 71) declared, wire unchanged. Next X3, X5 asset part, X8; X4, X6, X7's rest in 0.16.9."
 ---
 
 # The ruling
@@ -181,6 +181,88 @@ Tests
   paths are unchanged. Lints 262, 269 and 272 read the payload lib as they read
   `lib/`.
 
+# X2: actions and capabilities are declared
+
+Built on n768 for 0.16.8 (H-7 and H-9; rulings 71 and 135). The ruling's measure:
+Odoo's actions and capabilities leave core's literals, and the wire does not move.
+
+The declaration
+: `owns.hooks` gains three live kinds. `capability_info` describes each capability
+  `owns.capabilities` names: its section (one of the grids' seven), the grid's short
+  `label`, the `title` and `grants` sentence describe-capabilities publishes, the UI
+  surfaces it unlocks, and `top_up_from`, the capabilities a group holding any of
+  which is topped up with it. Its api and mcp unlocks are derived from the gate rows
+  that name it, so the map cannot over- or under-claim (lint 90, by construction).
+  `api_actions` is one row per control-API action in `%ACTION`'s shape - name, mcp
+  twin, params (each saying where it is read from), mutates, destructive, open_world,
+  instance_wide, cookie_cap - with its `gate` (capabilities, or `ALWAYS` with its
+  `always_reason`), the twin's `description` and `input_schema`, and the `handler`, a
+  function in the payload lib called as `handler( \%params, \%ctx )`.
+  `refusal_kinds` maps the kinds the extension's answers carry to the status the doors
+  send. A name must start with the extension's id (`odoo-`, `odoo_`).
+
+What the build refuses
+: Each by name, and the extension is then not enabled (C-7): a row with no gate; an
+  ALWAYS row with no reason; a name or twin not the extension's; a capability, an
+  action, a twin or a refusal kind core has; an owned capability nobody describes, or a
+  description of one not owned; a gate naming a capability nobody has; a cookie gate
+  that differs from the token gate; a twin's schema requiring what the row does not
+  (SM326), or naming a parameter the row lacks; a handler not a file in the payload
+  lib.
+
+The index
+: Gains a `declared` view beside X1's `extensions`: every INSTALLED extension's
+  declarations (from the listing's cached descriptors), validated as an enabled one's
+  are, so a capability is grantable while its extension is installed and an action of
+  an extension that is off is known. The toggles and the save build when the extension
+  in hand declares hooks, an index exists, or any installed extension declares. A
+  failed write leaves `extensions.index.failed` beside the index; the check reports it.
+
+The mirror
+: `Hooks::mirror($lz)` reads the site's index once per process (a stat afterwards) and
+  fills `@CAP_KEYS` (the literal is now `@CORE_CAP_KEYS`), Capabilities' `%ACTION_INFO`,
+  `%GATE` and `%ACTION` (each row marked `extension`), and the refusal statuses, refusing
+  a core name a second time. The doors and the tools call it before they derive their
+  tables; `Auth::Settings` calls it from `caps_for` and the group-settings reads, so
+  every process that resolves a grant sees the declared capabilities. The lints, the
+  docs generator and the gate fingerprint mirror an index built in memory from the
+  tree's descriptors (`Manager::Extensions::engine_hook_index`).
+
+The dispatch
+: One branch per door. The manager API reads each declared parameter from where its
+  row says and hands `Hooks::run_action` the caller's identity, capabilities, groups,
+  address and door; MCP builds its tool row from the declaration (description, schema,
+  the gate as `cap`/`cap_also`) and does the same with the arguments. `run_action`
+  requires the extension on in `lazysite.conf` now and its hooks indexed, and runs the
+  handler through X1's loader; off answers the house refusal "this extension is off"
+  (kind `disabled`, running nothing), a missing entry "cannot run now", naming the
+  rebuild.
+
+Odoo
+: Declares `manage_odoo` (ruling 71: the connection user's actions, which were
+  manage_connectors', and the binding override; `top_up_from: manage_connectors`) and
+  `settle_odoo_writes`; its ten actions with the descriptions and schemas the MCP table
+  carried; its thirty refusal kinds. The handlers (`Lazysite::Odoo::Actions`) hand the
+  engine's `action_odoo_*` what the branches handed. Core names no Odoo action,
+  capability or kind: lint 321's allow-list falls from 42 files to 34. The 0.16.7
+  listing and rows are captured in `t/lib/odoo-wire-0167/`, and t/unit/odoo/136 holds
+  the declaration to them.
+
+The grids and the check
+: The Groups and Users pages keep core's capability lists (lint 19) and draw a declared
+  capability from the labels `channel-services` serves. The users tool tops up a
+  declared capability from what it declares (`top_up_from`), on SM645's trigger and by
+  its rule (absent only). `lazysite check` reads the index's capabilities for the
+  manager-group walk and reports a failed build and an enabled extension whose hooks
+  are not indexed.
+
+Tests
+: `t/unit/extensions/72` (a fixture extension declares a capability and two actions;
+  the index, the mirror, both doors, the refusals, off and stale); `t/unit/odoo/136`
+  (the capture); lint 76 reads the index; lints 14, 23, 52, 90 and 218 read the merged
+  table; 70, 71, odoo/15 and odoo/105 learn X2's facts. Each fails with its change
+  reverted.
+
 # Choices made
 
 Each of these is a point the proposal leaves open where the choice changes
@@ -201,6 +283,11 @@ C-6 | A site with no hooks | No index file, and none written. The toggles and th
 C-7 | An invalid declaration on an extension being enabled | The enable is refused before the conf changes | Enabled, with its hooks left out of the index
 C-8 | The names of the hook kinds not yet live | The proposal's names, recorded in `%KINDS` with their slice; a slice may rename its kind before making it live | No names until each slice
 C-9 | The upgrade build | Every upgrade and reinstall describes the enabled extensions, a few seconds a site | Only when an index already exists, which would miss the first release whose descriptors declare hooks
+C-10 | What the index declares (X2) | Every INSTALLED extension's declarations, in a `declared` view beside the enabled hooks: a capability is grantable while its extension is installed (H-7's words), an action of an extension that is off is known and answers "off" (H-9's words), and the tool listing does not change with the toggle; the hooks that run stay enabled-only (G-1) | Enabled only: a disabled extension's actions become "no such action", its capabilities leave the grids, and a group saved meanwhile loses the grant
+C-11 | When a toggle builds (X2) | When the extension in hand declares hooks, an index exists, or any installed extension declares (the listing's cached descriptors): the `declared` view stays current, and the response carries `index` on such a site | X1's rule alone, which would leave an installed extension's declarations out until something with hooks is toggled
+C-12 | A capability's api and mcp unlocks (X2) | Derived from the gate rows that name it; only `ui` is declared | Declared, and held equal to the gate by a lint, as core's are
+C-13 | Which refusal kinds move (X2) | The kinds only Odoo produces (thirty) go to its declaration; `expired`, `internal`, `unavailable`, `busy`, `maintenance` stay core's | All of the block, and core redeclares what it uses
+C-14 | The handler type's capability | `Handlers.pm`'s `odoo` type stays `manage_connectors`' until X3 declares the type (its file is n769's); the top-up keeps the reach equal | Changed here to manage_odoo
 ```
 
 # ADR 0007
@@ -214,3 +301,9 @@ interface is built here and each later slice only adds a caller. The other three
 triggers do not fire: no sign-in method (H-1 is X4), no new dependency, no new
 processing of restricted data. The register entry in `docs/SECURITY.md` is the
 trigger's assessment, drafted for the release manager's confirmation.
+
+X2 (ruling 134 asked for the reassessment when the first caller landed): the two
+doors are the first callers, for the ten actions that were core's own branches. The
+code that runs is the same engine behind the same names under the same gates, and the
+wire is held to a 0.16.7 capture; the X2 register entry is drafted as contained, for
+the release manager's confirmation.
