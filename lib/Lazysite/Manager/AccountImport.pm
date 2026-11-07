@@ -134,6 +134,16 @@ sub stage {
             ( exists $r->{groups} ? ( groups => [@$g] ) : () ) };
     }
 
+    # SM1410: a run that stages no account is not written. It was, as a record
+    # with `staged: 0` and every row under `invalid`, which the operator's list
+    # then showed as an import to review and nobody had asked to keep. The
+    # answer still lists each invalid row, and says nothing was staged.
+    return { ok => 0, kind => 'invalid', staged => 0, invalid => \@bad,
+        error => 'No row could be staged: every row is invalid (each is listed under invalid, '
+            . 'with its reason). Nothing was staged and nothing was written; correct the rows '
+            . 'and stage them again.' }
+        unless @clean;
+
     my $id = strftime( '%Y%m%d-%H%M%S', gmtime ) . '-' . sprintf( '%08x', int( rand(0xffffffff) ) );
     my $dir = _dir();
     make_path($dir) unless -d $dir;
@@ -148,7 +158,9 @@ sub stage {
         accounts => scalar @clean, invalid => scalar @bad );
     return { ok => 1, id => $id, staged => scalar @clean, invalid => \@bad,
         note => 'Staged for the operator, who reviews a dry run in the manager (Users > Account '
-            . 'import) and applies it. No account exists until then.' };
+            . 'import) and applies it. No account exists until then. To discard this run, send '
+            . "accounts-import-remove with id $id (the control API, as the account that staged "
+            . 'it), or the operator removes it on that page.' };
 }
 
 sub _load {

@@ -209,6 +209,13 @@ has the role bundles, the next Users or Groups page load adds the `analysts` and
 install (and the `cap-audit` bundle with `analysts`). Nobody's access changes until an
 operator puts an account in one. A role deleted after it was added stays deleted.
 
+**An import with no valid row is refused (SM1410).** `accounts-import-stage` and
+`stage_accounts` given only invalid rows now answer `ok: 0` with the same `invalid`
+list and no id, and keep nothing; before, they answered ok with an id and kept an empty
+run. A script that staged and then checked `staged` needs no change; one that took `ok`
+alone as "kept" now sees the refusal. Empty runs kept by earlier releases stay in the
+import list until removed there.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

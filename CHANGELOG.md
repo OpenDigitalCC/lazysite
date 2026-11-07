@@ -306,6 +306,12 @@ Archive
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.
+- SM1410 (PENDING) **a staging run that stages no account is not kept.**
+  `accounts-import-stage` and `stage_accounts` wrote a staging record with `staged: 0`
+  when every row was invalid and answered ok with its id. Such a run now writes nothing
+  and is refused, still listing each invalid row and saying nothing was staged; a kept
+  run's reply names accounts-import-remove with its id (t/integration/369).
+
 - SM1409 (PENDING) **a layout set without a theme of its own says so in words.**
   `domain-set` of the layout alone, with the domain's theme still the other layout's,
   mirrored the mixed pair and warned that assets belong under a path naming the new

@@ -1421,7 +1421,7 @@ my %TOOLS = (
     # apply - is the operator's, in the manager, on a cookie (SM268), and has
     # no tool here.
     stage_accounts => {
-        description => 'Stage a list of accounts for the site operator to create: accounts is a list of {username, email, groups}, or csv is the text "username,email,groups" with groups separated by ";". NEVER a password - a row carrying one refuses the whole list, and each person sets their own from a claim link. Creates nothing: the operator reviews a dry run in the manager and applies it, and may change existing accounts (address, groups) only as they tick. Groups that do not exist are left out. Answers the staged id, the count and the invalid rows.',
+        description => 'Stage a list of accounts for the site operator to create: accounts is a list of {username, email, groups}, or csv is the text "username,email,groups" with groups separated by ";". NEVER a password - a row carrying one refuses the whole list, and each person sets their own from a claim link. Creates nothing: the operator reviews a dry run in the manager and applies it, and may change existing accounts (address, groups) only as they tick. Groups that do not exist are left out. Answers the staged id, the count and the invalid rows; a list with no valid row stages nothing, keeps nothing and is refused with each invalid row named. A staged run is discarded with the control API\'s accounts-import-remove (its id), or by the operator.',
         cap         => 'manage_users',
         inputSchema => { type => 'object',
             properties => {
