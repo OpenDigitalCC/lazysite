@@ -513,13 +513,13 @@ my %ACTION_INFO = (
     manage_users => {
         section => 'Accounts',
         title => 'Manage user accounts and group membership - and nothing else: not the operator (SM991).',
-        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. User and group management ONLY (SM991): it passes no other capability gate, a file\'s rule binds it, and it does not change the operator\'s account or the operator group - the operator is a member of the operator group. Accounts and membership are managed in the manager UI only. Over the control API and MCP (SM1050) it lists the groups - a domain-confined caller the ones relevant to its domains - and creates a group and sets its capabilities, giving only capabilities the caller holds, never the operator flag.',
+        grants => 'Create and delete accounts, and change who belongs to which group - including what those groups may do. User and group management ONLY (SM991): it passes no other capability gate, a file\'s rule binds it, and it does not change the operator\'s account or the operator group - the operator is a member of the operator group. Accounts and membership are managed in the manager UI only. Over the control API and MCP (SM1050) it lists the groups - a domain-confined caller the ones relevant to its domains - and creates a group and sets its capabilities, giving only capabilities the caller holds, never the operator flag; it deletes a group nothing uses (no member, no rule naming it), never the operator group (SM1387).',
         # SM858: with read_submissions, the Approve button on a registration
         # form's submissions.
         unlocks => { ui => [ 'the manager Users and Groups pages',
                 'Approve (an account) on a submission whose form declares account_email' ],
-            api => [qw(groups-list group-set accounts-import-stage accounts-import-remove address-profiles)], # SM1050, SM1053, SM1138
-            mcp => [qw(list_groups set_group stage_accounts list_address_profiles)] },
+            api => [qw(groups-list group-set group-delete accounts-import-stage accounts-import-remove address-profiles)], # SM1050, SM1053, SM1138, SM1387
+            mcp => [qw(list_groups set_group delete_group stage_accounts list_address_profiles)] },
     },
     analytics => {
         section => 'Insight',

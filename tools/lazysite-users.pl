@@ -129,6 +129,7 @@ use Lazysite::Auth::Verify          (); # SM685: the credential path, shared wit
 use Lazysite::Auth::Session ();    # SM1390: the preview marker no account may be named by
 use Lazysite::Auth::AddressProfiles (); # SM1138: the address-profile store and its one reader
 use Lazysite::Auth::AddressRefs (); # SM1141: where a rule names a list (the delete guard)
+use Lazysite::Auth::GroupRefs (); # SM1387: where anything names a group (the delete guard)
 use Lazysite::Audit        qw(audit_log);
 use Lazysite::Mail         ();              # SM1017: what one mail address is
 use Lazysite::Auth::Credential
@@ -5972,13 +5973,38 @@ sub cmd_group_delete {
         my @mgr = grep { $gs->{$_}{manager} } keys %$gs;
         return { ok => 0, error => 'Refusing to delete the only manager group' } if @mgr <= 1;
     }
+    # SM1387: the operator group is never deleted - the only one or not.
+    return { ok => 0, kind => 'forbidden',
+        error => "'$group' is the operator group, or makes its members operators, and is never "
+            . 'deleted: the site would have no operator to manage it.' }
+        if ( ref $gs->{$group} eq 'HASH' && $gs->{$group}{manager} )
+        || Lazysite::Auth::Settings::groups_are_operator($group);
     my %members = read_groups();
     # Refuse a non-empty group: deleting it would silently strip its members'
     # permissions. Empty it first (the UI hides Delete until then).
     if ( ref $members{$group} eq 'ARRAY' && @{ $members{$group} } ) {
-        return { ok => 0,
+        my @m = @{ $members{$group} };
+        return { ok => 0, kind => 'in-use', members => [@m],
             error => 'Remove all members before deleting this group ('
-                . scalar( @{ $members{$group} } ) . ' remaining).' };
+                . scalar(@m) . ' remaining: '
+                . join( ', ', @m > 5 ? ( @m[ 0 .. 4 ], 'and ' . ( @m - 5 ) . ' more' ) : @m )
+                . ').' };
+    }
+    # SM1387: AND NOTHING NAMES IT. A deleted group is not an empty one: a rule,
+    # page or domain that names it admits nobody through it, and a group created
+    # later under the same name would inherit every grant those make. The refusal
+    # names each place, so they are edited first; a store that cannot be read
+    # cannot say nothing names the group, so it refuses too.
+    my $refs   = Lazysite::Auth::GroupRefs::refs($DOCROOT);
+    my @named  = grep { $_->{name} eq $group } @{ $refs->{refs} };
+    my @cannot = @{ $refs->{faults} };
+    if ( @named || @cannot ) {
+        my $where = Lazysite::Auth::GroupRefs::describe(@named);
+        $where .= ( length $where ? '; ' : '' ) . 'could not check: ' . join( ', ', @cannot ) if @cannot;
+        return { ok => 0, kind => 'in-use', references => [ map { { %$_ } } @named ],
+            error => "Group '$group' is still named by $where. Remove it from those first: "
+                . 'a rule naming a deleted group admits nobody through it, and a group made '
+                . 'later under the same name would inherit what it grants.' };
     }
     # N141B-E: A DELETED GROUP MUST ALSO STOP BEING A MEMBER OF OTHER GROUPS.
     #
@@ -6012,7 +6038,7 @@ sub cmd_group_delete {
         ( $unnested ? ( unnested_from => $unnested ) : () ) );
     cli_audit( 'user-group-delete', $group,
         ( $unnested ? "also un-nested from $unnested group(s)" : undef ) );
-    return { ok => 1 };
+    return { ok => 1, unnested => $unnested };
 }
 
 # --- SM1138: address profiles (lazysite/auth/address-profiles.json) -----------

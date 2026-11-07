@@ -3355,3 +3355,50 @@ residual risk
 verdict
 : drafted, awaiting the release manager, to be confirmed with the 0.16.7 walk.
   Hardening, not a vulnerability fix; no trigger fired.
+
+### 2026-11-07 - SM1387 (0.16.7): a group is deleted on every door, once nothing uses it
+
+Assessment drafted by the developer agent for the release manager's confirmation.
+
+what changed
+: A new action deletes access state. Control API `group-delete` (in %GATE behind
+  `manage_users`, mutating, destructive, access-changing, audited with the group as
+  `@group`), its MCP twin `delete_group`, and the manager's Groups page, which now calls
+  it. `Manager::Groups::group_delete` refuses the operator group (the `manager` flag or
+  nested into one) to everyone, and to a domain-confined caller any group it did not
+  create with `group-set`; the users tool's `group-delete`, the store's owner and the one
+  writer, refuses the operator group too, a group with any member, and a group anything
+  names (`Lazysite::Auth::GroupRefs`: a page's `auth_groups`, an access rule's `@group`,
+  a domain's `allowed_groups` / `locked_groups`, `auth_group_map`, a table's
+  `writable_by`, an Odoo binding's or a connector's `callers`, `odoo_group_map`), naming
+  each. A store that cannot be read refuses.
+
+threat delta
+: Before it, the cookie Groups page deleted an empty group that rules still named; the
+  rule then admitted nobody through the name, and a group created later under it (by
+  any `manage_users` holder, a token included, SM1050) inherited every grant those rules
+  made - a privilege a later creator was never given. Refusing while anything names the
+  group closes that, on every door. The new token and MCP reach is bounded: a confined
+  caller (every token and MCP grant) deletes only groups it created, and only empty,
+  unreferenced ones, so it removes nobody's access. The operator group cannot be
+  deleted (SM991), so no door removes the site's operator. ADR 0007: new-external-
+  interface is the trigger to weigh - one control-API action and one MCP tool, on the
+  existing authenticated doors and gate, deleting only what nothing uses; no new
+  authentication method, dependency or data processing.
+
+controls
+: t/integration/357 drives the cookie operator, a confined token, an MCP grant and an
+  account without `manage_users` through each refusal and each of twelve reference
+  places; with the users tool as on main every reference case fails. t/lint/98 counts
+  126 token actions; t/lint/218 lists `group-delete` as not instance-wide with its
+  reason; t/lint/23 pairs the twin.
+
+residual risk
+: A reference the walk does not know is not refused: the places are those surveyed in
+  SM1387 and listed in GroupRefs; a new store naming groups must be added there (as
+  AddressRefs is extended for profiles). A group named only in a sign-in session's copy
+  of the account's groups is not counted; the session refreshes at the next sign-in.
+
+verdict
+: proposed accepted, for the release manager's confirmation; new-external-interface
+  assessed as contained (above).

@@ -118,6 +118,18 @@ Archive
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+- SM1387 (PENDING) **A group is deleted once nothing uses it, on every door.** No token or
+  MCP surface deleted a group. `group-delete` (control API), `delete_group` (MCP) and the
+  manager's Groups page (which now calls `group-delete`) need `manage_users`, are audited
+  (`@group`), and are refused while the group holds a member or anything names it - an access
+  rule's `@group`, a page's `auth_groups`, a domain's `allowed_groups` or `locked_groups`
+  (primary or alias), `auth_group_map`, a data table's `writable_by`, an Odoo binding's or a
+  connector's `callers`, `odoo_group_map` - the refusal naming each (`kind: in-use`, with
+  `members` or `references`). The walk is `Lazysite::Auth::GroupRefs`, asked by the users tool
+  for every caller. The operator group is never deleted, the only one or not; an empty agent
+  role (SM1371) or shipped role may be (`reset-groups` restores a shipped one). A
+  domain-confined caller deletes only a group it created with `group-set`.
+
 - SM1388 (PENDING) **A folder rule's history needs the folder to exist, and says so.** A rule
   with `history: true` (SM1324) is refused until its folder exists in the document root or the
   private store. The refusal said "'X' is not a folder", which read as a file; for a folder not

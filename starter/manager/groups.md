@@ -1002,7 +1002,12 @@ function resetGroup(group) {
 }
 
 // Delete only when empty - removing a group with members strips their permissions.
+// SM1387: never the operator group; anything else that still names the group is
+// named by the server's refusal.
 function deleteControlHtml(members, ge) {
+  if (allGroups[ge] && allGroups[ge].manager) {
+    return '<span class="mg-muted" title="The operator group is never deleted">Operator group</span>';
+  }
   return members.length
     ? '<span class="mg-muted" title="Remove all members before deleting this group">Remove members to delete</span>'
     : '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button>';
@@ -1075,7 +1080,12 @@ function deleteGroup(group) {
   mgConfirm('Delete group "' + group + '"? Members lose the permissions it grants.',
     { danger: true, ok: 'Delete' }).then(function(__ok) {
     if (!__ok) return;
-    apiCall({ action: 'group-delete', group: group })
+    // SM1387: the control API's group-delete, which refuses while anything uses
+    // the group and names what does.
+    fetch(API + '?action=group-delete', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group: group }) })
+      .then(function(r) { return r.json(); })
       .then(function(d) {
         if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
         showStatus('Group "' + group + '" deleted.');

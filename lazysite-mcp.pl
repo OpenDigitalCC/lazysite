@@ -52,7 +52,7 @@ use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
-use Lazysite::Manager::Groups      ();    # SM1050: list_groups, set_group
+use Lazysite::Manager::Groups  ();  # SM1050: list_groups, set_group; SM1387: delete_group
 use Lazysite::Manager::AddressProfiles ();    # SM1138: list_address_profiles
 use Lazysite::Manager::Data        ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
@@ -1399,6 +1399,19 @@ my %TOOLS = (
         run => sub {
             Lazysite::Manager::Groups::group_set( $_[0]->{group}, $_[0]->{caps},
                 _groups_who( $_[1], $_[2] ) );
+        },
+    },
+    # SM1387: the twin of group-delete, on the same module.
+    delete_group => {
+        description => 'Delete a group you created with set_group, once nothing uses it. Refused while the group has a member (an account or a nested group) or anything names it - an access rule (set_permissions), a page\'s auth_groups, a domain\'s allowed_groups, a data table\'s writable_by, a form or handler, a lazysite.conf setting or another group - and the refusal names each. Remove those first. The operator group is never deleted. A grant confined to some domains deletes only the groups it created.',
+        cap         => 'manage_users',
+        inputSchema => { type => 'object',
+            properties => {
+                group => { type => 'string', description => 'the group name' },
+            },
+            required => ['group'], additionalProperties => JSON::PP::false },
+        run => sub {
+            Lazysite::Manager::Groups::group_delete( $_[0]->{group}, _groups_who( $_[1], $_[2] ) );
         },
     },
    # SM1138 (slice A of SM1134), SM1343: the twin of address-profiles, on the same module.
@@ -5078,6 +5091,8 @@ elsif ( $method eq 'tools/call' ) {
             // $args->{name} // $args->{layout} // '';
         # SM1291: an installed theme is named by what it was installed as.
         $target = $out->{name} // $args->{filename} // '' if $name eq 'install_theme' && ref $out eq 'HASH';
+        # SM1387: a group verb names the group, as the control API's row does.
+        $target = "\@$args->{group}" if $name eq 'delete_group' && defined $args->{group} && !ref $args->{group};
         # Meaningful file-event labels (create/edit/delete/move) to match the
         # manager UI + WebDAV audit vocabulary.
         my $act =
@@ -5087,6 +5102,7 @@ elsif ( $method eq 'tools/call' ) {
             : $name eq 'create_theme'       ? 'theme-create'
             : $name eq 'copy_theme'         ? 'theme-copy'
             : $name eq 'install_theme'      ? 'theme-upload'
+            : $name eq 'delete_group'       ? 'group-delete'    # SM1387
             : $name eq 'delete_file'        ? 'delete'
             : $name eq 'delete_page'        ? 'delete'
             : $name eq 'rename_page'        ? 'move'

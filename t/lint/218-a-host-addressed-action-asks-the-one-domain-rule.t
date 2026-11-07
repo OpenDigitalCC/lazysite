@@ -300,6 +300,9 @@ my %NOT_INSTANCE_WIDE = (
     'group-set' => 'ruled 2026-10-12 (SM1050), "Yes, within the delegation limit": a confined '
         . 'caller creates a group and changes only the groups it created, granting only '
         . 'capabilities it holds (Manager::Groups); membership stays the act of a person',
+    'group-delete' => 'SM1387: a confined caller deletes only a group it created (Manager::Groups), '
+        . 'and only one nothing uses - no member, no rule, page, domain or table naming it - '
+        . 'so no site loses access by it',
 );
 my ( @iw_missing, @iw_stale );
 for my $a ( sort keys %MUT ) {

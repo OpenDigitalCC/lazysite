@@ -111,6 +111,12 @@ sends it there. The step sets a short-lived cookie, `lzs_renewed`, which stops a
   It never ran before and still does not; `lazysite check` names it, and the daemon's
   run record holds a refusal for it. Set `every:` to 300 or more.
 
+- **Deleting a group is refused while anything names it** (SM1387). The Groups page's
+  Delete, and the new `group-delete` (control API) and `delete_group` (MCP), refuse a
+  group a page, an access rule, a domain, a data table, a binding or a connector still
+  names, and say which: remove the group from those first. The operator group is never
+  deleted, even when there is more than one (before, only the last was kept).
+
 ## The primary's content leaves out the other domains, and the rest of 0.16.6
 
 **The primary site's content leaves out the other domains' folders (SM1372).** On an

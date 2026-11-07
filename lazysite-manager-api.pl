@@ -2255,6 +2255,12 @@ elsif ( $action eq 'group-set' ) {
     my $req = _json_body();
     $result = Lazysite::Manager::Groups::group_set( $req->{group}, $req->{caps}, _groups_who() );
 }
+elsif ( $action eq 'group-delete' ) {
+    # SM1387: delete a group nothing uses, naming what does when something does;
+    # never the operator group.
+    my $req = _json_body();
+    $result = Lazysite::Manager::Groups::group_delete( $req->{group}, _groups_who() );
+}
 elsif ( $action eq 'address-profiles' ) {
     # SM1138, SM1343: the address profiles, for a manage_users holder; a caller
     # confined to some domains is shown names only (the profiles are the instance's).
@@ -3019,7 +3025,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
         # each capability granted (+) or revoked (-) - as acl-set records the rule.
         # SM1053: an account import's apply records what it did the same way,
         # and (n571) a removal whose import it was.
-        if ( ( grep { $aud_action eq $_ } qw(group-set accounts-import-apply accounts-import-remove address-profile-set address-profile-delete) )
+        if ( ( grep { $aud_action eq $_ } qw(group-set group-delete accounts-import-apply accounts-import-remove address-profile-set address-profile-delete) )
             && ref $result eq 'HASH'
             && defined $result->{change} )
         {

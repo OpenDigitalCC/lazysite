@@ -283,6 +283,9 @@ our %GATE = (
     # creates one, giving it only capabilities it holds (Manager::Groups).
     'groups-list' => [qw(manage_users)],
     'group-set'   => [qw(manage_users)],
+    # SM1387: and deletes one nothing uses - no member, no rule naming it - never
+    # the operator group; a confined caller only a group it created (Manager::Groups).
+    'group-delete' => [qw(manage_users)],
     # SM1138 (slice A of SM1134): the address profiles, read-only on the token doors.
     # Writing them is the operator's and cookie-only (see %ACTION).
     'address-profiles' => [qw(manage_users)],
@@ -701,6 +704,8 @@ our %ACTION = (
     # [mcp] SM1050: list_groups / set_group, the twins, built on one module
     # (Lazysite::Manager::Groups) so the doors cannot disagree.
     'group-set' => { mcp => 'set_group', mutates => 1, cookie_cap => 'manage_users', params => [ { name => 'group', in => 'body', required => 1 }, { name => 'caps', in => 'body' } ] },
+    # [mcp] SM1387: delete_group, on the same module.
+    'group-delete' => { mcp => 'delete_group', mutates => 1, destructive => 1, changes_access => 1, cookie_cap => 'manage_users', params => [ { name => 'group', in => 'body', required => 1 } ] },
     'groups-list' => { mcp => 'list_groups', cookie_cap => 'manage_users', params => [] },
     # SM632: the inverse of bind_form. Gated on manage_forms for a token, and
     # confirmation names the form - a destructive verb taking only an id is one

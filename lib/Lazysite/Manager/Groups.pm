@@ -40,7 +40,7 @@ use Lazysite::Auth::Settings  ();
 use Lazysite::Auth::Acl       ();
 use Lazysite::Manager::Common ();
 
-our @EXPORT_OK = qw(groups_list group_set relevant_groups existing_groups);
+our @EXPORT_OK = qw(groups_list group_set group_delete relevant_groups existing_groups);
 
 # Group names the users tool accepts (cmd_group_create, cmd_group_settings_set).
 my $NAME_RE = qr/\A[A-Za-z0-9_-]{1,64}\z/;
@@ -263,6 +263,51 @@ sub group_set {
         granted => \@granted, revoked => \@revoked,
         caps    => [ grep { $now->{$_} } @Lazysite::Auth::Settings::CAP_KEYS ],
         change  => _change( $created, \@granted, \@revoked ) };
+}
+
+# SM1387: group-delete / delete_group. A group is deleted only when nothing
+# depends on it: no member (an account or a nested group), and nothing that
+# names it - an access rule, a page, a domain, a data table, a form or handler,
+# a lazysite.conf key, another group's record (Lazysite::Auth::GroupRefs, asked
+# by the users tool, the store's owner, which refuses and names what still uses
+# it). The operator group is never deleted, by anyone (SM991). A domain-confined
+# caller deletes only a group it created with group-set, as it changes only
+# those. Everything is decided before anything is written.
+sub group_delete {
+    my ( $group, %who ) = @_;
+    my $actor = $who{actor} // '';
+    return { ok => 0, kind => 'forbidden',
+        error => 'A group is deleted by a signed-in account, and no account is asking.' }
+        unless length $actor;
+    return { ok => 0, kind => 'invalid', field => 'group',
+        error => 'group is required: a name of letters, digits, _ or - (64 at most).' }
+        unless defined $group && !ref $group && $group =~ $NAME_RE;
+    my ($gs) = _store();
+    return { ok => 0, kind => 'not-found', error => "No group called '$group'." }
+        unless existing_groups()->{$group};
+    my $rec = ref $gs->{$group} eq 'HASH' ? $gs->{$group} : {};
+
+    return { ok => 0, kind => 'forbidden',
+        error => "'$group' is the operator group, or makes its members operators, and is "
+            . 'never deleted: the site would have no operator to manage it.' }
+        if $rec->{manager} || Lazysite::Auth::Acl::group_confers_operator($group);
+
+    return { ok => 0, kind => 'forbidden',
+        error => "'$group' was not created by this account. A domain-confined caller deletes "
+            . 'only the groups it created with group-set; ask the operator.' }
+        if $who{confined} && ( $rec->{created_by} // '' ) ne $actor;
+
+    my $r = Lazysite::Manager::Common::users_api(
+        { action => 'group-delete', group => $group, actor => $actor } ) || {};
+    return { ok => 0, kind => ( $r->{kind} // 'error' ),
+        ( ref $r->{members} eq 'ARRAY'    ? ( members    => $r->{members} )    : () ),
+        ( ref $r->{references} eq 'ARRAY' ? ( references => $r->{references} ) : () ),
+        error => ( $r->{error} // 'The group could not be deleted: no answer.' ) }
+        unless $r->{ok};
+    my $change = 'deleted' . ( $r->{unnested} ? "; un-nested from $r->{unnested} group(s)" : '' );
+    log_event( 'INFO', 'group-delete', 'group deleted', group => $group, user => $actor,
+        change => $change );
+    return { ok => 1, group => $group, deleted => JSON::PP::true(), change => $change };
 }
 
 sub _change {

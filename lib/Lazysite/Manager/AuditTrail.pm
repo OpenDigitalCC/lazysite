@@ -161,8 +161,9 @@ sub _audit_implicit_target {
         my $n = $params->{$k} // $req->{$k} // '';
         return $n if length $n;
     }
-    # SM1050: group-set acts on a GROUP, named as a rule names one.
-    if ( $action eq 'group-set' ) {
+    # SM1050: group-set acts on a GROUP, named as a rule names one; SM1387: so does
+    # group-delete.
+    if ( $action eq 'group-set' || $action eq 'group-delete' ) {
         my $g = $req->{group} // '';
         return "\@$g" if length $g && !ref $g;
     }
