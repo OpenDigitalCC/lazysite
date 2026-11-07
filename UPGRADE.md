@@ -134,6 +134,17 @@ no changes. The identity cookie is unchanged.
 **A favicon for a site with none (SM1397)** and **`page_url_raw` (SM1398)** need
 nothing from an operator.
 
+**`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`
+line in `lazysite/notify.conf` (0.16.6, SM1362) no longer mails a form's notice to that
+address; nothing reads it. By default no form mails anyone: submissions are stored, and
+the notice goes to the bell. To mail people when a form is submitted, add a `notify`
+handler on the Handlers page whose recipients name them - usually a group, e.g.
+`[{"groups":["site-owners"]}]` (SM1413), with the addresses set on each account on the
+Users page - and add it to the form's targets after the handler that stores the
+submission. Then delete the `owner_contact` line. `lazysite check` names a site that
+still sets it. A form's acknowledgement to the submitter (`acknowledge_field`) is
+unchanged.
+
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
 **Odoo's modules leave core's lib (SM1369, X7 part one).** The Odoo extension's Perl

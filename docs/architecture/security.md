@@ -1324,8 +1324,9 @@ only over TLS. No Odoo is in it.
   granted the domain keep it.
 - **A form's owner mail and acknowledgement** (SM1362). `owner_contact` in
   `lazysite/notify.conf` mails each form's notice to one configured address, the fields
-  only on `notify: full`. A form that opts in sends its own fixed words, never the
-  visitor's, to the address in its `acknowledge_field`, within 3 an hour per address and
+  only on `notify: full` (retired in 0.16.8, SM1412: the key is ignored, and a form
+  mails people only through a notify handler it names, SM1413). A form that opts in
+  sends its own fixed words, never the visitor's, to the address in its `acknowledge_field`, within 3 an hour per address and
   60 per site shared with the smtp handler.
 - **What is answered, narrowed** (SM1373, SM1374, SM1377). `extension-read`, a cookie
   action needing `manage_config`, answers only the keys the extension declares, never

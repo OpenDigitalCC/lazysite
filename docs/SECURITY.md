@@ -4092,3 +4092,39 @@ residual risk
 verdict
 : drafted by the developer agent: accept, no trigger fired. For the release manager to
   confirm at the 0.16.8 walk.
+
+### 2026-11-07 - SM1412 (0.16.8): owner_contact is retired
+
+Assessment drafted by the developer agent (n771) for the release manager's confirmation
+at the 0.16.8 walk; ruling 159.
+
+what changed
+: `Lazysite::Notify` no longer mails a form's submission notice to `owner_contact` in
+  `lazysite/notify.conf` (SM1362, 0.16.6; its 2026-11-06 entry above, ruling 140):
+  `_mail_owner`, its call and the built-in templates it used are removed and the key is
+  ignored. `lazysite check` names a site that still sets it. No form mails anyone unless
+  it names a notify handler (ruling 158).
+
+threat delta
+: Information disclosure, narrowed: less processing of personal data. A `notify: full`
+  form no longer sends a submission's fields to an address written in a config file; a
+  site that wants people told does it through a notify handler, which reaches accounts
+  under SM1010's controls (once each, the cap, the audit row, the unsubscribe link).
+  Nothing is widened. The SM1362 STRIDE row's owner-mail half ("the site used as a
+  mailer") no longer applies; its acknowledgement half stands. ADR 0007: no trigger -
+  a removal.
+
+controls
+: t/unit/forms/78: with every mail prerequisite in place and `owner_contact` still set,
+  a form naming no notify handler mails nobody and stores its submission; fails with the
+  owner path restored. t/tools/337: the check names the key with the remedy. SM1362's
+  acknowledgement tests (t/unit/forms/68) still pass.
+
+residual risk
+: A site that relied on the owner mail on 0.16.6 or 0.16.7 stops getting it at the
+  upgrade until it adds a handler; `lazysite check` and UPGRADE.md say so. OBLIGATIONS.md's
+  row for "a form's owner address" names `owner_contact` and is for the walk to revise.
+
+verdict
+: drafted by the developer agent: accept as a hardening (less processing of personal
+  data), no trigger fired. For the release manager to confirm at the 0.16.8 walk.

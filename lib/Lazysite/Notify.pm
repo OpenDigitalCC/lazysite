@@ -145,11 +145,9 @@ my %DEFAULT_TEMPLATE = (
     'submission.xmpp.full' =>
         "[% site %]: [% message %]\n\n[% fields_text %]"
         . '[% IF url %]' . "\n\nRead it: " . '[% base %][% url %][% END %]',
-    # SM1362: the owner contact's mail - the link to the stored submission, and
-    # the fields only where the form chose `notify: full`, as for chat
-    'submission.email' => '[% message %][% IF url %]' . "\n\nRead it: " . '[% base %][% url %][% END %]',
-    'submission.email.full' =>
-        "[% message %]\n\n[% fields_text %]" . '[% IF url %]' . "\n\nRead it: " . '[% base %][% url %][% END %]',
+    # SM1412 (ruling 159): SM1362's `submission.email` and `.full` built-ins went
+    # with the owner-contact mail they were written for. A form mails people
+    # through a notify handler it names (Lazysite::Outbox), never from here.
 );
 
 sub _template {
@@ -425,47 +423,12 @@ sub notify {
             if length $why;
     }
 
-    # SM1362 (ruling 123): AND TO THE SITE'S OWNER CONTACT, for a form's notice.
-    if ( $type eq 'submission' && length( $conf->{owner_contact} // '' ) ) {
-        my $why = _mail_owner( $docroot, $conf, \%vars, length $vars{fields_text} );
-        log_event( 'INFO', 'notify',
-            ( length $why ? 'submission notice not mailed to the owner contact' : 'submission notice mailed to the owner contact' ),
-            ( length $why ? ( why => $why ) : () ) );
-    }
+    # SM1412 (ruling 159): SM1362's copy of a form's notice to notify.conf's
+    # `owner_contact` is retired, and the key is ignored. No one is mailed by
+    # default (ruling 158): a form's submissions are stored, and people are mailed
+    # only through a notify handler the form names, whose recipients may be a
+    # group (SM1413). `lazysite check` names a site that still sets the key.
     return 1;
-}
-
-# SM1362 (ruling 123; sites evidence T-50): A FORM'S NOTICE REACHES THE SITE'S
-# OWNER BY EMAIL. Notices went to the bell and XMPP, and the one mail route
-# (SM485) reaches an account that opted in - the operator, on every live site -
-# so an owner who is not the operator heard of nothing. notify.conf now names
-# the owner contact:
-#
-#   owner_contact: owner@example.com
-#
-# and each submission notice (the one the form already raises: not on
-# `notify: off`, never for a quarantined submission, the fields only on
-# `notify: full`) is also mailed there, THROUGH SM485's send - the Form SMTP
-# extension as the only transport, refused by name when it is not installed,
-# off or unconfigured, and the same per-site hourly bound (`mail.per_hour`)
-# counted from the same record. The bell notice stays a broadcast, as before.
-#
-# AN ADDRESS, AND THAT IS SAFE HERE for SM485's own reason turned round: the
-# address comes from the site's configuration, written by whoever may write the
-# engine tree, never from a request, so nothing a visitor sends can point this
-# mail anywhere. Exactly one address (Lazysite::Mail::one_address), else nothing
-# is sent and the log says why.
-sub _mail_owner {
-    my ( $docroot, $conf, $vars, $has_fields ) = @_;
-    require Lazysite::Mail;
-    my ( $addr, $bad ) = Lazysite::Mail::one_address( $conf->{owner_contact} );
-    return "owner_contact in notify.conf is refused - $bad" unless defined $addr;
-    my ( $body, $from_file ) = _template( $docroot, 'submission', 'email', $has_fields );
-    my $text = _render( $body, $from_file, $vars );
-    my $subject = sprintf '%s%s', ( length( $vars->{site} // '' ) ? "[$vars->{site}] " : '' ),
-        $TYPES{submission}{title};
-    return send_mail( $docroot, to => $addr, subject => $subject, text => $text, what => 'notice',
-        conf => $conf );
 }
 
 # Deliver one notice by mail. Returns '' when it was sent, or the reason it was

@@ -143,6 +143,15 @@ Archive
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
+- SM1412 (PENDING) **`owner_contact` is retired (ruling 159).** SM1362's copy of each form's
+  notice to the one address `lazysite/notify.conf` named as `owner_contact` (0.16.6) is
+  removed, with the built-in templates written for it; the key is ignored from 0.16.8. A
+  form mails nobody unless it names a notify handler (ruling 158): its submissions are
+  stored and its notice goes to the bell. `lazysite check` names a site that still sets the
+  key, with the remedy: a notify handler on the form whose recipients name the people as a
+  group (SM1413). The acknowledgement to the submitter is unchanged. Docs: `/docs/forms`,
+  UPGRADE.md. `t/unit/forms/78`, `t/tools/337`.
+
 - SM1413 (PENDING) **A notify handler's recipients may name a group (ruling 158).** No one
   is mailed by default - a form's submissions are stored - and people are mailed through a
   notify handler the form names. Its `recipients` gain `{"groups":["site-owners"]}`: each

@@ -1,14 +1,10 @@
 #!/usr/bin/perl
-# SM1362 (ruling 123): A FORM TELLS THE SITE'S OWNER BY EMAIL, AND CAN ANSWER THE
-# SUBMITTER IN ITS OWN WORDS - through the real form handler CGI, on the shipped
-# local-storage handler (a form that saves and nothing else), with a mock sendmail
-# behind the Form SMTP extension counting what was handed over.
+# SM1362 (ruling 123): A FORM CAN ANSWER THE SUBMITTER IN ITS OWN WORDS - through
+# the real form handler CGI, on the shipped local-storage handler (a form that
+# saves and nothing else), with a mock sendmail behind the Form SMTP extension
+# counting what was handed over. (SM1362's owner-contact mail is retired, SM1412,
+# ruling 159; t/unit/forms/78 holds that the key mails nobody now.)
 #
-#   * notify.conf `owner_contact:` names one address; each submission's notice is
-#     mailed there through SM485's send (the Form SMTP extension, its per-site
-#     hourly bound), and not when the extension is off, the form says
-#     `notify: off`, the submission is quarantined, or the value is not exactly
-#     one address;
 #   * a form's conf opting in with acknowledge_field / acknowledge_message
 #     answers the address in that field with the form's own wording - never the
 #     submission's text - under SM877's caps (per recipient, per site), shared
@@ -54,7 +50,7 @@ sub site {
             . "    path: lazysite/forms/submissions\n" );
     spit( "$d/lazysite/forms/contact.conf",
         "targets:\n  - handler: local-storage\n" . ( $o{form} // '' ) );
-    spit( "$d/lazysite/notify.conf", $o{notify} // "owner_contact: owner\@example.org\n" );
+    spit( "$d/lazysite/notify.conf", $o{notify} // '' );
     return ( $d, $out );
 }
 
@@ -95,72 +91,43 @@ my $ACK = "acknowledge_field: email\nacknowledge_subject: We have your message\n
     . "acknowledge_message: $WORDING\n";
 my %GOOD = ( name => 'Ada', email => 'ada@example.net', message => 'SUBMITTED-TEXT please call me' );
 
-subtest 'the owner is told by email, and the submitter is answered in the form\'s words' => sub {
+subtest 'the submitter is answered in the form\'s words' => sub {
     my ( $d, $out ) = site( form => $ACK );
     post( $d, %GOOD );
     ok( -s "$d/lazysite/forms/submissions/contact.jsonl", 'the submission is saved (local-storage)' );
-    is_deeply( to_list($out), [ 'ada@example.net', 'owner@example.org' ], 'one message each: owner and submitter' )
+    is_deeply( to_list($out), ['ada@example.net'], 'one message: the submitter' )
         or diag explain messages($out);
-    my $own = to_one( $out, 'owner@example.org' ) // {};
-    like( $own->{text}, qr/A form was submitted/, 'the owner\'s says a form was submitted' );
-    like( $own->{text}, qr/New form submission: contact/, '  names the form' );
-    unlike( $own->{text}, qr/SUBMITTED-TEXT/, '  and carries none of it on notify: on' );
 
     my $ack = to_one( $out, 'ada@example.net' ) // {};
     like( $ack->{text}, qr/^Subject: We have your message/m, 'the acknowledgement has the form\'s subject' );
     like( $ack->{text}, qr/Thank you for writing to the Example Bakery\.\nWe reply within two days\./,
         '  and the form\'s own wording, \n as a line break' );
-    unlike( $ack->{text}, qr/SUBMITTED-TEXT|Ada/,  '  and nothing the visitor typed' );
-    unlike( $ack->{text}, qr/owner\@example\.org/, '  and not the owner\'s address' );
+    unlike( $ack->{text}, qr/SUBMITTED-TEXT|Ada/, '  and nothing the visitor typed' );
 };
 
-subtest 'notify: full sends the owner the fields, as it does chat' => sub {
-    my ( $d, $out ) = site( form => "notify: full\n" );
+subtest 'opt-in' => sub {
+    my ( $d, $out ) = site();
     post( $d, %GOOD );
-    like( ( to_one( $out, 'owner@example.org' ) // {} )->{text}, qr/SUBMITTED-TEXT/, 'the fields are in the owner\'s mail' );
-};
-
-subtest 'opt-in on both sides' => sub {
-    my ( $d, $out ) = site( notify => "" );
-    post( $d, %GOOD );
-    is_deeply( to_list($out), [], 'no owner_contact and no acknowledge_field: nothing is mailed' );
+    is_deeply( to_list($out), [], 'no acknowledge_field: nothing is mailed' );
     ok( -s "$d/lazysite/forms/submissions/contact.jsonl", '  and the form still saves' );
 
     ( $d, $out ) = site( form => "acknowledge_field: email\n" );
     post( $d, %GOOD );
-    is_deeply( to_list($out), ['owner@example.org'], 'a field with no wording sends no acknowledgement' );
+    is_deeply( to_list($out), [], 'a field with no wording sends no acknowledgement' );
     like( log_of($d), qr/no acknowledge_message/, '  and the log says why' );
-};
-
-subtest 'the owner mail needs the Form SMTP extension, and follows the notice' => sub {
-    my ( $d, $out ) = site( smtp_off => 1 );
-    post( $d, %GOOD );
-    is_deeply( to_list($out), [], 'the extension off: nothing to the owner' );
-    like( log_of($d), qr/not mailed to the owner contact.*Form SMTP extension is switched off/,
-        '  and the log names the extension' );
-
-    ( $d, $out ) = site( form => "notify: off\n" );
-    post( $d, %GOOD );
-    is_deeply( to_list($out), [], 'notify: off: no notice, so no owner mail' );
-
-    ( $d, $out ) = site( notify => "owner_contact: a\@example.org, b\@example.org\n" );
-    post( $d, %GOOD );
-    is_deeply( to_list($out), [], 'an owner_contact of two addresses mails neither' );
-    like( log_of($d), qr/owner_contact in notify\.conf is refused/, '  and says so' );
 };
 
 subtest 'a quarantined submission tells nobody' => sub {
     my ( $d, $out ) = site( form => $ACK );
     post( $d, name => 'Spam', email => 'victim@example.net',
         message => 'Buy now at https://a.example.biz and https://b.example.info and https://c.example.top' );
-    is_deeply( to_list($out), [], 'neither the owner nor the address the suspect submission chose' );
+    is_deeply( to_list($out), [], 'not the address the suspect submission chose' );
 };
 
-subtest 'the caps: SM485\'s for the owner, SM877\'s for the submitter' => sub {
-    my ( $d, $out ) = site( form => $ACK, notify => "owner_contact: owner\@example.org\nmail.per_hour: 1\n" );
+subtest 'the caps: SM877\'s for the submitter' => sub {
+    my ( $d, $out ) = site( form => $ACK );
     post( $d, %GOOD ) for 1 .. 4;
     my @to = @{ to_list($out) };
-    is( scalar( grep { $_ eq 'owner@example.org' } @to ), 1, 'the owner: one an hour, as mail.per_hour says' );
     is( scalar( grep { $_ eq 'ada@example.net' } @to ), 3, 'one address: three acknowledgements an hour' );
     like( log_of($d), qr/the submitter was not acknowledged/, '  and the fourth is logged as not sent' );
 

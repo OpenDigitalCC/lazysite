@@ -545,25 +545,10 @@ Each member gets one message at the address on their account. It needs the
 Form SMTP extension enabled with its settings saved, and the daemon running
 (see `notify` under [Handler types](#handler-types)).
 
-### Telling the site's owner by email
-
-The site's owner need not be its operator. Name them in `lazysite/notify.conf`:
-
-```yaml
-owner_contact: owner@example.com
-```
-
-and each form's notice is also emailed to that one address: the same notice,
-with its link to the submission, and the submitted fields only for a form set to
-`notify: full`. It needs the site's mail set up - the Form SMTP extension
-enabled, with its settings saved - and it follows the notice: nothing for a form
-set to `notify: off`, nothing for a quarantined submission. These mails share the
-site's hourly bound on notice mail (`mail.per_hour` in `notify.conf`, 60 unless
-set). When one is not sent, the log says why (the extension off, the bound
-reached, a value that is not exactly one address). The mail's subject is
-`[Site name] A form was submitted` and its body is the notice as the bell shows
-it - the form, the link to the submission, the fields on `notify: full` - and
-nothing else: no submission layout, no visitor address.
+The site's owner need not be its operator: give them an account with their
+address and put it in the group the handler names. (0.16.6's `owner_contact:`
+line in `lazysite/notify.conf` is ignored from 0.16.8; `lazysite check` names a
+site that still sets it.)
 
 ### Answering the person who filled it in
 

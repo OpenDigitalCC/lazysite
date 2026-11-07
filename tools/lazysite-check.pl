@@ -1465,6 +1465,7 @@ sub run_checks {
     report_unconverted_delivery();
     report_schedule_floor();            # SM1391
     report_retired_conf_keys();
+    report_retired_notify_keys();       # SM1412
     report_app_settings();              # SM1155
     report_maintenance();               # SM1118
     report_shared_manager_account();    # N141D (SM864)
@@ -3250,6 +3251,28 @@ sub report_retired_conf_keys {
     report( 'WARN',
         'lazysite.conf sets ' . scalar(@found) . ' key(s) the engine no longer reads: ' . join( '; ', @found ),
         'rename manager_upload_blocked_paths to manager_blocked_paths, and delete db_render_raw' );
+    return;
+}
+
+# SM1412 (ruling 159): notify.conf's `owner_contact` (SM1362, 0.16.6) is retired
+# and ignored from 0.16.8, so a site that set it mails its owner nothing now.
+# Named with the remedy, which is how a form mails people (ruling 158): a notify
+# handler on the form whose recipients name the people, as a group. Silent when
+# the key is not set; nothing is changed, with or without --fix.
+sub report_retired_notify_keys {
+    open my $fh, '<', "$LZ/notify.conf" or return;
+    my $set = 0;
+    while ( my $l = <$fh> ) {
+        $set = 1 if $l =~ /^\s*owner_contact\s*:\s*\S/;
+    }
+    close $fh;
+    return unless $set;
+    report( 'WARN',
+        'lazysite/notify.conf sets owner_contact, which the engine no longer reads (retired in 0.16.8): '
+            . 'no form notice is mailed to that address',
+        'to mail people when a form is submitted, add a notify handler on the Handlers page whose '
+            . 'recipients name them - a group, e.g. [{"groups":["site-owners"]}] - make it one of the '
+            . "form's targets, then delete the owner_contact line" );
     return;
 }
 
