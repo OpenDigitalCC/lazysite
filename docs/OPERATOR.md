@@ -365,7 +365,8 @@ systemctl restart lazysited@<domain>
   as the trail is, and the Audit page shows them under Show: AI reads, apart from
   the changes.
 - **A protected folder's history** (SM1324) is kept when its rule says `history`,
-  and stays when the flag is cleared or the rule removed. To delete it:
+  and stays when the flag is cleared or the rule removed. The folder must exist
+  before its rule can say `history: true`: create it first (SM1388). To delete it:
   `lazysite acl purge-history FOLDER --docroot D --actor local` (the operator only;
   audited as `history-purge`). The folder's files and rule are not touched.
 - Optional syslog forwarding of the audit trail as well: `forward_audit`, a plain

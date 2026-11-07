@@ -3116,10 +3116,17 @@ sub action_acl_set {
                     . "is in the site's history already. Set history on the folder's own "
                     . 'rule. Nothing was changed.' };
         }
-        if ( $on && !( -d "$DOCROOT/$rel" || -d ( Lazysite::Private::private_path( $DOCROOT, $rel ) // '' ) ) ) {
+        my $priv = Lazysite::Private::private_path( $DOCROOT, $rel ) // '';
+        if ( $on && !( -d "$DOCROOT/$rel" || ( length $priv && -d $priv ) ) ) {
+            # SM1388: a folder that does not exist yet is refused too, and says
+            # so: the refusal named only "not a folder", which read as a file.
             return { ok => 0, kind => 'invalid', field => 'history',
-                error => "History is kept for a protected folder, and '$rel' is not a "
-                    . 'folder. Set it on the rule of the folder that holds it. Nothing was changed.' };
+                error => ( -e "$DOCROOT/$rel" || ( length $priv && -e $priv ) )
+                ? "History is kept for a protected folder, and '$rel' is not a "
+                    . 'folder. Set it on the rule of the folder that holds it. Nothing was changed.'
+                : "History is kept for a protected folder, and the folder '$rel' does not "
+                    . 'exist yet. Create the folder first, then set history on its rule. '
+                    . 'Nothing was changed.' };
         }
         # Ruling 100: false is STORED. A folder's history covers the rules nested
         # in it unless one says false, so an explicit false is a statement (this

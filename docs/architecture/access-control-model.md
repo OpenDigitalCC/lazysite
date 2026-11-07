@@ -271,7 +271,9 @@ says true: a folder's `history: true` covers the rules nested in it, a nested
 rule's explicit `history: false` takes its path out, and a rule that says
 nothing inherits. Setting it records the folder's current content as the first
 version; clearing it, or removing the rule, stops recording and keeps what was
-recorded. Only the operator deletes it (`lazysite acl purge-history`, audited),
+recorded. `history: true` is refused until the folder exists (in the document
+root or the private store), and the refusal says so: create the folder, then set
+history on its rule. Only the operator deletes it (`lazysite acl purge-history`, audited),
 which rewrites the folder out of the history and prunes its objects. The public
 repository's versions of a file from before its folder was protected stay where
 they were (SM683's third step).

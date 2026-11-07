@@ -118,6 +118,12 @@ Archive
   entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
   it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
   names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+- SM1388 (PENDING) **A folder rule's history needs the folder to exist, and says so.** A rule
+  with `history: true` (SM1324) is refused until its folder exists in the document root or the
+  private store. The refusal said "'X' is not a folder", which read as a file; for a folder not
+  there yet it now says it does not exist and to create it first. The protected-history docs
+  (OPERATOR.md, the access-control model) say so.
+
 - SM1386 (PENDING) **A theme install warns when its stylesheets are outside assets/.** Only a
   theme's `assets/` is served, so a zip with `main.css` at its root beside `theme.json`
   installed and previewed with no CSS. Every install door - `theme-upload` (the manager's

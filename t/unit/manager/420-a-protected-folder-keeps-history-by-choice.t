@@ -224,6 +224,25 @@ subtest 'a folder only' => sub {
         'local', undef, { history => 'please' } );
     ok( !$u->{ok}, 'an unrecognised value is refused' );
     ok( !exists Lazysite::Auth::Acl::load_acls()->{members}, '...and writes nothing' );
+    like( $r->{error} // '', qr/is not a folder/, 'a file is named as not a folder' );
+};
+
+# SM1388: a folder that does not exist yet is refused, and the refusal says so -
+# it said "not a folder", which read as a file.
+subtest 'a folder that does not exist yet is refused, saying to create it' => sub {
+    my ( $t, $d ) = site();
+    as_operator();
+    my $r = Lazysite::Manager::Files::action_acl_set( 'later', 'local', ['alice'], ['alice'],
+        'local', undef, { history => 1 } );
+    ok( !$r->{ok}, 'refused' );
+    is( $r->{field}, 'history', 'naming the field' );
+    like( $r->{error} // '', qr/'later' does not exist yet.*Create the folder first/s,
+        'saying it does not exist and to create it first' );
+    ok( !exists Lazysite::Auth::Acl::load_acls()->{later}, 'nothing written' );
+    make_path("$d/later");
+    $r = Lazysite::Manager::Files::action_acl_set( 'later', 'local', ['alice'], ['alice'],
+        'local', undef, { history => 1 } );
+    ok( $r->{ok}, 'once it exists, the rule is written' ) or diag explain $r;
 };
 
 subtest 'a protected folder beside one that keeps history keeps none' => sub {
