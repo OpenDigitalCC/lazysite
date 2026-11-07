@@ -321,12 +321,37 @@ answer to the write names the change (`change`).
   removing the row, a delete by putting the row back as it was stored (its
   authors and times included), anything else by writing back the fields it
   changed. The undo is itself a recorded change. It is **refused**, writing
-  nothing, when the row changed after that change (`stale-change`, showing both)
-  or when the change was undone already; it needs what writing the row needs.
+  nothing, when the row changed after that change (`stale-change`, showing both),
+  when the change was undone already, or when it is older than the table's
+  history period (`expired-change`); it needs what writing the row needs.
 
 The changes are kept in the data store itself, in a table named `_row_changes`
 beside the rows. A bulk import, a package restore and a form handler's
 rows are not recorded one by one: each has its own record.
+
+### How long the history is kept
+
+A table's changes are kept for **90 days** by default. A table sets its own
+period in its descriptor, in whole days:
+
+```yaml
+title: Specials
+key: slug
+row_history_days: 30
+fields:
+  # ...
+```
+
+`row_history_days` is a positive whole number (at most 36500); anything else is
+refused by name when the descriptor is saved. `describe_data_table` and the
+history listing show the period in force.
+
+A change older than its table's period is removed, and a deleted row's changes
+go the same way, the delete among them. Removal happens when the store is
+written: each recorded change removes those past their period, across every
+table. Reading the history removes nothing, so a change past its period can
+still be listed until the next write; it is shown without an Undo (`undoable`
+false) and undoing it is refused as `expired-change`.
 
 ## Wizards: build a row one question at a time
 

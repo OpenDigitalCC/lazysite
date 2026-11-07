@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion)"
 area: data
-status-note: "SHIPPED (PENDING, 0.16.8) on n772 with ruling 156: a table's availability field, switch_row / data-row-switch, db:<table>(available); every row change recorded, with undo; wizards in lazysite/db/wizards, run_wizard / data-wizard-run; the manager's data page. t/unit/mcp/78, t/unit/manager/491, t/unit/data/80."
+status-note: "SHIPPED (PENDING, 0.16.8) on n772 with ruling 156: a table's availability field, switch_row / data-row-switch, db:<table>(available); every row change recorded, with undo, kept 90 days or the table's row_history_days (ruling 170); wizards in lazysite/db/wizards, run_wizard / data-wizard-run; the manager's data page. t/unit/mcp/78, t/unit/manager/491, t/unit/data/80, 81."
 ---
 
 # Proposed
@@ -25,6 +25,11 @@ status-note: "SHIPPED (PENDING, 0.16.8) on n772 with ruling 156: a table's avail
 
 Ruled (156): switching a row's availability is immediate and undoable (one recorded
 change, no copy or preview); building or editing a row runs the wizard.
+
+2. How long is the row history kept?
+
+Ruled (170): 90 days by default, with a per-table setting; a deleted row's history is
+cleared after the period too, and Undo is offered only within it.
 
 # Shipped
 
@@ -73,6 +78,27 @@ package restore and a form handler's rows, each of which has its own record.
   undo is itself a recorded change (`undoes`), and the change it undid is marked
   (`undone_by`).
 
+### How long the history is kept (ruling 170)
+
+A table's changes are kept 90 days (`RowHistory::$DEFAULT_KEEP_DAYS`), or the period
+its descriptor sets as `row_history_days` (a positive whole number of days, at most
+36500; anything else refused by name, rule `row_history_days`). `describe_data_table`
+and the history listing name the period in force. A change older than its table's
+period is removed, a deleted row's changes included, the delete among them.
+
+- **Where it runs**: on the write path only. After each recorded change (a save, a
+  delete, a switch, a wizard's save, an undo) `Manager::Data::_prune_row_history`
+  calls `RowHistory::prune`, which removes, per table the history names, the changes
+  past that table's period (a table no longer declared is held to the default). A read
+  removes nothing. The daemon has no data housekeeping job (its built-in jobs are the
+  heartbeat, stats, sessions, connectors, schedule and notify outbox), so there is no
+  second place; a store nobody writes to keeps its last changes until the next write.
+  A failed prune is logged and the write stands.
+- **Undo only inside the period**: a change still listed past it (no write yet) is
+  listed with `undoable: false`, the manager shows no Undo for it, and
+  `undo_row_change` / `data-row-undo` refuse it as `expired-change` (409), writing
+  nothing.
+
 ## Wizards
 
 A wizard is `lazysite/db/wizards/<name>.yaml` (inside the data extension's declared
@@ -116,4 +142,8 @@ a table without the field), t/unit/manager/491 (the manager and control-API door
 write_data token switches only where `writable_by` names its group; the history names
 the door and the account; a wizard over the API; a deleted row back with its authors;
 the history and wizard definitions are `manage_data`'s), t/unit/data/80 (the
-definition rules, the step walk, `(available)` refused without the field).
+definition rules, the step walk, `(available)` refused without the field),
+t/unit/data/81 (ruling 170: a bad `row_history_days` refused by name; a change past
+the period listed without Undo, refused as `expired-change`, kept by a read and pruned
+by the next write; a table's period overriding the default; a deleted row's history
+pruned after the period). Each fails with its part reverted.

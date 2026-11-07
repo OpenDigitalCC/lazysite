@@ -78,7 +78,8 @@ An empty value means absence. Clearing a number stores nothing rather than `0`.
 `list_row_changes` lists them with who and from where, and `undo_row_change`
 puts a row back as it was before one change (refused as `stale-change` once the
 row moved on). Use it to put right a mistaken write rather than reconstructing
-the old values by hand.
+the old values by hand. The history is kept 90 days, or the table's own
+`row_history_days`; an older change is refused as `expired-change`.
 
 **A list switched day to day** (a menu, this week's services): the table names a
 boolean `availability` field, `switch_row` turns one row on or off as one

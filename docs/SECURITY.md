@@ -4279,8 +4279,17 @@ threat delta
 : Repudiation: each change names its actor and its door (`manager`, `api`, `mcp`,
   `endpoint`, `wizard:<name>`, a fixed word set, never caller text); the audit trail
   records the mutating actions as before.
-: Denial of service: one extra read and one insert per row write; listing is capped
-  at 200. The history grows with writes and is not pruned.
+: Denial of service: one extra read and one insert per row write, and (ruling 170) a
+  prune: one delete per table the history names, past that table's period; listing is
+  capped at 200. The stored history is bounded by time: 90 days by default, or the
+  table's `row_history_days` (a positive whole number of days, at most 36500, refused
+  otherwise), a deleted row's changes included. Pruning runs on the write path only
+  (after each recorded change); the daemon has no data housekeeping job, so a store
+  nobody writes to keeps its last changes until the next write. A prune that fails is
+  logged and the write stands.
+: Tampering, by undoing a change from outside the period: refused as `expired-change`
+  (409) even while a not-yet-pruned change is still listed, and the listing marks it
+  `undoable: false`.
 
 controls
 : t/unit/manager/491 (a write_data token switches only where writable_by names its
@@ -4288,12 +4297,16 @@ controls
   write_data; the door and account recorded; a deleted row put back with its authors),
   t/unit/mcp/78 (the tools, the stale and repeat undo refusals, the required question,
   a manage_content account refused), t/unit/data/80 (the definition rules, the step
-  walk, `(available)` refused without the field).
+  walk, `(available)` refused without the field), t/unit/data/81 (ruling 170: a change
+  past the period is refused as expired and pruned by the next write and not by a read,
+  a table's period overrides the default, a deleted row's history goes after the
+  period, a bad `row_history_days` refused by name).
 
 residual risk
-: `_row_changes` keeps every row's earlier values for as long as the store is kept,
-  including values a later write removed; there is no pruning yet. A write that could
-  not be recorded stands without an undo, and says so.
+: `_row_changes` keeps rows' earlier values, including values a later write removed,
+  for up to the table's period (90 days by default) after the change, and past it until
+  the store's next write. A table that sets a long period keeps them that long. A write
+  that could not be recorded stands without an undo, and says so.
 
 verdict
 : proposed: accepted, no trigger fired; recorded because new actions write rows on

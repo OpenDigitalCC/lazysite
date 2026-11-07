@@ -383,12 +383,15 @@ switch_row `{ table, key, available }`
   as `no_availability` on a table that declares none.
 
 list_row_changes `{ table, key, limit }`
-: The recorded changes, newest first: id, when, who, from where, what, and the row
-  before and after. Not audited (a read).
+: The recorded changes, newest first: id, when, who, from where, what, the row
+  before and after, and `undoable`. The answer names the table's
+  `row_history_days` (default 90); older changes are removed on the next write.
+  Not audited (a read).
 
 undo_row_change `{ table, change }`
 : Put the row back as it was before that change; itself a recorded change.
-  Refused as `stale-change` when the row changed since, and `already-undone`.
+  Refused as `stale-change` when the row changed since, `already-undone`, and
+  `expired-change` past the table's history period.
 
 list_wizards `{}`
 : The site's wizards, each with its table and number of steps.

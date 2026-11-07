@@ -1306,7 +1306,7 @@ my %TOOLS = (
         },
     },
     list_row_changes => {
-        description => 'The recorded changes to a table\'s rows, newest first: each with its id, when, who, from where (manager, api, mcp, endpoint, wizard:<name>), what (insert, update, delete, switch, undo) and the row before and after. Pass `key` for one row\'s changes. A change\'s id is what undo_row_change takes. Read-only.',
+        description => 'The recorded changes to a table\'s rows, newest first: each with its id, when, who, from where (manager, api, mcp, endpoint, wizard:<name>), what (insert, update, delete, switch, undo) and the row before and after. Pass `key` for one row\'s changes. A change\'s id is what undo_row_change takes; `undoable` says whether it still can be. Changes are kept for the table\'s `row_history_days` (default 90, in the answer) and removed after it, a deleted row\'s included. Read-only.',
         cap         => 'manage_data',
         inputSchema => { type => 'object',
             properties => {
@@ -1322,7 +1322,7 @@ my %TOOLS = (
         },
     },
     undo_row_change => {
-        description => 'Put a row back as it was before one recorded change (from list_row_changes, or the `change` a switch, a wizard or a row save answered). An insert is undone by removing the row, a delete by putting the row back, anything else by writing back the fields it changed. The undo is itself a recorded change. REFUSED, nothing written, when the row changed after that change (`stale-change`, showing both) or when it was undone already.',
+        description => 'Put a row back as it was before one recorded change (from list_row_changes, or the `change` a switch, a wizard or a row save answered). An insert is undone by removing the row, a delete by putting the row back, anything else by writing back the fields it changed. The undo is itself a recorded change. REFUSED, nothing written, when the row changed after that change (`stale-change`, showing both), when it was undone already, or when it is older than the table\'s row history period (`expired-change`).',
         cap         => 'manage_data',
         inputSchema => { type => 'object',
             properties => {

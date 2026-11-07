@@ -156,7 +156,8 @@ history leaves out; nothing else changes on upgrade.
 
 **Row changes are recorded (SM1355).** From this release every row save, delete and
 switch is recorded in the data store, in a table named `_row_changes` that the first
-recorded write creates; nothing needs migrating. A table gains a switch only when its
+recorded write creates; nothing needs migrating. The history is kept 90 days unless a
+table's descriptor sets `row_history_days`. A table gains a switch only when its
 descriptor names an `availability` field, and wizards exist only where
 `lazysite/db/wizards/` holds them, so an upgraded site's tables and pages behave as
 before.

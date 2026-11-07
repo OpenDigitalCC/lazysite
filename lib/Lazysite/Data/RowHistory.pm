@@ -22,6 +22,16 @@ package Lazysite::Data::RowHistory;
 # NOT RECORDED: a bulk import, a restore and a form handler's row - each has its
 # own record (the import's safety export, the package, the submission), and a
 # thousand-row load is not a thousand undoable changes.
+#
+# KEPT FOR A PERIOD (ruling 170): 90 days by default, or the table's own
+# `row_history_days` (Descriptor checks it is a positive whole number). A change
+# older than its table's period is removed - a deleted row's changes too, the
+# delete among them, so a row that is gone leaves no history behind it once the
+# period has passed - and one still listed past it (no write has pruned yet) is
+# not undoable. PRUNING RUNS WHERE THE STORE IS WRITTEN, after a change is
+# recorded (prune), never on a read: a list or a look at one change only
+# compares ages. The daemon has no data housekeeping job, so there is no second
+# place; a store nobody writes to keeps its last changes until the next write.
 
 use strict;
 use warnings;
@@ -30,13 +40,66 @@ use JSON::PP               ();
 use Lazysite::Util         qw(log_event);
 use Lazysite::Data::SQLite ();              # the engine-specific parts (t/unit/data/12)
 
-our @EXPORT_OK = qw(record_change list_changes get_change mark_undone);
+our @EXPORT_OK = qw(record_change list_changes get_change mark_undone prune keep_days
+    within_period);
 
 my $TABLE = '_row_changes';
 
-sub _now {
-    my @t = gmtime( time() );
+# Ruling 170: the period a table's changes are kept, when it names none.
+our $DEFAULT_KEEP_DAYS = 90;
+
+sub _stamp {
+    my @t = gmtime( $_[0] );
     return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ', $t[5] + 1900, $t[4] + 1, @t[ 3, 2, 1, 0 ];
+}
+
+sub _now { return _stamp( time() ) }
+
+# The days a table's changes are kept: its descriptor's row_history_days, else
+# the default. Takes a loaded descriptor (or undef, for a table that is gone).
+sub keep_days {
+    my ($d) = @_;
+    my $n   = ref $d eq 'HASH' ? $d->{row_history_days} : undef;
+    return ( defined $n && $n =~ /\A[1-9][0-9]*\z/ ) ? 0 + $n : $DEFAULT_KEEP_DAYS;
+}
+
+# The oldest `at` still inside a period of $days. The stamps are fixed-width
+# UTC, so they compare as strings.
+sub _cutoff { return _stamp( time() - $_[0] * 86400 ) }
+
+# Is a change (as get_change/list_changes return it) inside a period of $days?
+sub within_period {
+    my ( $c, $days ) = @_;
+    return 0 unless ref $c eq 'HASH' && defined $c->{at};
+    return $c->{at} ge _cutoff( $days // $DEFAULT_KEEP_DAYS ) ? 1 : 0;
+}
+
+# Remove every change older than its table's period. $period_for is called with
+# each table the history names and answers its days (keep_days of its
+# descriptor). Called on the write path only. Never fatal: a prune that fails is
+# logged and the write that called it stands. Returns how many were removed.
+sub prune {
+    my ( $dbh, $period_for ) = @_;
+    my $gone = eval {
+        return 0 unless Lazysite::Data::SQLite::row_changes_exist($dbh);
+        my $tables = $dbh->selectcol_arrayref(qq{SELECT DISTINCT "tbl" FROM "$TABLE"}) || [];
+        my $n      = 0;
+        for my $t (@$tables) {
+            my $days = $period_for ? $period_for->($t) : undef;
+            $days = $DEFAULT_KEEP_DAYS unless defined $days && $days =~ /\A[1-9][0-9]*\z/;
+            my $r = $dbh->do( qq{DELETE FROM "$TABLE" WHERE "tbl" = ? AND "at" < ?}, undef, $t,
+                _cutoff($days) );
+            $n += $r if $r && $r > 0;
+        }
+        $n;
+    };
+    unless ( defined $gone ) {
+        log_event( 'WARN', 'data', 'row history not pruned - the write itself succeeded',
+            error => ( $@ || 'unknown' ) );
+        return 0;
+    }
+    log_event( 'INFO', 'data', 'row history pruned', removed => $gone ) if $gone;
+    return $gone;
 }
 
 my $JSON = JSON::PP->new->canonical->allow_nonref;
@@ -79,7 +142,8 @@ sub _row {
     return \%r;
 }
 
-# The newest changes to a table (or to one row of it), newest first.
+# The newest changes to a table (or to one row of it), newest first, each with
+# `undoable`: not undone yet and inside the period ($opt{days}, the table's).
 sub list_changes {
     my ( $dbh, $table, %opt ) = @_;
     my $limit = ( ( $opt{limit} // '' ) =~ /\A[1-9][0-9]{0,2}\z/ ) ? 0 + $opt{limit} : 50;
@@ -91,7 +155,16 @@ sub list_changes {
         $sql .= ' ORDER BY "id" DESC LIMIT ' . $limit;
         $dbh->selectall_arrayref( $sql, { Slice => {} }, @b );
     };
-    return [ map { _row($_) } @{ $rows || [] } ];
+    # Ruling 170: Undo is offered only inside the period (and only once).
+    my $days = $opt{days} // $DEFAULT_KEEP_DAYS;
+    return [
+        map {
+            my $r = _row($_);
+            $r->{undoable} = ( !$r->{undone_by} && within_period( $r, $days ) )
+                ? JSON::PP::true() : JSON::PP::false();
+            $r
+        } @{ $rows || [] }
+    ];
 }
 
 sub get_change {

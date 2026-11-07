@@ -82,7 +82,7 @@ search: false
     </div>
     </div>
   </div>
-  <!-- SM1355: every row change, newest first, each undoable once. -->
+  <!-- SM1355: every row change, newest first, each undoable once, inside the table's period (ruling 170). -->
   <div id="history-panel" class="mg-card" hidden>
     <div class="mg-card-header"><span class="mg-card-title">Row history</span></div>
     <div class="mg-card-body">
@@ -1446,6 +1446,7 @@ function loadRowChanges() {
         body += '<tr><td>' + escHtml(c.at) + '</td><td>' + escHtml(c.actor) + '</td><td>' + escHtml(c.source)
           + '</td><td>' + escHtml(c.op) + (c.undoes ? ' of ' + escHtml(c.undoes) : '') + '</td><td>' + escHtml(c.key) + '</td><td>'
           + (c.undone_by ? '<span class="mg-muted">undone</span>'
+             : !c.undoable ? '<span class="mg-muted">past the ' + Number(d.row_history_days) + ' days kept</span>'
              : '<button class="mg-btn mg-btn-sm mg-btn-change" data-impact="change" onclick="undoRowChange(' + Number(c.id) + ')">Undo</button>')
           + '</td></tr>';
       });

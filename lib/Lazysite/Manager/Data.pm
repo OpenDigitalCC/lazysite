@@ -700,10 +700,11 @@ sub action_data_table {
         indexes    => $d->{indexes},
         timestamps => $d->{timestamps},
         public     => ( $d->{public} ? JSON::PP::true : JSON::PP::false ),
-        ( length( $d->{domain} // '' ) ? ( domain         => $d->{domain} )   : () ),
+        ( length( $d->{domain} // '' ) ? ( domain => $d->{domain} )           : () ),
         ( defined $d->{availability} ? ( availability => $d->{availability} ) : () ), # SM1355
-        ( $pending                     ? ( pending_schema => JSON::PP::true ) : () ),
-        ( @{ _provenance_notes($d) }   ? ( notes => _provenance_notes($d) )   : () ),
+        row_history_days => _history_days($d), # ruling 170: the table's own, or the default
+        ( $pending                   ? ( pending_schema => JSON::PP::true )        : () ),
+        ( @{ _provenance_notes($d) } ? ( notes          => _provenance_notes($d) ) : () ),
     };
 }
 
@@ -1051,7 +1052,32 @@ sub _record_row_change {
         : undef;
     if ( defined $id ) { $r->{change} = $id }
     else { $r->{change_note} = 'this change was not recorded, so it cannot be undone from the history' }
+    _prune_row_history($dbh) if $dbh;
     return $id;
+}
+
+# Ruling 170: the days a table's row history is kept - its descriptor's
+# row_history_days, else RowHistory's default (90).
+sub _history_days {
+    my ($d) = @_;
+    require Lazysite::Data::RowHistory;
+    return Lazysite::Data::RowHistory::keep_days( ref $d eq 'HASH' && $d->{ok} ? $d : undef );
+}
+
+# Ruling 170: PRUNED WHERE THE STORE IS WRITTEN - after each recorded change,
+# every table's changes older than that table's period go (a table no longer
+# declared is held to the default). Never on a read path.
+sub _prune_row_history {
+    my ($dbh) = @_;
+    require Lazysite::Data::RowHistory;
+    my %days;
+    return Lazysite::Data::RowHistory::prune(
+        $dbh,
+        sub {
+            my ($t) = @_;
+            $days{$t} //= _history_days( eval { load_table( $DOCROOT, $t ) } );
+            return $days{$t};
+        } );
 }
 
 # The door a change came from: a word, or wizard:<name>. Anything else is
@@ -1133,14 +1159,16 @@ sub action_data_row_changes {
     my $dbh = Lazysite::Data::Connect::read_handle($DOCROOT)
         or return { ok => 1, table => $table, changes => [] };
     return { ok => 1, table => $table,
+        row_history_days => _history_days($d),
         changes => Lazysite::Data::RowHistory::list_changes( $dbh, $table, key => $opt{key},
-            limit => $opt{limit} ) };
+            limit => $opt{limit}, days => _history_days($d) ) };
 }
 
 # UNDO PUTS THE ROW BACK AS IT WAS BEFORE ONE CHANGE, and is itself one recorded
 # change. Refused, writing nothing, when the row changed after that change (the
-# answer shows the row as the change left it and as it is now), or when the
-# change was undone already. An insert is undone by deleting the row, a delete
+# answer shows the row as the change left it and as it is now), when the
+# change was undone already, or (ruling 170) when it is older than the table's
+# row history period (`expired-change`). An insert is undone by deleting the row, a delete
 # by putting the stored row back (Tables::reinsert_row), anything else by
 # writing back each field that differs - through the same row authority as a
 # save, so a writer cannot undo their way into a row they may not change.
@@ -1161,6 +1189,12 @@ sub action_data_row_undo {
         undone_by => $c->{undone_by},
         error     => "change $c->{id} was undone already, by change $c->{undone_by}" }
         if $c->{undone_by};
+    my $days = _history_days($d);    # ruling 170: Undo only inside the period
+    return { ok => 0, kind => 'expired-change', table => $table, change => $c->{id}, at => $c->{at},
+        row_history_days => $days,
+        error => "change $c->{id} is older than the $days days table '$table' keeps its row "
+            . 'history, so it is no longer undone - change the row by hand' }
+        unless Lazysite::Data::RowHistory::within_period( $c, $days );
 
     my $key = $c->{key};
     my ( $now, $err ) = Lazysite::Data::Tables::row_by_key( $DOCROOT, $table, $key );
@@ -1202,6 +1236,7 @@ sub action_data_row_undo {
         source => _source( $opt{source} ), before => $now, after => $after, undoes => $c->{id}
     );
     Lazysite::Data::RowHistory::mark_undone( $dbh, $c->{id}, $id ) if defined $id;
+    _prune_row_history($dbh);    # ruling 170: the undo is a write too
     log_event( 'INFO', $table, 'data row change undone', row => $key, change => $c->{id} );
     return { ok => 1, table => $table, key => $key, undid => $c->{id},
         ( defined $id ? ( change => $id ) : ( change_note => 'the undo was not recorded' ) ),

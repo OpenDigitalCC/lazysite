@@ -526,6 +526,21 @@ sub load_descriptor {
             unless ( $fields->{$availability}{type} // '' ) eq 'boolean';
     }
 
+    # SM1355 (ruling 170): HOW LONG THIS TABLE'S ROW HISTORY IS KEPT, in whole
+    # days. Optional; absent is Lazysite::Data::RowHistory's default (90). Refused
+    # by name unless a positive whole number: a zero, a fraction or a word would
+    # either keep nothing or leave the period to the engine's guess.
+    my $history_days = $raw->{row_history_days};
+    if ( defined $history_days ) {
+        return _err( 'descriptor',
+            "table '$name': row_history_days is how many days the row history is kept - "
+                . 'a positive whole number of days, at most 36500',
+            rule => 'row_history_days' )
+            if ref $history_days
+            || $history_days !~ /\A[1-9][0-9]{0,4}\z/
+            || $history_days > 36500;
+    }
+
     my $domain = $raw->{domain};
     $domain = '' unless defined $domain && !ref $domain;
     $domain =~ s/\A\s+|\s+\z//g;
@@ -565,6 +580,7 @@ sub load_descriptor {
         row_policy => $row_policy,
         ( length $domain ? ( domain => $domain ) : () ),
         ( defined $availability ? ( availability => $availability ) : () ),    # SM1355
+        ( defined $history_days ? ( row_history_days => 0 + $history_days ) : () ), # ruling 170
         ( $where ? ( where => $where ) : () ),   # SM982: the rows a visitor surface shows
     };
 }
