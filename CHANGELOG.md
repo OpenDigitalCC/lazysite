@@ -333,7 +333,7 @@ Archive
   these. They are adopted once, with no member, through the had-record, where the bundle
   layer is there, nested into their bundles as a new install nests them (cap-audit with
   them), and never on a store whose manager group carries the `seeded` mark, whose seed
-  wrote them (t/unit/users/73).
+  wrote them (t/unit/users/74).
 
 - SM1411 (PENDING) **the editor takes and renews its lock with a POST.** The editor sent
   `lock` and `renew-lock` as GETs; both are declared mutating and the API refuses a

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "the lazysite developer agent, from edge testing of 0.16.7 (T-103, brief n774)"
 area: users
-status-note: "SHIPPED (0.16.8) on n774: _adopt_layer_roles in tools/lazysite-users.pl, before _adopt_added_bundles. t/unit/users/73. SECURITY.md entry drafted. UPGRADE.md note under Unreleased (0.16.8)."
+status-note: "SHIPPED (0.16.8) on n774: _adopt_layer_roles in tools/lazysite-users.pl, before _adopt_added_bundles. t/unit/users/74. SECURITY.md entry drafted. UPGRADE.md note under Unreleased (0.16.8)."
 ---
 
 # What happened
@@ -66,7 +66,7 @@ each ("role added for this release (SM1407)").
 
 # Tests
 
-t/unit/users/73-the-layer-roles-reach-an-older-site.t, in the style of
+t/unit/users/74-the-layer-roles-reach-an-older-site.t, in the style of
 t/unit/users/72: a store from before the two roles gains both on first use, as
 shipped, with no member, each bundle drawing on what a new install nests in it,
 cap-audit adopted, the record remembering both and a second use changing

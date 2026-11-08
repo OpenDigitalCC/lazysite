@@ -4469,7 +4469,7 @@ threat delta
   are unchanged.
 
 controls
-: t/unit/users/73: a store from before the two roles gains both on first use, as
+: t/unit/users/74: a store from before the two roles gains both on first use, as
   shipped, with no member, nested as a new install nests them, cap-audit with
   `analysts` inside, and the next use changes nothing; a role the had-record names does
   not come back, nor one an operator deletes after adoption; on a marked store neither
