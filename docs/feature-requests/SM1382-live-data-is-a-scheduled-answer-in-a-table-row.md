@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 132)"
 area: data
-status-note: "SHIPPED (0.16.7) on n763, ruling 132 B: t/integration/360 drives the chain against a 127.0.0.1 JSON source; the Live data section of /docs/ai-briefing-building-sites states the limits it measured: 300 s floor, rounding up to multiples of 300, fixed fields, one row per poll, ttl: the only freshness bound, mode=live inert."
+status-note: "SHIPPED (0.16.7) on n763, ruling 132 B: t/integration/360 drives the chain against a 127.0.0.1 JSON source; the Live data section of /docs/ai-briefing-building-sites states the limits it measured: 300 s floor, multiples of 300, fixed fields, one row per poll, mode=live inert. 0.16.8 (SM1357): a table write refreshes a ttl: page that reads it."
 ---
 
 # What was asked
@@ -35,7 +35,7 @@ rather than by waiting. **The chain holds at every link.** Measured, on
 | Fixed fields | Each poll sends the same fixed payload (as the GET query). A static request suffices for a single-call source. A sweep over N items is N entries; a payload cannot carry a list (`fixed values only`); every entry through one connector counts against its rate cap (3/hour in the test: the fourth of four was refused, recorded `failed`, `rate cap`). At the default 60/hour, five entries at the floor fill a connector. |
 | Row shape | One new row per poll (nothing is replaced): `connector`, `call_id`, `mode` (`scheduled`), `actor` (the job account), `at`, `state`, `http`, `answer`. `answer` is the remote's whole JSON as one text value, rendered by a template as escaped text. The engine never prunes the table: 288 rows a day per entry at the floor. |
 | Fresh rows without a cache clear | Yes. A page with no `ttl:` shows the newest row on its next request. |
-| `ttl:` | The only bound. A `ttl: 300` page serves its cached render until the ttl passes, then shows the newest row. `mode=live` behaves identically to snapshot. `mode=client` still reads rows at render; the data-tables reference said otherwise and is corrected. |
+| `ttl:` | At the spike (0.16.7), the only bound: a `ttl: 300` page served its cached render until the ttl passed, then showed the newest row. From 0.16.8 (SM1357) every table write touches the table's change stamp, so a `ttl:` page that reads the table shows the new row on the first request after a poll; the ttl still bounds a page whose table did not change. `t/integration/360` holds both, with the stamp's and the render's times set explicitly (n780: the old assertion passed only when the poll and the render fell in the same second). `mode=live` behaves identically to snapshot. `mode=client` still reads rows at render; the data-tables reference said otherwise and is corrected. |
 | The endpoint | `table=..&order_by=id&order=desc&limit=1` answers the newest row with `Cache-Control: no-store`; `&since=0` is a 400 `unknown-parameter` (SM1377); `_` is accepted. |
 | Per-poll cost | One scheduler tick with one due entry: about 55 ms against a local source (one HTTP call, one row, one call-record line, one audit line). One data-endpoint read: about 145 ms on the test host (a CGI start). |
 

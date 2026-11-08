@@ -328,6 +328,9 @@ Archive
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.
+  The live-data recipe in `/docs/ai-briefing-building-sites` says so: a poll's row
+  refreshes a `ttl:` page that reads the table, and `ttl:` bounds one whose table did not
+  change (t/integration/360).
 - SM1410 (PENDING) **a staging run that stages no account is not kept.**
   `accounts-import-stage` and `stage_accounts` wrote a staging record with `staged: 0`
   when every row was invalid and answered ok with its id. Such a run now writes nothing

@@ -242,10 +242,10 @@ reasoned correctly from it, and reached a false conclusion.
 
 A table has no timestamp that can prove a cached page still current, so a
 binding withdraws the *mtime* proof of freshness. It does not touch the page's
-`ttl:`, which is a separate mechanism and the only one such a page has. So a
-page carrying `ttl: 300` is served from cache for five minutes whatever its
-mode, and a page carrying no `ttl:` is re-rendered every request whatever its
-mode. "Never cached" was only ever true of the second case.
+`ttl:`, which is a separate mechanism. So a page carrying `ttl: 300` is served
+from cache for five minutes whatever its mode, unless the table changes (below),
+and a page carrying no `ttl:` is re-rendered every request whatever its mode.
+"Never cached" was only ever true of the second case.
 
 Since SM604 every `db:` binding withdraws that proof - it had to, because
 otherwise one `json:` binding on the same page vouched for the table's

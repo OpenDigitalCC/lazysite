@@ -352,10 +352,12 @@ costs one request per read, which is small at low visitor counts. How live the
 data can be is decided by where the sweep runs - the 300-second schedule - not
 by what a poll costs.
 
-**`ttl:` is the only freshness bound.** No cache clear is needed. A page with no
-`ttl:` shows the newest row on its next request; a page with `ttl: N` shows it
-once N seconds have passed since it was rendered. `mode=live` does nothing
-today: within a `ttl:` it serves the cached render exactly as `snapshot` does.
+**A table write refreshes the pages that read the table.** No cache clear is
+needed. Every poll's row touches the table's change stamp, so a page that reads
+the table shows the newest row on its next request, a page with `ttl:` included
+(from 0.16.8). A `ttl: N` still bounds a page whose table has not changed: it is
+served from its cached render for N seconds. `mode=live` does nothing today: it
+behaves exactly as `snapshot` does.
 `mode=client` still reads the rows at render too; what makes a page client-side
 is a `data-ls-db` region. The endpoint answers `Cache-Control: no-store`, so a
 region with `data-ls-db-every` re-reads it each time - but reading more often

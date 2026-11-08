@@ -18,8 +18,10 @@
 #   - fixed fields: each poll sends the same request; a sweep over N items is N
 #     entries, and the connector's rate cap counts them all
 #   - the shape of the row: one new row per poll, the answer as JSON text
-#   - freshness: no cache clear is needed; `ttl:` is the only bound, and
-#     mode=live and snapshot do not differ
+#   - freshness: no cache clear is needed; a table write (SM1357's change stamp)
+#     refreshes the pages that read the table, a ttl: page included, and
+#     mode=live and snapshot do not differ; ttl: still bounds a page whose table
+#     did not change
 #   - the data endpoint refuses a parameter it does not read
 #   - SM1384: a multi-step job protocol (submit, poll, read) cannot be expressed
 #
@@ -314,18 +316,45 @@ subtest 'a page with no ttl: shows the newest row on the next request, no cache 
     ok( render_of('fresh'), 'though the render was written to the page cache' );
 };
 
-subtest 'ttl: is the only freshness bound, and mode=live does not change it' => sub {
+# SM1357: every write to a table touches its change stamp, and a render that read
+# the table is stale once the stamp is newer than it, ttl: or not. The cache
+# compares file times to the second, so the times are set here, not left to the
+# clock: the render inside its ttl, and the stamp either after it (a poll landed
+# since) or before it (the table has not changed since).
+my $stamp = "$lz/db/stamps/quotes";
+
+subtest 'a table write refreshes a ttl: page that reads it, and mode=live does not change that' => sub {
     for my $name (qw(cached livemode)) {
         my $first = shown( visit("/$name") );
         is( $first, newest_seq(), "$name: renders the newest answer" );
-        poll();
-        my $within = shown( visit("/$name") );
-        is( $within, $first, "$name: inside its ttl the cached render is served - the new row is not shown" );
         my $f = render_of($name);
         ok( $f, "$name: the render is in the cache" );
-        utime( time - 301, time - 301, $f );
-        my $after = shown( visit("/$name") );
-        is( $after, newest_seq(), "$name: once the ttl has passed, the next request shows the new row" );
+        poll();
+        ok( -e $stamp, "$name: the poll's write touched the table's change stamp" );
+        my $now = time;
+        utime( $now - 100, $now - 100, $f );        # rendered 100 s ago, inside its ttl: 300
+        utime( $now - 50,  $now - 50,  $stamp );    # and the poll landed after it
+        my $next = shown( visit("/$name") );
+        is( $next, newest_seq(), "$name: inside its ttl, the first request after a poll shows the new row" );
+        isnt( $next, $first, "$name: which is a different answer from the cached render's" );
+    }
+};
+
+subtest 'ttl: still bounds a page whose table did not change' => sub {
+    for my $name (qw(cached livemode)) {
+        my $f = render_of($name);
+        ok( $f, "$name: the render is in the cache" );
+        my $md = "$docroot/$name.md";
+        spit( $md, slurp($md) =~ s/^Quote\.$/Quote, edited./mr );
+        my $now = time;
+        utime( $now - 200, $now - 200, $stamp );    # the table last changed before the render
+        utime( $now - 100, $now - 100, $f );        # rendered 100 s ago, inside its ttl: 300
+        utime( $now - 50,  $now - 50,  $md );       # and the page's own source edited since
+        my $within = visit("/$name");
+        unlike( $within, qr/Quote, edited\./, "$name: inside its ttl the cached render is served" );
+        like( $within, qr/Quote\./, "$name: the cached render, not an empty answer" );
+        utime( $now - 301, $now - 301, $f );
+        like( visit("/$name"), qr/Quote, edited\./, "$name: once the ttl has passed, the next request renders again" );
     }
 };
 
