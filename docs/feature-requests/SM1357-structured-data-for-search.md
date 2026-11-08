@@ -104,8 +104,10 @@ content (`<docroot>/sites/<name>`, or a folder holding its own `lazysite.conf` o
 (`_foreign_site_folder`), and `lazysite check` names it as served on the bare host with
 the remedy (`report_foreign_site_folders`: declare it as a domain's content root, or move
 it); t/integration/17 is back to its intent (no `/sites/` path in the bare host's sitemap
-or llms.txt). The site's search (`resolve_scan`) is unchanged: it still walks such a
-folder, as the bare host serves it. Never listed: a draft, ACL-governed or gated page
+or llms.txt). Ruling 176 (n776, at the restack): the site's search and every `scan:` listing
+(`resolve_scan`, `_scan_collect_files`) leave such a folder out too - the walk does not
+descend into it and a one-level pattern naming it lists nothing - while the bare host
+still serves it; t/integration/17 holds both. Never listed: a draft, ACL-governed or gated page
 (`_registry_hidden`, as before), anything under `lazysite/` (SM1354's page copies), an
 `api:`/`raw:` page, `search: false`, a redirect, `starter_role: demonstration` (SM486) and
 the engine's system pages at a content root. `llms.txt` is on by default with titles,

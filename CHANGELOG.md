@@ -301,7 +301,8 @@ Archive
   `search: false`, demonstration or system page. Ruling 174: the two are built from one page
   set and list exactly the same pages (a page registered for either is in both). Ruling 171:
   a folder that looks like another site's content (under `sites/`, or holding its own
-  `lazysite.conf`) and is not a declared content root is left out of both; `lazysite check`
+  `lazysite.conf`) and is not a declared content root is left out of both, and of site
+  search and every `scan:` listing (ruling 176); `lazysite check`
   names it as served on the bare host, with the remedy. Ruling 165: `llms.txt` is on by default
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and

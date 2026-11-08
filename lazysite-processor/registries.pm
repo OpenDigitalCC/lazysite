@@ -15,7 +15,9 @@ package main;
 #         165: the sitemap and the summary list every public page, the summary
 #         has a switch and carries the organisation entry); _public_page_set and
 #         _in_public_page_set (ruling 174: the one page set both list);
-#         _foreign_site_folder (ruling 171: another site's folder, undeclared);
+#         _foreign_site_folder (ruling 171: another site's folder, undeclared) and
+#         the scan's two askers of it, _scan_foreign_dir and _scan_under_foreign_dir
+#         (ruling 176: site search leaves those folders out too);
 #         scan_pages(), the walk
 #         the registries are built from; update_registries() and its P-3 memo of whether any
 #         registry template exists; _feed_dates; the registry serving path -
@@ -263,6 +265,37 @@ sub _foreign_site_folder {
     return 0;
 }
 
+# Ruling 176 (n776, within 171): THE SCAN'S WALK ASKS THE SAME QUESTION. Site
+# search and every scan: listing walk the scan root and its private twin
+# (_scan_collect_files); a folder of either is asked by its public spelling, so
+# a protected page moved into the private store under a forgotten site folder
+# is left out as its public copy would be. A folder outside both (the engine's
+# docs) is never another site's.
+sub _scan_foreign_dir {
+    my ( $dir, $scan_root, $priv_root ) = @_;
+    my $pub = $dir;
+    if ( defined $priv_root && length $priv_root && index( $dir, "$priv_root/" ) == 0 ) {
+        $pub = $scan_root . substr( $dir, length $priv_root );
+    }
+    return 0 unless index( $pub, "$scan_root/" ) == 0;
+    return _foreign_site_folder($pub);
+}
+
+# A file a one-level pattern matched: is any folder between the scan root and
+# the file another site's? (The walk never descends into one; a pattern can
+# name one outright.)
+sub _scan_under_foreign_dir {
+    my ( $file, $scan_root, $priv_root ) = @_;
+    my $dir = dirname($file);
+    my ($top) = grep { defined && length && ( $dir eq $_ || index( $dir, "$_/" ) == 0 ) } $scan_root, $priv_root;
+    return 0 unless defined $top;
+    while ( length $dir > length $top ) {
+        return 1 if _scan_foreign_dir( $dir, $scan_root, $priv_root );
+        $dir = dirname($dir);
+    }
+    return 0;
+}
+
 # Ruling 165: the summary is ON by default; `llms_txt: off` in lazysite.conf
 # turns it off - it is then neither generated nor served (a 404, as on a site
 # that never had one). A hand-written llms.txt in the content is the site's own
@@ -400,6 +433,12 @@ sub _scan_collect_files {
                             # §7: never descend into ANOTHER domain's content root,
                             # so a bare-docroot search excludes client subtrees.
                             next if $excl->{$path} && $path ne $base;
+                            # Ruling 176 (within 171): nor into a folder that looks
+                            # like another site's content without being declared
+                            # as one, as the sitemap's walk leaves it out - so a
+                            # forgotten site folder is not found through search on
+                            # the bare host either.
+                            next if $path ne $base && _scan_foreign_dir( $path, $scan_root, $priv_root );
                             push @queue, $path;
                         }
                         elsif ( $entry =~ $file_re ) {
@@ -411,7 +450,10 @@ sub _scan_collect_files {
             }
         }
         else {
-            push @files, glob($fs_pattern);
+            # Ruling 176: a one-level pattern is a folder named outright; its
+            # files are left out when that folder, or one between it and the
+            # scan root, looks like another site's content (the walk's rule).
+            push @files, grep { !_scan_under_foreign_dir( $_, $scan_root, $priv_root ) } glob($fs_pattern);
             # SM311: same reasoning, one level - the directory the glob names.
             _tt_dep( dirname($fs_pattern) );
         }

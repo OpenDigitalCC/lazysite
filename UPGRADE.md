@@ -173,7 +173,8 @@ both (ruling 174: the two list exactly the same pages); a protected, draft, copi
 `api:`/`raw:`, redirect or starter demonstration page and the engine's sign-in and error
 pages are never listed. On a multi-site docroot the bare host lists no folder that looks
 like another site's content - one under `sites/`, or one holding its own `lazysite.conf`
-- that is not a declared `content_root` (ruling 171); the bare host still serves it, and
+- that is not a declared `content_root` (ruling 171); nor does its site search or a `scan:` listing find
+its pages (ruling 176); the bare host still serves it, and
 `lazysite check` names each such folder: declare it as a domain's content root or move it
 out of the docroot. To keep a
 page out, give it `search: false`, or a `register:` list that does not name the

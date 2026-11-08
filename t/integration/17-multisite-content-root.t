@@ -62,6 +62,11 @@ _write( "$docroot/find.md",
     "---\ntitle: Find Agency\napi: true\ncontent_type: text/plain\n"
         . "tt_page_var:\n  results: scan:/**/*.md sort=filename\n---\n"
         . "[% FOREACH p IN results %]URL:[% p.url %]\n[% END %]\n" );
+# Ruling 176: a one-level scan naming the undeclared site folder outright.
+_write( "$docroot/find-one.md",
+    "---\ntitle: Find one\napi: true\ncontent_type: text/plain\n"
+        . "tt_page_var:\n  results: scan:/sites/clienta-secret/*.md\n---\n"
+        . "DONE\n[% FOREACH p IN results %]URL:[% p.url %]\n[% END %]\n" );
 _write( "$docroot/404.md", "---\ntitle: NF\n---\nAGENCY_404\n" );
 # A secret that must NEVER be reachable through any domain root (S2).
 _write( "$docroot/lazysite/auth/secret", "TOP_SECRET_MATERIAL\n" );
@@ -407,10 +412,17 @@ sub _slurp {
     like( $out, qr{^URL:/$}m, 'bare-host search includes the docroot-root index' );
     # The DECLARED client roots (sites/clienta, sites/clientb) must not be
     # traversed. Without §7 their pages would appear as /sites/clienta/menu etc.
-    # (a non-declared dir like sites/clienta-secret is legitimately still in the
-    # bare docroot's content - §7 excludes declared roots, not arbitrary dirs).
     unlike( $out, qr{URL:/sites/client[ab]/},
         'bare-host search does not traverse the declared client roots (§7)' );
+    # Ruling 176 (within 171): nor the undeclared sites/clienta-secret, which
+    # looks like another site's content (it is under sites/) - the folders the
+    # sitemap and llms.txt leave out, search leaves out too. It is still served
+    # on the bare host; the check above names it.
+    unlike( $out, qr{URL:/sites/}, 'bare-host search has no /sites/ paths' );
+    unlike( $out, qr{clienta-secret}, '... so the undeclared sites/clienta-secret is not found' );
+    my $one = run_processor( $docroot, '/find-one', HTTP_HOST => 'stranger.example' );
+    like( $one, qr{^DONE}m, 'a one-level scan naming the folder outright renders' ) or diag $one;
+    unlike( $one, qr{URL:}, '... and lists nothing of it' );
 }
 
 done_testing();
