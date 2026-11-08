@@ -3308,6 +3308,18 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
 # nothing is printed after it. page-pdf used to reach respond() here, which put
 # a second header block and {"ok":true,"streamed":1} past the PDF's
 # Content-Length; the others exited before the audit block, refused or not.
+# SM1414 (rulings 169, 173): A WRITE ON THE MEMBER CONTENT DOOR ANSWERS THE
+# SITE'S PATH, as the door's listing does (Files::member_listing): the session's
+# content root taken off, so the path an answer names is the one the member
+# sends next, and the folder holding their domain is never shown. The audit row
+# above keeps the docroot path, as every row does. A listing is not touched here:
+# member_listing has already named its paths.
+if ( $MEMBER_DOOR && ref $result eq 'HASH' && $action =~ /\A(?:save|mkdir|move|delete)\z/ ) {
+    for my $k (qw(path from to)) {
+        $result->{$k} = _member_shown( $result->{$k} ) if defined $result->{$k} && !ref $result->{$k};
+    }
+}
+
 respond($result) unless ref $result eq 'HASH' && $result->{ok} && $result->{streamed};
 
 # SM245: the brief store, wired to this request. Five branches asked for it

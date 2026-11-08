@@ -4557,6 +4557,8 @@ controls
   only: no rule lists, owner, lock holder or served-copy hosts, and the answer
   carries no picker lists. Its paths are the site's, the session's root taken off.
   An unreadable ACL store refuses the listing (`cannot-tell`).
+  A write answers by the site's paths too (`path`, and a move's `from` and `to`):
+  no answer names the folder holding the domain (n776, t/integration/377).
 : A member creates no rule: acl-set is outside the set, and the manager's
   manage_content gate is not what admits it, so a rule's first-rule and widening
   checks (SM1057, SM1309) are not reachable from this door.

@@ -114,6 +114,29 @@ subtest 'a write_content member saves where a rule names them, in its own domain
     is( slurp("$d/post/p.md"), "# primary post\n", '... in the primary\'s tree' );
 };
 
+# n776 (SM1414): a write's answer names the path on the member's site, as the
+# listing does - never the docroot path with the domain's folder in it.
+subtest 'a write answers the path on the member\'s own site' => sub {
+    my $sv = as( 'author', $A, 'save', query => 'action=save&path=/post/where.md',
+        body => { content => "# where\n" } );
+    ok( $sv->{ok}, 'a save on the domain' ) or diag explain $sv;
+    is( $sv->{path}, '/post/where.md', '... answers the path the member sent' );
+    my $mk = as( 'author', $A, 'mkdir', query => 'action=mkdir&path=/post/2027', body => {} );
+    is( $mk->{path}, '/post/2027', 'a mkdir answers the site\'s path' ) or diag explain $mk;
+    my $mv = as( 'author', $A, 'move', query => 'action=move&path=/post/where.md&to=/post/2027/where.md',
+        body => {} );
+    is( $mv->{from}, '/post/where.md',      'a move answers where from on the site' ) or diag explain $mv;
+    is( $mv->{to},   '/post/2027/where.md', '... and where to' );
+    my $dl = as( 'author', $A, 'delete', query => 'action=delete&path=/post/2027/where.md', body => {} );
+    is( $dl->{path}, '/post/2027/where.md', 'a delete answers the site\'s path' ) or diag explain $dl;
+    unlike( join( ' ', map { $_ // '' } $sv->{path}, $mk->{path}, $mv->{from}, $mv->{to}, $dl->{path} ),
+        qr{sites/a}, 'no answer names the folder holding the domain' );
+
+    my $p = as( 'author', undef, 'save', query => 'action=save&path=/post/p2.md',
+        body => { content => "# primary\n" } );
+    is( $p->{path}, '/post/p2.md', 'on the primary (the docroot) the path is the same' ) or diag explain $p;
+};
+
 subtest 'a write is refused where a rule names someone else or no rule governs' => sub {
     my %before = map { $_ => slurp("$d/$_") } qw(sites/a/news/n.md sites/a/pages/p.md sites/a/index.md);
     for my $c (

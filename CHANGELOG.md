@@ -347,7 +347,7 @@ Archive
   app's authors could not save a file. A new capability, `write_content`, passes `read`,
   `list`, `save`, `mkdir`, `move` and `delete` on that door for a holder without `ui`, and
   no other action. A listing shows only the entries a rule governs and lets the account
-  read (ruling 173), by the site's paths. A write lands only where the access rule on the file or its folder names the
+  read (ruling 173), by the site's paths. A write answers by the site's paths as well. A write lands only where the access rule on the file or its folder names the
   account or its group as a writer; a path no rule governs is refused. Paths are inside the
   content root of the domain the session is signed in on, and the engine's `lazysite/` tree
   is never reached. CSRF, the audit row and the file checks are unchanged. It implies
