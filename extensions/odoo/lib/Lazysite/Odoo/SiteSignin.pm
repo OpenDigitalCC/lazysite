@@ -52,12 +52,10 @@ sub enabled {
 # SM1381: WHERE A STALE SITE SESSION IS RENEWED. A session past odoo_identity_ttl holds
 # nothing until Odoo is asked again, and only the Odoo endpoint holds the person's Odoo
 # session (its cookie is scoped to the endpoint's path), so the page gate sends the
-# visitor here with `next`, and `?action=session` with `answer=session`. The verifier
-# hands this path to core with its `odoo-stale` verdict (Auth::Session, `renew`), so
-# core names no endpoint of its own. A path with a query, nothing else.
-our $RENEW_PATH = '/cgi-bin/lazysite-odoo.pl?renew=1';
-
-sub renew_path { return $RENEW_PATH }
+# visitor to the Odoo endpoint's `?renew=1` with `next`, and `?action=session` with
+# `answer=session`. SM1369 X4: the path is the provider declaration's `renew`
+# (extensions/odoo.pl), which core's verifier hands on with its `odoo-stale` verdict
+# (Auth::Session, `renew`), so core names no endpoint of its own.
 
 # 60..86400 seconds, else the default - the rule Identity::configured_ttl applies.
 sub identity_ttl {
@@ -68,21 +66,14 @@ sub identity_ttl {
 
 # Does this lazysite group carry any capability, itself or through the groups it nests?
 # Auth::Settings reads the site's group store from its AUTH_DIR, set here for the dir.
+# SM1369 X4: core's rule (Auth::Settings::group_carries_capability), which core also
+# applies to every identity provider's groups at each verification (G-3).
 sub carries_capability {
     my ( $group, $dir ) = @_;
     require Lazysite::Auth::Settings;
     no warnings 'once';
     local $Lazysite::Auth::Settings::AUTH_DIR = "$dir/auth";
-    my $gs = Lazysite::Auth::Settings::read_group_settings();
-    # a store that cannot be read says nothing about the group: unknown is not "safe"
-    return 'its group settings cannot be read' if Lazysite::Auth::Settings::group_settings_unreadable();
-    for my $g ( Lazysite::Auth::Settings::group_closure($group) ) {
-        my $cfg = $gs->{$g};
-        next unless ref $cfg eq 'HASH';
-        return $g eq $group ? "the group '$group' carries capabilities" : "the group '$group' nests '$g', which carries capabilities"
-            if $cfg->{manager} || grep { $cfg->{$_} } @Lazysite::Auth::Settings::CAP_KEYS;
-    }
-    return '';
+    return Lazysite::Auth::Settings::group_carries_capability($group);
 }
 
 # `a.b = grp, c.d = grp2` -> ( \%map, \@refused ). %map is only what may be granted;
@@ -136,6 +127,45 @@ sub login_ok {
     my ($login) = @_;
     return defined $login && !ref $login && length $login && length $login <= 254
         && $login !~ /[\x00-\x1f\x7f|]/ ? 1 : 0;
+}
+
+# --- SM1369 X4 (H-1): the identity provider core calls ----------------------------
+#
+# The descriptor declares these (owns.hooks.identity_provider); core's session
+# verifier calls them through Lazysite::Extensions::Hooks with { docroot,
+# lazysite_dir }, and the record is the server-side one the sign-in wrote. Core
+# signs the cookie, writes and reads the record, revokes and refuses a group that
+# carries a capability; these say only what is Odoo's: whether the sign-in is on,
+# whether the record is fresh, which groups the map still grants, and what /login
+# offers.
+
+sub _ctx_dir { my ($ctx) = @_; return ref $ctx eq 'HASH' ? $ctx->{lazysite_dir} : undef }
+
+# Off means off: turning the opt-in off ends these sessions at the next request.
+sub provider_on { my ($ctx) = @_; return enabled( _ctx_dir($ctx) ) }
+
+# Fresh while Odoo was asked within odoo_identity_ttl (and not from the future).
+sub provider_still_valid {
+    my ( $ctx, $rec ) = @_;
+    my $age = time() - ( ref $rec eq 'HASH' ? $rec->{checked} // 0 : 0 );
+    return ( $age >= identity_ttl( _ctx_dir($ctx) ) || $age < -60 ) ? 'stale' : 'ok';
+}
+
+# The record's groups, less any the current map no longer grants.
+sub provider_groups {
+    my ( $ctx, $rec ) = @_;
+    my ($map) = group_map( _ctx_dir($ctx) );
+    my %granted = map { ( $_ => 1 ) } values %$map;
+    return [ grep { $granted{$_} } @{ ref $rec eq 'HASH' && ref $rec->{groups} eq 'ARRAY' ? $rec->{groups} : [] } ];
+}
+
+# SM1299, SM1328: /login offers the Odoo sign-in page, named by the site's name for
+# Odoo, or by nothing when the site gives none.
+sub provider_login_option {
+    my ($ctx) = @_;
+    require Lazysite::Odoo::Name;
+    my $n = Lazysite::Odoo::Name::display_name( _ctx_dir($ctx) );
+    return { label => length $n ? "Sign in with $n" : 'Sign in another way', path => '/odoo-signin' };
 }
 
 # --- xml ids Odoo does not know: NOT NAMED (SM1217) -----------------------------------

@@ -114,8 +114,8 @@ sub request {
     my $out  = '';
     my $json = defined $body ? encode_json($body) : '';
     {
-        local %ENV = (
-            PATH => $ENV{PATH}, DOCUMENT_ROOT => $d, REQUEST_METHOD => $method, QUERY_STRING => $query // '',
+        local %ENV = (    # SM1369 X4: the dev rule's two, so the verifier finds the provider
+            env_passthrough(), PATH => $ENV{PATH}, DOCUMENT_ROOT => $d, REQUEST_METHOD => $method, QUERY_STRING => $query // '',
             REMOTE_ADDR => '198.51.100.' . ( 10 + ++$n_ip ), SCRIPT_NAME => $SCRIPT, CONTENT_LENGTH => length $json,
             HTTP_HOST => 'localhost', %env,
         );
@@ -314,7 +314,7 @@ subtest 'opt-in ON: the Odoo sign-in is the site sign-in, with the mapped groups
     is( $f[0], 'odoo=jane@example.com', 'the user field is odoo=<login>' );
     is( $f[3], '', 'the groups field is empty: the cookie carries no group' );
     unlike( $raw, qr/wholesale|staff/, 'neither name is anywhere in the cookie' );
-    my ($rec) = grep { $_->{odoo} } registry();
+    my ($rec) = grep { ( $_->{provider} // '' ) eq 'odoo' } registry();
     is_deeply( $rec->{groups}, [qw(staff wholesale)], 'the groups are in the server-side record' );
     is( $rec->{user}, 'odoo:jane@example.com', 'under the identity' );
 
@@ -495,7 +495,7 @@ subtest 'an ended Odoo session ends the site session; an old record asks Odoo on
         my ($by) = @_;
         my @r = registry();
         open my $fh, '>', "$LZ/auth/sessions.jsonl" or die $!;
-        for my $r (@r) { $r->{checked} -= $by if $r->{odoo}; print {$fh} JSON::PP->new->canonical->encode($r), "\n" }
+        for my $r (@r) { $r->{checked} -= $by if ( $r->{provider} // '' ) eq 'odoo'; print {$fh} JSON::PP->new->canonical->encode($r), "\n" }
         close $fh;
     };
     $age->(1000);
@@ -516,7 +516,7 @@ subtest 'an ended Odoo session ends the site session; an old record asks Odoo on
     ($id) = verify( site_cookie_header() );
     ok( $id, 'the site session is renewed' );
     is( $id->{groups}, 'staff', 'with the groups Odoo now says (wholesale gone)' );
-    is( scalar( grep { $_->{odoo} && $_->{sid} eq $id->{sid} } registry() ), 2, 'as a newer line of the same record' );
+    is( scalar( grep { ( $_->{provider} // '' ) eq 'odoo' && $_->{sid} eq $id->{sid} } registry() ), 2, 'as a newer line of the same record' );
     $posts = scalar @{ $http->posts };
     @ASKED = ();
     request( 'GET', 'csrf=1', undef, HTTP_COOKIE => jar() );
@@ -582,7 +582,7 @@ subtest 'a forged, mis-signed, record-less or foreign credential is no identity'
     my $now = time;
     is( ( verify( $mk->("odoo=jane\@example.com:$now:0123456789abcdef:wholesale") ) )[1], 'no-record',
         'a validly signed cookie naming a session with no record (and a group in the payload)' );
-    my ($rec) = grep { $_->{odoo} } registry();
+    my ($rec) = grep { ( $_->{provider} // '' ) eq 'odoo' } registry();
     is( ( verify( $mk->("odoo=mary\@example.com:$now:$rec->{sid}:") ) )[1], 'no-record',
         "a valid signature on another person's name over this session's sid: the record names someone else" );
     ok( !( verify( $mk->("odoo:jane\@example.com:$now:$rec->{sid}:wholesale") ) )[0],
@@ -591,7 +591,7 @@ subtest 'a forged, mis-signed, record-less or foreign credential is no identity'
 
     # a login with a colon in it round-trips, and cannot be a local name
     local $Lazysite::Auth::Session::LAZYSITE_DIR = $LZ;
-    my ( $c, $ts, $sid ) = Lazysite::Auth::Session::mint_odoo_session( login => 'we:ird%name@x.org', name => 'W', groups => ['staff'] );
+    my ( $c, $ts, $sid ) = Lazysite::Auth::Session::mint_provider_session( provider => 'odoo', login => 'we:ird%name@x.org', name => 'W', groups => ['staff'] );
     ok( $c, 'a login holding ":" and "%" can be carried' );
     my ($wid) = verify("lazysite_auth=$c");
     is( $wid->{user}, 'odoo:we:ird%name@x.org', 'and comes back whole' );

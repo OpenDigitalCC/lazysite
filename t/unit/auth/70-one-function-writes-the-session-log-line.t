@@ -42,7 +42,8 @@ my %WHY = (
     'no-record'      => [ 'DEBUG', 'auth: odoo session not accepted (no-record)', user => 'erin' ],
     'revoked'        => [ 'WARN',  'auth: session revoked', user => 'erin' ],
 );
-my %detail = ( user => 'erin', ts => 12, store => 'lazysite/auth/revoked.json', cookie => 'lazysite_auth=SECRETVALUE' );
+# SM1369 X4: the verifier names the provider in its detail (Auth::Session)
+my %detail = ( user => 'erin', provider => 'odoo', ts => 12, store => 'lazysite/auth/revoked.json', cookie => 'lazysite_auth=SECRETVALUE' );
 for my $why ( sort keys %WHY ) {
     my $got = line( undef, $why, \%detail );
     my %want_f = @{ $WHY{$why} }[ 2 .. $#{ $WHY{$why} } ];

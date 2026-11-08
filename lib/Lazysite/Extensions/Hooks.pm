@@ -51,7 +51,8 @@ our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
     check_functions index_path read_index enabled_keys call_hook
     declared_entry mirror mirror_index unmirror mirror_state index_signature
     index_failed_path note_index_failure declared_refusal_status
-    cross_problems page_sources handler_types check_payload_files names_payload_files);
+    cross_problems page_sources handler_types check_payload_files names_payload_files
+    identity_provider identity_providers);
 
 # The hook vocabulary. `hook` is the proposal's H-n, `slice` the slice that
 # builds its consumer. A live kind carries its shape:
@@ -75,7 +76,16 @@ our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
 # The names of the kinds that are not live are the proposal's; a slice may
 # rename its kind before making it live, since nothing can declare it until then.
 our %KINDS = (
-    identity_provider => { hook => 'H-1',  slice => 'X4' },
+    # SM1369 X4 (n781): H-1 is live - its consumer is Lazysite::Auth::Session
+    # (the provider session: mint, renew, verify), with the sign-in page, the
+    # login options and the banner in the processor. See "X4" below.
+    identity_provider => {
+        hook         => 'H-1', slice => 'X4', live => 1, form => 'record',
+        functions    => [qw(on still_valid groups login_option banner)],
+        fields       => [qw(renew signin_page grants)],
+        required     => [qw(on still_valid groups)],
+        check_values => \&_check_identity_provider,
+    },
 
     # SM1369 X3 (n769): H-2 and H-3 are live - their consumers are
     # lazysite-processor/sources.pm, Lazysite::Validate and Lazysite::Handlers.
@@ -388,8 +398,94 @@ sub cross_problems {
             }
             else { $owner{"type:$t"} = $id }
         }
+        # X4: a sign-in page has one provider.
+        my $ip = ref $hooks->{identity_provider} eq 'HASH' ? $hooks->{identity_provider} : {};
+        if ( defined( my $p = $ip->{signin_page} ) ) {
+            if ( my $o = $owner{"signin:$p"} ) {
+                push @{ $bad{$id} }, "the sign-in page '$p' is already declared by the extension '$o'";
+            }
+            else { $owner{"signin:$p"} = $id }
+        }
     }
     return %bad;
+}
+
+# ---- SM1369 X4 (n781, H-1): an identity provider ----
+#
+# A provider is an extension that signs a person in by its own means and asks
+# core for a session. The provider's id is the extension's id, and it is the
+# session's prefix: the cookie's user field is `<id>=<login>` and the identity
+# `<id>:<login>` (Lazysite::Auth::Session). Core signs the cookie and writes the
+# record; the provider never sees the key (G-2). The declaration:
+#
+#   on            ( ctx ) -> 1|0: is the provider's sign-in on for this site
+#   still_valid   ( ctx, record ) -> 'ok' | 'stale': is the record fresh enough
+#   groups        ( ctx, record ) -> [ groups ]: the record's groups the provider
+#                 still grants now (its current map)
+#   login_option  ( ctx ) -> { label, path }: what /login offers, optional
+#   banner        ( ctx ) -> markup: the `signin_banner` variable, optional
+#   renew         the same-site path (with a query) a stale session is renewed at
+#   signin_page   a system page name (`/<name>`) served while `on` says so, and
+#                 exempt from maintenance
+#   grants        1 when the provider's groups may carry capabilities (ruling 186:
+#                 an OIDC provider); absent or 0, core refuses any group that
+#                 carries one (G-3), the rule Odoo's map always had
+#
+# ctx is { docroot, lazysite_dir }. Any function that cannot be called, dies or
+# answers something else fails closed: the session is not accepted.
+our @CORE_SYSTEM_PAGES = qw(login claim forgot logout account maintenance 402 403 404);
+
+my $SAME_SITE_QUERY_PATH = qr{\A/[\w/.-]*\?[\w=&]+\z};
+
+sub _check_identity_provider {
+    my ( $id, $kind, $v ) = @_;
+    my @bad;
+    my %core = map { $_ => 1 } @CORE_SYSTEM_PAGES;
+    push @bad, _err( $id, "hooks.$kind", "the provider's id is the extension's id, and '"
+            . ( $id // '' ) . "' is not one a session can carry (lower-case letters, digits, hyphens, at most 32)" )
+        unless defined $id && $id =~ /\A[a-z][a-z0-9-]{0,31}\z/;
+    if ( exists $v->{renew} ) {
+        push @bad, _err( $id, "hooks.$kind", 'identity_provider.renew must be a path on this site with a query (/path?a=b)' )
+            unless defined $v->{renew} && $v->{renew} =~ $SAME_SITE_QUERY_PATH && $v->{renew} !~ m{//};
+    }
+    if ( exists $v->{signin_page} ) {
+        my $p = $v->{signin_page};
+        if ( !defined $p || $p !~ /\A[a-z][a-z0-9-]{0,63}\z/ ) {
+            push @bad, _err( $id, "hooks.$kind", 'identity_provider.signin_page must be a page name: lower-case letters, digits, hyphens' );
+        }
+        elsif ( $core{$p} ) {
+            push @bad, _err( $id, "hooks.$kind", "identity_provider.signin_page '$p' is one of the engine's own pages" );
+        }
+    }
+    push @bad, _err( $id, "hooks.$kind", 'identity_provider.grants must be 0 or 1' )
+        if exists $v->{grants} && ( $v->{grants} // '' ) !~ /\A[01]\z/;
+    return @bad;
+}
+
+# THE PROVIDER A SESSION PREFIX NAMES, from the index of the ENABLED
+# extensions: { %declaration, extension => $id, key => conf key } or undef.
+# Whether it is on NOW is enabled_keys' answer, asked again here, so a
+# provider whose extension was turned off mints and verifies nothing (G-1).
+sub identity_provider {
+    my ( $lz, $id ) = @_;
+    return undef unless defined $lz && defined $id && $id =~ /\A[a-z][a-z0-9-]{0,31}\z/;
+    my $e = read_index($lz)->{extensions}{$id};
+    return undef unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{identity_provider} eq 'HASH';
+    my $on = enabled_keys($lz);
+    return undef unless $on->{ $e->{key} // '' };
+    return undef if grep { !$on->{$_} } @{ ref $e->{requires_keys} eq 'ARRAY' ? $e->{requires_keys} : [] };
+    return { %{ $e->{hooks}{identity_provider} }, extension => $id, key => $e->{key} };
+}
+
+# Every provider the index declares, enabled now, in id order.
+sub identity_providers {
+    my ($lz) = @_;
+    my @out;
+    for my $id ( sort keys %{ read_index($lz)->{extensions} } ) {
+        my $p = identity_provider( $lz, $id ) or next;
+        push @out, $p;
+    }
+    return @out;
 }
 
 # THE SOURCES THE INDEX DECLARES, for the processor and the validator: one
@@ -445,7 +541,8 @@ my %CORE_VARS = map { $_ => 1 } qw(content page_title page_subtitle page_meta_ti
     page_author page_url page_url_raw page_modified request_uri site_name site_url nav layout_name
     theme_name theme theme_assets theme_css theme_version authenticated auth_user auth_name
     auth_groups manager manager_path lazysite_version enabled_extensions auth_control sections
-    editor year search_enabled languages site_lang page_lang t client_ip params);
+    editor year search_enabled languages site_lang page_lang t client_ip params
+    signin_banner login_options);    # SM1369 X4: the identity providers' (H-1)
 
 sub _plain_file {
     my ($f) = @_;

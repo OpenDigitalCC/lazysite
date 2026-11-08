@@ -687,17 +687,10 @@ sub render_content {
 }
 
 
-# SM1160: is this an Odoo-sign-in site? The opt-in, read as the banner always read it.
-# SM1295: also what serves the ready-made /odoo-signin system page (_system_page_md).
-sub _odoo_site_signin_on {
-    my $en = _enabled_extensions();
-    return 0 unless $en->{odoo};
-    open my $fh, '<:utf8', "$LAZYSITE_DIR/odoo.conf" or return 0;
-    my $on = '';
-    while ( my $l = <$fh> ) { $on = lc $1 if $l =~ /\A\s*odoo_site_signin\s*:\s*(.*?)\s*\z/ }
-    close $fh;
-    return $on =~ /\A(?:on|yes|true|1)\z/ ? 1 : 0;
-}
+# SM1160's switch (is this a site whose sign-in is Odoo's?) was read here from
+# odoo.conf. SM1369 X4: it is the identity provider's own `on` hook, asked by
+# lazysite-processor/extensions.pm (_provider_on) for the sign-in page, the login
+# options and the banner.
 
 # SM1328's display name and SM1160's banner were read and built here. SM1369 X5:
 # both are template variables the extension declares (template_vars), rendered

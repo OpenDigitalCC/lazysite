@@ -30,6 +30,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(repo_root site_tempdir setup_minimal_site add_account grant_caps env_passthrough run_child);
+use OdooTest qw(enable_odoo);
 use Lazysite::Auth::Session ();
 
 my $root = repo_root();
@@ -46,6 +47,9 @@ my $SECRET = 'b' x 64;
 }
 add_account( $d, 'alice' );
 grant_caps( $d, 'boss', 'ui' );    # a secured site: an Odoo session is an identity only there
+# SM1369 X4: the Odoo sign-in is an identity provider the extension declares - it is
+# indexed, and on, or it signs nobody in (off means off)
+enable_odoo($d);
 {
     open my $fh, '>', "$LZ/odoo.conf" or die $!;
     print {$fh} "odoo_site_signin: on\nodoo_group_map: base.group_user = staff\nodoo_identity_ttl: 60\n";
@@ -104,8 +108,8 @@ subtest 'the server answers whether it honours the session' => sub {
 
 subtest 'an Odoo session gone stale is refused, a fresh one honoured' => sub {
     local $Lazysite::Auth::Session::LAZYSITE_DIR = $LZ;
-    my ($fresh) = Lazysite::Auth::Session::mint_odoo_session( login => 'jane@example.com', name => 'Jane', groups => ['staff'] );
-    my ($stale) = Lazysite::Auth::Session::mint_odoo_session( login => 'kim@example.com', name => 'Kim',
+    my ($fresh) = Lazysite::Auth::Session::mint_provider_session( provider => 'odoo', login => 'jane@example.com', name => 'Jane', groups => ['staff'] );
+    my ($stale) = Lazysite::Auth::Session::mint_provider_session( provider => 'odoo', login => 'kim@example.com', name => 'Kim',
         groups => ['staff'], now => time() - 600 );
     ok( $fresh && $stale, 'two Odoo sessions minted' );
     my $f = ask("lazysite_auth=$fresh; lzs_session=1");

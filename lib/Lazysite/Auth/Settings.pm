@@ -561,6 +561,31 @@ sub groups_grant_cap {
     return 0;
 }
 
+# SM1369 X4 (H-1, G-3): DOES THIS GROUP CARRY ANY CAPABILITY, itself or through
+# the groups it nests? '' when it carries none, else the sentence saying which
+# group does. The test is "any capability" - every key in @CAP_KEYS (the
+# declared ones mirrored in by read_group_settings) and the manager flag -
+# because the groups-only gates (groups_grant_cap, the ACL operator bypass) read
+# capabilities off a request's group NAMES. A store that cannot be read says
+# nothing about the group, and unknown is not "carries none". The rule the Odoo
+# group map applied to itself since SM1160, made core's: a session an identity
+# provider mints holds no such group unless the provider declares that its
+# groups grant (Lazysite::Auth::Session).
+sub group_carries_capability {
+    my ($group) = @_;
+    my $gs = read_group_settings();
+    return 'its group settings cannot be read' if group_settings_unreadable();
+    for my $g ( _group_closure($group) ) {
+        my $cfg = $gs->{$g};
+        next unless ref $cfg eq 'HASH';
+        return $g eq $group
+            ? "the group '$group' carries capabilities"
+            : "the group '$group' nests '$g', which carries capabilities"
+            if $cfg->{manager} || grep { $cfg->{$_} } @CAP_KEYS;
+    }
+    return '';
+}
+
 # SM991 (ruled 2026-10-12, "Operators bypass, others bound"): THE OPERATOR GROUP.
 #
 # The operator is a member of a group carrying the `manager` flag - the group

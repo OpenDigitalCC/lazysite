@@ -146,6 +146,14 @@ Always available:
 Variables an extension gives a layout, present only while that extension is
 on and empty otherwise, so a layout may render them on any site:
 
+- `signin_banner` - on a site whose sign-in is an identity provider's (an
+  extension that signs people in, such as Odoo's site sign-in), that provider's
+  "Signed in as <name>" with a sign-out, in place of the account sign-in and
+  sign-out links; empty on any other site. Render it where the account links go:
+  `[% IF signin_banner %][% signin_banner %][% ELSE %]...[% END %]`
+- `login_options` - the other ways in that /login offers, one per such provider:
+  each has `id`, `label` (text: escape it) and `path` (a path on this site)
+
 - `odoo_signin_banner` (the Odoo extension) - "Signed in as <name>" with a
   sign-out, on a site whose Odoo sign-in is the site sign-in; `odoo_display_name`,
   the name the site gives Odoo (text: escape it)

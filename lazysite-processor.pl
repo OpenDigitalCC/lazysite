@@ -194,22 +194,26 @@ our $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 # engine default (the page answers 404 unless a site wrote its own) and turns
 # its me-* actions off with it.
 # SM1118: and `maintenance`, the page a site in maintenance sends its visitors to.
-# SM1295 (#340): and `odoo-signin`, the ready-made sign-in page for a site whose
-# sign-in is the person's Odoo login (SM1160) - its engine default is served only
-# while that is switched on (odoo_site_signin: on, with the Odoo extension
-# enabled), as `account` is only while account_page allows it. Point auth_redirect
-# at it to send a visitor there for a page that needs a sign-in.
-my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account maintenance odoo-signin 402 403 404);
+# SM1295 (#340), SM1369 X4: and an identity provider's sign-in page (its declared
+# `signin_page`, lazysite-processor/extensions.pm) - the ready-made page for a site
+# whose sign-in is the provider's - served only while the provider says its sign-in
+# is on, as `account` is only while account_page allows it. Point auth_redirect at
+# it to send a visitor there for a page that needs a sign-in.
+my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim forgot logout account maintenance 402 403 404);
 
 # SM1357: the set, for the registries part (registries.pm _registry_system_page),
 # which leaves these pages out of the sitemap and the summary by default.
-sub _system_page_names { return keys %SYSTEM_PAGES }
+sub _system_page_names {
+    return ( keys %SYSTEM_PAGES, map { s{\A/}{}r } @{ _provider_signin_paths() } );
+}
 
 sub _system_page_md {
     my ( $base, $croot ) = @_;
-    return undef unless defined $base && $SYSTEM_PAGES{$base};
+    return undef unless defined $base;
+    my @provider = $SYSTEM_PAGES{$base} ? () : _provider_signin_page($base);
+    return undef unless $SYSTEM_PAGES{$base} || @provider;
     return undef if $base eq 'account' && !_account_page_enabled();
-    return undef if $base eq 'odoo-signin' && !_odoo_site_signin_on();    # SM1295
+    return undef if @provider          && !_provider_on(@provider);    # SM1295
     $croot = $DOCROOT unless defined $croot && length $croot;
     for my $cand ( "$croot/$base.md", "$DOCROOT/$base.md",
         "$LAZYSITE_DIR/templates/system/$base.md" )
@@ -431,9 +435,10 @@ our $FALLBACK_LAYOUT = <<'END_FALLBACK';
     <!-- SM099: client-toggled so the cached page shows the right control. Both
          start hidden; the injected auth-sync script reveals one from the lzs_session
          marker cookie. -->
-    [%# SM1160: on a site whose Odoo sign-in is the site sign-in, "Signed in as <name>" with a sign-out
-        that ends the Odoo session too replaces the account sign-in/out links. %]
-    [% IF odoo_signin_banner %][% odoo_signin_banner %]
+    [%# SM1160, SM1369 X4: on a site whose sign-in is an identity provider's, its banner ("Signed
+        in as <name>" with a sign-out that ends the provider's session too) replaces the account
+        sign-in/out links. %]
+    [% IF signin_banner %][% signin_banner %]
     [% ELSE %]<a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out style="font-size:0.8rem;color:#888;font-weight:400;margin-left:auto;display:none;">Sign out</a>
     <a href="/login" data-ls-auth-in style="font-size:0.8rem;margin-left:auto;font-weight:400;display:none;">Sign in</a>
     <noscript><a href="/login" style="font-size:0.8rem;margin-left:auto;font-weight:400;">Sign in</a></noscript>[% END %]

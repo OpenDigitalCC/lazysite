@@ -21,6 +21,13 @@
 #   - the installed core reaches Odoo's modules in the site's payload lib;
 #   - a second upgrade changes none of it.
 #
+# SM1369 X4 (n781): the person was signed in as the last release did it - the
+# record and cookie mint_odoo_session made, built here byte for byte - and after
+# the upgrade the identity provider hook verifies that session, with /odoo-signin
+# and the /login option served from the installed declaration. Sabotage: have
+# the verifier read only `provider` from a record (drop the `odoo => 1` rule in
+# Auth::Session::_record_provider) and the person is signed out.
+#
 # Not run here (they need more than a fixture can stand up): oomd and the pooled
 # warm endpoint, and a scheduled binding's timer. Their names, socket and paths
 # are unchanged by the move (t/lint/321, t/unit/daemon).
@@ -42,7 +49,7 @@ use PreRenameSite qw(new_site install slurp spit);
 use OdooTest      qw(oom_or_skip bind write_conf set_key oom_lib oom_test_lib);
 
 BEGIN { oom_or_skip() }
-use Lazysite::Auth::Session ();
+use Digest::SHA ();
 
 my $MF_GUARD = repo_manifest_guard();
 my $REPO     = repo_root();
@@ -77,13 +84,24 @@ bind( $docroot, id => 'list', operation => 'shop.products', modes => 'public' );
 spit( "$docroot/members.md", "---\ntitle: Members\nauth: required\n---\nMEMBERS-AREA\n" );
 spit( "$docroot/shop.md", "---\ntitle: Shop\ntt_page_var:\n  shop: odoo:list\n---\nSHOP-ROWS=[% shop.rows.size %]\n" );
 
+# SM1369 X4: the person signed in BEFORE the provider hook - the session the last
+# release's mint_odoo_session made, byte for byte: the record with `odoo => 1` and
+# no `provider`, the cookie `odoo=<login>:ts:sid:` signed with the site key and
+# percent-encoded as it encoded it. Nothing of this release's code makes it, so the
+# journey proves an old session verifies under the new verifier.
 my $cookie;
 {
-    no warnings 'once';
-    local $Lazysite::Auth::Session::LAZYSITE_DIR = $LZ;
-    ($cookie) = Lazysite::Auth::Session::mint_odoo_session( login => 'jane@example.com', name => 'Jane', groups => ['staff'] );
+    my $secret = slurp("$LZ/auth/.secret") =~ s/\s+\z//r;
+    my ( $now, $sid ) = ( time, 'a1b2c3d4e5f60718' );
+    my $payload = join ':', 'odoo=jane@example.com', $now, $sid, '';
+    ( my $enc = $payload ) =~ s/([^a-zA-Z0-9_.~:-])/sprintf( '%%%02X', ord $1 )/ge;
+    $cookie = "$enc:" . Digest::SHA::hmac_sha256_hex( $payload, $secret );
+    open my $fh, '>>', "$LZ/auth/sessions.jsonl" or die $!;
+    print {$fh} JSON::PP->new->canonical->encode( { sid => $sid, user => 'odoo:jane@example.com', t => $now, odoo => 1,
+            checked => $now, name => 'Jane', groups => ['staff'], ip => '', ua => '' } ), "\n";
+    close $fh;
 }
-ok( $cookie, 'a person is signed in through Odoo' );
+ok( $cookie, 'a person is signed in through Odoo, as the last release signed them in' );
 
 # ---- the last release's layout ----
 # From here the installed tree is the only one: the children below find the
@@ -158,6 +176,11 @@ sub journey {
     like( page( '/members', "lazysite_auth=$cookie; lzs_session=1" ), qr/MEMBERS-AREA/,
         "$when: the person signed in before the upgrade is still signed in" );
     unlike( page('/members'), qr/MEMBERS-AREA/, "$when: ...and the page is refused to nobody else" );
+    # SM1369 X4: the provider's sign-in page and its /login option, from the
+    # installed descriptor's declaration and the installed processor
+    like( page('/odoo-signin'), qr/data-ls-odoo-signin/, "$when: /odoo-signin is served" );
+    like( page('/login'), qr{<p class="login-odoo" data-ls-auth-in><a href="/odoo-signin">Sign in with Odoo</a></p>},
+        "$when: /login offers the Odoo sign-in" );
 
     my ( $h1, $t, $raw1 ) = endpoint( 'GET', 'csrf=1', undef );
     ok( $t->{visitor_token}, "$when: the installed Odoo endpoint answers ?csrf=1" ) or diag $raw1;

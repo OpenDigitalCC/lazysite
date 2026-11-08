@@ -124,8 +124,10 @@ subtest 'SM1299 (ruling 38): /login offers the Odoo sign-in on an opted-in site,
 
 subtest 'SM1299 (ruling 39): /odoo-signin is reachable during maintenance, as /login is' => sub {
     require Lazysite::Maintenance;
-    ok( Lazysite::Maintenance::exempt( '/odoo-signin', {} ), 'the decision exempts it' );
-    ok( Lazysite::Maintenance::exempt( '/odoo-signin?next=/x', {} ), '...with its query' );
+    # SM1369 X4: the sign-in pages the enabled identity providers declare are passed in
+    ok( Lazysite::Maintenance::exempt( '/odoo-signin', {}, undef, ['/odoo-signin'] ), 'the decision exempts a provider\'s sign-in page' );
+    ok( Lazysite::Maintenance::exempt( '/odoo-signin?next=/x', {}, undef, ['/odoo-signin'] ), '...with its query' );
+    ok( !Lazysite::Maintenance::exempt( '/odoo-signin', {} ), '...and no page no provider declares' );
     my $d = site( layout => 1, extension => 1, signin => 'on' );
     open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "maintenance: on\n";

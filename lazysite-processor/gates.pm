@@ -20,8 +20,8 @@ package main;
 # OWNS    the 402 response; what a valid preview cookie overrides.
 # CALLS   _peek_md, _request_croot, _system_page_md, process_md,
 #         _sanitise_not_found, _rewrite_if_changed, output_page
-#         (lazysite-processor.pl); encode_json, hmac_sha256_hex (imported by
-#         the script's `use`).
+#         (lazysite-processor.pl); _provider_signin_paths (extensions.pm, SM1369
+#         X4); encode_json, hmac_sha256_hex (imported by the script's `use`).
 # READS   $DOCROOT, %PAYMENT_CONTEXT, $PREVIEW_COOKIE, $LAZYSITE_DIR (the
 #         script's, declared `our` there; %PAYMENT_CONTEXT and %PREVIEW_CONTEXT
 #         stay declared in the script's Payment section, which main() and
@@ -70,7 +70,7 @@ sub _maintenance_gate {
     }
 
     ( my $path = $uri // '/' ) =~ s/\?.*\z//s;
-    if ( Lazysite::Maintenance::exempt( $path, $st, $sv{auth_redirect} ) ) {
+    if ( Lazysite::Maintenance::exempt( $path, $st, $sv{auth_redirect}, _provider_signin_paths() ) ) {
         $MAINT{page} = 1 if Lazysite::Maintenance::is_page( $path, $st );
         return 0;
     }

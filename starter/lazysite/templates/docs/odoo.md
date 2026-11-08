@@ -881,9 +881,10 @@ site without it behaves as it always did.
   `odoo_identity_ttl`.
 - **Signing out** ends the Odoo session and the site session together, and so
   does anything that ends the Odoo session. There is no idle time-out.
-- **"Signed in as".** The default layout renders `[% odoo_signin_banner %]` on
+- **"Signed in as".** The default layout renders `[% signin_banner %]` on
   every page of such a site: "Signed in as <name>" with a sign-out link, or a
-  sign-in link. A layout of your own renders the variable, or carries
+  sign-in link. `[% odoo_signin_banner %]` is the same markup, for a layout
+  that already names it. A layout of your own renders the variable, or carries
   `data-ls-odoo-name`, `data-ls-odoo-signin` and `data-ls-odoo-signout` itself.
   Set `auth_redirect` to a page that carries the sign-in link.
 - **A ready-made sign-in page.** While `odoo_site_signin` is on, the site has

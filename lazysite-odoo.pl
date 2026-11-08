@@ -203,13 +203,13 @@ sub main {
     Lazysite::Timing::to('identity');      # SM1144
     require Lazysite::Auth::Session;
     local $Lazysite::Auth::Session::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($docroot);
-    my ($session) = Lazysite::Auth::Session::verify_session_cookie( odoo_stale_ok => 1 );
+    my ($session) = Lazysite::Auth::Session::verify_session_cookie( stale_ok => 1 );
     my $user = ( ref $session eq 'HASH' ) ? ( $session->{user} // '' ) : '';
 
    # SM1160: a session the Odoo sign-in minted (identity `odoo:<login>`). One that is past
    # its time without Odoo being asked is no identity here either - it holds nothing until
    # the ?csrf=1 refresh below asks Odoo - but it is remembered, to be renewed or ended.
-    local $SITE_SESSION = ( ref $session eq 'HASH' && $session->{odoo} ) ? $session : undef;
+    local $SITE_SESSION = ( ref $session eq 'HASH' && ( $session->{provider} // '' ) eq 'odoo' ) ? $session : undef;
     $user = '' if $SITE_SESSION && $SITE_SESSION->{stale};
 
     # SM1366: a call record made under a person's Odoo session names this account,
@@ -740,7 +740,7 @@ sub _end_site_session {
     Lazysite::Odoo::site_session_end( sid => $SITE_SESSION->{sid}, user => $SITE_SESSION->{user},
         ip => _ip( $ENV{DOCUMENT_ROOT} ), why => $why // 'odoo session ended' );
     require Lazysite::Auth::Session;
-    push @EXTRA, Lazysite::Auth::Session::odoo_clear_headers( secure => ( $ENV{HTTPS} ? 1 : 0 ) );
+    push @EXTRA, Lazysite::Auth::Session::session_clear_headers( secure => ( $ENV{HTTPS} ? 1 : 0 ) );
     $SITE_SESSION = undef;
     return;
 }
@@ -929,7 +929,7 @@ sub _site_cookie_out {
     return unless defined $r->{site_cookie};
     _end_site_session('replaced by a new sign-in');
     require Lazysite::Auth::Session;
-    push @EXTRA, Lazysite::Auth::Session::odoo_cookie_headers( $r->{site_cookie},
+    push @EXTRA, Lazysite::Auth::Session::session_cookie_headers( $r->{site_cookie},
         secure => ( $ENV{HTTPS} ? 1 : 0 ), dir => Lazysite::Paths::lazysite_dir( $ENV{DOCUMENT_ROOT} ) );
     return;
 }

@@ -329,11 +329,15 @@ subtest 'R5: the bad-URL guard runs on every request, and counts each probe once
 
 subtest 'SM1160: an Odoo site sign-in sees its pages, and nothing past odoo_identity_ttl' => sub {
     spit( "$LZ/odoo.conf", "odoo_site_signin: on\nodoo_group_map: sales.group_wholesale = wholesale\nodoo_identity_ttl: 900\n" );
+    # SM1369 X4: the Odoo sign-in is an identity provider the extension declares, so
+    # the extension is on and indexed - a real copy beside the docroot, as a site has it
+    spit( "$LZ/lazysite.conf", $CONF . "extensions:\n  - extensions/odoo.pl\n" );
+    TestHelper::index_extensions($d);
     local $ENV{DOCUMENT_ROOT} = $d;
     require Lazysite::Auth::Session;
     no warnings 'once';
     local $Lazysite::Auth::Session::LAZYSITE_DIR = $LZ;
-    my ( $cookie, undef, $sid ) = Lazysite::Auth::Session::mint_odoo_session(
+    my ( $cookie, undef, $sid ) = Lazysite::Auth::Session::mint_provider_session( provider => 'odoo',
         login => 'jane@example.com', name => 'Jane', groups => ['wholesale'], ip => '198.51.100.1', ua => 't' );
     ok( $cookie, 'an Odoo site session is minted' ) or return;
 
@@ -341,7 +345,7 @@ subtest 'SM1160: an Odoo site sign-in sees its pages, and nothing past odoo_iden
     like( $page, qr/TRADE WHO=odoo:jane\@example\.com/, 'its mapped group\'s page is served to odoo:<login>' );
     is( $ran, '', 'in the worker' );
 
-    ok( Lazysite::Auth::Session::renew_odoo_session( sid => $sid, groups => ['wholesale'], now => time() - 2000 ),
+    ok( Lazysite::Auth::Session::renew_provider_session( provider => 'odoo', sid => $sid, groups => ['wholesale'], now => time() - 2000 ),
         'its record is now older than odoo_identity_ttl' );
     my $stale = req( '/wholesale', HTTP_COOKIE => "lazysite_auth=$cookie" );
     unlike( $stale, qr/TRADE WHO=/, 'past the TTL it grants nothing' );

@@ -2925,7 +2925,7 @@ sub site_session_start {
     return $fail->( said( 'your {name} sign-in has ended - sign in again', 'your sign-in has ended - sign in again' ) ) if $g->{clear_session};
     no warnings 'once';
     local $Lazysite::Auth::Session::LAZYSITE_DIR = _lz();
-    my ($cookie) = Lazysite::Auth::Session::mint_odoo_session(
+    my ($cookie) = Lazysite::Auth::Session::mint_provider_session( provider => 'odoo',
         login => $login, name => ( $r->{identity}{name} // '' ), groups => ( $g->{ok} ? $g->{groups} : [] ),
         ip => $a{ip}, ua => $a{user_agent} );
     return $fail->( 'a site session cannot be made on this host - the auth secret is missing or the session '
@@ -2950,7 +2950,7 @@ sub site_session_renew {
     no warnings 'once';
     local $Lazysite::Auth::Session::LAZYSITE_DIR = _lz();
     return { ok => 0, kind => 'unavailable', error => 'the site session record cannot be renewed' }
-        unless Lazysite::Auth::Session::renew_odoo_session( sid => $a{site_sid}, name => $f->{name}, groups => $g->{groups} );
+        unless Lazysite::Auth::Session::renew_provider_session( provider => 'odoo', sid => $a{site_sid}, name => $f->{name}, groups => $g->{groups} );
     return { ok => 1, identity_cookie => $f->{identity_cookie}, name => $f->{name}, groups => $g->{groups} };
 }
 

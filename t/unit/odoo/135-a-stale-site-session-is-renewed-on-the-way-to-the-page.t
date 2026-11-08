@@ -88,8 +88,8 @@ sub request {
     my $out  = '';
     my $json = defined $body ? encode_json($body) : '';
     {
-        local %ENV = (
-            PATH => $ENV{PATH}, DOCUMENT_ROOT => $d, REQUEST_METHOD => $method, QUERY_STRING => $query // '',
+        local %ENV = (    # SM1369 X4: the dev rule's two, so the verifier finds the provider
+            env_passthrough(), PATH => $ENV{PATH}, DOCUMENT_ROOT => $d, REQUEST_METHOD => $method, QUERY_STRING => $query // '',
             REMOTE_ADDR => '198.51.100.' . ( 10 + ++$n_ip ), SCRIPT_NAME => '/cgi-bin/lazysite-odoo.pl',
             CONTENT_LENGTH => length $json, HTTP_HOST => 'localhost',
             map( { ( $_ => $ENV{$_} ) } grep { defined $ENV{$_} } qw(ODOO_OOM_PACK_DIRS ODOO_OOM_SHARE) ),    # OdooTest: no host packs
@@ -138,7 +138,7 @@ sub registry { open my $fh, '<', "$LZ/auth/sessions.jsonl" or return (); my @l =
 sub age {
     my @r = registry();
     open my $fh, '>', "$LZ/auth/sessions.jsonl" or die $!;
-    for my $r (@r) { $r->{checked} -= 1000 if $r->{odoo}; print {$fh} JSON::PP->new->canonical->encode($r), "\n" }
+    for my $r (@r) { $r->{checked} -= 1000 if ( $r->{provider} // '' ) eq 'odoo'; print {$fh} JSON::PP->new->canonical->encode($r), "\n" }
     close $fh;
 }
 

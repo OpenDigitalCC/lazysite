@@ -29,8 +29,8 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
     verify_session_cookie request_session account_disabled load_user_groups session_revoked session_store_fault
-    mint_odoo_session renew_odoo_session odoo_cookie_headers odoo_clear_headers odoo_login_of
-    SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
+    mint_provider_session renew_provider_session session_cookie_headers session_clear_headers
+    provider_login_of SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 
 # One name, one lifetime, stated once. lazysite-auth.pl mints with these and
 # this module verifies with them; a drift between the two is a login that
@@ -367,7 +367,7 @@ sub load_user_groups {
 # cookie's remaining life). The sid is '' for a legacy pre-SM141 cookie -
 # valid until natural expiry, revocable only via not_before.
 sub verify_session_cookie {
-    my (%opt) = @_; # SM1160: odoo_stale_ok => 1 - the Odoo endpoint's own refresh asks about a session that needs one
+    my (%opt) = @_; # SM1160, X4: stale_ok => 1 - a provider's own refresh asks about a session that needs one
 
     # SM1181: $STORE_FAULT is this call's answer, cleared before anything else. The
     # stages below clear it before they set it, but a call that returned before them
@@ -464,9 +464,11 @@ sub verify_session_cookie {
     return ( undef, 'expired', ts => $ts )
         if ( time() - $seen ) >= session_lifetime();
 
-    # SM1160: a session the Odoo sign-in minted has no account to look up. Its groups
-    # and its freshness are in the server-side record, and that record is the authority.
-    return _verify_odoo_session( $user, $ts, $sid, %opt ) if defined $user && $user =~ /\Aodoo=/;
+    # SM1160, SM1369 X4: a session an identity provider minted (`<id>=<login>`) has no
+    # account to look up. Its groups and its freshness are in the server-side record,
+    # and that record is the authority. A local name cannot hold '=', so no local
+    # payload is ever read as a provider's.
+    return _verify_provider_session( $user, $ts, $sid, %opt ) if defined $user && index( $user, '=' ) >= 0;
 
     # SM1070: a cookie for an account that is no longer in the store is not an
     # identity. Removing an account deletes its line, its groups and its
@@ -514,8 +516,11 @@ sub verify_session_cookie {
 #                    [, pool => 1 ] )
 #     -> ( $ident, undef ) or ( undef, $why, %detail )
 #
-#   $ident = { user, groups => [ ... ], name, email, sid, no_password, odoo, stale,
+#   $ident = { user, groups => [ ... ], name, email, sid, no_password, provider, stale,
 #              source => 'cookie' | 'proxy' }
+#
+# `provider` is the id of the identity provider that minted the session (X4), ''
+# for any other.
 #
 # `cookie` is the request's Cookie header and is REQUIRED: a worker serving many
 # requests holds the header, not an environment it may trust, so the caller says
@@ -535,8 +540,8 @@ sub verify_session_cookie {
 # reader applies to every answer, so a value and the headers made from it give one
 # answer. $why and %detail are the verifier's, for the caller's log lines.
 #
-# odoo_stale_ok is NOT passed through: a stale Odoo session is the Odoo endpoint's
-# own question (SM1160), and it asks the verifier directly (SM1181 T8).
+# stale_ok is NOT passed through: a stale provider session is the provider's own
+# endpoint's question (SM1160), and it asks the verifier directly (SM1181 T8).
 sub request_session {
     my (%opt) = @_;
     $STORE_FAULT = '';
@@ -557,7 +562,7 @@ sub request_session {
             return (
                 { user => $pi->{user}, groups => [ @{ $pi->{groups} } ],
                     name => $pi->{name} // '', email => $pi->{email} // '',
-                    sid => '', no_password => 0, odoo => 0, stale => 0, source => 'proxy' },
+                    sid => '', no_password => 0, provider => '', stale => 0, source => 'proxy' },
                 undef );
         }
     }
@@ -571,7 +576,7 @@ sub request_session {
     return (
         { user => $s->{user}, groups => $allowed, name => $s->{name} // '', email => '',
             sid => $s->{sid} // '', no_password => $s->{no_password} ? 1 : 0,
-            odoo => $s->{odoo} ? 1 : 0, stale => $s->{stale} ? 1 : 0, source => 'cookie' },
+            provider => $s->{provider} // '', stale => $s->{stale} ? 1 : 0, source => 'cookie' },
         undef );
 }
 
@@ -585,7 +590,7 @@ sub request_session {
 #     -> ( $level, $message, %fields ) or () when nothing is logged
 #
 # No cookie value is ever a field. SM1099: the ordinary cases (a valid session, no
-# cookie, an Odoo session not accepted) are DEBUG, so a site's traffic does not fill
+# cookie, a provider's session not accepted) are DEBUG, so a site's traffic does not fill
 # the web server's error log; a cookie that should have worked and did not is WARN.
 sub session_log_line {
     my ( $ident, $why, $detail, %o ) = @_;
@@ -613,11 +618,15 @@ sub session_log_line {
     return ( 'WARN', 'auth: cannot tell - session refused until the store is repaired',
         user => $d{user}, store => $d{store} )
         if $why eq 'cannot-tell';
-    # SM1160: an Odoo-minted session that is not an identity: the opt-in is off, the
-    # site is unsecured, Odoo has not been asked within odoo_identity_ttl, or the
-    # server-side record is gone.
-    return ( 'DEBUG', "auth: odoo session not accepted ($why)", user => $d{user} )
-        if $why =~ /\A(?:odoo-off|odoo-unsecured|odoo-stale|no-record)\z/;
+    # SM1160, X4: a provider-minted session that is not an identity: the provider is
+    # off (its extension, or its own sign-in), the site is unsecured, the provider has
+    # not been asked within its time (stale), a provider function failed, or the
+    # server-side record is gone. The why is `<id>-<state>`, so Odoo's keep their names
+    # (odoo-off, odoo-unsecured, odoo-stale).
+    if ( $why eq 'no-record' || $why =~ /\A([a-z][a-z0-9-]{0,31})-(?:off|unsecured|stale|failed)\z/ ) {
+        my $p = $d{provider} // ( $why ne 'no-record' && $why =~ /\A(.+)-[a-z]+\z/ ? $1 : 'provider' );
+        return ( 'DEBUG', "auth: $p session not accepted ($why)", user => $d{user} );
+    }
     # SM141: an operator signed this session out (revoked sid) or signed the user out
     # everywhere (not_before). Legacy cookies carry no sid but do carry ts, so
     # not_before ends them too.
@@ -627,49 +636,73 @@ sub session_log_line {
 
 
 # =============================================================================
-# SM1160 (inbox L3, rulings 2026-10-18): A SESSION THE ODOO SIGN-IN MINTS.
+# SM1160 (inbox L3, rulings 2026-10-18), SM1369 X4 (H-1, ruling 55): A SESSION AN
+# IDENTITY PROVIDER MINTS.
 #
-# The identity is `odoo:<login>`; no lazysite account exists or is made. It is a
-# session like any other for everything downstream: the same cookie (name, flags,
-# lifetime), the same signature, the same sid in the same registry
-# (auth/sessions.jsonl), the same revocation (revoked.json by sid), the same CSRF
-# token keyed on the user name. What differs is only what the verifier consults.
+# An identity provider is an extension that signs a person in by its own means -
+# Odoo's login was the first (SM1160), and this is its session made generic in
+# place - and declares `owns.hooks.identity_provider` (Lazysite::Extensions::Hooks,
+# "X4"). Its id is the extension's id, and the identity is `<id>:<login>`; no
+# lazysite account exists or is made. It is a session like any other for
+# everything downstream: the same cookie (name, flags, lifetime), the same
+# signature, the same sid in the same registry (auth/sessions.jsonl), the same
+# revocation (revoked.json by sid), the same CSRF token keyed on the user name.
+# What differs is only what the verifier consults.
 #
-# THE COOKIE PAYLOAD stays user:ts:sid:groups, whose parse is a split on ':' (limit
-# 4), so a ':' in the user would break it. The user field is therefore
-# `odoo=<login, percent-encoded>`: every byte outside [A-Za-z0-9._@+-] (so ':' and '%'
-# too) is %XX. The '=' cannot occur in a local account name (sign-in strips all but
-# [a-zA-Z0-9_.-]), so no local payload is ever read as an Odoo one, and the decoded
-# identity `odoo:<login>` holds a ':' that no local name can.
+# ONLY CORE SIGNS (G-2). The provider asks for a session (mint_provider_session)
+# and never sees the key; core writes the record and the cookie.
+#
+# THE COOKIE PAYLOAD stays user:ts:sid:groups, whose parse is a split on ':', so a
+# ':' in the user would break it. The user field is therefore `<id>=<login,
+# percent-encoded>`: every byte outside [A-Za-z0-9._@+-] (so ':' and '%' too) is
+# %XX. The '=' cannot occur in a local account name (sign-in strips all but
+# [a-zA-Z0-9_.-]), so no local payload is ever read as a provider's, and the decoded
+# identity `<id>:<login>` holds a ':' that no local name can. An `odoo=` cookie
+# minted before X4 is exactly this shape, so it verifies unchanged.
 #
 # THE GROUPS are never in the cookie (SEC-2026-07 M5 stands): the field is empty.
-# They are the mapped lazysite groups in the registry record, which the Odoo
-# endpoint writes at sign-in and at each refresh. The record is the authority:
-# no record, or a record for another user, is no session. The verifier also
-# re-applies the CURRENT map and the manager-capability refusal to what the record
-# holds, so a mapping removed, or a group that has since gained a capability,
-# stops counting at once.
+# They are in the registry record, which the provider's sign-in writes and each
+# renewal replaces. The record is the authority: no record, or a record for another
+# user or another provider, is no session. At each verification the provider says
+# which of the record's groups it still grants (its `groups` hook, its current map),
+# and core then refuses any of them that carries a capability (G-3) - unless the
+# provider declares `grants`, which only an OIDC provider will (ruling 186); every
+# sign-in or renewal through such a provider is audited with the groups it granted.
 #
-# HOW LONG A SESSION LASTS WITHOUT ODOO BEING ASKED: the record's `checked` time
-# plus odoo_identity_ttl. Past it the session grants nothing (why `odoo-stale`)
-# until the Odoo endpoint's ?csrf=1 asks Odoo and renews the record.
+# HOW LONG A SESSION LASTS WITHOUT THE PROVIDER BEING ASKED: the provider's
+# `still_valid` hook decides from the record (Odoo: its `checked` time plus
+# odoo_identity_ttl). A stale session grants nothing (why `<id>-stale`, with the
+# provider's `renew` path) until the provider's endpoint asks again and renews it.
+#
+# A PROVIDER THAT IS OFF, OR FAILS, SIGNS NOBODY IN (G-1, G-9). The extension must
+# be enabled and indexed at the call (Hooks::identity_provider reads lazysite.conf
+# again), the provider's `on` must say yes, and any of its functions that cannot be
+# called, dies or answers something else refuses the session.
 # =============================================================================
-sub ODOO_PREFIX { return 'odoo=' }
 
-sub _odoo_enc {
+# The login a payload's user field names, as ( $provider_id, $login ), or () when
+# it is not one. The login's shape is core's rule (provider_login_ok).
+sub provider_login_of {
+    my ($field) = @_;
+    return () unless defined $field && $field =~ /\A([a-z][a-z0-9-]{0,31})=([A-Za-z0-9._@+%-]{1,762})\z/;
+    my $id = $1;
+    ( my $l = $2 ) =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+    return provider_login_ok($l) ? ( $id, $l ) : ();
+}
+
+# A login an identity `<id>:<login>` may be made of: what the provider reported,
+# bounded and free of anything that would break a header, a log line or an audit
+# field. (Odoo's SiteSignin::login_ok, the same rule, made core's.)
+sub provider_login_ok {
+    my ($login) = @_;
+    return defined $login && !ref $login && length $login && length $login <= 254
+        && $login !~ /[\x00-\x1f\x7f|]/ ? 1 : 0;
+}
+
+sub _provider_enc {
     my ($login) = @_;
     $login =~ s/([^A-Za-z0-9._@+-])/sprintf( '%%%02X', ord $1 )/ge;
     return $login;
-}
-
-# The login a payload's user field names, or undef when it is not one.
-sub odoo_login_of {
-    my ($field) = @_;
-    return undef unless defined $field && $field =~ /\Aodoo=([A-Za-z0-9._@+%-]{1,762})\z/;
-    ( my $l = $1 ) =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
-    return Lazysite::Odoo::SiteSignin::login_ok($l) ? $l : undef;
 }
 
 sub _registry_file { return _auth_dir() . '/sessions.jsonl' }
@@ -687,16 +720,29 @@ sub _registry_append {
     return $ok ? 1 : 0;
 }
 
-# The newest registry line for a sid that is an Odoo session's, or undef.
-sub _odoo_record {
-    my ($sid) = @_;
+# Which provider a registry record is of. A record written before X4 carries the
+# provider's id as a flag (`odoo => 1`, SM1160) and no `provider`: it is that
+# provider's, so a session signed in before the upgrade stays one.
+sub _record_provider {
+    my ( $r, $id ) = @_;
+    return $r->{provider} if defined $r->{provider} && !ref $r->{provider};
+    return $id            if defined $id            && ( $r->{$id} // '' ) eq '1';
+    return '';
+}
+
+# The newest registry line for a sid that is a provider session's, or undef. With
+# $id, only that provider's.
+sub _provider_record {
+    my ( $sid, $id ) = @_;
     my $path = _registry_file();
     open my $fh, '<:raw', $path or do { cannot_read( 'session registry', $path ); return undef };
     my $found;
     while ( my $l = <$fh> ) {
         next unless index( $l, $sid ) >= 0;
         my $r = eval { JSON::PP::decode_json($l) };
-        next unless ref $r eq 'HASH' && ( $r->{sid} // '' ) eq $sid && $r->{odoo};
+        next unless ref $r eq 'HASH' && ( $r->{sid} // '' ) eq $sid;
+        my $p = _record_provider( $r, $id );
+        next unless length $p && ( !defined $id || $p eq $id );
         $found = $r;
     }
     close $fh;
@@ -710,62 +756,107 @@ sub _session_field {
     return length $s > $cap ? substr( $s, 0, $cap ) : $s;
 }
 
-# mint_odoo_session( login, name, groups => [...], ip, ua ) -> ( $cookie, $ts, $sid ) or ()
-# Needs the auth secret, which only a login mints; without one no session can be made.
-sub mint_odoo_session {
+# The provider's declaration, from the index of the enabled extensions, or undef.
+sub _provider {
+    my ($id) = @_;
+    require Lazysite::Extensions::Hooks;
+    return Lazysite::Extensions::Hooks::identity_provider( $LAZYSITE_DIR, $id );
+}
+
+# Call one of a provider's functions: ( 1, @answer ) or ( 0, $why ).
+sub _provider_call {
+    my ( $p, $fn, @args ) = @_;
+    return ( 0, "the provider declares no $fn" ) unless defined $p->{$fn} && !ref $p->{$fn};
+    require Lazysite::Paths;
+    my $docroot = Lazysite::Paths::docroot_of($LAZYSITE_DIR);
+    return ( 0, 'the site\'s docroot cannot be found from its engine tree' ) unless defined $docroot;
+    require Lazysite::Extensions::Hooks;
+    return Lazysite::Extensions::Hooks::call_hook( $docroot, $p->{extension}, $p->{$fn},
+        { docroot => $docroot, lazysite_dir => $LAZYSITE_DIR }, @args );
+}
+
+# The site's audit trail, for a sign-in through a provider whose groups grant.
+sub _audit_grant {
+    my ( $user, $act, $id, $groups, $ip ) = @_;
+    require Lazysite::Audit;
+    no warnings 'once';
+    local $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+    ( my $host = lc( $ENV{HTTP_HOST} // '' ) ) =~ s/:\d+\z//;
+    $host =~ s/[^a-z0-9.-]//g;
+    Lazysite::Audit::audit_log( $user, $act, $host, $ip // '', 'ok', $id,
+        'groups granted: ' . ( @$groups ? join( ',', @$groups ) : '(none)' ) );
+    return;
+}
+
+# mint_provider_session( provider => id, login, name, groups => [...], ip, ua )
+#   -> ( $cookie, $ts, $sid ) or ()
+# The provider must be declared and on (G-1). Needs the auth secret, which only a
+# login mints; without one no session can be made.
+sub mint_provider_session {
     my (%a) = @_;
     my $login = $a{login};
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
-    return () unless Lazysite::Odoo::SiteSignin::login_ok($login);
+    my $p     = _provider( $a{provider} ) or return ();
+    my $id    = $p->{extension};
+    return () unless provider_login_ok($login);
     my $secret = _auth_secret_read();
     return () unless length $secret;
     require Lazysite::Auth::Credential;
     my $now     = $a{now} // time;
     my $sid     = Lazysite::Auth::Credential::generate_random_hex(8);
-    my $payload = join ':', ODOO_PREFIX() . _odoo_enc($login), $now, $sid, '';
+    my $payload = join ':', "$id=" . _provider_enc($login), $now, $sid, '';
     my $sig     = hmac_sha256_hex( $payload, $secret );
     ( my $enc = $payload ) =~ s/([^a-zA-Z0-9_.~:-])/sprintf( '%%%02X', ord $1 )/ge;
+    my @groups = grep { defined && !ref } @{ ref $a{groups} eq 'ARRAY' ? $a{groups} : [] };
     _registry_append( {
-            sid => $sid, user => "odoo:$login", t => $now + 0, odoo => 1, checked => $now + 0,
-            name => _session_field( $a{name}, 100 ), groups => [ @{ $a{groups} || [] } ],
+            sid => $sid, user => "$id:$login", t => $now + 0, provider => $id, checked => $now + 0,
+            name => _session_field( $a{name}, 100 ), groups => [@groups],
             ip   => _session_field( $a{ip},   45 ),  ua => _session_field( $a{ua}, 120 ),
     } ) or return ();
+    _audit_grant( "$id:$login", 'login-grant', $id, \@groups, $a{ip} ) if ( $p->{grants} // '' ) eq '1';
     return ( "$enc:$sig", $now, $sid );
 }
 
-# A newer record for the same session: Odoo was asked again. t stays the issue time so the
-# wrapper's pruning and the Sessions page treat it as the one session it is.
-sub renew_odoo_session {
-    my (%a) = @_;
-    my $old = _odoo_record( $a{sid} ) or return 0;
-    return _registry_append( {
-            %$old, renew => 1, checked => ( $a{now} // time ) + 0,
+# renew_provider_session( provider => id, sid, name, groups => [...] ) -> 1 | 0
+# A newer record for the same session: the provider was asked again. t stays the
+# issue time so the wrapper's pruning and the Sessions page treat it as the one
+# session it is.
+sub renew_provider_session {
+    my (%a)    = @_;
+    my $p      = _provider( $a{provider} ) or return 0;
+    my $id     = $p->{extension};
+    my $old    = _provider_record( $a{sid}, $id ) or return 0;
+    my @groups = grep { defined && !ref } @{ ref $a{groups} eq 'ARRAY' ? $a{groups} : [] };
+    my $ok     = _registry_append( {
+            %$old, provider => $id, renew => 1, checked => ( $a{now} // time ) + 0,
             name   => _session_field( $a{name} // $old->{name}, 100 ),
-            groups => [ @{ $a{groups} || [] } ],
+            groups => [@groups],
     } );
+    _audit_grant( $old->{user}, 'renew-grant', $id, \@groups, $a{ip} ) if $ok && ( $p->{grants} // '' ) eq '1';
+    return $ok;
 }
 
-sub _verify_odoo_session {
+sub _verify_provider_session {
     my ( $field, $ts, $sid, %opt ) = @_;
-    my $login = odoo_login_of($field);
+    my ( $id, $login ) = provider_login_of($field);
     return ( undef, 'malformed' ) unless defined $login && defined $sid && $sid =~ /\A[[:xdigit:]]{16}\z/;
-    my $user = "odoo:$login";
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
-    my $dir = $LAZYSITE_DIR;
+    my $user = "$id:$login";
+    my %who  = ( user => $user, provider => $id );
 
-    # Off means off: turning the opt-in off ends these sessions at the next request.
-    return ( undef, 'odoo-off', user => $user ) unless Lazysite::Odoo::SiteSignin::enabled($dir);
+    # Off means off: an extension that is off, or not indexed, verifies nothing, and
+    # nor does a provider whose own sign-in is switched off - at the next request.
+    my $p = _provider($id) or return ( undef, "$id-off", %who );
+    my ( $ok, $on ) = _provider_call( $p, 'on' );
+    return ( undef, "$id-failed", %who, error => $on ) unless $ok;
+    return ( undef, "$id-off", %who ) unless $on;
 
     # An unsecured site (no group grants manager access) treats every signed-in user as a
-    # manager (SM138). A person who signed in through Odoo is never one, so the session
-    # is not an identity there at all.
+    # manager (SM138). A person a provider signed in is never one that way, so the
+    # session is not an identity there at all.
     require Lazysite::Auth::Settings;
     {
         no warnings 'once';
         local $Lazysite::Auth::Settings::AUTH_DIR = _auth_dir();
-        return ( undef, 'odoo-unsecured', user => $user ) unless Lazysite::Auth::Settings::site_grants_manager();
+        return ( undef, "$id-unsecured", %who ) unless Lazysite::Auth::Settings::site_grants_manager();
     }
 
     $STORE_FAULT = '';
@@ -773,28 +864,47 @@ sub _verify_odoo_session {
     return ( undef, 'cannot-tell', user => $user, store => $STORE_FAULT ) if length $STORE_FAULT;
     return ( undef, 'revoked', user => $user ) if $revoked;
 
-    my $rec = _odoo_record($sid);
-    return ( undef, 'no-record', user => $user ) unless $rec && ( $rec->{user} // '' ) eq $user;
+    my $rec = _provider_record( $sid, $id );
+    return ( undef, 'no-record', %who ) unless $rec && ( $rec->{user} // '' ) eq $user;
 
-    my $now = time();
-    my $age = $now - ( $rec->{checked} // 0 );
-    my $stale = ( $age >= Lazysite::Odoo::SiteSignin::identity_ttl($dir) || $age < -60 ) ? 1 : 0;
+    my ( $vok, $state ) = _provider_call( $p, 'still_valid', {%$rec} );
+    return ( undef, "$id-failed", %who, error => $state ) unless $vok && defined $state && !ref $state && $state =~ /\A(?:ok|stale)\z/;
+    my $stale = $state eq 'stale' ? 1 : 0;
     # SM1381: the stale verdict says where the session is renewed (the provider's path)
-    return ( undef, 'odoo-stale', user => $user, sid => $sid, renew => Lazysite::Odoo::SiteSignin::renew_path() ) if $stale && !$opt{odoo_stale_ok};
+    return ( undef, "$id-stale", %who, sid => $sid, renew => $p->{renew} // '' ) if $stale && !$opt{stale_ok};
 
-    # the record's groups, less any the current map no longer grants
-    my ($map)   = Lazysite::Odoo::SiteSignin::group_map($dir);
-    my %granted = map { ( $_ => 1 ) } values %$map;
-    my @groups = $stale ? () : grep { $granted{$_} } @{ ref $rec->{groups} eq 'ARRAY' ? $rec->{groups} : [] };
+    my @groups;
+    unless ($stale) {
+        my ( $gok, $held ) = _provider_call( $p, 'groups', {%$rec} );
+        return ( undef, "$id-failed", %who, error => $held ) unless $gok && ref $held eq 'ARRAY';
+        my %seen;
+        @groups = grep { defined && !ref && /\A[A-Za-z0-9_-]{1,64}\z/ && !$seen{$_}++ } @$held;
+        # G-3: no group that carries a capability, unless the provider's groups grant.
+        unless ( ( $p->{grants} // '' ) eq '1' ) {
+            no warnings 'once';
+            local $Lazysite::Auth::Settings::AUTH_DIR = _auth_dir();
+            my @kept;
+            for my $g (@groups) {
+                my $why = Lazysite::Auth::Settings::group_carries_capability($g);
+                if ( length $why ) {
+                    log_event( 'WARN', 'auth', 'a provider group is refused: it would grant a capability',
+                        provider => $id, group => $g, why => $why );
+                    next;
+                }
+                push @kept, $g;
+            }
+            @groups = @kept;
+        }
+    }
     return (
         { user => $user, sid => $sid, groups => join( ',', @groups ), no_password => 0,
-            odoo => 1, name => $rec->{name} // '', stale => $stale },
+            provider => $id, name => $rec->{name} // '', stale => $stale },
         undef );
 }
 
-# The two cookies a login sets: the HttpOnly session and the display-only marker
+# The two cookies a sign-in sets: the HttpOnly session and the display-only marker
 # (SM099), as the wrapper sets them.
-sub odoo_cookie_headers {
+sub session_cookie_headers {
     my ( $cookie, %o ) = @_;
     my $max = session_lifetime( $o{dir} );
     my $sec = $o{secure} ? '; Secure' : '';
@@ -802,7 +912,7 @@ sub odoo_cookie_headers {
         "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$max$sec" );
 }
 
-sub odoo_clear_headers {
+sub session_clear_headers {
     my (%o) = @_;
     my $sec = $o{secure} ? '; Secure' : '';
     return ( "Set-Cookie: ${\ SESSION_COOKIE_NAME()}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$sec",

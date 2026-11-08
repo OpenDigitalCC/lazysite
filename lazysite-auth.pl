@@ -147,10 +147,11 @@ sub _actor_or_system {
     # itself to every entry it already writes.
     return ( $name, $detail ) if $name eq 'system';
 
-  # SM1160: `odoo:<login>` is the identity of a verified Odoo-minted session. A local name
-  # cannot hold a ':' (handle_login strips all but [a-zA-Z0-9_.-] before anything is
-  # audited), so an attempted name can never take this form.
-    return ( $name, $detail ) if $name =~ /\Aodoo:[^\x00-\x1f\x7f|]{1,254}\z/;
+    # SM1160, SM1369 X4: `<provider>:<login>` is the identity of a verified session an
+    # identity provider minted. A local name cannot hold a ':' (handle_login strips all
+    # but [a-zA-Z0-9_.-] before anything is audited), so an attempted name can never
+    # take this form.
+    return ( $name, $detail ) if $name =~ /\A[a-z][a-z0-9-]{0,31}:[^\x00-\x1f\x7f|]{1,254}\z/;
 
     return ( $name, $detail )
         if length $name
@@ -579,8 +580,8 @@ sub _mint_session {
 # now the unauthenticated no-op path (the cookie still clears), and a revoked
 # session cannot re-revoke itself. Neither loses anything a user could want.
 sub _session_identity {
-    # SM1160: a signed-out Odoo-minted session is revoked even when it has gone stale
-    my ($ident) = verify_session_cookie( odoo_stale_ok => 1 );
+    # SM1160, X4: a signed-out provider session is revoked even when it has gone stale
+    my ($ident) = verify_session_cookie( stale_ok => 1 );
     return ( '',             '' ) unless $ident;
     return ( $ident->{user}, $ident->{sid} );
 }

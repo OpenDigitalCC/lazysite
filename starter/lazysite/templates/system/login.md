@@ -57,9 +57,10 @@ query_params:
   </div>
 </form>
 
-[%# SM1299 (ruling 38): a site whose sign-in is the Odoo login (SM1160) offers it here too,
-    carrying any next through to /odoo-signin; the local form above stays. SM1328: the link
-    names Odoo by odoo_display_name, and names nothing when the site gives no name. %]
-[% IF odoo_signin_banner %]<p class="login-odoo" data-ls-auth-in><a href="/odoo-signin[% IF query.next %]?next=[% query.next | uri %][% END %]">[% IF odoo_display_name %]Sign in with [% odoo_display_name | html %][% ELSE %]Sign in another way[% END %]</a></p>[% END %]
+[%# SM1299 (ruling 38), SM1369 X4: a site whose sign-in is an identity provider's offers it
+    here too, carrying any next through to the provider's page; the local form above stays.
+    Each option's label is the provider's (SM1328: the name the site gives the system, or none),
+    and its class names the provider (login-<id>). %]
+[% FOREACH o IN login_options %]<p class="login-[% o.id | html %]" data-ls-auth-in><a href="[% o.path | html %][% IF query.next %]?next=[% query.next | uri %][% END %]">[% o.label | html %]</a></p>[% END %]
 
 [% IF smtp_configured %]<p data-ls-auth-in style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>[% END %]

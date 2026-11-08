@@ -72,24 +72,21 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 # X3 (SM1369, n769) put the page sources (sources.pm, auth.pm, app.pm,
 # Config.pm, Validate.pm, one line of the processor) and the handler type
 # (Handlers.pm, AddressRefs.pm) on their hooks; 24 since X5's asset part moved the
-# helper, the component and the banner behind hooks (SM1369 X5). It may only shrink.
+# helper, the component and the banner behind hooks (SM1369 X5); 18 since X4 (n781)
+# made the Odoo site sign-in an identity provider (H-1): the session, its log
+# names, the display name, the sign-in page, the login option and the
+# maintenance exemption. It may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
     'installers/hestia/lazysite-fcgi.tpl'        => 1,
     'installers/nginx/vhost-fcgi.conf.example'   => 1,
-    'lazysite-auth.pl'                           => 1,
-    'lazysite-processor.pl'                      => 7,
-    'lazysite-processor/front-door.pm'           => 10,    # X3, X5: the pool preloads no Odoo module; the hook modules load on first use
-    'lazysite-processor/render.pm'               => 4,     # SM1369 X5: the system page's switch stays until H-10's rest
+    'lazysite-processor.pl'                      => 2,
+    'lazysite-processor/front-door.pm'           => 9,     # X3, X5: the pool preloads no Odoo module; the hook modules load on first use
     'lib/Lazysite/Auth/GroupRefs.pm'             => 7,    # SM1387: a binding's and odoo.conf's group names
-    'lib/Lazysite/Auth/Identity.pm'              => 1,
-    'lib/Lazysite/Auth/Session.pm'               => 33,
     'lib/Lazysite/Daemon/Supervisor.pm'          => 22,
-    'lib/Lazysite/Maintenance.pm'                => 1,
     'lib/Lazysite/WarmFork.pm'                   => 9,
     'lib/Lazysite/WarmFork/Wire.pm'              => 1,
-    'starter/lazysite/templates/system/login.md' => 4,
     'starter/manager/config.md'                  => 2,
     'starter/manager/extension-config.md'        => 17,
     'tools/bench-surfaces.pl'                    => 69,

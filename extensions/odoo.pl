@@ -379,6 +379,23 @@ sub hooks {
             { name => 'odoo_signin_banner', render => 'Lazysite::Odoo::SiteSignin::banner' },
             { name => 'odoo_display_name', render => 'Lazysite::Odoo::Name::display_name_var' },
         ],
+
+        # SM1369 X4 (H-1): the Odoo login as the site sign-in (SM1160) is an
+        # identity provider. Core mints, verifies, renews and revokes its `odoo=`
+        # sessions and refuses any mapped group that carries a capability; these
+        # say whether the sign-in is on, whether a record is fresh and which
+        # groups the map still grants. /odoo-signin is the provider's sign-in
+        # page, /login offers it, and the banner is `signin_banner`. No `grants`:
+        # an Odoo group never gives a capability.
+        identity_provider => {
+            on           => 'Lazysite::Odoo::SiteSignin::provider_on',
+            still_valid  => 'Lazysite::Odoo::SiteSignin::provider_still_valid',
+            groups       => 'Lazysite::Odoo::SiteSignin::provider_groups',
+            login_option => 'Lazysite::Odoo::SiteSignin::provider_login_option',
+            banner       => 'Lazysite::Odoo::SiteSignin::banner',
+            renew        => '/cgi-bin/lazysite-odoo.pl?renew=1',
+            signin_page  => 'odoo-signin',
+        },
     };
 }
 

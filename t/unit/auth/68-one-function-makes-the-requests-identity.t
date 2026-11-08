@@ -155,9 +155,9 @@ subtest 'write_identity_env writes the wrapper\'s contract from a cookie value' 
 
     %ENV = ();
     Lazysite::Auth::Identity::write_identity_env(
-        { user => 'odoo:pat', groups => [], sid => 'abcdef0123456789', odoo => 1,
+        { user => 'odoo:pat', groups => [], sid => 'abcdef0123456789', provider => 'odoo',
             name => "Pat\x01 Smith", source => 'cookie' } );
-    is( $ENV{HTTP_X_REMOTE_NAME}, 'Pat Smith', 'an Odoo session\'s name is produced, control characters dropped (SM1160)' );
+    is( $ENV{HTTP_X_REMOTE_NAME}, 'Pat Smith', 'a provider session\'s name is produced, control characters dropped (SM1160, X4)' );
     ok( !exists $ENV{LAZYSITE_AUTH_NO_PASSWORD}, 'and nothing flagged that the value does not say' );
 
     %ENV = ( HTTP_X_REMOTE_USER => 'carol' );

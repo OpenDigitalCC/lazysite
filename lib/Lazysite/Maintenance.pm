@@ -182,12 +182,12 @@ sub status {
 }
 
 # Does this path stay reachable while the site is in maintenance? The maintenance
-# page itself (when it is on this site), the sign-in and sign-out pages (with
-# /odoo-signin, SM1299), the assets they and the page need, and the well-known and
-# robots files crawlers and probes read. `$login` is the site's configured sign-in
-# address (auth_redirect).
+# page itself (when it is on this site), the sign-in and sign-out pages (with an
+# identity provider's, SM1299), the assets they and the page need, and the well-known
+# and robots files crawlers and probes read. `$login` is the site's configured sign-in
+# address (auth_redirect); `$signin` the providers' sign-in pages, [ '/name', ... ].
 sub exempt {
-    my ( $path, $st, $login ) = @_;
+    my ( $path, $st, $login, $signin ) = @_;
     $path = '' unless defined $path;
     $path             =~ s/[?#].*\z//s;
     ( my $n = $path ) =~ s{/+\z}{};
@@ -201,8 +201,11 @@ sub exempt {
     # engine. They are not pages, and a page without its styling is the failure the
     # ruling names ("the assets they need").
     return 1 if $path =~ /\.(?:css|mjs|js|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot)\z/ix;
-    # SM1299 (ruling 39): and the Odoo sign-in page (SM1295), as /login is.
-    return 1 if grep { $n eq $_ } qw(/login /logout /forgot /claim /odoo-signin);
+    # SM1299 (ruling 39), SM1369 X4: and an identity provider's sign-in page (Odoo's
+    # /odoo-signin, SM1295), as /login is - the paths the caller passes in $signin,
+    # the sign-in pages the enabled providers declare.
+    return 1 if grep { $n eq $_ } qw(/login /logout /forgot /claim),
+        grep { defined && !ref && m{\A/[a-z][a-z0-9-]*\z} } @{ ref $signin eq 'ARRAY' ? $signin : [] };
     if ( defined $login && length $login && $login =~ m{\A/} ) {
         ( my $l = $login ) =~ s{/+\z}{};
         return 1 if $n eq $l;

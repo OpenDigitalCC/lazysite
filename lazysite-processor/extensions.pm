@@ -25,8 +25,10 @@ package main;
 #         _extension_entries (its entries, of the extensions on now),
 #         _extension_asset (an asset by request path), _serve_extension_asset,
 #         _inject_extension_assets, _extension_template_vars,
-#         _extension_component_dirs, _extension_component_dir and
-#         _call_extension_hook (the one door to an extension's own code).
+#         _extension_component_dirs, _extension_component_dir,
+#         _call_extension_hook (the one door to an extension's own code), and
+#         the identity providers' (X4): _identity_providers, _provider_on,
+#         _provider_signin_page, _provider_signin_paths, _identity_template_vars.
 # OWNS    which extension files the processor serves, injects, includes or
 #         renders: only what the index names, only while the extension and
 #         everything it requires is on, only from the payload the index names.
@@ -289,7 +291,90 @@ sub _extension_template_vars {
             };
         }
     }
-    return \%vars;
+    return { %vars, _identity_template_vars() };
+}
+
+# ---- SM1369 X4 (H-1): what an identity provider gives a page ----
+#
+# The providers the enabled extensions declare (owns.hooks.identity_provider):
+# each may name a sign-in page, served as a system page while the provider says
+# its sign-in is on, and exempt from maintenance; offer a /login option; and give
+# the `signin_banner` layout variable. Core's own variables, so no extension can
+# take their names (Hooks' %CORE_VARS), and each is a code ref the template
+# engine calls only when a template names it.
+
+sub _identity_providers {
+    my @p;
+    for my $pair ( @{ _extension_entries() } ) {
+        my ( $id, $e ) = @$pair;
+        my $ip = $e->{hooks}{identity_provider};
+        push @p, [ $id, $ip ] if ref $ip eq 'HASH';
+    }
+    return @p;
+}
+
+# Is this provider's sign-in on now? Its own `on`, through the one door; a
+# provider that does not answer is off (G-9).
+sub _provider_on {
+    my ( $id, $ip ) = @_;
+    return 0 unless defined $ip->{on} && !ref $ip->{on};
+    my ( $ok, $on ) = _call_extension_hook( $id, $ip->{on}, _hook_context() );
+    return $ok && $on ? 1 : 0;
+}
+
+# The provider whose sign-in page this is, as ( id, declaration ), or ().
+sub _provider_signin_page {
+    my ($base) = @_;
+    return () unless defined $base && $base =~ /\A[a-z][a-z0-9-]{0,63}\z/;
+    for my $p ( _identity_providers() ) {
+        my $page = $p->[1]{signin_page};
+        return @$p if defined $page && !ref $page && $page eq $base;
+    }
+    return ();
+}
+
+# The sign-in pages the enabled providers declare, as paths (/name).
+sub _provider_signin_paths {
+    my @paths;
+    for my $p ( _identity_providers() ) {
+        my $page = $p->[1]{signin_page};
+        push @paths, "/$page" if defined $page && !ref $page && $page =~ /\A[a-z][a-z0-9-]{0,63}\z/;
+    }
+    return \@paths;
+}
+
+sub _identity_template_vars {
+    my @providers = _identity_providers();
+    return () unless @providers;
+    return (
+        # Each provider that is on: its banner, the markup it answers.
+        signin_banner => sub {
+            my $out = '';
+            for my $p (@providers) {
+                my ( $id, $ip ) = @$p;
+                next unless defined $ip->{banner} && !ref $ip->{banner} && _provider_on( $id, $ip );
+                my ( $ok, $b ) = _call_extension_hook( $id, $ip->{banner}, _hook_context() );
+                $out .= $b if $ok && defined $b && !ref $b;
+            }
+            return $out;
+        },
+        # Each provider that is on: { id, label, path } for /login, the path a
+        # same-site one and the label plain text the template escapes.
+        login_options => sub {
+            my @o;
+            for my $p (@providers) {
+                my ( $id, $ip ) = @$p;
+                next unless defined $ip->{login_option} && !ref $ip->{login_option} && _provider_on( $id, $ip );
+                my ( $ok, $o ) = _call_extension_hook( $id, $ip->{login_option}, _hook_context() );
+                next unless $ok && ref $o eq 'HASH';
+                my ( $label, $path ) = @$o{qw(label path)};
+                next unless defined $label && !ref $label && length $label && $label !~ /[\x00-\x1f\x7f]/;
+                next unless defined $path && !ref $path && $path =~ m{\A/[\w/.-]*\z} && $path !~ m{//};
+                push @o, { id => $id, label => $label, path => $path };
+            }
+            return \@o;
+        },
+    );
 }
 
 # The templates/ directory of each enabled extension that declares a component,

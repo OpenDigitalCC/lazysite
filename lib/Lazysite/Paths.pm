@@ -43,7 +43,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(lazysite_dir external_lazysite_dir internal_lazysite_dir site_path
     stray_lazysite canonical_docroot processor_candidates find_processor dev_extension_dirs
-    pool_conf_for);
+    pool_conf_for docroot_of);
 
 our $DIRNAME = 'lazysite';
 
@@ -87,6 +87,24 @@ sub lazysite_dir {
     my $ext = external_lazysite_dir($docroot);
     return $ext if defined $ext && -d $ext;
     return "$docroot/$DIRNAME";
+}
+
+# SM1369 X4: THE DOCROOT AN ENGINE TREE BELONGS TO, for a caller that holds the
+# tree only (the session verifier, which calls an identity provider's hooks).
+# The inverse of lazysite_dir, proved by going forward again: the answer is
+# the docroot whose lazysite_dir is this tree, or undef.
+sub docroot_of {
+    my ($lz) = @_;
+    return undef unless defined $lz && length $lz;
+    $lz =~ s{/+\z}{};
+    my $base = basename($lz);
+    my $docroot
+        = $base eq $DIRNAME                ? dirname($lz)
+        : $base =~ /\A(.+)-\Q$DIRNAME\E\z/ ? dirname($lz) . "/$1"
+        :                                    undef;
+    return undef unless defined $docroot && -d $docroot;
+    my $back = lazysite_dir($docroot);
+    return defined $back && $back eq $lz ? $docroot : undef;
 }
 
 # SM850: where a site-relative path the operator configured lives.

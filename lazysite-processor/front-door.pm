@@ -619,7 +619,7 @@ sub _front_session {
     # SM1381: renew - where a session refused only as stale is renewed (the verdict's)
     $REQUEST_IDENT = $ident || {
         user => '', groups => [], name   => '', email => '', sid => '', no_password => 0,
-        odoo  => 0,  stale  => 0, source => 'anonymous', why => $why // '',
+        provider => '', stale => 0, source => 'anonymous', why => $why // '',
         renew => $detail{renew} // '' };
     return;
 }

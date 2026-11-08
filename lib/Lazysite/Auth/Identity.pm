@@ -330,7 +330,7 @@ sub write_identity_env {
         qw(HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
             HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER)
     };
-    if ( $ident->{odoo} && length( $ident->{name} // '' ) ) {
+    if ( length( $ident->{provider} // '' ) && length( $ident->{name} // '' ) ) {
         ( my $n = $ident->{name} ) =~ s/[\x00-\x1f\x7f]//g;
         $ENV{HTTP_X_REMOTE_NAME} = substr( $n, 0, 100 );
     }
