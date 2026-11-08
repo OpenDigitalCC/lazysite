@@ -260,7 +260,8 @@ Archive
   and switch on every door is recorded in the store (`_row_changes`: who, from where,
   before and after); `list_row_changes` / `data-row-changes` and the manager's History
   list them, and `undo_row_change` / `data-row-undo` puts a row back, refused when the
-  row changed since. Ruling 170: the history is kept 90 days, or the table's own
+  row changed since. An undo is a write like any other: the pages showing the table
+  refresh at once (t/unit/data/88). Ruling 170: the history is kept 90 days, or the table's own
   `row_history_days` (a positive whole number, refused by name otherwise); a change past
   its period, a deleted row's included, is removed when the store is next written and
   daily by the daemon's new `row-history-prune` job (as the job account, needing only

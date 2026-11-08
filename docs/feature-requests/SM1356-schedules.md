@@ -92,7 +92,14 @@ zone is written to the **audit trail** - action `schedule-exception-removed`, ta
 `<table>/<id>`, the row as JSON in the line's detail field - and then deleted.
 `Schedule::removed_exceptions` reads the trail back. The audit trail rather than the row
 history because SM1355's history (n772) was not on this base; at the restack the delete
-can go through `Manager::Data` as well, so the row history holds it too. With
+can go through `Manager::Data` as well, so the row history holds it too. At the
+restack (n776) it was left on `Tables::delete_row`: `Manager::Data`'s recorded delete
+(`action_data_row_delete`) is a manager request's path - it reads the request's
+`$DOCROOT` and `$auth_user` and asks the table's write rule of the signed-in account,
+which the daemon has not got - so routing the sweep through it is not a small change.
+The audit trail stays the record ruling 164 asked for; recording the removal in the row
+history directly (`RowHistory::record_change`, op `delete`) would make a removed
+exception undoable, which is for the release manager to decide. With
 `audit_trail: off` the job removes nothing and says why.
 
 ## The wizard definition

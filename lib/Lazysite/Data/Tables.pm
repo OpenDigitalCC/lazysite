@@ -1612,6 +1612,9 @@ sub reinsert_row {
     eval { $dbh->do( $sql, undef, @{$binds} ); 1 }
         or return _err( "table '$name': the row could not be put back - " . _clean_db_error($@),
         table => $name, _constraint_field($@) );
+    # SM1357: a write like any other - the pages that show the table refresh at
+    # once (Undo of a delete puts the row back here; n776).
+    touch_stamp( $docroot, $name );
     return { ok => 1, table => $name, key => $row->{ $d->{key} } };
 }
 
