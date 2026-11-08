@@ -513,7 +513,8 @@ H-8, panels are pages (ruling 188)
 : `hooks.panels` (`{ page, label, cap }`) goes live: a page in the payload's
   `manager/`, served at `/manager/<id>-<name>` inside the manager gate to a holder of
   `cap` (one of the extension's own capabilities), and linked from its card on the
-  extension-config page. No script is injected and there is no mount runtime. Odoo's
+  extension-config page for a caller who holds `cap` (from whoami, at render;
+  ruling 194). No script is injected and there is no mount runtime. Odoo's
   Unknown Odoo writes panel is its page `/manager/odoo-unknown-writes`, under
   `settle_odoo_writes`.
 
@@ -577,14 +578,14 @@ C-28 | Odoo's sign-in with the extension off (X4) | Ruled (193): accepted as bui
 C-29 | An unsecured site (X4) | Ruled (193): accepted as built. Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
 C-30 | The record's shape (X4) | Ruled (193): accepted as built. New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
 C-31 | The handler actions' door (X4) | Ruled (192): the six handler and schedule actions (list, save, delete) also open, on every door, for any capability a declared handler type names; the type's cap decides. The mirror adds it to the gate row, the cookie gate and the MCP twins' cap_also, and to the capability's unlocks; a caller let in by such a capability alone is listed only the handlers and schedule entries of the types it governs. So manage_odoo alone manages Odoo bindings and their schedules, and no core destination's | The door kept to the four destination capabilities, so manage_odoo alone did not reach it
-C-32 | H-4: a POST that carries no token at all | Refused 403 `csrf` by the kit, whole, before the extension runs (G-4) - where a session binding with no Odoo session answered 401 and a batch answered per call; the browser helper always sends a token and refetches once on `csrf` | Run the extension's gate first for such a request (SM1168's order), which is the extension's code before CSRF
-C-33 | H-4: which endpoints the kit holds | Those declared in `hooks.endpoints`: Odoo's. The data extension's `lazysite-data.pl` keeps its own checks until it is declared | Declare and convert the data endpoint here
+C-32 | H-4: a POST that carries no token at all | Accepted as built (ruling 194): refused 403 `csrf` by the kit, whole, before the extension runs (G-4) - where a session binding with no Odoo session answered 401 and a batch answered per call; the browser helper always sends a token and refetches once on `csrf` | Run the extension's gate first for such a request (SM1168's order), which is the extension's code before CSRF
+C-33 | H-4: which endpoints the kit holds | Accepted as built (ruling 194): those declared in `hooks.endpoints`: Odoo's. The data extension's `lazysite-data.pl` keeps its own checks until it is declared | Declare and convert the data endpoint here
 C-34 | H-4: the multipart parser | The kit's, so the json part's tokens are read by core before the extension's code | The extension's parser, guarded after it runs
 C-35 | H-5: who hands the warm parent its preload list | The extension's service, as `--preload` arguments from its declaration in the index (`Hooks::warm_endpoint`); the parent reads no index (t/lint/272) | The parent reads the index itself
 C-36 | H-5: the warm socket and the split templates | `run/<name>-endpoint.sock` for `lazysite-<name>.pl`; the split templates' exact `lazysite-odoo.pl` path stays (no vhost change) | A `lazysite-x-<name>.pl` location now
-C-37 | H-6: Odoo's checks with the extension off | Not run; one "installed, off" line (H-6) | Keep running the two that ran on any site with Odoo's files
-C-38 | H-8: who sees the panel | The page is served only to a holder of `cap` (403 otherwise); the card's link is drawn for every manager who sees the card, as the listing is cached and knows no caller | Draw the link only for a holder, which needs a per-caller listing
-C-39 | H-11: the store's layout | One secret per file, `<owner>/keys/<name>.key`, because OOM's file credential reads one key from one owner-only file; the connectors' map is read until each secret is next set | The connectors' map for every secret, which OOM cannot read
+C-37 | H-6: Odoo's checks with the extension off | Accepted as built (ruling 194): not run; one "installed, off" line (H-6) | Keep running the two that ran on any site with Odoo's files
+C-38 | H-8: who sees the panel | Ruled (194): the card links a page only for a caller holding its `cap`, filtered at render from the capabilities whoami answers (the cached listing stays caller-free); the page itself still refuses anyone else with 403 | Draw the link for every manager who sees the card, the page refusing a non-holder (as first built)
+C-39 | H-11: the store's layout | Accepted as built (ruling 194): one secret per file, `<owner>/keys/<name>.key`, because OOM's file credential reads one key from one owner-only file; the connectors' map is read until each secret is next set | The connectors' map for every secret, which OOM cannot read
 ```
 
 # ADR 0007

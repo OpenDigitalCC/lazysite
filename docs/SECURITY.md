@@ -4976,7 +4976,8 @@ what changed
 : H-8: `hooks.panels` - a manager page in the extension's payload (`manager/<name>.md`),
   served by the processor at `/manager/<id>-<name>` to a manager who holds the
   capability it declares (one of the extension's own), and linked from its card on the
-  extension-config page. Odoo's Unknown Odoo writes panel becomes its page,
+  extension-config page for a caller who holds it (ruling 194: filtered at render from
+  whoami; the cached listing knows no caller). Odoo's Unknown Odoo writes panel becomes its page,
   `/manager/odoo-unknown-writes`, under `settle_odoo_writes`.
 : H-11: `Lazysite::Secrets`, the one secrets store: one secret per file,
   `lazysite/<owner>/keys/<name>.key`, for the connectors and for each extension by its

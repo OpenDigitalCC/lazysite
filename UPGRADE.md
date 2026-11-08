@@ -111,8 +111,9 @@ does on each upgrade; from it the engine finds what it used to know by Odoo's na
 Nothing a site configures changes, and nothing needs doing; what an operator sees:
 
 - **The Unknown Odoo writes panel is a page.** It is `/manager/odoo-unknown-writes`,
-  linked as **Unknown Odoo writes** from the Odoo card on the extension-config page,
-  and shown to a manager holding `settle_odoo_writes` (403 to one who does not). It
+  linked as **Unknown Odoo writes** from the Odoo card on the extension-config page
+  for a manager holding `settle_odoo_writes`, and shown only to one (403 to one who
+  does not). It
   lists, settles and dismisses runs as the panel did.
 - **`lazysite check`** prints Odoo's lines (its scheduled keys' expiry, the OOM it
   loads, oomd, the Odoo sign-in's group map, old read caps) only while the extension

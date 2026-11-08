@@ -177,9 +177,16 @@ function mgExtensionModalClose(force) {
 
 function loadExtensions() {
   document.getElementById('extension-list').textContent = 'Scanning...';
-  fetch(API + '?action=extension-list')
+  // SM1369 X6, H-8 (ruling 194, C-38): the caller's capabilities, from whoami, so a
+  // card links an extension's page only for one who may open it. The listing
+  // itself is cached and knows no caller. A whoami that fails links none.
+  var caps = fetch(API + '?action=whoami')
     .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(d) { window._callerCaps = (d && d.ok && d.capabilities) || {}; })
+    .catch(function() { window._callerCaps = {}; });
+  Promise.all([fetch(API + '?action=extension-list').then(function(r) { return r.json(); }), caps])
+    .then(function(both) {
+      var data = both[0];
       if (!data.ok) {
         document.getElementById('extension-list').textContent = data.error || 'Failed to load extensions';
         return;
@@ -777,13 +784,16 @@ function unblockIp(ip) {
 }
 
 // SM1369 X6, H-8: the manager pages an extension declares (owns.hooks.panels),
-// as { href, label }: /manager/<id>-<name> for the page <name>.md. The page is
-// served only to a holder of its capability; the link is the card's.
+// as { href, label }: /manager/<id>-<name> for the page <name>.md, for a caller who
+// holds the page's capability (window._callerCaps, from whoami; ruling 194). The
+// page itself refuses anyone else (403).
 function extensionPanels(extension) {
   var owns = extension && extension.owns, hooks = owns && owns.hooks;
   var list = hooks && Array.isArray(hooks.panels) ? hooks.panels : [];
+  var held = window._callerCaps || {};
   return list.filter(function (p) {
-    return p && typeof p.page === 'string' && /^[a-z][a-z0-9-]*\.md$/.test(p.page) && typeof p.label === 'string';
+    return p && typeof p.page === 'string' && /^[a-z][a-z0-9-]*\.md$/.test(p.page) && typeof p.label === 'string'
+      && typeof p.cap === 'string' && !!held[p.cap];
   }).map(function (p) {
     return { href: '/manager/' + extension.id + '-' + p.page.replace(/\.md$/, ''), label: p.label };
   });

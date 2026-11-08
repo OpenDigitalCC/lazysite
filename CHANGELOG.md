@@ -105,7 +105,7 @@ Archive
   ships.** `hooks.panels` (`page`, `label`, `cap`) goes live: the page is a file in the
   extension's payload (`manager/<name>.md`), served at `/manager/<id>-<name>` to a manager
   holding `cap` (one of the extension's own capabilities; 403 otherwise), and linked from
-  its card on the extension-config page. No script is injected into a core page. The
+  its card on the extension-config page for a caller who holds `cap` (ruling 194). No script is injected into a core page. The
   Odoo extension's Unknown Odoo writes panel is its own page now,
   `/manager/odoo-unknown-writes`, under `settle_odoo_writes`; the extension-config page
   names no extension.
