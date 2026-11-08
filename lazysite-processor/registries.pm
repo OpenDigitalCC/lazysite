@@ -15,6 +15,7 @@ package main;
 #         165: the sitemap and the summary list every public page, the summary
 #         has a switch and carries the organisation entry); _public_page_set and
 #         _in_public_page_set (ruling 174: the one page set both list);
+#         _foreign_site_folder (ruling 171: another site's folder, undeclared);
 #         scan_pages(), the walk
 #         the registries are built from; update_registries() and its P-3 memo of whether any
 #         registry template exists; _feed_dates; the registry serving path -
@@ -222,7 +223,8 @@ sub _registry_lists {
 # api/raw, search: false, a redirect or a demonstration page) and either nobody
 # registered it (_listed_by_default) or it registered for EITHER of the two. A
 # draft, a protected page (auth:, auth_groups:, a read rule) and a page copy
-# never reach @pages at all (scan_pages, _registry_hidden).
+# never reach @pages at all (scan_pages, _registry_hidden), nor a folder that
+# looks like another site's content (ruling 171, _foreign_site_folder).
 sub _public_page_set_registry {
     my ($name) = @_;
     return ( $name eq 'sitemap.xml' || $name eq 'llms.txt' ) ? 1 : 0;
@@ -238,6 +240,27 @@ sub _in_public_page_set {
 sub _public_page_set {
     my (@pages) = @_;
     return grep { _in_public_page_set($_) } @pages;
+}
+
+# Ruling 171: A FOLDER THAT LOOKS LIKE ANOTHER SITE'S CONTENT is left out of the
+# walk the registries are built from, declared or not. A declared content root
+# is already left out (§7). One that is NOT declared - a client's tree copied
+# under sites/ before its domain was set up, or a site unpacked into a folder of
+# the docroot with its own lazysite.conf - is served on the bare host like any
+# other folder, but it is not this site's content: the bare host's sitemap and
+# llms.txt listed it as its own pages. Looks like another site's content:
+#
+#   <docroot>/sites/<name>             the multi-site layout's place for a site
+#   any folder holding lazysite.conf   (or lazysite/lazysite.conf) of its own
+#
+# lazysite check names each one as served on the bare host, with the remedy
+# (report_foreign_site_folders: declare it as a domain's content_root, or move it
+# out of the docroot) - the same two shapes, in the check's own walk.
+sub _foreign_site_folder {
+    my ($path) = @_;
+    return 1 if $path =~ m{\A\Q$DOCROOT\E/sites/[^/]+\z};
+    return 1 if -f "$path/lazysite.conf" || -f "$path/lazysite/lazysite.conf";
+    return 0;
 }
 
 # Ruling 165: the summary is ON by default; `llms_txt: off` in lazysite.conf
@@ -1351,6 +1374,9 @@ sub scan_pages {
                 # §7: never descend into ANOTHER domain's content root - a
                 # bare-docroot host's sitemap must not enumerate client subtrees.
                 next if $excl->{$path} && $path ne $root;
+                # Ruling 171: nor into a folder that looks like another site's
+                # content without being declared as one (_foreign_site_folder).
+                next if $path ne $root && _foreign_site_folder($path);
                 push @queue, $path;
             }
             elsif ( $entry =~ /\.(md|url)$/ ) {

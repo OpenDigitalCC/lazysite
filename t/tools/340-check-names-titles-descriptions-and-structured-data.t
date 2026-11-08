@@ -7,7 +7,9 @@
 #   * the JSON-LD the engine emits, checked against each mapping's type: a row
 #     missing what its type needs, a date that is not ISO 8601, a page the
 #     mapping names that the site does not have, a table no visitor may read;
-#   * the site's time_zone, when it names a zone the host does not know.
+#   * the site's time_zone, when it names a zone the host does not know;
+#   * ruling 171: a folder that looks like another site's content (under sites/,
+#     or holding its own lazysite.conf) and is not a declared content root.
 use strict;
 use warnings;
 use Test::More;
@@ -85,6 +87,27 @@ subtest 'the emitted JSON-LD against the mapping\'s type' => sub {
 
     my $none = site();
     like( run_check($none), qr/no data table declares structured_data/, 'no mapping: one line' );
+};
+
+# Ruling 171: a folder that looks like another site's content and is not a
+# declared content root is named as served on the bare host, with the remedy.
+subtest 'another site\'s folder, undeclared' => sub {
+    my $d = site( conf => "alias.a.example.content_root: sites/declared\n" );
+    make_path( "$d/$_" ) for qw(sites/old sites/declared unpacked nested/lazysite plainfolder);
+    spit( "$d/sites/old/index.md",            "---\ntitle: Old\n---\nO\n" );
+    spit( "$d/sites/declared/index.md",       "---\ntitle: Declared\n---\nD\n" );
+    spit( "$d/unpacked/lazysite.conf",        "site_name: Another\n" );
+    spit( "$d/nested/lazysite/lazysite.conf", "site_name: Nested\n" );
+    spit( "$d/plainfolder/page.md",           "---\ntitle: Folder\n---\nF\n" );
+    my $out = run_check($d);
+    like( $out, qr{sites/old looks like another site's content \(it is under sites/\) but is not a declared content root: the bare host serves its pages; the sitemap and llms\.txt leave it out},
+        'a folder under sites/ is named' ) or diag $out;
+    like( $out, qr{unpacked looks like another site's content \(it holds its own lazysite\.conf\)}, 'a folder with its own lazysite.conf' );
+    like( $out, qr{nested looks like another site's content \(it holds its own lazysite\.conf\)}, 'or its own lazysite/lazysite.conf' );
+    like( $out, qr{declare it as a domain's content root \(alias\.<host>\.content_root: sites/old in lazysite\.conf\), or move it out of the docroot},
+        'with the remedy' );
+    unlike( $out, qr{(?:sites/declared|plainfolder) looks like}, 'a declared root and an ordinary folder are not named' );
+    unlike( run_check( site() ), qr{looks like another site's content}, 'silent on a site with none' );
 };
 
 subtest 'the time zone' => sub {

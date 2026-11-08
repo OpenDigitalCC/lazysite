@@ -97,7 +97,15 @@ every page with no `register:` key is listed in both, and a page's own list is k
 it has one. Ruling 174 (release manager, 2026-11-08): the two are equivalent, built from
 ONE page set (`_public_page_set`, which both call) and listing exactly the same pages, so a
 page registered for either is in both; protected pages are excluded from both.
-t/unit/processor/187 compares the two lists' page paths on one fixture. Never listed: a draft, ACL-governed or gated page
+t/unit/processor/187 compares the two lists' page paths on one fixture. Ruling 171: a
+folder under the docroot that is not a declared content root but looks like another site's
+content (`<docroot>/sites/<name>`, or a folder holding its own `lazysite.conf` or
+`lazysite/lazysite.conf`) is left out of the walk the page set is built from
+(`_foreign_site_folder`), and `lazysite check` names it as served on the bare host with
+the remedy (`report_foreign_site_folders`: declare it as a domain's content root, or move
+it); t/integration/17 is back to its intent (no `/sites/` path in the bare host's sitemap
+or llms.txt). The site's search (`resolve_scan`) is unchanged: it still walks such a
+folder, as the bare host serves it. Never listed: a draft, ACL-governed or gated page
 (`_registry_hidden`, as before), anything under `lazysite/` (SM1354's page copies), an
 `api:`/`raw:` page, `search: false`, a redirect, `starter_role: demonstration` (SM486) and
 the engine's system pages at a content root. `llms.txt` is on by default with titles,

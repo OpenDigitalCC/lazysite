@@ -1473,6 +1473,7 @@ sub run_checks {
     report_time_zone();                 # SM1356
     report_page_titles();               # SM1357
     report_structured_data();           # SM1357
+    report_foreign_site_folders();      # SM1357, ruling 171
     report_retired_conf_keys();
     report_retired_notify_keys();       # SM1412
     report_app_settings();              # SM1155
@@ -3373,6 +3374,50 @@ sub report_structured_data {
         report( 'OK', "the JSON-LD of $r->{mappings} mapping(s) holds against each mapping's type" );
     }
     report( 'OK', $_ ) for @{ $r->{notes} };
+    return;
+}
+
+# Ruling 171 (SM1357): A FOLDER THAT LOOKS LIKE ANOTHER SITE'S CONTENT and is not a
+# declared content root - a folder under sites/, or one holding its own
+# lazysite.conf (or lazysite/lazysite.conf) - is served on the bare host like any
+# folder of the docroot, while the sitemap and llms.txt leave it out as not this
+# site's own (the processor's _foreign_site_folder, the same two shapes). Each is
+# named with the remedy. Silent when there is none.
+sub report_foreign_site_folders {
+    my $d = $opt{docroot};
+    my %declared;
+    if ( open my $fh, '<', "$LZ/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l   =~ /^(?:alias\.\S+\.)?content_root\h*:\h*(.+?)\h*$/;
+            ( my $rel = $1 ) =~ s{^["']|["']$}{}g;
+            $rel             =~ s{^/+|/+$}{}g;
+            $declared{"$d/$rel"} = 1 if length $rel && $rel !~ m{(?:^|/)\.\.(?:/|$)};
+        }
+        close $fh;
+    }
+    my @found;
+    find_noting( 'the other-site folder check',
+        { no_chdir => 1, wanted => sub {
+                my $p = $File::Find::name;
+                return unless -d $p && $p ne $d;
+                if ( $p eq Lazysite::Paths::internal_lazysite_dir($d) || -l $p || $declared{$p} ) {
+                    $File::Find::prune = 1;
+                    return;
+                }
+                my $why =
+                    $p =~ m{\A\Q$d\E/sites/[^/]+\z} ? 'it is under sites/'
+                    : ( -f "$p/lazysite.conf" || -f "$p/lazysite/lazysite.conf" ) ? 'it holds its own lazysite.conf'
+                    :                                                               undef;
+                return unless $why;
+                push @found, [ $p =~ s{\A\Q$d\E/}{}r, $why ];
+                $File::Find::prune = 1;
+        } }, $d );
+    for my $f ( sort { $a->[0] cmp $b->[0] } @found ) {
+        report( 'WARN', "$f->[0] looks like another site's content ($f->[1]) but is not a declared content root:"
+                . ' the bare host serves its pages; the sitemap and llms.txt leave it out',
+            "declare it as a domain's content root (alias.<host>.content_root: $f->[0] in lazysite.conf),"
+                . ' or move it out of the docroot' );
+    }
     return;
 }
 

@@ -169,8 +169,13 @@ listed only pages whose front matter said `register: [sitemap.xml]` (or `llms.tx
 From this release a page with no `register:` key is in both, so on upgrade the sitemap
 and the summary grow to the site's whole public content. A page that has a `register:`
 list keeps what it says, and one that names either the sitemap or `llms.txt` is now in
-both (ruling 174: the two list exactly the same pages); a protected, draft, copied, `api:`/`raw:`, redirect or starter
-demonstration page and the engine's sign-in and error pages are never listed. To keep a
+both (ruling 174: the two list exactly the same pages); a protected, draft, copied,
+`api:`/`raw:`, redirect or starter demonstration page and the engine's sign-in and error
+pages are never listed. On a multi-site docroot the bare host lists no folder that looks
+like another site's content - one under `sites/`, or one holding its own `lazysite.conf`
+- that is not a declared `content_root` (ruling 171); the bare host still serves it, and
+`lazysite check` names each such folder: declare it as a domain's content root or move it
+out of the docroot. To keep a
 page out, give it `search: false`, or a `register:` list that does not name the
 registry. `llms.txt` is on by default (a site that had no page registered for it now
 has one listing its pages); `llms_txt: off` in `lazysite.conf` turns it off. An existing

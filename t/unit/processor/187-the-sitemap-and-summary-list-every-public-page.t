@@ -11,6 +11,8 @@
 #     a read rule), a draft section, an api:/raw: page, a page copy (SM1354
 #     keeps them under lazysite/copies/), a page that says search: false, a
 #     starter demonstration page, and the engine's system pages at the root;
+#   * ruling 171: nor a folder that looks like another site's content and is
+#     not a declared content root (under sites/, or with its own lazysite.conf);
 #   * ruling 174: the two are built from one page set and name exactly the
 #     same pages (a page registered for only one is in both);
 #   * the summary carries titles, descriptions and the organisation entry;
@@ -55,6 +57,13 @@ sub site {
     spit( "$d/map-only.md",   "---\ntitle: Map only\nregister:\n  - sitemap.xml\n---\nS\n" );
     spit( "$d/llms-only.md",  "---\ntitle: Summary only\nregister:\n  - llms.txt\n---\nS\n" );
     spit( "$d/moved.md",      "---\ntitle: Moved\nredirect: /plain\n---\nR\n" );
+    # Ruling 171: folders that look like another site's content, undeclared.
+    spit( "$d/sites/old/page.md",       "---\ntitle: Old site\n---\nO\n" );
+    spit( "$d/unpacked/lazysite.conf",  "site_name: Another\n" );
+    spit( "$d/unpacked/page.md",        "---\ntitle: Unpacked\n---\nU\n" );
+    spit( "$d/nested/lazysite/lazysite.conf", "site_name: Nested\n" );
+    spit( "$d/nested/page.md",          "---\ntitle: Nested\n---\nN\n" );
+    spit( "$d/plainfolder/page.md",     "---\ntitle: Plain folder\n---\nF\n" );
     spit( "$d/members.md",    "---\ntitle: Members\nauth: required\nregister:\n  - sitemap.xml\n  - llms.txt\n---\nM\n" );
     spit( "$d/grouped.md",    "---\ntitle: Grouped\nauth_groups:\n  - staff\n---\nG\n" );
     spit( "$d/ruled/page.md", "---\ntitle: Ruled\n---\nR\n" );
@@ -80,7 +89,9 @@ subtest 'the sitemap lists every public page and nothing else' => sub {
     like( $map, qr{<loc>http://localhost/plain</loc>}, 'a page nobody registered is listed' );
     like( $map, qr{<loc>http://localhost/</loc>},      'the home page too' );
     like( $map, qr{<loc>http://localhost/both</loc>},  'a registered page, as before' );
-    for my $out (qw(feed-only members grouped ruled/page upcoming/next data rawfile hidden demo moved login 404 api-test raw-test)) {
+    like( $map, qr{<loc>http://localhost/plainfolder/page</loc>}, 'a page in an ordinary folder is listed' );
+    for my $out (qw(feed-only members grouped ruled/page upcoming/next data rawfile hidden demo moved login 404 api-test raw-test
+        sites/old/page unpacked/page nested/page)) {
         unlike( $map, qr{<loc>http://localhost/\Q$out\E</loc>}, "not /$out" );
     }
     unlike( $map, qr{COPY|copies}, 'and no page copy' );
@@ -125,7 +136,7 @@ subtest 'the sitemap and the summary name exactly the same pages' => sub {
     for my $protected (qw(/members /grouped /ruled/page)) {
         ok( !( grep { $_ eq $protected } @in_map, @in_txt ), "protected $protected is in neither" );
     }
-    for my $out (qw(/upcoming/next /rawfile /data /moved /hidden)) {
+    for my $out (qw(/upcoming/next /rawfile /data /moved /hidden /sites/old/page /unpacked/page /nested/page)) {
         ok( !( grep { $_ eq $out } @in_map, @in_txt ), "$out is in neither" );
     }
     ok( !( grep { m{copies} } @in_map, @in_txt ), 'nor is a page copy' );

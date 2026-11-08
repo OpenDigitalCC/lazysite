@@ -20,7 +20,10 @@ page set and always list the same pages: a page registered for either of them
 is in both. Never listed, whatever they
 register: a protected or draft page, a page copy, an `api:` or `raw:` page, a
 page with `search: false`, a redirect, a starter demonstration page and the
-engine's sign-in and error pages. `llms.txt` also carries the site's
+engine's sign-in and error pages. Nor does the bare host list a folder that
+looks like another site's content - one under `sites/`, or one holding its own
+`lazysite.conf` - unless it is declared as a domain's `content_root`; `lazysite
+check` names such a folder, since the bare host still serves it. `llms.txt` also carries the site's
 organisation entry, and `llms_txt: off` in `lazysite.conf` turns it off. See
 [Structured data for search](/docs/data-tables#structureddataforsearch).
 

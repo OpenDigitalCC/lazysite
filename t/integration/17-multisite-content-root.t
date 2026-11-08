@@ -43,6 +43,12 @@ _write( "$docroot/lazysite/templates/registries/sitemap.xml.tt", <<'TT' );
 <url><loc>[% site_url %][% p.url %]</loc></url>[% END %]
 </urlset>
 TT
+# And a minimal summary (ruling 174: the same page set as the sitemap).
+_write( "$docroot/lazysite/templates/registries/llms.txt.tt", <<'TT' );
+# [% site_name %]
+[% FOREACH p IN pages %]
+- [[% p.title %]]([% site_url %][% p.url %])[% END %]
+TT
 
 # Agency root (what a domain with no/invalid content_root falls back to). It is
 # registered so the bare-docroot sitemap has its OWN entry (proving §7 excludes
@@ -373,14 +379,28 @@ sub _slurp {
     ok( $sm =~ /<urlset/, 'bare-docroot sitemap is generated' );
     like( $sm, qr{https://agency\.example/</loc>},
         'bare sitemap lists the agency root page (its own)' );
-    # SM1357: sites/clienta-secret is NOT a declared content root - it is a
-    # folder of the docroot, and the bare host serves its page publicly - so the
-    # sitemap, which now lists every public page, lists it. What §7 holds is
-    # that no DECLARED client root is enumerated.
-    like( $sm, qr{/sites/clienta-secret/leak</loc>}, 'an undeclared folder is the docroot\'s own content, listed' );
-    unlike( $sm, qr{clienta(?!-secret)|clientb|/menu|/about|/only-b|CLIENT_},
+    unlike( $sm, qr{clienta|clientb|/menu|/about|/only-b|CLIENT_},
         'bare sitemap excludes every client subtree (§7)' );
-    unlike( $sm, qr{/sites/(?!clienta-secret/)}, 'bare sitemap has no declared root\'s /sites/ paths' );
+    # Ruling 171 (SM1357): sites/clienta-secret is NOT a declared content root,
+    # but a folder under sites/ looks like another site's content, so the bare
+    # host's sitemap - which lists every public page - leaves it out too.
+    unlike( $sm, qr{/sites/}, 'bare sitemap has no /sites/ paths' );
+    # ... and so does llms.txt, from the same page set (ruling 174).
+    my $txt = run_processor( $docroot, '/llms.txt', HTTP_HOST => 'stranger.example' );
+    like( $txt, qr{\(https://agency\.example/\)}, 'bare llms.txt lists the agency root page' );
+    unlike( $txt, qr{/sites/}, 'bare llms.txt has no /sites/ paths' );
+}
+# Ruling 171: lazysite check names the undeclared folder as served on the bare
+# host, with the remedy; the declared roots are not named.
+{
+    my $script = "$FindBin::Bin/../../tools/lazysite-check.pl";
+    my $out    = qx($^X \Q$script\E --docroot \Q$docroot\E 2>&1);
+    like( $out,
+        qr{sites/clienta-secret looks like another site's content \(it is under sites/\) but is not a declared content root: the bare host serves its pages},
+        'check names the undeclared folder under sites/ as served on the bare host' ) or diag $out;
+    like( $out, qr{declare it as a domain's content root \(alias\.<host>\.content_root: sites/clienta-secret in lazysite\.conf\), or move it out of the docroot},
+        'with the remedy' );
+    unlike( $out, qr{sites/client[ab] looks like another site's content}, 'a declared content root is not named' );
 }
 {
     my $out = run_processor( $docroot, '/find', HTTP_HOST => 'stranger.example' );
