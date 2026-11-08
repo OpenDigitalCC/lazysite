@@ -663,7 +663,7 @@ sub load_descriptor {
 # refresh a new set of rows.
 #
 # Returns ( \%source or undef, undef ) or ( undef, $err ).
-my $FIELD_PATH = qr/\A[A-Za-z0-9_][A-Za-z0-9_-]{0,63}(?:\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){0,7}\z/;
+my $FIELD_PATH = qr/\A[A-Za-z0-9_][A-Za-z0-9_-]{0,63}(?:\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){0,7}\z/x;
 
 sub _check_source {
     my ( $name, $raw, $fields, $key ) = @_;

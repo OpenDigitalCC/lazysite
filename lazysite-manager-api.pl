@@ -2305,7 +2305,7 @@ elsif ( $action eq 'data-table-refresh' ) {
     $result = Lazysite::Manager::Data::action_data_table_refresh(
         $req->{table} // $params{table},
         caps   => ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
-        groups => [ Lazysite::Auth::Settings::effective_groups($auth_user) ] );
+        groups => Lazysite::Manager::Data::groups_for($auth_user) );
 }
 elsif ( $action eq 'lang-status' ) {
     $result = action_lang_status( $params{group} );

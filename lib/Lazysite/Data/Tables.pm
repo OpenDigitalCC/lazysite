@@ -1463,7 +1463,7 @@ sub refresh_from_answer {
     return _err( "table '$name' names no source", table => $name, kind => 'validation', rule => 'source' )
         unless ref $s eq 'HASH';
     my $no = sub { _err( "table '$name': the refresh from connector '$s->{connector}' changed nothing - $_[0]",
-            table => $name, kind => 'refresh', source => $s->{connector} ) };
+            table => $name, source => $s->{connector} ) };
     return $no->('the source answered with text, not JSON') unless ref $answer;
 
     my $list = $answer;

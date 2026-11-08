@@ -302,6 +302,7 @@ my %REQ = (
     'data-row-delete' => { body  => { table => 'notes', key          => 'a' } },
     'data-row-save'   => { body  => { table => 'notes', row => { slug => 'c' } } },
     'data-row-switch' => { body => { table => 'avail', key => 'x', available => JSON::PP::true } },    # SM1355
+    'data-table-refresh' => { body => { table => 'notes' } },    # SM1364: refused, no source
     'data-row-undo'   => { body => { table => 'notes', change => $S{change} } },
     'data-wizard-run' => { body => { wizard => 'w1', answers => { slug => 'z' }, save => JSON::PP::true } },
     'data-wizard-save' => { body => { wizard => 'w2',
@@ -386,6 +387,8 @@ my %RAN_ONLY = (
     'me-2fa-confirm'    => 'needs a code from the app for a pending set-up the template does not make',
     'me-2fa-disable'    => 'needs two-factor on and a current code; the template has none',
     'me-recovery-codes' => 'needs two-factor on and a current code; the template has none',
+    # SM1364: t/unit/data/110 lands it against a remote it starts on 127.0.0.1.
+    'data-table-refresh' => 'calls a sourced table\'s connector over the network; the test makes no network call',
 );
 
 # SM944 S34 finding F-1 (found by this test): file-upload's rate check ran in
