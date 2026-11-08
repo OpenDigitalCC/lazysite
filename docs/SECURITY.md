@@ -4255,7 +4255,8 @@ what changed
   extension's gate. A descriptor may name an `availability` field; a binding may say
   `(available)`. Every row save and delete through `Manager::Data` is recorded in a new
   store table, `_row_changes`, with the row before and after. Wizard definitions are
-  YAML files under `lazysite/db/wizards/`.
+  YAML files under `lazysite/db/wizards/`. Ruling 170 adds a daemon job,
+  `row-history-prune` (daily), to the scheduler's closed job set.
 
 threat delta
 : No ADR 0007 trigger fired: new actions on the existing doors under existing
@@ -4283,10 +4284,19 @@ threat delta
   prune: one delete per table the history names, past that table's period; listing is
   capped at 200. The stored history is bounded by time: 90 days by default, or the
   table's `row_history_days` (a positive whole number of days, at most 36500, refused
-  otherwise), a deleted row's changes included. Pruning runs on the write path only
-  (after each recorded change); the daemon has no data housekeeping job, so a store
-  nobody writes to keeps its last changes until the next write. A prune that fails is
-  logged and the write stands.
+  otherwise), a deleted row's changes included. Pruning runs after each recorded
+  change and once a day in the daemon's `row-history-prune` job, which makes the same
+  call (`RowHistory::prune` with `RowHistory::period_for`) for every table the history
+  names, so a store nobody writes to is pruned too. A prune that fails is logged; the
+  write stands, and the job records an error with its reason.
+: Elevation of privilege, by the job: none new. It runs as the configured
+  `daemon_job_user`, the account the daemon's other housekeeping jobs
+  (`sessions-sweep`, `connectors-sweep`) run as, under `run_jobs` and `manage_data`,
+  the capability that reads the whole history through the manager
+  (`data-row-changes`); without it the job is refused by name and removes nothing. It
+  removes only changes past their period, writes no row, and on a site with no data
+  store opens nothing and creates no store. No ADR 0007 trigger: no new interface,
+  account, sign-in method or dependency, and the job is engine code in the closed set.
 : Tampering, by undoing a change from outside the period: refused as `expired-change`
   (409) even while a not-yet-pruned change is still listed, and the listing marks it
   `undoable: false`.
@@ -4300,13 +4310,20 @@ controls
   walk, `(available)` refused without the field), t/unit/data/81 (ruling 170: a change
   past the period is refused as expired and pruned by the next write and not by a read,
   a table's period overrides the default, a deleted row's history goes after the
-  period, a bad `row_history_days` refused by name).
+  period, a bad `row_history_days` refused by name), t/unit/data/82 (a store nobody
+  writes to loses its expired changes when the job runs and keeps those inside the
+  period, a table's own period and the default for a table no longer declared; no
+  store is created; refused without `manage_data`), t/unit/daemon/05 (the job is in the
+  closed set and needs what `data-row-changes` is gated on).
 
 residual risk
 : `_row_changes` keeps rows' earlier values, including values a later write removed,
-  for up to the table's period (90 days by default) after the change, and past it until
-  the store's next write. A table that sets a long period keeps them that long. A write
-  that could not be recorded stands without an undo, and says so.
+  for up to the table's period (90 days by default) after the change, and past it by
+  at most a day while the daemon runs its job. Where the daemon is not enabled, or its
+  job account lacks `manage_data` (the job is then refused, and the run record says
+  so), a store nobody writes to keeps expired changes until its next write, as before.
+  A table that sets a long period keeps them that long. A write that could not be
+  recorded stands without an undo, and says so.
 
 verdict
 : proposed: accepted, no trigger fired; recorded because new actions write rows on

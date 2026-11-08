@@ -98,6 +98,18 @@ our %JOBS = (
         run   => \&Lazysite::Daemon::Jobs::connectors_sweep,
     },
 
+    # SM1355 (ruling 170): remove the row history past each table's period, so
+    # a store nobody writes to does not keep expired changes until somebody
+    # does (the write path prunes too). Daily: the period is counted in whole
+    # days. manage_data because the job reaches every table's history, and the
+    # whole history is manage_data's alone through the manager
+    # (data-row-changes).
+    'row-history-prune' => {
+        every => 86400,
+        needs => 'manage_data',
+        run   => \&Lazysite::Daemon::Jobs::row_history_prune,
+    },
+
     # SM842: THE SCHEDULE CALLS HANDLERS. ONE job, and this table stays a
     # closed literal: a site's schedule (lazysite/forms/schedule.conf) says
     # which handler to call, how often and with what fixed fields - it cannot

@@ -347,11 +347,15 @@ refused by name when the descriptor is saved. `describe_data_table` and the
 history listing show the period in force.
 
 A change older than its table's period is removed, and a deleted row's changes
-go the same way, the delete among them. Removal happens when the store is
-written: each recorded change removes those past their period, across every
-table. Reading the history removes nothing, so a change past its period can
-still be listed until the next write; it is shown without an Undo (`undoable`
-false) and undoing it is refused as `expired-change`.
+go the same way, the delete among them. Removal happens in two places, across
+every table: when the store is written (each recorded change removes those past
+their period), and once a day in the daemon's `row-history-prune` job, so a
+store nobody writes to is cleared too. The job runs as the daemon's job account
+(`daemon_job_user`) and needs `manage_data` besides `run_jobs`; without it the
+job is refused, and the daemon's run record says why. Reading the history
+removes nothing, so a change past its period can still be listed until one of
+the two runs; it is shown without an Undo (`undoable` false) and undoing it is
+refused as `expired-change`.
 
 ## Wizards: build a row one question at a time
 

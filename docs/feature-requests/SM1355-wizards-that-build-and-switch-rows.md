@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion)"
 area: data
-status-note: "SHIPPED (PENDING, 0.16.8) on n772 with ruling 156: a table's availability field, switch_row / data-row-switch, db:<table>(available); every row change recorded, with undo, kept 90 days or the table's row_history_days (ruling 170); wizards in lazysite/db/wizards, run_wizard / data-wizard-run; the manager's data page. t/unit/mcp/78, t/unit/manager/491, t/unit/data/80, 81."
+status-note: "SHIPPED (PENDING, 0.16.8) on n772 with ruling 156: a table's availability field, switch_row / data-row-switch, db:<table>(available); every row change recorded, with undo, kept 90 days or row_history_days (ruling 170; pruned on a write and daily); wizards in lazysite/db/wizards, run_wizard / data-wizard-run; the manager's data page. t/unit/mcp/78, t/unit/manager/491, t/unit/data/80-82."
 ---
 
 # Proposed
@@ -86,14 +86,21 @@ its descriptor sets as `row_history_days` (a positive whole number of days, at m
 and the history listing name the period in force. A change older than its table's
 period is removed, a deleted row's changes included, the delete among them.
 
-- **Where it runs**: on the write path only. After each recorded change (a save, a
-  delete, a switch, a wizard's save, an undo) `Manager::Data::_prune_row_history`
+- **Where it runs**: in two places, never on a read. After each recorded change (a
+  save, a delete, a switch, a wizard's save, an undo) `Manager::Data::_prune_row_history`
   calls `RowHistory::prune`, which removes, per table the history names, the changes
-  past that table's period (a table no longer declared is held to the default). A read
-  removes nothing. The daemon has no data housekeeping job (its built-in jobs are the
-  heartbeat, stats, sessions, connectors, schedule and notify outbox), so there is no
-  second place; a store nobody writes to keeps its last changes until the next write.
-  A failed prune is logged and the write stands.
+  past that table's period (`RowHistory::period_for`; a table no longer declared is
+  held to the default). A failed prune is logged and the write stands.
+- **And on a clock**: pruning only on a write left a store nobody writes to holding
+  its expired changes indefinitely, so the daemon's scheduler has a built-in job,
+  `row-history-prune`, declared in its closed set (`%JOBS`) beside the others: daily
+  (`every: 86400`), `needs: manage_data`, body `Daemon::Jobs::row_history_prune`. It
+  makes the write path's call (`prune` with `period_for`) for every table. It runs as
+  the daemon's job account (`daemon_job_user`), the one `sessions-sweep` and
+  `connectors-sweep` run as, which needs `run_jobs` and, for this job, `manage_data`
+  (what `data-row-changes`, the whole history, is gated on); without it the job is
+  refused by name. A site with no data store has nothing to prune and the job creates
+  none. The run record carries `removed`, or an error with its reason.
 - **Undo only inside the period**: a change still listed past it (no write yet) is
   listed with `undoable: false`, the manager shows no Undo for it, and
   `undo_row_change` / `data-row-undo` refuse it as `expired-change` (409), writing
@@ -146,4 +153,8 @@ definition rules, the step walk, `(available)` refused without the field),
 t/unit/data/81 (ruling 170: a bad `row_history_days` refused by name; a change past
 the period listed without Undo, refused as `expired-change`, kept by a read and pruned
 by the next write; a table's period overriding the default; a deleted row's history
-pruned after the period). Each fails with its part reverted.
+pruned after the period), t/unit/data/82 (a store nobody writes to loses its expired
+changes when the job runs and keeps those inside the period, per table's period and
+the default for a table no longer declared; no store is created where there is none;
+refused without `manage_data`), t/unit/daemon/05 (the closed set names the job, which
+needs what `data-row-changes` is gated on). Each fails with its part reverted.

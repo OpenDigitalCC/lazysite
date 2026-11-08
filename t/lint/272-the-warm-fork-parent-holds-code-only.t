@@ -129,6 +129,7 @@ my %T       = (
     'lib/Lazysite/Capabilities.pm' => { '%IS_CHANNEL' => $DERIVED },
     'lib/Lazysite/ControlApi/Actions.pm' => { '%FIELD' => $DERIVED, '%DECLARED_FIELD' => $DERIVED,
         '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load' },
+    'lib/Lazysite/Data/RowHistory.pm' => { '$JSON' => 'a JSON::PP encoder, constructed with no data' },    # SM1355: the scheduler's row-history-prune job requires it
     # SM1369 X3: the live kinds carry a name pattern and a code reference to
     # their vocabulary check; the table is constant, declared with those in it.
     'lib/Lazysite/Extensions/Hooks.pm' => { '%RESERVED' => $DERIVED, '%CORE_ASSETS' => $DERIVED, '%CORE_VARS' => $DERIVED,

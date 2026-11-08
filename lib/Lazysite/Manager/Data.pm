@@ -1066,18 +1066,13 @@ sub _history_days {
 
 # Ruling 170: PRUNED WHERE THE STORE IS WRITTEN - after each recorded change,
 # every table's changes older than that table's period go (a table no longer
-# declared is held to the default). Never on a read path.
+# declared is held to the default). Never on a read path. The daemon's
+# row-history-prune job makes the same call once a day (RowHistory::period_for
+# is the one period lookup), for a store nobody writes to.
 sub _prune_row_history {
     my ($dbh) = @_;
     require Lazysite::Data::RowHistory;
-    my %days;
-    return Lazysite::Data::RowHistory::prune(
-        $dbh,
-        sub {
-            my ($t) = @_;
-            $days{$t} //= _history_days( eval { load_table( $DOCROOT, $t ) } );
-            return $days{$t};
-        } );
+    return Lazysite::Data::RowHistory::prune( $dbh, Lazysite::Data::RowHistory::period_for($DOCROOT) );
 }
 
 # The door a change came from: a word, or wizard:<name>. Anything else is

@@ -262,8 +262,10 @@ Archive
   list them, and `undo_row_change` / `data-row-undo` puts a row back, refused when the
   row changed since. Ruling 170: the history is kept 90 days, or the table's own
   `row_history_days` (a positive whole number, refused by name otherwise); a change past
-  its period, a deleted row's included, is removed when the store is next written (never
-  on a read), and undoing one still listed is refused as `expired-change`. A wizard (`lazysite/db/wizards/<name>.yaml`, `save_wizard` /
+  its period, a deleted row's included, is removed when the store is next written and
+  daily by the daemon's new `row-history-prune` job (as the job account, needing
+  `manage_data`), never on a read, and undoing one still listed is refused as
+  `expired-change`. A wizard (`lazysite/db/wizards/<name>.yaml`, `save_wizard` /
   `data-wizard-save`, checked against its table) asks one question per step (text,
   price, choice, choices, yes/no; required, help, `when`) and builds or edits one row:
   `run_wizard` / `data-wizard-run` and the data page's wizard buttons. A required

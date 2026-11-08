@@ -91,8 +91,8 @@ subtest 'the set: closed, small, and every need is a real capability' => sub {
     # this assertion, not a formality: %JOBS is a closed literal, and a job
     # arriving without a filing behind it is the drift this names.
     is_deeply( [ sort keys %JOBS ],
-        [qw(connectors-sweep daemon-heartbeat notify-outbox schedule-run sessions-sweep stats-rollup)],
-        'six jobs, named - SM1020 added notify-outbox' );
+        [qw(connectors-sweep daemon-heartbeat notify-outbox row-history-prune schedule-run sessions-sweep stats-rollup)],
+        'seven jobs, named - SM1020 added notify-outbox, SM1355 row-history-prune' );
 
     my %cap = map { $_ => 1 } @CAP_KEYS;
     for my $name ( sort keys %JOBS ) {
@@ -116,6 +116,12 @@ subtest 'each need is the capability the manager charges for the same work' => s
     my $gate = { Lazysite::ControlApi::Actions::cookie_caps() }->{analyse_visitors};
     is( $JOBS{'stats-rollup'}{needs}, $gate,
         "stats-rollup needs what analyse_visitors is gated on ($gate)" );
+
+    # SM1355 (ruling 170): the prune reaches every table's history, which the
+    # manager reads as data-row-changes.
+    my $hgate = { Lazysite::ControlApi::Actions::cookie_caps() }->{'data-row-changes'};
+    is( $JOBS{'row-history-prune'}{needs}, $hgate,
+        "row-history-prune needs what data-row-changes is gated on ($hgate)" );
 
     # SM944 S33: the sessions-and-keys branch is Manager::Sessions' handler,
     # which reads the request's account from Manager::Common by full name.
@@ -144,6 +150,8 @@ subtest 'run_jobs alone runs the heartbeat and is refused the rest, by name' => 
     like( $r->{'sessions-sweep'}{reason}, qr/manage_users/, 'by name' );
     is( $r->{'connectors-sweep'}{outcome}, 'refused', 'connectors-sweep: refused' );
     like( $r->{'connectors-sweep'}{reason}, qr/manage_connectors/, 'by name (SM579)' );
+    is( $r->{'row-history-prune'}{outcome}, 'refused', 'row-history-prune: refused' );
+    like( $r->{'row-history-prune'}{reason}, qr/manage_data/, 'by name (SM1355)' );
 
     # Grant it, tick again with no time passing: the refusal did not consume
     # the slot (the 0.13.0 rule, now holding for a per-job refusal too).

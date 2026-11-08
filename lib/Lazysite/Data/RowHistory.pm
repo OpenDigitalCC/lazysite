@@ -28,10 +28,12 @@ package Lazysite::Data::RowHistory;
 # older than its table's period is removed - a deleted row's changes too, the
 # delete among them, so a row that is gone leaves no history behind it once the
 # period has passed - and one still listed past it (no write has pruned yet) is
-# not undoable. PRUNING RUNS WHERE THE STORE IS WRITTEN, after a change is
-# recorded (prune), never on a read: a list or a look at one change only
-# compares ages. The daemon has no data housekeeping job, so there is no second
-# place; a store nobody writes to keeps its last changes until the next write.
+# not undoable. PRUNING RUNS IN TWO PLACES, never on a read (a list or a look at
+# one change only compares ages): where the store is written, after a change is
+# recorded, and once a day in the daemon's `row-history-prune` job, so a store
+# nobody writes to does not keep expired changes - old values of people's rows -
+# for as long as nobody writes. Both call prune with period_for, so the two
+# cannot disagree about a table's period.
 
 use strict;
 use warnings;
@@ -41,7 +43,7 @@ use Lazysite::Util         qw(log_event);
 use Lazysite::Data::SQLite ();              # the engine-specific parts (t/unit/data/12)
 
 our @EXPORT_OK = qw(record_change list_changes get_change mark_undone prune keep_days
-    within_period);
+    within_period period_for);
 
 my $TABLE = '_row_changes';
 
@@ -74,10 +76,28 @@ sub within_period {
     return $c->{at} ge _cutoff( $days // $DEFAULT_KEEP_DAYS ) ? 1 : 0;
 }
 
+# The period lookup both callers pass to prune: a table's days are keep_days of
+# its descriptor as the docroot declares it now, read once per table; a table
+# no longer declared (or whose descriptor does not load) is held to the default.
+sub period_for {
+    my ($docroot) = @_;
+    require Lazysite::Data::Tables;
+    my %days;
+    return sub {
+        my ($t) = @_;
+        return $days{$t} //= do {
+            my $d = eval { Lazysite::Data::Tables::load_table( $docroot, $t ) };
+            keep_days( ref $d eq 'HASH' && $d->{ok} ? $d : undef );
+        };
+    };
+}
+
 # Remove every change older than its table's period. $period_for is called with
-# each table the history names and answers its days (keep_days of its
-# descriptor). Called on the write path only. Never fatal: a prune that fails is
-# logged and the write that called it stands. Returns how many were removed.
+# each table the history names and answers its days (period_for above). Called
+# after a recorded write and by the daemon's row-history-prune job, never on a
+# read. Never fatal: a prune that fails is logged and the write that called it
+# stands. Returns how many were removed, or undef when the prune failed (the
+# job reports that; a write ignores it).
 sub prune {
     my ( $dbh, $period_for ) = @_;
     my $gone = eval {
@@ -94,9 +114,9 @@ sub prune {
         $n;
     };
     unless ( defined $gone ) {
-        log_event( 'WARN', 'data', 'row history not pruned - the write itself succeeded',
+        log_event( 'WARN', 'data', 'row history not pruned - nothing else was changed',
             error => ( $@ || 'unknown' ) );
-        return 0;
+        return undef;
     }
     log_event( 'INFO', 'data', 'row history pruned', removed => $gone ) if $gone;
     return $gone;

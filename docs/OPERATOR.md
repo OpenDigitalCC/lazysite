@@ -323,7 +323,8 @@ lazysited --docroot <docroot> --status      # desired / verdict / remedy per ser
 **Jobs run as an account, never as root or `system`.** The sysop names a
 `daemon_job_user` in the extension's config and gives that account the `run_jobs`
 capability plus whatever the job needs (`analytics` for the rollup,
-`manage_users` for the sweep) - a purpose account, not a person's. No account,
+`manage_users` for the sweep, `manage_data` for the daily row history prune) - a
+purpose account, not a person's. No account,
 or one lacking a capability, means the job is refused with the reason in the
 run record, `lazysite/daemon/scheduler-runs.json`, which is also where a job's
 last outcome and counts are kept - and which Status carries as `runs`, since

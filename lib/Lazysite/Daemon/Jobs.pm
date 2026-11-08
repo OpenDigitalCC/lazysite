@@ -103,6 +103,30 @@ sub connectors_sweep {
     return { ok => 1, kept => $r->{kept}, expired => $r->{expired}, unanswered => $r->{unanswered} };
 }
 
+# --- row-history-prune -------------------------------------------------------
+
+# SM1355 (ruling 170): the row history is kept for its table's period (90 days
+# by default). The write path prunes after each recorded change, so a store
+# nobody writes to kept its expired changes - earlier values of people's rows -
+# for as long as nobody wrote. This is the clock making the same call the write
+# path makes: RowHistory::prune with RowHistory::period_for, every table the
+# history names. A site with no data store has nothing to prune, and the job
+# does not create one.
+sub row_history_prune {
+    my (%ctx) = @_;
+    my $root = $ctx{docroot};
+    require Lazysite::Data::Connect;
+    require Lazysite::Data::RowHistory;
+    return { ok => 1, detail => { removed => 0, store => 'none' } }
+        unless -e Lazysite::Data::Connect::store_path($root);
+    my $dbh = Lazysite::Data::Connect::write_handle($root)
+        or return { ok => 0, error => 'the data store could not be opened for writing; see the log' };
+    my $n = Lazysite::Data::RowHistory::prune( $dbh, Lazysite::Data::RowHistory::period_for($root) );
+    $dbh->disconnect;
+    return { ok => 0, error => 'the row history could not be pruned; see the log' } unless defined $n;
+    return { ok => 1, detail => { removed => $n } };
+}
+
 # SM842: THE SCHEDULE. Call every entry whose interval has elapsed, through the
 # handler it names.
 #
