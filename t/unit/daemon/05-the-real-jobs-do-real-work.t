@@ -117,11 +117,9 @@ subtest 'each need is the capability the manager charges for the same work' => s
     is( $JOBS{'stats-rollup'}{needs}, $gate,
         "stats-rollup needs what analyse_visitors is gated on ($gate)" );
 
-    # SM1355 (ruling 170): the prune reaches every table's history, which the
-    # manager reads as data-row-changes.
-    my $hgate = { Lazysite::ControlApi::Actions::cookie_caps() }->{'data-row-changes'};
-    is( $JOBS{'row-history-prune'}{needs}, $hgate,
-        "row-history-prune needs what data-row-changes is gated on ($hgate)" );
+    # SM1355: ruling 175 makes retention unrefusable by a missing grant - the
+    # prune reads and changes no current row, and each run is audited.
+    ok( !defined $JOBS{'row-history-prune'}{needs}, 'row-history-prune needs nothing beyond run_jobs' );
 
     # SM944 S33: the sessions-and-keys branch is Manager::Sessions' handler,
     # which reads the request's account from Manager::Common by full name.
@@ -135,7 +133,7 @@ subtest 'each need is the capability the manager charges for the same work' => s
         "sessions-sweep needs what sessions-list is gated on ($sgate)" );
 };
 
-subtest 'run_jobs alone runs the heartbeat and is refused the rest, by name' => sub {
+subtest 'run_jobs alone runs the heartbeat and the prune, and is refused the rest by name' => sub {
     my $root = site();
     add_account( $root, 'jobs-thin' );
     grant_caps( $root, 'jobs-thin', qw(run_jobs) );
@@ -150,8 +148,7 @@ subtest 'run_jobs alone runs the heartbeat and is refused the rest, by name' => 
     like( $r->{'sessions-sweep'}{reason}, qr/manage_users/, 'by name' );
     is( $r->{'connectors-sweep'}{outcome}, 'refused', 'connectors-sweep: refused' );
     like( $r->{'connectors-sweep'}{reason}, qr/manage_connectors/, 'by name (SM579)' );
-    is( $r->{'row-history-prune'}{outcome}, 'refused', 'row-history-prune: refused' );
-    like( $r->{'row-history-prune'}{reason}, qr/manage_data/, 'by name (SM1355)' );
+    is( $r->{'row-history-prune'}{outcome}, 'ok', 'row-history-prune: ok (ruling 175)' );
 
     # Grant it, tick again with no time passing: the refusal did not consume
     # the slot (the 0.13.0 rule, now holding for a per-job refusal too).

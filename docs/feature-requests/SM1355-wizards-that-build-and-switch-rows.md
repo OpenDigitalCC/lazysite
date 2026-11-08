@@ -31,6 +31,11 @@ change, no copy or preview); building or editing a row runs the wizard.
 Ruled (170): 90 days by default, with a per-table setting; a deleted row's history is
 cleared after the period too, and Undo is offered only within it.
 
+3. What does the daily prune job need?
+
+Ruled (175): only `run_jobs` (`needs => undef`): retention is never refusable by a
+missing grant; each run is audited.
+
 # Shipped
 
 ## Availability
@@ -94,13 +99,15 @@ period is removed, a deleted row's changes included, the delete among them.
 - **And on a clock**: pruning only on a write left a store nobody writes to holding
   its expired changes indefinitely, so the daemon's scheduler has a built-in job,
   `row-history-prune`, declared in its closed set (`%JOBS`) beside the others: daily
-  (`every: 86400`), `needs: manage_data`, body `Daemon::Jobs::row_history_prune`. It
-  makes the write path's call (`prune` with `period_for`) for every table. It runs as
-  the daemon's job account (`daemon_job_user`), the one `sessions-sweep` and
-  `connectors-sweep` run as, which needs `run_jobs` and, for this job, `manage_data`
-  (what `data-row-changes`, the whole history, is gated on); without it the job is
-  refused by name. A site with no data store has nothing to prune and the job creates
-  none. The run record carries `removed`, or an error with its reason.
+  (`every: 86400`), no `needs`, body `Daemon::Jobs::row_history_prune`. It makes the
+  write path's call (`prune` with `period_for`) for every table. It runs as the
+  daemon's job account (`daemon_job_user`), the one `sessions-sweep` and
+  `connectors-sweep` run as, and needs only `run_jobs` (ruling 175: retention is
+  never refusable by a missing grant; the job reads and changes no current row). A
+  site with no data store has nothing to prune and the job creates none. The run
+  record carries `tables` and `removed`, or an error with its reason, and each run is
+  one audit row, `row-history-prune` (origin `daemon`), with the same counts or the
+  failure.
 - **Undo only inside the period**: a change still listed past it (no write yet) is
   listed with `undoable: false`, the manager shows no Undo for it, and
   `undo_row_change` / `data-row-undo` refuse it as `expired-change` (409), writing
@@ -156,5 +163,6 @@ by the next write; a table's period overriding the default; a deleted row's hist
 pruned after the period), t/unit/data/82 (a store nobody writes to loses its expired
 changes when the job runs and keeps those inside the period, per table's period and
 the default for a table no longer declared; no store is created where there is none;
-refused without `manage_data`), t/unit/daemon/05 (the closed set names the job, which
-needs what `data-row-changes` is gated on). Each fails with its part reverted.
+the job runs for an account holding only `run_jobs`; each run one audit row with the
+tables and the count), t/unit/daemon/05 (the closed set names the job, which needs
+nothing beyond `run_jobs`). Each fails with its part reverted.

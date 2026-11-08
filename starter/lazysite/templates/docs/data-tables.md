@@ -351,8 +351,9 @@ go the same way, the delete among them. Removal happens in two places, across
 every table: when the store is written (each recorded change removes those past
 their period), and once a day in the daemon's `row-history-prune` job, so a
 store nobody writes to is cleared too. The job runs as the daemon's job account
-(`daemon_job_user`) and needs `manage_data` besides `run_jobs`; without it the
-job is refused, and the daemon's run record says why. Reading the history
+(`daemon_job_user`) and needs nothing beyond `run_jobs`, so no missing grant
+stops it; each run writes one audit row (`row-history-prune`) saying how many
+tables the history held and how many changes went. Reading the history
 removes nothing, so a change past its period can still be listed until one of
 the two runs; it is shown without an Undo (`undoable` false) and undoing it is
 refused as `expired-change`.

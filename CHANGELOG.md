@@ -263,8 +263,8 @@ Archive
   row changed since. Ruling 170: the history is kept 90 days, or the table's own
   `row_history_days` (a positive whole number, refused by name otherwise); a change past
   its period, a deleted row's included, is removed when the store is next written and
-  daily by the daemon's new `row-history-prune` job (as the job account, needing
-  `manage_data`), never on a read, and undoing one still listed is refused as
+  daily by the daemon's new `row-history-prune` job (as the job account, needing only
+  `run_jobs`, each run audited), never on a read, and undoing one still listed is refused as
   `expired-change`. A wizard (`lazysite/db/wizards/<name>.yaml`, `save_wizard` /
   `data-wizard-save`, checked against its table) asks one question per step (text,
   price, choice, choices, yes/no; required, help, `when`) and builds or edits one row:

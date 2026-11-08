@@ -4289,14 +4289,17 @@ threat delta
   call (`RowHistory::prune` with `RowHistory::period_for`) for every table the history
   names, so a store nobody writes to is pruned too. A prune that fails is logged; the
   write stands, and the job records an error with its reason.
-: Elevation of privilege, by the job: none new. It runs as the configured
+: Elevation of privilege, by the job: none. It runs as the configured
   `daemon_job_user`, the account the daemon's other housekeeping jobs
-  (`sessions-sweep`, `connectors-sweep`) run as, under `run_jobs` and `manage_data`,
-  the capability that reads the whole history through the manager
-  (`data-row-changes`); without it the job is refused by name and removes nothing. It
-  removes only changes past their period, writes no row, and on a site with no data
-  store opens nothing and creates no store. No ADR 0007 trigger: no new interface,
-  account, sign-in method or dependency, and the job is engine code in the closed set.
+  (`sessions-sweep`, `connectors-sweep`) run as, and needs only `run_jobs` (ruling
+  175: retention is never refusable by a missing grant). It reads and changes no
+  current row: it removes only changes past their table's period, which the write
+  path removes anyway, returns nothing of what it removed, and on a site with no data
+  store opens nothing and creates no store. Repudiation: each run is one audit row
+  (`row-history-prune`, origin `daemon`) naming the job account, the tables the
+  history held and how many changes went, or the failure. No ADR 0007 trigger: no new
+  interface, account, sign-in method or dependency, and the job is engine code in the
+  closed set.
 : Tampering, by undoing a change from outside the period: refused as `expired-change`
   (409) even while a not-yet-pruned change is still listed, and the listing marks it
   `undoable: false`.
@@ -4313,15 +4316,16 @@ controls
   period, a bad `row_history_days` refused by name), t/unit/data/82 (a store nobody
   writes to loses its expired changes when the job runs and keeps those inside the
   period, a table's own period and the default for a table no longer declared; no
-  store is created; refused without `manage_data`), t/unit/daemon/05 (the job is in the
-  closed set and needs what `data-row-changes` is gated on).
+  store is created; the job runs for an account holding only `run_jobs`; each run one
+  audit row with the tables and the count), t/unit/daemon/05 (the job is in the closed
+  set and needs nothing beyond `run_jobs`).
 
 residual risk
 : `_row_changes` keeps rows' earlier values, including values a later write removed,
   for up to the table's period (90 days by default) after the change, and past it by
-  at most a day while the daemon runs its job. Where the daemon is not enabled, or its
-  job account lacks `manage_data` (the job is then refused, and the run record says
-  so), a store nobody writes to keeps expired changes until its next write, as before.
+  at most a day while the daemon runs its job. Where the daemon is not enabled, or has
+  no usable job account (the job is then refused, and the run record says so), a
+  store nobody writes to keeps expired changes until its next write, as before.
   A table that sets a long period keeps them that long. A write that could not be
   recorded stands without an undo, and says so.
 

@@ -158,10 +158,8 @@ history leaves out; nothing else changes on upgrade.
 switch is recorded in the data store, in a table named `_row_changes` that the first
 recorded write creates; nothing needs migrating. The history is kept 90 days unless a
 table's descriptor sets `row_history_days`. Where the daemon runs, its new daily job
-`row-history-prune` removes expired changes from a store nobody writes to; it runs as
-the existing `daemon_job_user`, which must hold `manage_data` for it (otherwise the
-job is refused, the run record and Status say so, and pruning happens only on a
-write). A table gains a switch only when its
+`row-history-prune` removes expired changes from a store nobody writes to, as the
+existing `daemon_job_user`; it needs no grant beyond `run_jobs`. A table gains a switch only when its
 descriptor names an `availability` field, and wizards exist only where
 `lazysite/db/wizards/` holds them, so an upgraded site's tables and pages behave as
 before.

@@ -101,12 +101,13 @@ our %JOBS = (
     # SM1355 (ruling 170): remove the row history past each table's period, so
     # a store nobody writes to does not keep expired changes until somebody
     # does (the write path prunes too). Daily: the period is counted in whole
-    # days. manage_data because the job reaches every table's history, and the
-    # whole history is manage_data's alone through the manager
-    # (data-row-changes).
+    # days. `needs` is undef (ruling 175): retention is never refusable by a
+    # missing grant - the job reads and changes no current row, it removes only
+    # history past its period - and each run is audited (Jobs.pm). run_jobs is
+    # still required before the body runs at all.
     'row-history-prune' => {
         every => 86400,
-        needs => 'manage_data',
+        needs => undef,
         run   => \&Lazysite::Daemon::Jobs::row_history_prune,
     },
 

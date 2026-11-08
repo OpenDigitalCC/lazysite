@@ -112,19 +112,50 @@ sub connectors_sweep {
 # path makes: RowHistory::prune with RowHistory::period_for, every table the
 # history names. A site with no data store has nothing to prune, and the job
 # does not create one.
+#
+# Ruling 175: IT NEEDS ONLY run_jobs. Retention is never refusable by a missing
+# grant, and the job reads and changes no current row: it removes only history
+# past its period. EACH RUN IS AUDITED - one row, `row-history-prune`, naming
+# the tables the history held and how many changes went (or why it failed), so
+# a removal nobody asked for is still answerable to who and when.
 sub row_history_prune {
     my (%ctx) = @_;
     my $root = $ctx{docroot};
     require Lazysite::Data::Connect;
     require Lazysite::Data::RowHistory;
-    return { ok => 1, detail => { removed => 0, store => 'none' } }
+    my $r = _row_history_prune($root);
+    _audit_prune( $root, $ctx{actor}, $r );
+    return $r;
+}
+
+sub _row_history_prune {
+    my ($root) = @_;
+    return { ok => 1, detail => { tables => 0, removed => 0, store => 'none' } }
         unless -e Lazysite::Data::Connect::store_path($root);
     my $dbh = Lazysite::Data::Connect::write_handle($root)
         or return { ok => 0, error => 'the data store could not be opened for writing; see the log' };
-    my $n = Lazysite::Data::RowHistory::prune( $dbh, Lazysite::Data::RowHistory::period_for($root) );
+    my %stat;
+    my $n = Lazysite::Data::RowHistory::prune( $dbh, Lazysite::Data::RowHistory::period_for($root), \%stat );
     $dbh->disconnect;
     return { ok => 0, error => 'the row history could not be pruned; see the log' } unless defined $n;
-    return { ok => 1, detail => { removed => $n } };
+    return { ok => 1, detail => { tables => $stat{tables} // 0, removed => $n } };
+}
+
+sub _audit_prune {
+    my ( $root, $actor, $r ) = @_;
+    my $d = ref $r->{detail} eq 'HASH' ? $r->{detail} : {};
+    eval {
+        require Lazysite::Audit;
+        no warnings 'once';
+        local $Lazysite::Audit::LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($root);
+        Lazysite::Audit::audit_log( $actor // '', 'row-history-prune', 'row-history', '',
+            ( $r->{ok} ? 'ok' : 'failed' ), 'daemon',
+            $r->{ok}
+            ? 'tables=' . ( $d->{tables} // 0 ) . ' removed=' . ( $d->{removed} // 0 )
+            : ( $r->{error} // 'failed' ) );
+        1;
+    };
+    return;
 }
 
 # SM842: THE SCHEDULE. Call every entry whose interval has elapsed, through the

@@ -97,13 +97,16 @@ sub period_for {
 # after a recorded write and by the daemon's row-history-prune job, never on a
 # read. Never fatal: a prune that fails is logged and the write that called it
 # stands. Returns how many were removed, or undef when the prune failed (the
-# job reports that; a write ignores it).
+# job reports that; a write ignores it). An optional hashref $stat gets
+# `tables`, how many tables the history named (the job's audit row says it).
 sub prune {
-    my ( $dbh, $period_for ) = @_;
+    my ( $dbh, $period_for, $stat ) = @_;
+    $stat->{tables} = 0 if ref $stat eq 'HASH';
     my $gone = eval {
         return 0 unless Lazysite::Data::SQLite::row_changes_exist($dbh);
         my $tables = $dbh->selectcol_arrayref(qq{SELECT DISTINCT "tbl" FROM "$TABLE"}) || [];
-        my $n      = 0;
+        $stat->{tables} = scalar @$tables if ref $stat eq 'HASH';
+        my $n = 0;
         for my $t (@$tables) {
             my $days = $period_for ? $period_for->($t) : undef;
             $days = $DEFAULT_KEEP_DAYS unless defined $days && $days =~ /\A[1-9][0-9]*\z/;
