@@ -366,6 +366,11 @@ sub action_users {
                     . 'account page (/account). A manager can remove all of an account\'s passkeys '
                     . '(passkey-wipe), never add one.' }
                 if $act =~ /\A(?:passkey-add|passkey-remove|passkey-used)\z/;
+          # SM1363: and a device's app notices are turned on and off by the person, on it.
+            return { ok => 0, kind => 'forbidden',
+                error => 'App notices are turned on or off on the device, by the person, on their own '
+                    . 'account page (/account).' }
+                if $act =~ /\A(?:push-subscribe|push-unsubscribe)\z/;
 
             # SM1040: a password change or a 2FA disable signs the account's
             # other sessions out and keeps the one making the change - which is

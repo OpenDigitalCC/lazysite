@@ -240,6 +240,10 @@ sign out everywhere.
 - **Passkeys** (`::: account-passkeys`, actions `me-passkeys`, `me-passkey-begin`,
   `me-passkey-add`, `me-passkey-remove`): list, add (with the current password when
   the account has one) and remove your own. See "Passkeys" below.
+- **Notices on this device** (`::: account-push`, actions `me-push`, `me-push-subscribe`,
+  `me-push-unsubscribe`): turn the installed app's notices on or off for the phone the
+  page is open on. A notice pushed this way says only that something is waiting. See
+  [forms: notices to the app](/docs/forms).
 - `account_page: disabled` in `lazysite.conf` turns it off: `/account` answers
   404 (unless the site wrote its own page) and the `me-*` actions refuse, naming
   the setting.

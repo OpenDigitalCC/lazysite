@@ -58,7 +58,8 @@ use Lazysite::Manager::Account   qw(action_me dispatch_me_password action_me_ses
     dispatch_me_session_revoke action_me_sign_out_everywhere
     action_me_notices dispatch_me_notices_seen
     dispatch_me_2fa_enrol dispatch_me_2fa_confirm dispatch_me_2fa_disable dispatch_me_recovery_codes
-    action_me_passkeys dispatch_me_passkey_begin dispatch_me_passkey_add dispatch_me_passkey_remove); # SM1043: the member's own account; SM1352 passkeys
+    action_me_passkeys dispatch_me_passkey_begin dispatch_me_passkey_add dispatch_me_passkey_remove
+    action_me_push dispatch_me_push_subscribe dispatch_me_push_unsubscribe); # SM1043: the member's own account; SM1352 passkeys; SM1363 app notices
 use Lazysite::Handlers         ();    # SM842: handlers, bindings, the schedule
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
@@ -2697,6 +2698,9 @@ elsif ( $action eq 'me-passkeys' )       { $result = action_me_passkeys() }     
 elsif ( $action eq 'me-passkey-begin' )  { $result = dispatch_me_passkey_begin() }
 elsif ( $action eq 'me-passkey-add' )    { $result = dispatch_me_passkey_add() }
 elsif ( $action eq 'me-passkey-remove' ) { $result = dispatch_me_passkey_remove() }
+elsif ( $action eq 'me-push' )           { $result = action_me_push() }           # SM1363
+elsif ( $action eq 'me-push-subscribe' )   { $result = dispatch_me_push_subscribe() }
+elsif ( $action eq 'me-push-unsubscribe' ) { $result = dispatch_me_push_unsubscribe() }
 elsif ( $action eq 'start-page-set' ) {
     $result = dispatch_start_page_set();
 }

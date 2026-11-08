@@ -26,6 +26,12 @@ package Lazysite::Notify;
 # strictly best-effort: the XMPP client is lazy-required and time-boxed so a CGI
 # request can never hang on a chat server.
 #
+# SM1363 adds two more endpoints to the same route table, for a notice addressed
+# to one account that chose them (`notify_routes` in its record): `webpush` (the
+# installed app, an empty push signed with the site's VAPID key, Lazysite::WebPush)
+# and `webhook` (a named connector - an SMS gateway, ruling 188). Neither carries
+# the notice's content, and the one hourly bound (mail.per_hour) counts every route.
+#
 # Not here, deliberately: digest/batching, timers, inbound actions, workflow, and
 # the agent-messaging store - the last is a door SM231 asks to be left open, not
 # a feature to build. See SM281 for what remains.
@@ -423,6 +429,18 @@ sub notify {
             if length $why;
     }
 
+    # SM1363: AND BY WEB PUSH OR WEBHOOK, the two other routes in this same table,
+    # to the account the notice names when that account chose the route. Every
+    # attempt is a log line with its outcome, sent or not; like mail, an outcome is
+    # never a failure of notify().
+    for my $r (qw(webpush webhook)) {
+        next unless $route->{$r};
+        my $why = _route_notice( $docroot, $conf, $r, \%rec, \%vars );
+        log_event( 'INFO', 'notify',
+            ( length $why ? "notice not sent by $r" : "notice sent by $r" ),
+            type => $type, to => ( $rec{to} // '' ), ( length $why ? ( why => $why ) : () ) );
+    }
+
     # SM1412 (ruling 159): SM1362's copy of a form's notice to notify.conf's
     # `owner_contact` is retired, and the key is ignored. No one is mailed by
     # default (ruling 158): a form's submissions are stored, and people are mailed
@@ -487,6 +505,25 @@ sub send_mail {
     # 4. THE BOUND. Counted from this site's own record, and an unreadable record
     #    REFUSES rather than counting as zero - within_caps treats an undefined
     #    count as "could not tell", which is the only safe reading for a cap.
+    if ( my $capwhy = _hour_cap_refusal( $docroot, $conf, $what ) ) { return $capwhy }
+
+    local $@;
+    my $sent = eval { $MAIL_SENDER->( $docroot, $script, $m{to}, $m{subject}, $m{text} ) };
+    if ( !$sent ) {
+        my $err = $@ || 'the transport reported no reason';
+        $err =~ s/\s+\z//;
+        return "the mail was not accepted: $err";
+    }
+    _record_mail_sent( $docroot, 'email' );
+    return '';
+}
+
+# THE ONE HOURLY BOUND, for every route (SM1363 widened it from mail): a notice
+# by mail, by web push or by webhook is one send against `mail.per_hour` in
+# notify.conf, counted from the one record. The key keeps its name, so a site
+# that set it keeps its bound. '' when there is room, else the refusal.
+sub _hour_cap_refusal {
+    my ( $docroot, $conf, $what ) = @_;
     my $cap = $conf->{'mail.per_hour'};
     $cap = $DEFAULT_MAIL_PER_HOUR unless defined $cap && $cap =~ /\A\d+\z/;
     require Lazysite::Egress;
@@ -497,20 +534,115 @@ sub send_mail {
                 limit   => ( $cap ? $cap : undef ),
                 used    => _mail_sent_last_hour($docroot),
                 window  => 'hour',
-                setting => 'mail.per_hour in notify.conf',
+                setting => 'mail.per_hour in notify.conf (it bounds every notice route)',
         } ],
     );
-    return $capwhy unless $ok;
+    return $ok ? '' : $capwhy;
+}
 
-    local $@;
-    my $sent = eval { $MAIL_SENDER->( $docroot, $script, $m{to}, $m{subject}, $m{text} ) };
-    if ( !$sent ) {
-        my $err = $@ || 'the transport reported no reason';
-        $err =~ s/\s+\z//;
-        return "the mail was not accepted: $err";
+# --- SM1363: the web push and webhook routes ------------------------------------
+#
+# Both reach ONE ACCOUNT - the one the notice names - and only when that account
+# chose the route: `notify_routes` in its record, beside notify_email, names
+# webpush and/or webhook. A broadcast reaches nobody by these routes, as by mail.
+#
+# NEITHER CARRIES THE NOTICE'S CONTENT. The filing: a notice "says only that
+# something is waiting and links to it... on any route". A push carries no
+# payload at all (Lazysite::WebPush); a webhook carries the notice's kind, its
+# title, the account and the link - never the message, never a submission's
+# fields.
+#
+# Returns '' when it went, or the reason it did not.
+sub _route_notice {
+    my ( $docroot, $conf, $r, $rec, $vars ) = @_;
+    return 'the notice is a broadcast, which is a bell item' unless length( $rec->{to} // '' );
+    my ( $acct, $why ) = _route_recipient( $docroot, $rec->{to}, $r );
+    return $why unless $acct;
+    return $r eq 'webpush'
+        ? _webpush_notice( $docroot, $conf, $rec, $vars, $acct )
+        : _webhook_notice( $docroot, $conf, $rec, $vars );
+}
+
+# The account's record when it chose route $r, or ( undef, why ). From its own
+# record, as the mail route's opt-in is (_mail_recipient).
+sub _route_recipient {
+    my ( $docroot, $login, $r ) = @_;
+    my $settings = eval {
+        require Lazysite::Auth::Settings;
+        no warnings 'once';
+        local $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . '/auth';
+        return undef unless Lazysite::Auth::Settings::settings_readable();
+        Lazysite::Auth::Settings::read_settings();
+    };
+    return ( undef, 'the account store could not be read, so no choice of route could be confirmed' )
+        unless ref $settings eq 'HASH';
+    my $acct = $settings->{$login};
+    return ( undef, "there is no account '$login'" ) unless ref $acct eq 'HASH';
+    my %on = map { lc($_) => 1 } grep { length } split /[,\s]+/, ( $acct->{notify_routes} // '' );
+    return ( undef, "'$login' has not chosen notices by $r" ) unless $on{$r};
+    return ($acct);
+}
+
+# The link a route carries: the notice's own url, made absolute against the
+# site's address when it is a path.
+sub _absolute_url {
+    my ($vars) = @_;
+    my $u = $vars->{url} // '';
+    return $u if $u =~ m{\Ahttps?://};
+    return length( $vars->{base} // '' ) ? "$vars->{base}$u" : $u;
+}
+
+sub _webpush_notice {
+    my ( $docroot, $conf, $rec, $vars, $acct ) = @_;
+    require Lazysite::WebPush;
+    my @eps = grep { !Lazysite::WebPush::endpoint_fault($_) }
+        map { ref $_ eq 'HASH' ? $_->{endpoint} : undef } @{ ref $acct->{push} eq 'ARRAY' ? $acct->{push} : [] };
+    return "'$rec->{to}' has turned on app notices on no device" unless @eps;
+    if ( my $m = Lazysite::Crypto::cryptx_missing() ) { return $m }
+    my ( $sent, @why ) = (0);
+    for my $ep (@eps) {
+        my ($host) = $ep =~ m{\A\w+://([^/]+)};
+        if ( my $capwhy = _hour_cap_refusal( $docroot, $conf, 'notice' ) ) {
+            log_event( 'INFO', 'notify', 'notice not pushed', to => $rec->{to}, device => $host, why => $capwhy );
+            push @why, $capwhy;
+            next;
+        }
+        my ( $ok, $code, $err ) = Lazysite::WebPush::deliver( $docroot, $ep, subject => $vars->{base} );
+        _record_mail_sent( $docroot, 'webpush' );
+        log_event( ( $ok ? 'INFO' : 'WARN' ), 'notify', ( $ok ? 'notice pushed' : 'notice push failed' ),
+            to => $rec->{to}, device => $host, http => $code, ( $ok ? () : ( why => $err ) ) );
+        if   ($ok) { $sent++ }
+        else       { push @why, $err }
     }
-    _record_mail_sent($docroot);
-    return '';
+    return '' if $sent;
+    return join '; ', @why;
+}
+
+sub _webhook_notice {
+    my ( $docroot, $conf, $rec, $vars ) = @_;
+    my $id = $conf->{'webhook.connector'} // '';
+    return 'notify.conf names no webhook.connector, so the webhook route has nowhere to go'
+        unless length $id;
+    if ( my $capwhy = _hour_cap_refusal( $docroot, $conf, 'notice' ) ) { return $capwhy }
+    require Lazysite::Manager::Connectors;
+    no warnings 'once';
+    local $Lazysite::Manager::Connectors::DOCROOT = $docroot;
+    # SCHEDULED, because nobody's request reaches the remote: the engine sends a
+    # fixed shape of its own, whatever caused the notice. The connector must
+    # permit scheduled calls; its own rate cap, secret header, refusal of
+    # redirects and call record all apply (ruling 188: SMS goes this way, to the
+    # operator's gateway).
+    my $r = Lazysite::Manager::Connectors::call( $id, {
+            notice => $rec->{type},
+            title => ( $TYPES{ $rec->{type} } ? $TYPES{ $rec->{type} }{title} : 'Notice' ),
+            account => $rec->{to},
+            url     => _absolute_url($vars),
+            site    => ( $vars->{site} // '' ),
+        },
+        mode => 'scheduled', trigger => "notice:$rec->{type}" );
+    _record_mail_sent( $docroot, 'webhook' ) unless ( $r->{state} // '' ) eq 'refused';
+    return '' if $r->{ok};
+    return "the webhook connector '$id' did not take it: " . ( $r->{error} // $r->{state} // 'no answer' );
 }
 
 # SM485: where a notice for this account should go, or '' and the reason.
@@ -587,14 +719,15 @@ sub _mail_sent_last_hour {
 
 # One line per send. The ADDRESS IS NOT WRITTEN - only that a send happened -
 # for SM877's reason: a file of addresses is a mailing list, and this one would
-# be a list of the site's own operators.
+# be a list of the site's own operators. SM1363: every route's sends are lines here,
+# each naming its route, so the one hourly bound counts them all.
 sub _record_mail_sent {
-    my ($docroot) = @_;
+    my ( $docroot, $route ) = @_;
     my $f = _mail_record_file($docroot);
     open my $fh, '>>', $f or return 0;
     eval {
         flock $fh, LOCK_EX;
-        print {$fh} JSON::PP::encode_json( { t => time() } ) . "\n";
+        print {$fh} JSON::PP::encode_json( { t => time(), route => ( $route // 'email' ) } ) . "\n";
         1;
     };
     close $fh;

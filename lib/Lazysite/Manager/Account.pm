@@ -47,6 +47,9 @@ package Lazysite::Manager::Account;
 #   dispatch_me_passkey_begin  me-passkey-begin: the password, then a challenge to add one
 #   dispatch_me_passkey_add    me-passkey-add: the browser's answer, verified and stored
 #   dispatch_me_passkey_remove me-passkey-remove: one of mine
+#   action_me_push             me-push: may this site push, its key, my devices (SM1363)
+#   dispatch_me_push_subscribe   me-push-subscribe: notices on for this device
+#   dispatch_me_push_unsubscribe me-push-unsubscribe: notices off for this device
 
 use strict;
 use warnings;
@@ -64,7 +67,8 @@ our @EXPORT_OK = qw(account_page_enabled action_me dispatch_me_password action_m
     dispatch_me_session_revoke action_me_sign_out_everywhere me_refusal
     action_me_notices dispatch_me_notices_seen
     dispatch_me_2fa_enrol dispatch_me_2fa_confirm dispatch_me_2fa_disable dispatch_me_recovery_codes
-    action_me_passkeys dispatch_me_passkey_begin dispatch_me_passkey_add dispatch_me_passkey_remove);
+    action_me_passkeys dispatch_me_passkey_begin dispatch_me_passkey_add dispatch_me_passkey_remove
+    action_me_push dispatch_me_push_subscribe dispatch_me_push_unsubscribe);
 
 our $DOCROOT;                          # set by the script
 our $LAZYSITE_DIR;                     # set by the script
@@ -440,6 +444,66 @@ sub dispatch_me_passkey_remove {
         error => ( ref $r eq 'HASH' && $r->{error} ) || 'The passkey was not removed.' }
         unless ref $r eq 'HASH' && $r->{ok};
     return { ok => 1, id => $id, message => 'Passkey removed.' };
+}
+
+# --- SM1363: app notices on the member's own devices ------------------------------
+#
+# A device turns notices on by subscribing through the browser (the site's app
+# worker) and handing this the endpoint; its notices then come by web push, with
+# no content - the worker says something is waiting and opens /account. Turning a
+# device on adds `webpush` to the account's notify_routes, the last one off
+# removes it (the users tool does both). Without CryptX: unavailable, and said.
+
+sub action_me_push {
+    if ( my $r = me_refusal() ) { return $r }
+    require Lazysite::WebPush;
+    my ( $key, $why ) = Lazysite::WebPush::public_key($DOCROOT);
+    my $s = do {
+        no warnings 'once';
+        local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+        require Lazysite::Auth::Settings;
+        Lazysite::Auth::Settings::read_settings()->{$auth_user} || {};
+    };
+    my @eps = map { $_->{endpoint} } grep { ref $_ eq 'HASH' } @{ ref $s->{push} eq 'ARRAY' ? $s->{push} : [] };
+    return {
+        ok => 1,
+        available => ( defined $key ? JSON::PP::true() : JSON::PP::false() ),
+        ( defined $key ? ( key => $key ) : ( needs => $why ) ),
+        devices => \@eps,
+        routes  => [ grep { length } split /[,\s]+/, ( $s->{notify_routes} // '' ) ],
+    };
+}
+
+sub _push_body_endpoint {
+    my $req = _json_body() || {};
+    my $ep  = $req->{endpoint};
+    return ( ref $ep ? undef : $ep );
+}
+
+sub dispatch_me_push_subscribe {
+    if ( my $r = me_refusal() ) { return $r }
+    require Lazysite::Crypto;
+    if ( my $m = Lazysite::Crypto::cryptx_missing() ) { return { ok => 0, kind => 'unavailable', error => $m } }
+    my $ep = _push_body_endpoint();
+    require Lazysite::WebPush;
+    if ( my $f = Lazysite::WebPush::endpoint_fault($ep) ) {
+        return { ok => 0, kind => 'invalid', field => 'endpoint', error => "This device cannot be added: $f." };
+    }
+    my $r = users_api( { action => 'push-subscribe', username => $auth_user, actor => $auth_user, endpoint => $ep } );
+    return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'Notices were not turned on.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, devices => $r->{devices}, message => 'Notices are on for this device.' };
+}
+
+sub dispatch_me_push_unsubscribe {
+    if ( my $r = me_refusal() ) { return $r }
+    my $ep = _push_body_endpoint();
+    return { ok => 0, kind => 'invalid', field => 'endpoint', error => 'endpoint is required (this device\'s, from me-push).' }
+        unless defined $ep && length $ep;
+    my $r = users_api( { action => 'push-unsubscribe', username => $auth_user, actor => $auth_user, endpoint => $ep } );
+    return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'Notices were not turned off.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, devices => $r->{devices}, message => 'Notices are off for this device.' };
 }
 
 # SM1034 phase 1b (SM1010 R2): the member's own bell - the notices addressed to

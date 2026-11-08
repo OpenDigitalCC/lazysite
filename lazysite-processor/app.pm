@@ -323,7 +323,10 @@ sub _app_manifest {
 #
 # No cookie, token or answer is read or written: the worker neither sets nor
 # forwards a header, and keeps only whole responses under the rules above.
-# No offline queue, background sync or push.
+# No offline queue or background sync. SM1363: a PUSH carries nothing (ruling
+# 187, the filing's "a notice says only that something is waiting"): the worker
+# shows the app's name and "Something is waiting for you", and a tap opens the
+# account's notices, where the notice is read signed in, from the server.
 sub _app_worker {
     my ($app) = @_;
     my @shell = _app_shell($app);
@@ -333,6 +336,8 @@ sub _app_worker {
         never => [ _app_never($app) ],
         pages  => [ _app_offline_pages($app) ],
         update => $app->{update},
+        name => $app->{short_name} // $app->{name}, # SM1363: the title of a pushed notice
+        notices => '/account',                      # SM1363: where tapping it lands
     );
     my $json = JSON::PP->new->canonical->ascii->encode( \%cfg );
     my $js   = _app_worker_template();
@@ -481,6 +486,20 @@ self.addEventListener('activate', function (event) {
       }).map(function (n) { return caches.delete(n); }));
     }).then(function () { return self.clients.claim(); })
   );
+});
+
+/* SM1363: a notice by web push. It carries no payload, so nothing in it is read:
+   the worker says something is waiting, and a tap opens the account's notices,
+   which the page reads from the server, signed in. */
+self.addEventListener('push', function (event) {
+  event.waitUntil(self.registration.showNotification(CFG.name || 'Notice', {
+    body: 'Something is waiting for you.', tag: 'lazysite-notice', renotify: true
+  }));
+});
+
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(self.clients.openWindow(CFG.notices || '/'));
 });
 
 self.addEventListener('fetch', function (event) {

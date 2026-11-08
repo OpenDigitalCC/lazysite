@@ -137,8 +137,16 @@ The worker **never** handles the Odoo endpoint, the manager, the sign-in and
 sign-out paths, the other `lazysite-*.pl` endpoints or the engine tree, and it
 reads or stores no cookie, token or answer. It honours the server: a response
 sent `Cache-Control: no-store` or `private` is never kept, and a copy kept
-earlier of a file that now says so is deleted. There is no offline queue,
-background sync or push.
+earlier of a file that now says so is deleted. There is no offline queue or
+background sync.
+
+The worker shows **notices by web push** for an account that turned them on for the
+device on `/account`. A push carries nothing: the notification says "Something is
+waiting for you" under the app's name, and tapping it opens `/account`, where the
+notice is read from the server, signed in. The site's side - routing, the key, the
+hourly bound - is in [forms: notices to the app](/docs/forms). The sign-in page, and
+so the app's sign-in, offers a passkey ([auth](/docs/auth)); the worker never answers
+it or the auth wrapper, so a passkey sign-in always reaches the server.
 
 ## Pages that open offline
 

@@ -660,6 +660,42 @@ should see the notices.
 The connector needs `Net::XMPP` and `Net::DNS` - on Debian, `libnet-xmpp-perl`
 and `libnet-dns-perl`.
 
+### Notices to the app, and by text message
+
+A notice addressed to one account (a notification rule's, a client room's) can also
+reach that person on their phone, by two more routes in `lazysite/notify.conf`'s
+`route.<type>` lines, beside `xmpp` and `email`:
+
+```yaml
+route.submission: bell,webpush,webhook
+webhook.connector: sms-gateway
+```
+
+- **`webpush`** shows a notification from the site's installed app (`app_name`, see
+  [the app](/docs/app)). The person turns it on for each phone on their account page,
+  `/account` ("Turn on notices for this device"); turning on a device is their choice of
+  the route. The notification says only "Something is waiting for you" and opens
+  `/account`: nothing of the notice travels. The site signs each push with its own key,
+  made on first use at `lazysite/auth/webpush-vapid.pem`.
+- **`webhook`** calls the connector `webhook.connector` names, which must permit
+  scheduled calls. This is how a site sends text messages: point the connector at your
+  SMS provider's gateway, or a small relay in front of it - the engine names no
+  provider. The body is `{"notice", "title", "account", "url", "site"}` - the kind of
+  notice, its title, the login it is for, and the link - never the message or anything
+  submitted. The connector's secret header, rate cap and call record apply, as for any
+  connector call. An operator chooses who gets them: `notify_routes` on the account
+  (`lazysite users --docroot <docroot> set alice notify_routes webhook`, or with
+  `webpush` too, comma-separated). Your gateway maps the account to a number.
+
+A notice to nobody in particular (a broadcast) goes to neither, as it goes to nobody by
+mail. **The site's hourly bound covers every route**: `mail.per_hour` in `notify.conf`
+(default 60) counts notices sent by mail, web push and webhook together. Every attempt
+is a line in the site log saying what happened - sent, or the reason it was not.
+
+Web push needs CryptX on the server (Debian `libcryptx-perl`, which the package
+recommends); without it the account page says so, and `lazysite check` warns when
+`notify.conf` routes by `webpush`. The webhook route needs nothing extra.
+
 ### Testing it before anything happens
 
 The Extensions page's row for XMPP notifications carries **Send a test

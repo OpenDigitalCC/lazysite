@@ -5400,3 +5400,70 @@ verdict
   enrolment is the account's alone. No ahead-of-schedule third-party engagement beyond
   the one ADR 0007 already requires; the passkey paths should be in that engagement's
   scope.
+
+### 2026-11-08 - SM1363 (0.16.9, PENDING): notices by web push and by webhook
+
+Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+
+what changed
+: Two new routes in Notify's existing route table, `webpush` and `webhook`, for a notice
+  addressed to one account whose record chooses them (`notify_routes`, beside
+  `notify_email`). Web push (`Lazysite::WebPush`) sends an empty POST, signed with the
+  site's own VAPID key (`lazysite/auth/webpush-vapid.pem`, P-256, made on first use,
+  0660), to each push endpoint the account's browsers handed over; the endpoints are kept
+  in the account's record. The webhook route calls the named connector
+  `webhook.connector`, in scheduled mode (ruling 188: SMS goes this way, to the
+  operator's gateway). Three `self`, cookie-only account actions (`me-push`,
+  `me-push-subscribe`, `me-push-unsubscribe`) and the users tool's `push-subscribe` and
+  `push-unsubscribe`; `notify_routes` is a `settings-set` key, not a self-service one.
+  The app's worker gains `push` and `notificationclick` handlers. `mail.per_hour` now
+  bounds every route.
+
+threat delta
+: ADR 0007's new-external-interface trigger fires: an outbound interface to an address
+  a browser chose (the push endpoint), and three account actions. The webhook adds no
+  interface: it is a connector call, the existing outbound path. New-dependency is the
+  CryptX entry. No sign-in method is added; no restricted data is processed in a new
+  way, because nothing of a notice's content travels. The questions:
+  - Tampering / Elevation of privilege (SSRF): could an account point the site at an
+    internal address by registering an endpoint?
+  - Information disclosure: could a notice's content (a submission, a message) leave the
+    site by either route, or an endpoint (a capability for the device) leak?
+  - Denial of service and cost: could a loop, or a public form, make the site push or
+    text without bound?
+  - Spoofing: could someone push to another person's device, or register a device on
+    another's account?
+
+controls
+: An endpoint is stored only if it is https (or, in a test, a 127.0.0.1 fixture) and at
+  most 1024 characters, at most five per account; at send time it must pass
+  `Lazysite::Fetch::is_safe_url` (no loopback, private, link-local, CGNAT or multicast
+  address), no redirect is followed, the body read is capped at 4 KB and the timeout is
+  ten seconds. A push has no payload at all, so nothing of the notice reaches a push
+  service; the webhook body is the notice's kind, title, the account's login and the
+  link, never the message or a submitted field. The log names a device by host only.
+: A device is added and removed by the account itself (the manager API refuses
+  `push-subscribe` and `push-unsubscribe`; the users tool refuses an actor that is not
+  the account). The webhook route needs the operator to name a connector, to permit it
+  scheduled calls, and to set `notify_routes: webhook` on each account (not
+  self-service, a text may cost money).
+: One hourly bound (`mail.per_hour`, default 60) counts every route's sends from one
+  record and refuses when the record cannot be read; the connector's own rate cap and
+  call record apply on top. Every attempt is a log line with its outcome.
+: t/unit/notify/41 (a 127.0.0.1 fixture for both routes: the empty signed push and its
+  JWT verified, the webhook's header and body, the refusals, the bound, the log lines,
+  web push without CryptX), t/unit/account/38 (the devices, the route field, the
+  refusals), each sabotaged one control at a time.
+
+residual risk
+: A push service learns that the site sent a notice to a device, and when; it learns
+  nothing of what. The endpoint is checked by DNS at send time, so a name that
+  re-resolves between the check and the connect could still reach a private address
+  (the same window `Lazysite::Fetch` has). A device that has unsubscribed answers 404 or
+  410 and is logged as gone but kept until the person turns it off on `/account`.
+
+verdict
+: drafted for the release manager: accepted, contained. The new outbound path carries
+  no content, is held to the SSRF guard's rules and a shared bound, and its other half is
+  the existing connector path. No ahead-of-schedule third-party engagement beyond the one
+  ADR 0007 already requires.

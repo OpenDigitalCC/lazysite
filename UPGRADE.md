@@ -196,6 +196,15 @@ engine's page (the `data-ls-account="passkey-signin"`, `"passkey-claim"` and
 `account-passkeys.tt` from the engine. To make a group sign in by passkey only:
 `lazysite users --docroot <docroot> group-set <group> passkey_only on`.
 
+**`mail.per_hour` now bounds every notice route (SM1363).** The hourly bound in
+`lazysite/notify.conf` counted notice mail; it now counts a notice sent by mail, by web
+push and by webhook together, from the same record. A site that routes nothing new sees
+no change. One that adds `webpush` or `webhook` to a `route.<type>` line and keeps a low
+`mail.per_hour` should raise it to cover the extra sends. Nothing else changes for a site
+that does not use the new routes; to use them, see "Notices to the app, and by text
+message" in `/docs/forms`. A site whose own `account.md` should offer app notices adds
+`::: account-push`.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

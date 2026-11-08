@@ -345,6 +345,7 @@ my %REQ = (
     'me-password' => { body => { current_password => 'pw-admin-0123456789', new_password => 'pw-admin-changed-0123' } },
     'me-session-revoke' => { body => { sid => 'fedcba9876543210' } },
     'me-2fa-enrol'      => { body => { current_password => 'pw-admin-0123456789' } },    # SM1042
+    'me-push-subscribe' => { body => { endpoint => 'https://push.example.net/sub/1' } },    # SM1363
     'migrate-to-local' => { query => 'path=page.md' },
     'mkdir'            => { query => 'path=newdir' },
     'move'             => { query => 'path=gone.md&to=moved.md' },
@@ -394,6 +395,8 @@ my %RAN_ONLY = (
     'me-passkey-begin'  => 'needs a Host the passkey belongs to; the requests here carry none',
     'me-passkey-add'    => "needs an authenticator's signed answer to a challenge issued for the account",
     'me-passkey-remove' => 'needs a passkey the account holds; the template enrols none',
+    # SM1363: needs a device that turned notices on; t/unit/account/38 lands it.
+    'me-push-unsubscribe' => 'needs a device that turned notices on; the template has none',
 );
 
 # SM944 S34 finding F-1 (found by this test): file-upload's rate check ran in

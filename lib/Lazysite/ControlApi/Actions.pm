@@ -955,6 +955,12 @@ our %ACTION = (
     'me-passkey-begin' => { self => 1, mutates => 1, cookie_only_reason => 'a person starts adding a passkey to their own account, re-authenticated with the current password', params => [ { name => 'current_password', in => 'body', note => 'needed when the account has a password' } ] },
     'me-passkey-add' => { self => 1, mutates => 1, cookie_only_reason => 'a person adds a passkey to their own account, answering the challenge me-passkey-begin gave', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'client_data', in => 'body', required => 1 }, { name => 'authenticator_data', in => 'body', required => 1 }, { name => 'public_key', in => 'body', required => 1, note => 'getPublicKey(): SPKI DER, base64url' }, { name => 'alg', in => 'body', required => 1 }, { name => 'label', in => 'body' } ] },
     'me-passkey-remove' => { self => 1, mutates => 1, cookie_only_reason => 'a person removes one of their own passkeys', params => [ { name => 'id', in => 'body', required => 1, note => 'one of your passkeys, from me-passkeys' } ] },
+    # SM1363: app notices on the member's own devices, turned on and off on the
+    # device. me-push makes the site's web push key on first use (a key nothing
+    # outside the site can choose), and is a read in every other way.
+    'me-push' => { self => 1, cookie_only_reason => 'it describes the signed-in person\'s own devices and the key their browser subscribes with', params => [] },
+    'me-push-subscribe' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns app notices on for their own device', params => [ { name => 'endpoint', in => 'body', required => 1, note => 'the browser\'s push subscription endpoint (https)' } ] },
+    'me-push-unsubscribe' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns app notices off for their own device', params => [ { name => 'endpoint', in => 'body', required => 1 } ] },
     # SM1369 X2 (H-9): an extension's rows are declared by it and mirrored in
     # from the index (declare_action), never written here.
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },

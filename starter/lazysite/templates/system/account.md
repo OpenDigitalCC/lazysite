@@ -13,6 +13,11 @@ search: false
 ::: account-bell
 :::
 
+## Notices on this device
+
+::: account-push
+:::
+
 ## Password
 
 ::: account-password

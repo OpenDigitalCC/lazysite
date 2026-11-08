@@ -136,7 +136,8 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   69 cookie-only, SM1138: address-profile-set, address-profile-delete - the operator's, and the
     #        operator is never a token (SM991). The token count moves by the read alone.
     #   73 cookie-only, SM1352: me-passkeys, me-passkey-begin, -add, -remove - a person's own passkeys. No gate was added.
-    is( scalar @cookie_only, 73, '73 are cookie-only' );
+    #   76 cookie-only, SM1363: me-push, me-push-subscribe, -unsubscribe - a person's own devices. No gate was added.
+    is( scalar @cookie_only, 76, '76 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

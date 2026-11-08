@@ -489,8 +489,65 @@
     refresh();
   }
 
+  // --- app notices on this device (SM1363) -------------------------------------
+  // The browser subscribes through the site's app worker with the site's public
+  // key, and the endpoint it hands back is all the server keeps: a notice comes
+  // with no content, and the worker opens this page when it is tapped.
+  function push(region) {
+    var state = q(region, '[data-ls-field="push-state"]');
+    var on = q(region, '[data-ls-push="on"]'), off = q(region, '[data-ls-push="off"]');
+    var key = null;
+    function show(text, which) {
+      if (state) state.textContent = text;
+      if (on) on.hidden = which !== 'on';
+      if (off) off.hidden = which !== 'off';
+    }
+    function reg() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve(null);
+      return navigator.serviceWorker.getRegistration().then(function (g) { return g || null; }, function () { return null; });
+    }
+    function refresh() {
+      call('me-push').then(function (r) {
+        if (!r || !r.ok) { say(region, (r && r.error) || 'Your devices could not be read.', true); return; }
+        if (!r.available) { show(r.needs || 'App notices are not available on this site.', ''); return; }
+        key = r.key;
+        reg().then(function (g) {
+          if (!g) { show('Open this page from the site\'s installed app to get notices on this device.', ''); return; }
+          g.pushManager.getSubscription().then(function (sub) {
+            var mine = !!sub && (r.devices || []).indexOf(sub.endpoint) >= 0;
+            show(mine ? 'Notices are on for this device.' : 'Notices are off for this device.', mine ? 'off' : 'on');
+          });
+        });
+      });
+    }
+    if (on) on.addEventListener('click', function () {
+      reg().then(function (g) {
+        if (!g || !key) return null;
+        return g.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+      }).then(function (sub) {
+        if (!sub) return null;
+        return post('me-push-subscribe', { endpoint: sub.endpoint });
+      }).then(function (res) {
+        if (res) say(region, res.message || res.error || '', !res.ok);
+        refresh();
+      }).catch(function () { say(region, 'Notices were not turned on. The browser may have been told not to allow them.', true); });
+    });
+    if (off) off.addEventListener('click', function () {
+      reg().then(function (g) { return g ? g.pushManager.getSubscription() : null; }).then(function (sub) {
+        if (!sub) return null;
+        return post('me-push-unsubscribe', { endpoint: sub.endpoint }).then(function (res) {
+          return sub.unsubscribe().then(function () { return res; }, function () { return res; });
+        });
+      }).then(function (res) {
+        if (res) say(region, res.message || res.error || '', !res.ok);
+        refresh();
+      });
+    });
+    refresh();
+  }
+
   var BIND = { summary: summary, password: password, sessions: sessions, bell: bell, '2fa': twofa,
-    passkeys: passkeys, 'passkey-signin': passkeySignin, 'passkey-claim': passkeyClaim };
+    passkeys: passkeys, 'passkey-signin': passkeySignin, 'passkey-claim': passkeyClaim, push: push };
   window.lzAccountBind = BIND;    // phase 1b and 1c add their regions here
 
   function start() {

@@ -204,6 +204,21 @@ Archive
   new-authentication-method entry in docs/SECURITY.md (t/unit/auth/107-109,
   t/unit/account/36).
 
+- SM1363 (PENDING) **Notices by web push and by webhook (rulings 187, 188).** `webpush`
+  and `webhook` are routes in `notify.conf`'s `route.<type>` table, beside `xmpp` and
+  `email`, and reach the account a notice names when its record chooses them:
+  `notify_routes`, beside `notify_email`. Web push sends an empty POST, VAPID-signed with
+  the site's own key (`lazysite/auth/webpush-vapid.pem`, made on first use), to each
+  device the person turned notices on for on `/account` (`::: account-push`; `me-push`,
+  `me-push-subscribe`, `me-push-unsubscribe`); the app's worker shows "Something is
+  waiting for you" and opens `/account`. The webhook route calls the connector
+  `webhook.connector` names, in scheduled mode, with the notice's kind, title, account
+  and link and never its content - the way a text message goes, to the operator's own
+  gateway (ruling 188). `notify_routes: webhook` is an operator's setting. One hourly
+  bound, `mail.per_hour`, now counts every route's sends, and every attempt is a log line
+  with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
+  (t/unit/notify/41, t/unit/account/38).
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and

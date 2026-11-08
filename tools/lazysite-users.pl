@@ -327,6 +327,8 @@ our %CLI_AUDIT_ACTION = (
     cmd_passkey_add               => 'user-passkey-add',                          # SM1352
     cmd_passkey_remove            => 'user-passkey-remove',                       # SM1352
     cmd_passkey_wipe => 'user-passkey-wipe',    # SM1352: the operator's, for a lost phone
+    cmd_push_subscribe     => 'user-push-subscribe',       # SM1363
+    cmd_push_unsubscribe   => 'user-push-unsubscribe',     # SM1363
     cmd_group_settings_set        => 'user-group-settings-set',
     cmd_group_create              => 'user-group-create',
     cmd_group_delete              => 'user-group-delete',
@@ -498,7 +500,7 @@ if ($API_MODE) {
     # SM1352: a passkey is added or removed by the account it signs in, as a
     # second factor is set up (above). The operator's remedy for a lost phone is
     # passkey-wipe, which adds nothing.
-    if ( $action =~ /\A(?:passkey-add|passkey-remove)\z/ ) {
+    if ( $action =~ /\A(?:passkey-add|passkey-remove|push-subscribe|push-unsubscribe)\z/x ) {
         my $actor = $req->{actor};
         if ( defined $actor && length $actor && $actor ne 'local'
             && $actor ne ( $req->{username} // '' ) )
@@ -822,6 +824,12 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'passkey-used' ) {
             $result = cmd_passkey_used( $req->{username}, $req->{id}, $req->{count} );
+        }
+        elsif ( $action eq 'push-subscribe' ) {             # SM1363
+            $result = cmd_push_subscribe( $req->{username}, $req->{endpoint} );
+        }
+        elsif ( $action eq 'push-unsubscribe' ) {
+            $result = cmd_push_unsubscribe( $req->{username}, $req->{endpoint} );
         }
         elsif ( $action eq 'totp-code' ) {
             $result = { ok => 1, code => totp_code( $req->{secret}, $req->{time}, $req->{step}, $req->{digits} ) };
@@ -2194,6 +2202,23 @@ sub cmd_set {
         }
         else { delete $all->{$user}{email} }
     }
+    elsif ( $key eq 'notify_routes' ) {
+        # SM1363: the account's notice routes beyond mail, beside notify_email:
+        # `webpush` (the installed app, on the devices it turned notices on for)
+        # and `webhook` (the site's webhook connector - an SMS gateway, ruling
+        # 188). An operator's setting, not a self-service one: a webhook may cost
+        # the site money per notice. A device turning push on or off adds or
+        # removes `webpush` itself (push-subscribe). Empty clears.
+        my $v   = defined $value ? "$value" : '';
+        my @r   = grep { length } split /[,\s]+/, lc $v;
+        my %ok  = map  { $_ => 1 } qw(webpush webhook);
+        my @bad = grep { !$ok{$_} } @r;
+        die "notify_routes takes webpush and/or webhook (got: @bad)\n" if @bad;
+        my %seen;
+        @r = grep { !$seen{$_}++ } @r;
+        if (@r) { $all->{$user}{notify_routes} = join ',', @r }
+        else    { delete $all->{$user}{notify_routes} }
+    }
     elsif ( $key eq 'notify_email' ) {
         # SM485: does this person want their notices by mail?
         #
@@ -2215,7 +2240,7 @@ sub cmd_set {
     }
     else {
         die "Unknown setting '$key' (expected ui, display_name, comment, "
-            . "start_page, notify_email, email, expires_at, or token_ttl; "
+            . "start_page, notify_email, notify_routes, email, expires_at, or token_ttl; "
             . "dav_scope/home_domain were "
             . "retired in 0.7.26 - confinement lives on the domain)\n";
     }
@@ -3315,6 +3340,63 @@ sub cmd_passkey_used {
     $p->{used}  = time();
     write_settings($all);
     return { ok => 1 };
+}
+
+# --- SM1363: the devices an account gets app notices on --------------------------
+#
+# `push: [ { endpoint, t } ]` in the account's record: the web push endpoints its
+# browsers handed over (no keys - a notice carries no payload). Turning a device
+# on adds `webpush` to notify_routes, and turning the last one off removes it, so
+# the choice and the devices cannot disagree. Added and removed by the account
+# itself only. At most five devices: a constant in the sub, because this file's
+# main body runs before a file-scoped assignment down here would.
+sub _push_max_devices { return 5 }
+
+sub _routes_with {
+    my ( $s, $route, $on ) = @_;
+    my @r = grep { length && $_ ne $route } split /[,\s]+/, ( $s->{notify_routes} // '' );
+    push @r, $route if $on;
+    if (@r) { $s->{notify_routes} = join ',', @r }
+    else    { delete $s->{notify_routes} }
+    return;
+}
+
+sub cmd_push_subscribe {
+    my ( $user, $endpoint ) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    require Lazysite::WebPush;
+    if ( my $f = Lazysite::WebPush::endpoint_fault($endpoint) ) { die "$f\n" }
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+    my $all = read_settings();
+    die "the account settings could not be read; nothing was changed\n"
+        unless Lazysite::Auth::Settings::settings_readable();
+    my $s = $all->{$user} ||= {};
+    my @have = grep { ref $_ eq 'HASH' && ( $_->{endpoint} // '' ) ne $endpoint } @{ $s->{push} || [] };
+    die "Notices are on for " . _push_max_devices() . " devices already; turn one off first.\n"
+        if @have >= _push_max_devices();
+    $s->{push} = [ @have, { endpoint => $endpoint, t => time() } ];
+    _routes_with( $s, 'webpush', 1 );
+    write_settings($all);
+    log_event( 'INFO', $user, 'app notices turned on for a device', devices => scalar @{ $s->{push} } );
+    cli_audit( 'user-push-subscribe', $user );
+    return { ok => 1, devices => scalar @{ $s->{push} } };
+}
+
+sub cmd_push_unsubscribe {
+    my ( $user, $endpoint ) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my $all  = read_settings();
+    my $s    = $all->{$user};
+    my @list = ref $s eq 'HASH' && ref $s->{push} eq 'ARRAY' ? @{ $s->{push} } : ();
+    my @keep = grep { ( $_->{endpoint} // '' ) ne ( $endpoint // '' ) } @list;
+    return { ok => 1, devices => scalar @keep, removed => 0 } if @keep == @list;
+    if (@keep) { $s->{push} = \@keep }
+    else       { delete $s->{push}; _routes_with( $s, 'webpush', 0 ) }
+    write_settings($all);
+    log_event( 'INFO', $user, 'app notices turned off for a device', devices => scalar @keep );
+    cli_audit( 'user-push-unsubscribe', $user );
+    return { ok => 1, devices => scalar @keep, removed => 1 };
 }
 
 # SM148: confirm a pending enrolment by proving a code from the authenticator.

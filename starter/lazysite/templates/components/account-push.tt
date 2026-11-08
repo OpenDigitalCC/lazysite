@@ -1,0 +1,19 @@
+[%# SM1363: built-in account component - app notices on this device.
+    Use on /account:
+      ::: account-push
+      :::
+    Turns notices on or off for the device the page is open on, through the
+    site's installed app (its service worker) and the me-push* actions, bound by
+    /assets/lazysite-account.js. A notice pushed this way carries nothing but
+    "something is waiting"; tapping it opens this page. Needs the site's app
+    (app_name) and, on the server, the library web push signs with; the region
+    says when either is missing. A layout may override this file, keeping the
+    data-ls-* attributes. -%]
+<section class="lz-account lz-account-push" data-ls-account="push">
+  <p class="lz-account-state" data-ls-field="push-state"></p>
+  <div class="lz-account-actions">
+    <button type="button" data-ls-push="on" hidden>Turn on notices for this device</button>
+    <button type="button" data-ls-push="off" hidden>Turn off notices for this device</button>
+  </div>
+  <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
+</section>

@@ -92,6 +92,7 @@ my %BESPOKE = map { $_ => 1 } qw(
     users audit notices keys-list key-revoke sessions-list session-revoke
     user-revoke
     me me-sessions me-notices
+    me-passkeys me-push
 );
 my %PREAUTH = map { $_ => 1 } qw( csrf-token );
 

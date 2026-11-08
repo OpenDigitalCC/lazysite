@@ -7,7 +7,9 @@
 # The worker the processor generates is driven in node through
 # t/lib/app-worker-harness.js with stand-ins for the cache, fetch and the
 # events, as t/unit/odoo/31 drives the Odoo helper. The source is also held to
-# the things a reviewer would read for: no cookie, no token, no sync, no push.
+# the things a reviewer would read for: no cookie, no token, no sync, no push
+# subscription. SM1363: the worker SHOWS a pushed notice, which carries nothing - the
+# one `push` listener reads no data and shows a fixed sentence (t/unit/account/38).
 use strict;
 use warnings;
 use Test::More;
@@ -31,14 +33,19 @@ open my $o, '>', $file or die $!;
 print {$o} $js;
 close $o;
 
-subtest 'the source holds no cookie, token, sync or push, and no hand-written config' => sub {
+subtest 'the source holds no cookie, token, sync or push subscription, and no hand-written config' => sub {
     ( my $code = $js ) =~ s{/\*.*?\*/}{}gs;
-    for my $bad (qw(document.cookie Set-Cookie 'cookie' "cookie" localStorage indexedDB sync periodicSync PushManager showNotification importScripts XMLHttpRequest)) {
+    for my $bad (qw(document.cookie Set-Cookie 'cookie' "cookie" localStorage indexedDB sync periodicSync PushManager importScripts XMLHttpRequest)) {
         ok( index( $code, $bad ) < 0, "no $bad" );
     }
     unlike( $code, qr{\beval\b}, 'no eval' );
     unlike( $code, qr/\bcsrf|visitor_token|authorization/i, 'no token or credential is named' );
     unlike( $js, qr/__CONFIG__/, 'the config is filled in' );
+    my @shown = $code =~ /showNotification/g;
+    is( scalar @shown, 1, 'SM1363: one place shows a notice' );
+    my ($push) = $code =~ /(addEventListener\('push'.*?\n\}\);)/s;
+    ok( $push && $push =~ /showNotification/ && $push !~ /\.data\b/,
+        'the push listener, and it reads nothing from the push' );
 };
 
 my $node = `sh -c 'command -v node || command -v nodejs' 2>/dev/null`;
