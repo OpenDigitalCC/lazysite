@@ -808,7 +808,8 @@ sub action_data_table_refresh {
         state     => $r->{state},
         ( defined $r->{call_id} ? ( call_id => $r->{call_id} ) : () ),
         ( $r->{ok}
-            ? ( inserts => $kept->{inserts} // 0, updates => $kept->{updates} // 0 )
+            ? ( inserts => $kept->{inserts} // 0, updates => $kept->{updates} // 0, removes => $kept->{removes} // 0,
+                removed => $kept->{removed} || [] )
             : ( error => ( $r->{error} // 'the refresh failed' ) . ' - the table keeps its last good rows' ) ),
         source => source_state($d),
         ( $recorded ? () : ( age_note => 'this refresh could not be written to the schedule run record, '

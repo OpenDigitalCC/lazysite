@@ -966,9 +966,9 @@ sub _keep_answer {
         log_event( ( $r->{ok} ? 'INFO' : 'WARN' ), 'connectors',
             ( $r->{ok} ? 'source table refreshed' : 'source table not refreshed' ),
             connector => $rec->{connector}, table => $tbl, call => $rec->{call_id},
-            ( $r->{ok} ? ( inserts => $r->{inserts}, updates => $r->{updates} ) : ( why => $r->{error} ) ) );
+            ( $r->{ok} ? ( inserts => $r->{inserts}, updates => $r->{updates}, removes => $r->{removes} ) : ( why => $r->{error} ) ) );
         return { ok => ( $r->{ok} ? 1 : 0 ), refresh => 1, table => $tbl,
-            ( $r->{ok} ? ( inserts => $r->{inserts}, updates => $r->{updates} ) : ( error => $r->{error} ) ) };
+            ( $r->{ok} ? ( inserts => $r->{inserts}, updates => $r->{updates}, removes => $r->{removes}, removed => $r->{removed} || [] ) : ( error => $r->{error} ) ) };
     }
 
     my $row = {

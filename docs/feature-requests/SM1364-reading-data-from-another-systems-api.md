@@ -41,7 +41,8 @@ PENDING, 0.16.9, on branch n783.
   connector -> its `answer_table`. An answer table that names a source is refreshed
   through `import_rows` (`Tables::refresh_from_answer`) instead of being appended to:
   a sent row is updated in its mapped columns, a new one inserted, and a row the source
-  stops sending is left for the operator. `data-table-refresh` / `refresh_data_table`
+  stops sending is removed as a recorded, undoable change - only when the answer is a
+  non-empty list (ruling 189). `data-table-refresh` / `refresh_data_table`
   (manage_data) make the entry's call on demand, as the caller (mode authenticated), and
   record it against the entry.
 - **A failed refresh changes nothing** and is recorded (call record, event log, the

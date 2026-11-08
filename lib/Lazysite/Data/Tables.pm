@@ -1405,16 +1405,36 @@ sub import_rows {
         else { push @inserts, [ _stamp( $d, $c->{values}, actor => $opt{actor} ), $n ] }
     }
 
+    # SM1364 (ruling 189): A REFRESH MIRRORS ITS SOURCE. The rows whose key the
+    # answer no longer sends are removed in the same transaction - but only on a
+    # refresh (`source_refresh`) whose caller has a well-formed, non-empty list
+    # (`mirror`, which refresh_from_answer passes for one), so an empty answer, or
+    # one that failed anywhere above, removes nothing. Each removal is a recorded
+    # delete in the row history, with the row as it was, so Undo puts it back.
+    my @remove;
+    if ( $opt{source_refresh} && $opt{mirror} && defined $key_col ) {
+        my %sent = map { ( $_->[$key_col] // '' ) => 1 } @{$rows};
+        @remove = sort grep { !$sent{$_} } keys %exists;
+    }
+
     my $plan = { ok => 1, table => $name, rows => scalar @{$rows},
         inserts => scalar @inserts, updates => scalar @updates,
+        ( $opt{source_refresh} ? ( removes => scalar @remove ) : () ),
         applied => 0 };
     return $plan unless $apply;
 
     # COMMIT, ALL OR NOTHING.
     my ( $dbh, $nowrite ) = _writer( $docroot, $name );
     return $nowrite if $nowrite;
+    my %removed;
     my $ok = eval {
         $dbh->begin_work;
+        for my $k (@remove) {
+            my ( $sql, $binds ) = select_sql( $d, where => { $key => $k }, limit => 1 );
+            $removed{$k} = $dbh->selectrow_hashref( $sql, undef, @{$binds} );
+            ( $sql, $binds ) = delete_sql( $d, $k );
+            $dbh->do( $sql, undef, @{$binds} );
+        }
         for my $u (@updates) {
             my ( $sql, $binds )
                 = update_sql( $d, $u->[0], $u->[1] );
@@ -1434,6 +1454,15 @@ sub import_rows {
         return _err( "table '$name': the import failed and was rolled back - "
                 . "nothing was written. $why", table => $name );
     }
+    if (@remove) {
+        require Lazysite::Data::RowHistory;
+        for my $k (@remove) {
+            my $id = Lazysite::Data::RowHistory::record_change( $dbh, table => $name, key => $k,
+                op     => 'delete',     actor => $opt{actor}, source => "refresh:$name",
+                before => $removed{$k}, after => undef );
+            push @{ $plan->{removed} }, { key => $k, ( defined $id ? ( change => $id ) : () ) };
+        }
+    }
     $plan->{applied} = 1;
     touch_stamp( $docroot, $name );
     return $plan;
@@ -1451,8 +1480,9 @@ sub import_rows {
 #
 # A row the source sends is updated (only its mapped columns: the site's own
 # columns keep their values) or inserted; a row the source no longer sends is
-# left as it is. Removing one is the operator's (delete_data_row), because an
-# answer that is short for a reason of the source's own must not empty a table.
+# removed (ruling 189), recorded in the row history so Undo restores it - but
+# only when the answer is a non-empty list: an empty one removes nothing, so a
+# source that answers [] for a reason of its own cannot empty the table.
 #
 # Returns import_rows' answer, or a refusal.
 sub refresh_from_answer {
@@ -1503,7 +1533,7 @@ sub refresh_from_answer {
         push @rows, \@row;
     }
     my $r = import_rows( $docroot, $name, \@cols, \@rows, apply => 1,
-        actor => $opt{actor}, source_refresh => 1 );
+        actor => $opt{actor}, source_refresh => 1, mirror => ( @rows ? 1 : 0 ) );
     return $r if $r->{ok};
     return $no->( $r->{error} // 'the rows were refused' );
 }

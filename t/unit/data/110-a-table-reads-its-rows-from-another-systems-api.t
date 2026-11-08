@@ -66,6 +66,7 @@ if ( !$pid ) {
             if ( $m eq 'down' ) { $conn->send_error( 503, 'down for maintenance' ); next }
             my @items
                 = $m eq 'bad'     ? ( { guest => { name => 'No Ref' }, seats => 1 } )
+                : $m eq 'empty'   ? ()
                 : $m eq 'changed' ? ( { ref => 'B1', guest => { name => 'Ada L' }, seats => 3 },
                                       { ref => 'B3', guest => { name => 'Cy' },    seats => 1 } )
                 :                   ( { ref => 'B1', guest => { name => 'Ada' },   seats => 2 },
@@ -176,11 +177,35 @@ subtest 'a second refresh updates what it sent and keeps the site\'s own column'
     is( $rows->{B1}{seats}, 3,             '...each of them' );
     is( $rows->{B1}{note},  'window seat', 'the site\'s own column is kept' );
     ok( $rows->{B3},                       'a new item is a new row' );
-    ok( $rows->{B2}, 'a row the source no longer sends is left for the operator to remove' );
+};
+
+# Ruling 189: the table mirrors the source - a row it stops sending goes, as a
+# recorded delete Undo reverses - but an empty list, or a failed answer, removes
+# nothing.
+subtest 'a row the source drops is removed, and Undo brings it back' => sub {
+    ok( !rows()->{B2}, 'the row the source no longer sends was removed' );
+    $Lazysite::Manager::Data::DOCROOT   = $d;
+    $Lazysite::Manager::Data::auth_user = 'op';
+    my $h = Lazysite::Manager::Data::action_data_row_changes( 'bookings', key => 'B2' );
+    my ($del) = grep { $_->{op} eq 'delete' } @{ $h->{changes} || [] };
+    ok( $del, 'its removal is a recorded change' ) or return diag explain $h;
+    is( $del->{source}, 'refresh:bookings', '...naming the refresh' );
+    is( $del->{before}{guest}, 'Bo', '...with the row as it was' );
+    my $u = Lazysite::Manager::Data::action_data_row_undo( 'bookings', $del->{id} );
+    ok( $u->{ok}, 'Undo is accepted' ) or diag explain $u;
+    is( rows()->{B2}{guest}, 'Bo', 'and the row is back' );
+
+    my $before = rows();
+    spit( $mode, 'empty' );
+    my $r = tick();
+    is_deeply( $r->{detail}{ran}, ['bookings-refresh'], 'an empty list is a delivered refresh' );
+    is_deeply( rows(), $before, '...that removes nothing' );
+    spit( $mode, 'changed' );
 };
 
 subtest 'a failed refresh leaves the last good rows and is recorded' => sub {
     my $before = rows();
+    ok( $before->{B2}, 'B2 is a row the source does not send - a failed refresh must not remove it' );
     my $good   = run_rec()->{last_ok};
 
     spit( $mode, 'down' );

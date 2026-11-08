@@ -122,8 +122,9 @@ Archive
   where the list is in the answer and a map from each item's fields to its columns. The
   refresh is the existing chain (schedule -> connector handler -> connector), and an
   answer table that names a source is written through `import_rows` rather than appended
-  to. `data-table-refresh` / `refresh_data_table` (manage_data) refresh it now, as the
-  caller. A failed refresh changes nothing and is recorded; the table's age (`data-table`
+  to; a row the source stops sending is removed as a recorded, undoable change, only
+  when the answer is a non-empty list (ruling 189). `data-table-refresh` /
+  `refresh_data_table` (manage_data) refresh it now, as the caller. A failed refresh changes nothing and is recorded; the table's age (`data-table`
   `source`) comes from the entry's new `last_ok` in schedule-runs.json. Mapped columns are
   read-only at every door, naming the source (`Tables::_write_prep`, `import_rows`).
   t/unit/data/110, t/unit/manager/512.

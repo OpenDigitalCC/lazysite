@@ -1353,8 +1353,12 @@ schedule:
 Because the answer table names a source, an answer is not appended as a call
 row: each item becomes a row, by `map`. A row the source sends is updated -
 its mapped columns only, so the site's own columns keep their values - and an
-item the table has not seen is inserted. A row the source stops sending is left
-as it is; remove it with `delete_data_row` when it is gone for good.
+item the table has not seen is inserted. **A row the source stops sending is
+removed**, as a recorded change in the row history (`list_row_changes`, from
+`refresh:<table>`), so `undo_row_change` puts it back - until a later refresh
+that still does not send it removes it again. Only an answer that is a list
+with at least one item removes anything: an empty list, or a refresh that
+fails, leaves every row where it is.
 
 **Refresh now** with `refresh_data_table` (MCP) or `data-table-refresh` (API),
 both needing `manage_data`. It is the schedule entry's call, made as you: the

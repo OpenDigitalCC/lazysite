@@ -5085,8 +5085,10 @@ controls
   the source; unmapped columns written on each; both refresh doors).
 
 residual risk
-: A row the source stops sending stays until the operator removes it (an answer that is
-  short for the source's own reasons must not empty a table). An on-demand refresh and the
+: A refresh removes the rows its source stops sending (ruling 189): each removal is a
+  recorded delete in the row history, undoable, and only a non-empty, well-formed list
+  removes anything, so an empty or failed answer cannot empty a table. A source that
+  wrongly omits a row removes it until it sends it again. An on-demand refresh and the
   daemon writing the run record at the same moment can lose the on-demand `last_ok`, so the
   age shown is older than it is - the safe direction. The connector's secret store is
   unchanged by this work; if it changes, the refresh reaches it only through
