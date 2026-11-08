@@ -217,7 +217,7 @@ alone as "kept" now sees the refusal. Empty runs kept by earlier releases stay i
 import list until removed there.
 
 **Members can be let back into the manager API to save content (SM1414, ruling 169).**
-A new capability, `write_content`, lets an account without `ui` call `read`, `save`,
+A new capability, `write_content`, lets an account without `ui` call `read`, `list`, `save`,
 `mkdir`, `move` and `delete` on `/cgi-bin/lazysite-manager-api.pl` over its own
 signed-in session, writing only where an access rule names it or its group as a
 writer. Nothing changes for a site that grants no `write_content`: no group holds it

@@ -679,15 +679,18 @@ sub _confine_scope {
 # A member app's authors hold write_content and not `ui`. SM1057 shut this door
 # on every such session, for two causes: a path no rule governs was open to
 # every writer, and a domain member's paths resolved against the primary's
-# docroot. This door answers both for the five actions it serves
+# docroot. This door answers both for the six actions it serves
 # (Actions::member_content_actions): a write lands only where a file rule names
 # the caller as a writer, an ungoverned path is refused, and the paths sent are
-# inside the content root of the domain the session is signed in on.
+# inside the content root of the domain the session is signed in on. A listing
+# (ruling 173) shows only the entries a rule governs and lets the member read
+# (Files::member_listing).
 
 # The content root (docroot-relative, no slashes; '' for the docroot) of the
 # domain this request arrived on: its own content_root, else the primary's
 # (a host that is not a configured domain is served as the primary).
 my ( $MEMBER_ROOT, %MEMBER_SENT ) = ('');    # the session's root; each field as sent
+my $MEMBER_DOOR = 0;    # SM1414: this request came through the member content door
 
 # The site path a member sent for a docroot-relative path or rule key: the
 # session's content root taken off, so a refusal names what the caller knows.
@@ -723,6 +726,8 @@ sub _member_door_paths {
     my @names  = ( 'path', ( $action eq 'move' ? 'to' : () ) );
     for my $n (@names) {
         my $p = $params{$n};
+        # SM1414 (ruling 173): a listing naming no folder lists the session's root.
+        $p = '/' if $action eq 'list' && $n eq 'path' && !length( $p // '' );
         _refuse( { ok => 0, kind => 'missing-parameter', field => $n,
                 error => "$n is required (in the query). Name the file by its path on this site, "
                     . 'such as ?path=/post/hello.md. Nothing was changed.' },
@@ -741,6 +746,14 @@ sub _member_door_paths {
             'ui', 'denied: member content door - reserved tree', $p )
             if Lazysite::Manager::Common::path_is_reserved($rel)
             || Lazysite::Manager::Common::path_is_reserved( $resolved =~ s{^/+}{}r );
+        # SM1414 (ruling 173): and never inside another domain's content root - a
+        # domain whose root is nested in this one's tree owns its own paths.
+        my ($owner) = Lazysite::Manager::Domains::content_root_for_path( $resolved =~ s{^/+}{}r );
+        _refuse( { ok => 0, kind => 'forbidden', field => $n,
+                error => "'$p' is in another domain's content, which a member's session on this "
+                    . 'domain never reaches. Nothing was changed.' },
+            'ui', 'denied: member content door - another domain', $p )
+            if length( $owner // '' ) && $owner ne $root;
         $MEMBER_SENT{$n} = $p;
         $params{$n}      = $resolved;
         $path            = $resolved if $n eq 'path';
@@ -755,7 +768,7 @@ sub _member_door_paths {
 # and a folder moved carries the rules beneath it, each of which must name the
 # caller too. A read is left to the file's read list, as everywhere (the handler).
 sub _member_door_rules {
-    return if $action eq 'read';
+    return if $action eq 'read' || $action eq 'list';    # list: Files::member_listing
     my @targets = ( [ $path, 'path' ], ( $action eq 'move' ? [ $params{to}, 'to' ] : () ) );
     for my $t (@targets) {
         my ( $p, $field ) = @$t;
@@ -1054,7 +1067,7 @@ if ( !$token_auth ) {
         #
         # SM1414 (ruling 169): AND THE MEMBER CONTENT DOOR - a holder of
         # write_content who does not hold `ui`, for the actions declared
-        # `member_content` (read, save, mkdir, move, delete) and no others. Its
+        # `member_content` (read, list, save, mkdir, move, delete) and no others. Its
         # paths and rules are asked below (_member_door_paths, _member_door_rules)
         # in place of the manager's manage_content gate. A `ui` holder never takes
         # this door, so the manager is unchanged.
@@ -1064,13 +1077,14 @@ if ( !$token_auth ) {
             && ( $caps->{write_content}
             || Lazysite::Auth::Settings::groups_grant_cap( 'write_content', Lazysite::Auth::Settings::request_cap_groups( _request_identity() ) ) );
         my $member_door = ( $holds_wc && $MEMBER_CONTENT{$action} && !$SELF_ACTION{$action} ) ? 1 : 0;
+        $MEMBER_DOOR = $member_door;
         unless ( $SELF_ACTION{$action} || $caps->{manager_ui} || $ui_by_group || $member_door ) {
             _refuse(
                 { ok => 0, kind => 'forbidden',
                     error => "This account does not have manager access (the 'ui' permission), "
                         . 'so the manager API does nothing for it'
                         . ( $holds_wc
-                        ? '; its write_content permission reaches read, save, mkdir, move and delete '
+                        ? '; its write_content permission reaches read, list, save, mkdir, move and delete '
                             . "only, and '$action' is not one of them"
                         : '' )
                         . '. An administrator can grant it on the Groups page.' },
@@ -1611,7 +1625,11 @@ if ( $action eq 'list' ) {
     # Files page; MCP list_files asks without it.
     $result = ( !Lazysite::Manager::Common::scopes_reach_docroot( \@REQUEST_SCOPES ) && !_list_names_a_folder() )
         ? Lazysite::Manager::Files::action_list_scope_roots( \@REQUEST_SCOPES )
-        : action_list( $path, pickers => 1 );
+        : action_list( $path, pickers => !$MEMBER_DOOR );
+    # SM1414 (ruling 173): a member sees the entries a rule lets them read, in
+    # their own domain, by the paths they send, and no picker lists.
+    $result = Lazysite::Manager::Files::member_listing( $result, user => $auth_user, root => $MEMBER_ROOT )
+        if $MEMBER_DOOR;
 }
 elsif ( $action eq 'read' ) { $result = action_read( $path, $auth_user ) }
 elsif ( $action eq 'save' ) {

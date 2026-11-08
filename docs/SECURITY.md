@@ -4494,8 +4494,9 @@ Assessment drafted by the developer agent (n775) for the release manager's confi
 what changed
 : A new capability, `write_content`, opens the manager API's cookie door
   (`/cgi-bin/lazysite-manager-api.pl` over a signed-in session) to an account that
-  holds it and does not hold `ui`, for five actions: `read`, `save`, `mkdir`, `move`
-  and `delete` (declared `member_content` in `Lazysite::ControlApi::Actions`). Since
+  holds it and does not hold `ui`, for six actions: `read`, `list` (ruling 173), `save`,
+  `mkdir`, `move` and `delete` (declared `member_content` in
+  `Lazysite::ControlApi::Actions`). Since
   SM1057 (0.15.5) that door refused every such account. Every other action keeps
   SM1057's refusal, as does every account holding neither capability. A `ui` holder
   never takes this door and is unchanged. The capability implies nothing and no
@@ -4518,13 +4519,17 @@ threat delta
   - Elevation of privilege: could a member reach any other action (acl-set, config,
     users, uploads, copy) or widen a rule?
   - Spoofing and Tampering: could a cross-site page drive a member's session?
+  - Information disclosure (ruling 173, `list`): could a listing show a member
+    content a rule keeps from them, the engine's tree, another domain's content
+    (a domain nested in the session's own tree included), or the account names a
+    rule's lists, owner and lock carry?
 
 controls
 : The set is closed. The `ui` gate admits a `write_content` holder only for an action
   declared `member_content`, and a load-time check in Actions refuses that
-  declaration on any action outside the ruled five, or on one that is not scoped
-  and on the file surface. acl-set, acl-remove, copy, file-upload, the locks, list,
-  config and users all answer SM1057's refusal.
+  declaration on any action outside the ruled six, or on one that is not scoped
+  and on the file surface. acl-set, acl-get, acl-remove, copy, file-upload, the
+  locks, config and users all answer SM1057's refusal.
 : A write is an allow-list. For save, mkdir, delete and both ends of a move, the rule
   governing the path for writing (its own key, its page stem, the longest ancestor
   folder, the site-wide rule) must name the account or one of its groups in its write
@@ -4540,7 +4545,18 @@ controls
   and the audit row read the one file that is written. The caller is confined to its
   own domain scopes where its domain access resolves any (a locked member stays
   locked), else to the session's content root; on the primary that is the docroot
-  less the other domains' roots (SM1372).
+  less the other domains' roots (SM1372). A resolved path inside another domain's
+  content root, as one nested in the session's own tree is, is refused for every
+  action.
+: A listing is cut to what a rule lets the member read
+  (`Lazysite::Manager::Files::member_listing`). An entry is shown only when a rule
+  governs it (a read list or a write list) and the read the file's rules allow
+  admits the member (`Lazysite::Auth::Acl::list_rule_admits`); an entry no rule
+  governs is not shown. The reserved tree and every other domain's content root are
+  left out. Each entry keeps its name, type, size, time, store label and file facts
+  only: no rule lists, owner, lock holder or served-copy hosts, and the answer
+  carries no picker lists. Its paths are the site's, the session's root taken off.
+  An unreadable ACL store refuses the listing (`cannot-tell`).
 : A member creates no rule: acl-set is outside the set, and the manager's
   manage_content gate is not what admits it, so a rule's first-rule and widening
   checks (SM1057, SM1309) are not reachable from this door.
@@ -4550,9 +4566,13 @@ controls
   names the group, landing in the domain signed in on (two domains and the
   primary); refusals where a rule names others, where none governs, of the domain's
   tree from the primary, of the engine's tree and of a climbing path; acl-set,
-  config-read, config-set, users, list, copy and lock refused; an account without
-  either capability refused as SM1057 refuses it. Each control reverted fails a
-  subtest. t/integration/220 and 221 pass unchanged.
+  acl-get, config-read, config-set, users, copy and lock refused; an account without
+  either capability refused as SM1057 refuses it. Listings: the readable entries
+  only, by the site's paths and without rule lists or pickers; an unruled folder
+  showing nothing; a protected entry naming someone else hidden; no reserved tree
+  and no other domain's root, a nested domain included, with a site-wide rule in
+  force. Each control reverted fails a subtest. t/integration/220 and 221 pass
+  unchanged.
 
 residual risk
 : A member whose group a folder rule names may overwrite or delete any file under it,
@@ -4562,8 +4582,13 @@ residual risk
   writer of that path could already do; the content checks a save applies to every
   writer apply to it. A site-wide rule whose write list names a members' group admits
   that group everywhere it governs, which is what the rule says.
+: A listing does not ask the address rules (SM1139) per entry, so an entry under an
+  address rule that refuses the member's address is listed by name and its read is
+  refused. A listing of a folder the member may not read answers an empty list where
+  a missing folder is refused, so the folder's existence is told, as a read's
+  `permission` against `not-found` already tells it.
 
 verdict
 : drafted by the developer agent: accept. The trigger fires and the change is
-  contained by the closed set, the allow-list, the domain resolution and the reserved
-  tree, so the ADR 0007 waiver would stand. For the release manager's confirmation.
+  contained by the closed set, the allow-list, the domain resolution, the reserved
+  tree and the listing's cut to readable entries, so the ADR 0007 waiver would stand. For the release manager's confirmation.

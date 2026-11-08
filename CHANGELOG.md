@@ -345,8 +345,9 @@ Archive
 - SM1414 (PENDING) **A member saves content over their own session (ruling 169).** Since
   SM1057 (0.15.5) the manager API refused every signed-in account without `ui`, so a member
   app's authors could not save a file. A new capability, `write_content`, passes `read`,
-  `save`, `mkdir`, `move` and `delete` on that door for a holder without `ui`, and no other
-  action. A write lands only where the access rule on the file or its folder names the
+  `list`, `save`, `mkdir`, `move` and `delete` on that door for a holder without `ui`, and
+  no other action. A listing shows only the entries a rule governs and lets the account
+  read (ruling 173), by the site's paths. A write lands only where the access rule on the file or its folder names the
   account or its group as a writer; a path no rule governs is refused. Paths are inside the
   content root of the domain the session is signed in on, and the engine's `lazysite/` tree
   is never reached. CSRF, the audit row and the file checks are unchanged. It implies

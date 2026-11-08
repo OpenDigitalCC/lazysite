@@ -679,8 +679,8 @@ An account without `ui` gets nothing from the manager API. The exception is
 **`write_content`** (Content files where a rule names you), the content twin of
 `write_data`. It is for the authors of a member app, such as a blog whose writers
 are members and never open `/manager`. Over their own signed-in session they may
-call `read`, `save`, `mkdir`, `move` and `delete` on the manager API, and nothing
-else:
+call `read`, `list`, `save`, `mkdir`, `move` and `delete` on the manager API, and
+nothing else:
 
 - **A write needs a rule that names them.** `save`, `mkdir`, `delete`, and both
   ends of a `move`, land only where the access rule on the file or its folder
@@ -688,10 +688,17 @@ else:
   follows its folder's rule. A path no rule governs is refused. (For a manager it
   is open.) A folder is moved only when every rule inside it names them too.
 - **A read follows the read list**, as it does everywhere.
+- **A listing shows what a rule lets them read.** An entry appears only when an
+  access rule governs it (a read list or a write list, on the entry or a folder
+  above it) and that rule lets them read it. An entry no rule governs is left
+  out, so a folder with no rule shows them nothing. A listing never shows the
+  `lazysite/` tree or another domain's folder, names entries by the site's own
+  paths (the ones `read` and `save` take), and carries no rule lists.
 - **The paths are the domain's.** On a domain with its own content root, a member
   signed in there who saves `/post/hello.md` writes that domain's
   `post/hello.md`, under the rule keyed by that domain's path. An account whose
-  domain access is limited stays limited.
+  domain access is limited stays limited, and a domain whose folder sits inside
+  this one's is not reached from it.
 - **The engine's own tree (`lazysite/`) is never reached**, and the CSRF token,
   the file checks and the audit row are the same as for a manager's save.
 

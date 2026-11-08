@@ -504,6 +504,56 @@ sub action_list {
         ( $opt{pickers} ? ( address_profiles => _address_profile_choices() ) : () ) };
 }
 
+# SM1414 (ruling 173): A LISTING ON THE MEMBER CONTENT DOOR. action_list's answer
+# for a folder already resolved inside the session's content root ($o{root},
+# docroot-relative, '' for the docroot), cut down to what a member may see:
+#
+# - an entry in the engine's reserved tree, or inside another domain's content
+#   root (a domain nested in this one's tree included), is left out;
+# - an entry is shown only when a rule governs it and its read admits the
+#   caller (Acl::list_rule_admits); an entry no rule governs is left out, so a
+#   folder no rule governs shows the member nothing of its unruled content;
+# - each entry keeps its name, type, size, time, store label and the file
+#   facts, never the rule's lists, owner, lock holder or a served copy's hosts,
+#   which name other accounts and domains, and the answer carries no picker
+#   lists (SM1404);
+# - the paths are the site's, as the member sent them: the root is taken off,
+#   so an entry's `path` is what the member reads or saves next.
+sub member_listing {
+    my ( $res, %o ) = @_;
+    return $res unless ref $res eq 'HASH' && $res->{ok};
+    ( my $root = $o{root} // '' ) =~ s{\A/+|/+\z}{}g;
+    my $shown = sub {
+        ( my $r = $_[0] // '' ) =~ s{\A/+|/+\z}{}g;
+        if ( length $root ) {
+            return '/'                           if $r eq $root;
+            $r = substr( $r, length($root) + 1 ) if index( $r, "$root/" ) == 0;
+        }
+        return "/$r";
+    };
+    require Lazysite::Manager::Domains;
+    my @keep;
+    for my $e ( @{ $res->{entries} || [] } ) {
+        ( my $key = $e->{path} // '' ) =~ s{\A/+}{};
+        next if !length $key || Lazysite::Manager::Common::path_is_reserved($key);
+        my ($owner) = Lazysite::Manager::Domains::content_root_for_path($key);
+        next if length( $owner // '' ) && $owner ne $root;
+        my $state = Lazysite::Auth::Acl::list_rule_admits( $key, $o{user} );
+        return { ok => 0, kind => 'cannot-tell', store => 'lazysite/auth/acls.json',
+            repair => 'lazysite check --docroot <docroot>',
+            error => 'Cannot tell which of these files you may see: lazysite/auth/acls.json '
+                . 'exists and cannot be read or does not decode. This is a fault on the host, '
+                . 'not a rule about these files; the site operator repairs it.' }
+            if $state eq 'cannot-tell';
+        next unless $state eq 'readable';
+        push @keep, {
+            ( map { exists $e->{$_} ? ( $_ => $e->{$_} ) : () } qw(name type size mtime store empty ext generated) ),
+            path => $shown->( $e->{path} ),
+        };
+    }
+    return { ok => 1, path => $shown->( $res->{path} ), entries => \@keep };
+}
+
 # SM1174: what the editor's status bar says about a page's camera, decided
 # here by the validator's own reader so the editor holds no copy of the rule.
 # `camera => 'self'` for a page that grants it, `camera_issue` carrying the

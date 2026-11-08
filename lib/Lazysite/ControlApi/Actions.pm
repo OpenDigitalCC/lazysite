@@ -391,8 +391,10 @@ our %GATE = (
 #                              holder of write_content without `ui` - a write only
 #                              where a file rule names the caller, paths inside the
 #                              signed-in domain's content root. Closed to read,
-#                              save, mkdir, move and delete; each must be scoped and
-#                              on the file surface, and none is a self action
+#                              list (ruling 173: the entries a rule lets the
+#                              member read), save, mkdir, move and delete; each
+#                              must be scoped and on the file surface, and none
+#                              is a self action
 #                              (checked at load below)
 #   mcp => 'tool_name'        SM943 stage 2: the action's MCP twin - the tool that
 #                              does the same thing through the other door. The
@@ -790,7 +792,7 @@ our %ACTION = (
     'layouts-releases'         => { params => [] },
     'layouts-repo-get'         => { params => [] },
     'layouts-repo-set' => { instance_wide => 1, mutates => 1, cookie_cap => 'manage_layouts', params => [ { name => 'value', in => 'body' } ] },
-    'list' => { scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
+    'list' => { member_content => 1, scoped => 1, file_surface => 'read', params => [ { name => 'path', in => 'query' } ] },
     'lock' => { mutates => 1, content_write => 1, audited => 0, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'migrate-to-local' => { mutates => 1, content_write => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
     'mkdir' => { mutates => 1, content_write => 1, member_content => 1, scoped => 1, file_surface => 'write', params => [ { name => 'path', in => 'query' } ] },
@@ -1044,9 +1046,9 @@ my %FIELD = map { $_ => 1 } qw(
 # function that runs it, why an ALWAYS gate needs nothing, and the twin's
 # description and schema (which core's twins keep in lazysite-mcp.pl's table).
 my %DECLARED_FIELD = map { $_ => 1 } qw(extension handler always_reason description input_schema);
-# SM1414 (ruling 169): the member content door's set, closed. A new action joins
+# SM1414 (rulings 169, 173): the member content door's set, closed. A new action joins
 # it by a ruling and an edit here, never by a declaration alone.
-my %MEMBER_CONTENT_SET = map { $_ => 1 } qw(read save mkdir move delete);
+my %MEMBER_CONTENT_SET = map { $_ => 1 } qw(read list save mkdir move delete);
 for my $name ( sort keys %ACTION ) {
     my $spec = $ACTION{$name};
     for my $k ( sort keys %{$spec} ) {

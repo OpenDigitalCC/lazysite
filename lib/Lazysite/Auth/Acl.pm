@@ -1233,6 +1233,29 @@ sub write_rules_below_not_naming {
     } sort keys %$map;
 }
 
+# SM1414 (ruling 173): MAY THIS CALLER SEE THIS ENTRY IN A LISTING? The member
+# content door's `list`, asked once per entry. An entry is shown only when a rule
+# governs it - one carrying a read list or a write list, found by the same walk
+# the readers use (its own key, its page stem, the longest ancestor folder, the
+# site-wide rule) - and the read the file's rules allow passes (_acl_allows: the
+# read list names the account or a group of it, or the rule's owner is the
+# caller, or no read list governs and reading is open). An entry no rule governs
+# is not shown: on this door a path is the member's only where the operator has
+# said so with a rule, as for a write.
+#
+# Returns 'readable', 'other' (a rule governs it and its read list does not
+# admit the caller), 'ungoverned', or 'cannot-tell' when the store exists and
+# cannot be read (SM1024).
+sub list_rule_admits {
+    my ( $rel, $user ) = @_;
+    my $map = load_acls();
+    return 'cannot-tell' if $ACLS_FAULT;
+    my ($r) = _acl_entry_and_key( $map, $rel, 'read' );
+    my ($w) = _acl_entry_and_key( $map, $rel, 'write' );
+    return 'ungoverned' unless $r || $w;
+    return _acl_allows( $rel, 'read', $user ) ? 'readable' : 'other';
+}
+
 sub _write_list_names {
     my ( $e, $user ) = @_;
     my %grp = map { lc($_) => 1 } do {

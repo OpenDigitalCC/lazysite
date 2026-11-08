@@ -587,9 +587,12 @@ const r = await fetch(api + '?action=save&path=/post/hello.md', {
 const answer = await r.json();   // { ok: 1, ... } or { ok: 0, kind, error }
 ```
 
-The same door serves `read`, `mkdir`, `move` (`&to=`) and `delete`, each with
-`path` in the query string. Every other action answers that the account does not
-have manager access. Paths are the site's own: on a domain with its own content
+The same door serves `read`, `list`, `mkdir`, `move` (`&to=`) and `delete`, each
+with `path` in the query string. Every other action answers that the account does
+not have manager access. A `list` (no `path` lists the site's root) shows only the
+entries an access rule governs and lets the author read, each `path` ready to pass
+to `read` or `save`; an entry no rule governs is left out, so give the folders the
+app browses a rule. Paths are the site's own: on a domain with its own content
 root, `/post/hello.md` is that domain's post, and the answer's `path` names the
 file the engine wrote. A refusal says why: `kind: permission` when no rule names
 the author, or when no rule governs the path.
