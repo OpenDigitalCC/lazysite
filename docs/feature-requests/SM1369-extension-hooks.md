@@ -403,9 +403,11 @@ Odoo
   (`Auth::Settings::group_carries_capability`). The endpoint and the engine call the
   generic names. Lint 321's allow-list falls from 24 files to 18.
 
-The handler type's capability (ruling 178)
-: Odoo's handler type is `manage_odoo`'s (C-14). A type may name a capability its own
-  declaration describes. The upgrade's top-up (ruling 167) keeps every manage_connectors
+$1 The handler and schedule actions open for it on every door (ruling 192):
+  the index's `declared` view carries each extension's `handler_caps`, and the mirror
+  widens the six actions' gate, cookie gate and MCP twins with them; the type decides
+  past the door, and a caller let in by such a capability alone is listed only its
+  types' handlers and schedule entries. The upgrade's top-up (ruling 167) keeps every manage_connectors
   group's reach.
 
 Tests
@@ -416,7 +418,10 @@ Tests
   byte for byte, and they stay signed in across the real upgrade, with the sign-in page
   and the /login option from the installed code; `t/unit/odoo/140` (ruling 178, the
   upgrade's top-up). 63, 135, processor/171, auth/68, 70, 74, extensions/70 and
-  integration/293 follow the names. Each fails with its change reverted.
+  integration/293 follow the names. `t/integration/378` (ruling 192): manage_odoo
+  alone reaches Odoo bindings and their schedules through the tables and the real MCP
+  server, and is refused a core destination's handler by the type's capability.
+  Each fails with its change reverted.
 
 # X5, the asset part: assets, components and template variables (H-10)
 
@@ -494,7 +499,7 @@ C-10 | What the index declares (X2) | Every INSTALLED extension's declarations, 
 C-11 | When a toggle builds (X2) | When the extension in hand declares hooks, an index exists, or any installed extension declares (the listing's cached descriptors): the `declared` view stays current, and the response carries `index` on such a site | X1's rule alone, which would leave an installed extension's declarations out until something with hooks is toggled
 C-12 | A capability's api and mcp unlocks (X2) | Derived from the gate rows that name it; only `ui` is declared | Declared, and held equal to the gate by a lint, as core's are
 C-13 | Which refusal kinds move (X2) | The kinds only Odoo produces (thirty) go to its declaration; `expired`, `internal`, `unavailable`, `busy`, `maintenance` stay core's | All of the block, and core redeclares what it uses
-C-14 | The handler type's capability | Ruled (178): `manage_connectors`' in 0.16.8; `manage_odoo`'s from X4 (0.16.9, n781). The upgrade's top-up gives every group holding manage_connectors manage_odoo, so its people, tokens and job accounts keep the reach; a group whose operator set manage_odoo to 0 loses Odoo bindings. A type may name its own extension's capability (the validator reads the declaration's capability_info). The handler actions' door stays the four destination capabilities, so a group holding manage_odoo alone does not reach it (question Q-X4-1) | Changed in 0.16.8, before the top-up ran on upgrade
+C-14 | The handler type's capability | Ruled (178): `manage_connectors`' in 0.16.8; `manage_odoo`'s from X4 (0.16.9, n781). The upgrade's top-up gives every group holding manage_connectors manage_odoo, so its people, tokens and job accounts keep the reach; a group whose operator set manage_odoo to 0 loses Odoo bindings. A type may name its own extension's capability (the validator reads the declaration's capability_info), and the handler door opens for it (ruling 192, C-31) | Changed in 0.16.8, before the top-up ran on upgrade
 C-15 | The older extensions' capabilities (data, briefs, daemon) | Stay mirrored in the core literal in 0.16.8: each owns its capabilities (`owns.capabilities`) and describes none. A fresh install now builds the index as the upgrade does (ruling 166), so nothing stops the move but the work: the data, briefs and daemon extensions describe their own capabilities and leave the literal in 0.16.9, with X6 (ruling 166). Lint 76 holds one state each meanwhile: described and indexed, or owned and literal | Describe all three here
 C-16 | What a grant resolver mirrors | The light scope - the capability names and the refusal statuses, from `Auth::Settings` alone - so the processor's pooled workers carry no action table (lint 269); the doors, the tools and the lints mirror the full scope before deriving their tables | One scope everywhere, and the action tables resident in the processor
 C-17 | X3: the origins a type may name | `form` and `timer`, the two core delivers from; the page endpoint runs its bindings itself, so `page` is not a name until a slice (X5) makes core deliver from one | `page` accepted now, as a name nothing passes
@@ -508,10 +513,10 @@ C-24 | The injected tag's path (X5) | The alias when one is declared (`/assets/l
 C-25 | A declared asset with the extension off (X5) | Not served and not injected: off means off (G-1); before, the docroot carried the helper whatever the conf said | Keep serving a file whose extension is off
 C-26 | What the index build sees on `@INC` (X5) | The test helper builds a fixture's index with the in-tree payload libs off `@INC`, as a site's processes have it; the rule C-3 stands unchanged | Relax C-3's "found nowhere else" for a copy under the engine's own tree
 C-27 | The provider's id (X4) | The extension's id, so no second name to validate or keep apart | A separate `id` field, as the proposal sketched
-C-28 | Odoo's sign-in with the extension off (X4) | Refused (`odoo-off`): the provider is the extension's, and off means off (G-1) | Honoured as before, which read odoo.conf whatever the toggle said
-C-29 | An unsecured site (X4) | Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
-C-30 | The record's shape (X4) | New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
-C-31 | The handler actions' door (X4) | Unchanged: any of the four destination capabilities opens it, then the type's cap decides, so manage_odoo alone does not reach it; every topped-up group holds both | Widen the door from the declared types' caps (Q-X4-1)
+${1}Ruled (193): accepted as built. Refused (`odoo-off`): the provider is the extension's, and off means off (G-1) | Honoured as before, which read odoo.conf whatever the toggle said
+${1}Ruled (193): accepted as built. Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
+${1}Ruled (193): accepted as built. New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
+C-31 | The handler actions' door (X4) | Ruled (192): the six handler and schedule actions (list, save, delete) also open, on every door, for any capability a declared handler type names; the type's cap decides. The mirror adds it to the gate row, the cookie gate and the MCP twins' cap_also, and to the capability's unlocks; a caller let in by such a capability alone is listed only the handlers and schedule entries of the types it governs. So manage_odoo alone manages Odoo bindings and their schedules, and no core destination's | The door kept to the four destination capabilities, so manage_odoo alone did not reach it
 ```
 
 # ADR 0007

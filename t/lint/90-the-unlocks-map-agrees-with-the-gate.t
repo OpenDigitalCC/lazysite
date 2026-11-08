@@ -90,6 +90,15 @@ for my $tool ( sort keys %declared ) {
     ok( !exists $gate{$tool}, "the declared tool '$tool' is not also in the hand-written table" );
     $gate{$tool} = [ grep { defined } ( $d->{cap}, @{ $d->{cap_also} || [] } ) ];
 }
+# SM1369 X4 (ruling 192): and the capabilities a declared handler type names,
+# which the door adds to the handler and schedule tools' cap_also.
+my %wide = Lazysite::ControlApi::Actions::widened_tools();
+cmp_ok( scalar keys %wide, '>=', 6, 'a declared handler type widens the handler door (not vacuous)' );
+for my $tool ( sort keys %wide ) {
+    next unless exists $gate{$tool};
+    my %have = map { $_ => 1 } @{ $gate{$tool} };
+    push @{ $gate{$tool} }, grep { !$have{$_} } @{ $wide{$tool} };
+}
 
 # describe() returns a WRAPPER - capabilities, channels, engine_owned, tasks -
 # not a capability map. Indexing it directly made every lookup undef, so the

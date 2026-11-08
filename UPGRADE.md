@@ -96,7 +96,14 @@ group, its people, its tokens or a scheduled binding's job account. A group whos
 operator set `manage_odoo` off keeps it off, and now cannot configure Odoo bindings, and a
 scheduled binding whose job account holds only `manage_connectors` with `manage_odoo` off
 is refused at its next run, naming `manage_odoo`: grant it, or move the entry to another
-account. Saved bindings and their rows in `handlers.conf` are unchanged.
+$1 A group given
+`manage_odoo` alone now reaches the Handlers page, the handler and schedule actions and
+their MCP tools for Odoo bindings and nothing else (ruling 192).
+
+**Accepted as built (ruling 193).** With the Odoo extension off, its sessions are
+refused; an unsecured site refuses every provider's session; and new session records no
+longer carry the old `odoo => 1` flag, so going back to 0.16.8 after this upgrade signs
+out the people who signed in through Odoo since.
 
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 

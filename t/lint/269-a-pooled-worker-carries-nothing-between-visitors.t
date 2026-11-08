@@ -373,6 +373,9 @@ my %T = (
         '%CORE_ACTION' => [ exempt => 'core\'s action names, fixed at load (SM1369 X2)' ],
         '%CORE_TOOL'   => [ exempt => 'core\'s twin names, fixed at load (SM1369 X2)' ],
         '%DECLARED' => [ exempt => 'which extension declared each row, from the site\'s index, replaced whole (SM1369 X2)' ],
+        '%DOOR_CORE' => [ exempt => 'core\'s handler door rows, fixed at load (ruling 192)' ],
+        '%WIDENED' => [ exempt => 'what the site\'s index added to the handler door, replaced whole with %GATE (ruling 192)' ],
+        '@HANDLER_DOOR' => [ exempt => 'the six handler and schedule actions, constant (ruling 192)' ],
     },
     'lib/Lazysite/Auth/Settings.pm' => {
         '@CAP_KEYS' => [ exempt => 'the list of capability names: core\'s, plus what the site\'s extension index declares (SM1369 X2), replaced whole when the index changes' ],

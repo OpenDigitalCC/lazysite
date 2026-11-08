@@ -4859,7 +4859,14 @@ controls
   t/unit/processor/171 where they reach). t/tools/335: a person signed in as 0.16.8 did,
   byte for byte, stays signed in across the real upgrade, with /odoo-signin and the /login
   option served by the installed code. Ruling 178: t/unit/odoo/140 (the upgrade's
-  top-up keeps a manage_connectors group's reach; a declined manage_odoo stays declined).
+$1 Ruling 192:
+  the six handler and schedule actions open, on every door, for a capability a declared
+  handler type names (the gate row, the cookie gate, the MCP twins and the capability's
+  unlocks, from the index's `declared` view, put back by the unmirror); the type's
+  capability still decides each handler, and a caller let in by such a capability alone
+  is listed only its types' handlers and schedule entries. t/integration/378: manage_odoo
+  alone manages an Odoo binding and its schedule and is refused a core destination's
+  handler past the door; sabotaged (the widening, the schedule list's narrowing).
 
 residual risk
 : A provider is the extension's own code under boundary 15's contract-not-sandbox: in
@@ -4869,10 +4876,13 @@ residual risk
   declared `grants` provider can grant any group, operators included (ruling 186); its
   audit rows are the record, and the widening is recorded here for OIDC's own entry to
   assess. A site that had `odoo_site_signin: on` with the Odoo extension off had working
-  sessions and now has none (off means off; UPGRADE.md). The handler actions' door still
-  opens for the four destination capabilities only, so a group holding `manage_odoo`
-  alone cannot reach Odoo bindings through it (an open question for the release
-  manager); every group the upgrade topped up holds both.
+  sessions and now has none (off means off; UPGRADE.md), an unsecured site refuses every
+  provider's session, and a downgrade to 0.16.8 signs out sessions minted after the
+  upgrade (the record drops `odoo => 1`): all three accepted as built (ruling 193). The
+  handler door's widening (ruling 192) lets an extension's own capability open the six
+  handler and schedule actions; what such a holder may then do is decided by each
+  handler's type, as for a core destination capability, and it sees no other type's
+  handlers or schedule entries.
 
 verdict
 : drafted as contained, for the release manager's confirmation. The trigger fires and

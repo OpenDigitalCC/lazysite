@@ -2031,7 +2031,7 @@ my %TOOLS = (
         cap      => 'manage_forms',
         cap_also => [ 'manage_data', 'manage_connectors' ],
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { Lazysite::Handlers::action_schedule_list() },
+        run => sub { Lazysite::Handlers::action_schedule_list( caps => $_[2] ) }, # ruling 192: the grant decides
     },
     save_schedule => {
         description => 'Create or replace a schedule entry: the timer calls `handler` every `every` seconds (at least 300) with `payload`, a flat object of fixed fields - nothing a visitor sends reaches a scheduled call. Needs the capability of the handler\'s destination. A connector handler must name a connector that permits scheduled invocation.',
@@ -2641,6 +2641,14 @@ my %TOOLS = (
             ( exists $d->{cap_also} ? ( cap_also => $d->{cap_also} ) : () ),
             run => sub { my ( $a, $user, $caps ) = @_; _run_declared( $action, $a, $user, $caps ) },
         };
+    }
+    # SM1369 X4 (ruling 192): a capability a declared handler type names opens the
+    # handler and schedule tools too, as it opens their actions; the type decides.
+    my %wide = Lazysite::ControlApi::Actions::widened_tools();
+    for my $tool ( grep { exists $TOOLS{$_} } sort keys %wide ) {
+        my %have = map { $_ => 1 } grep { defined } $TOOLS{$tool}{cap}, _cap_also( $TOOLS{$tool} );
+        my @add = grep { !$have{$_} } @{ $wide{$tool} };
+        $TOOLS{$tool}{cap_also} = [ _cap_also( $TOOLS{$tool} ), @add ] if @add;
     }
 }
 

@@ -133,7 +133,9 @@ process cannot read it, which is reported rather than treated as unset.
 
 A **binding** is a handler of type `odoo` (*Run an Odoo operation* on the
 Handlers page), configured with `manage_odoo` (a group holding `manage_connectors` is
-given it, by the users tool and by the upgrade). It names one operation and
+given it, by the users tool and by the upgrade). `manage_odoo` alone is enough: it opens
+the Handlers page and the handler and schedule actions and tools for Odoo bindings, and
+for no other kind of handler. It names one operation and
 says what a request may set and who may cause it:
 
 `operation`

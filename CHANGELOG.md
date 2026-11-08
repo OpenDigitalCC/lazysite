@@ -67,7 +67,9 @@ Archive
   is declared this way; nobody is signed out by the upgrade, and the cookie, identity,
   groups, pages and log lines are as they were. Odoo bindings (the `odoo` handler type)
   are configured with `manage_odoo` (ruling 178), which the upgrade's top-up gives every
-  group holding `manage_connectors`.
+  group holding `manage_connectors`. The handler and schedule actions open, on every door, for a
+  capability a declared handler type names (ruling 192), so `manage_odoo` alone manages
+  Odoo bindings and their schedules, and no other kind of handler.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

@@ -2652,7 +2652,10 @@ elsif ( $action eq 'notify-outbox-retry' ) {
             !Lazysite::Manager::Common::handler_reach_refusal( old => ( $_[0] ? $_[0]{domain} // '' : '' ) );
         } );
 }
-elsif ( $action eq 'schedule-list' ) { $result = Lazysite::Handlers::action_schedule_list() }
+elsif ( $action eq 'schedule-list' ) {
+    # ruling 192: the grant decides which entries are listed
+    $result = Lazysite::Handlers::action_schedule_list( _handler_who() );
+}
 elsif ( $action eq 'version' )       { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) {
     $result = action_analyse_visitors(

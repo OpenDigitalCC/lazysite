@@ -133,9 +133,21 @@ sub mirror_index {
         my $info = ref $e->{capability_info} eq 'HASH' ? $e->{capability_info} : {};
         my $rows = ref $e->{api_actions} eq 'ARRAY'    ? $e->{api_actions}     : [];
         my @why;
+        # SM1369 X4 (ruling 192): a capability a declared handler type names opens
+        # the handler door, and is said to (its unlocks carry the door's actions).
+        my %door = map { $_ => 1 } @{ ref $e->{handler_caps} eq 'ARRAY' ? $e->{handler_caps} : [] };
+        Lazysite::ControlApi::Actions::widen_handler_door( $id, [ sort keys %door ] );
         for my $cap ( grep { ref $info->{$_} eq 'HASH' } sort keys %$info ) {
-            push @why, Lazysite::Capabilities::declare_capability( $id, $cap,
-                { %{ $info->{$cap} }, unlocks => _unlocks_of( $cap, $info->{$cap}, $rows ) } );
+            my $u = _unlocks_of( $cap, $info->{$cap}, $rows );
+            if ( $door{$cap} ) {
+                no warnings 'once';
+                for my $a (@Lazysite::ControlApi::Actions::HANDLER_DOOR) {
+                    push @{ $u->{api} }, $a;
+                    my $t = $Lazysite::ControlApi::Actions::ACTION{$a}{mcp};
+                    push @{ $u->{mcp} }, $t if defined $t;
+                }
+            }
+            push @why, Lazysite::Capabilities::declare_capability( $id, $cap, { %{ $info->{$cap} }, unlocks => $u } );
         }
         push @why, Lazysite::ControlApi::Actions::declare_action( $id, $_ ) for grep { ref $_ eq 'HASH' } @$rows;
         if (@why) {

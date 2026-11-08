@@ -1667,9 +1667,21 @@ sub _form_use_problem {
 }
 
 sub action_schedule_list {
+    my (%who) = @_;
     my $s = read_schedule();
     return { ok => 0, error => _unreadable('schedule.conf') } unless defined $s;
     my $all = read_handlers() // [];
+    # SM1369 X4 (ruling 192): a caller the door let in by a declared type's
+    # capability alone (none of the three it opened for before) is shown the
+    # entries whose handler's type it governs, as the handler list narrows. A
+    # caller who passes no grant (the daemon, the CLI) sees every entry.
+    if ( %who && !$who{unconstrained}
+        && !grep { ( $who{caps} || {} )->{$_} } qw(manage_forms manage_data manage_connectors) )
+    {
+        my %mine = map { $_->{id} => 1 }
+            grep { my $c = cap_for_type( $_->{type} ); defined $c && ( $who{caps} || {} )->{$c} } @$all;
+        $s = [ grep { $mine{ $_->{handler} // '' } } @$s ];
+    }
     my @out = map {
         my %e = %$_;
         my $h = find_handler( $all, $e{handler} // '' );

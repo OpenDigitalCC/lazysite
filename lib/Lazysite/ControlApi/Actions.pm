@@ -1190,13 +1190,60 @@ sub declare_action {
     return ();
 }
 
+# ruling 192: the handler door as core has it, and what the mirror added (below)
+our @HANDLER_DOOR = qw(handler-list handler-save handler-delete schedule-list schedule-save schedule-delete);
+my %DOOR_CORE = map {
+    $_ => { gate => [ @{ $GATE{$_} } ], cookie_cap => $ACTION{$_}{cookie_cap} }
+} @HANDLER_DOOR;
+my %WIDENED;    # action => [ capabilities the mirror added ]
+
 sub undeclare_actions {
     for my $name ( keys %DECLARED ) {
         delete $ACTION{$name};
         delete $GATE{$name};
     }
     %DECLARED = ();
+    # ruling 192: the handler door back to core's four destination capabilities
+    for my $name ( keys %DOOR_CORE ) {
+        $GATE{$name}               = [ @{ $DOOR_CORE{$name}{gate} } ];
+        $ACTION{$name}{caps}       = [ @{ $DOOR_CORE{$name}{gate} } ];
+        $ACTION{$name}{cookie_cap} = $DOOR_CORE{$name}{cookie_cap};
+    }
+    %WIDENED = ();
     return;
+}
+
+# SM1369 X4 (ruling 192): THE HANDLER DOOR OPENS FOR A DECLARED TYPE'S CAPABILITY.
+#
+# The six handler and schedule actions open, on every door, for any of the
+# destination capabilities core's types name; the handler's type then decides
+# (Lazysite::Handlers::cap_for_type). A handler type an extension declares may
+# name the extension's own capability (Odoo's, manage_odoo), and the door opens
+# for that too, so a group holding it alone manages that type's handlers and
+# their schedules - and, the type deciding, no core destination's. The mirror
+# adds each such capability to the gate row and the cookie gate here, and the
+# MCP door to its twins' cap_also (widened_tools); undeclare_actions puts the
+# rows back exactly.
+sub widen_handler_door {
+    my ( $id, $caps ) = @_;
+    return () unless ref $caps eq 'ARRAY';
+    for my $cap ( grep { defined && !ref && /\A[a-z][a-z0-9_]*\z/ } @$caps ) {
+        for my $name (@HANDLER_DOOR) {
+            next if grep { $_ eq $cap } @{ $GATE{$name} };
+            push @{ $GATE{$name} }, $cap;
+            $ACTION{$name}{caps} = [ @{ $GATE{$name} } ];
+            $ACTION{$name}{cookie_cap} .= "|$cap";
+            push @{ $WIDENED{$name} }, $cap;
+        }
+    }
+    return ();
+}
+
+# { action => [ capabilities added ] }, and the same by MCP twin.
+sub widened_handler_door { return map { $_ => [ @{ $WIDENED{$_} } ] } sort keys %WIDENED }
+
+sub widened_tools {
+    return map { $ACTION{$_}{mcp} => [ @{ $WIDENED{$_} } ] } grep { defined $ACTION{$_}{mcp} } sort keys %WIDENED;
 }
 
 # The declared twins, in the shape lazysite-mcp.pl's %TOOLS holds a tool:

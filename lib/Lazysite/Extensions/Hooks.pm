@@ -1155,6 +1155,13 @@ sub declared_entry {
     $e{capability_info} = $hooks->{capability_info} if ref $hooks->{capability_info} eq 'HASH' && %{ $hooks->{capability_info} };
     $e{api_actions} = $hooks->{api_actions} if ref $hooks->{api_actions} eq 'ARRAY' && @{ $hooks->{api_actions} };
     $e{refusal_kinds} = $hooks->{refusal_kinds} if ref $hooks->{refusal_kinds} eq 'HASH' && %{ $hooks->{refusal_kinds} };
+    # SM1369 X4 (ruling 192): the capabilities its handler types name, which open
+    # the handler door (Lazysite::ControlApi::Actions::widen_handler_door).
+    if ( ref $hooks->{handler_types} eq 'HASH' ) {
+        my %c = map { ( ref $_ eq 'HASH' && _plain( $_->{cap} ) && $_->{cap} =~ $CAP_NAME ) ? ( $_->{cap} => 1 ) : () }
+            values %{ $hooks->{handler_types} };
+        $e{handler_caps} = [ sort keys %c ] if %c;
+    }
     return keys %e > 2 ? \%e : undef;
 }
 

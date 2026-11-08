@@ -128,7 +128,8 @@ my %T       = (
     'lib/Lazysite/Auth/Settings.pm' => { '@CORE_CAP_KEYS' => 'a copy of the constant core capability list' },
     'lib/Lazysite/Capabilities.pm' => { '%IS_CHANNEL' => $DERIVED },
     'lib/Lazysite/ControlApi/Actions.pm' => { '%FIELD' => $DERIVED, '%DECLARED_FIELD' => $DERIVED, '%MEMBER_CONTENT_SET' => $DERIVED,
-        '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load' },
+        '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load',
+        '%DOOR_CORE' => 'the handler door\'s rows in the constant %GATE and %ACTION, taken at load (ruling 192)' },
     'lib/Lazysite/Data/RowHistory.pm' => { '$JSON' => 'a JSON::PP encoder, constructed with no data' },    # SM1355: the scheduler's row-history-prune job requires it
     # SM1369 X3: the live kinds carry a name pattern and a code reference to
     # their vocabulary check; the table is constant, declared with those in it.
