@@ -406,6 +406,7 @@ tone: medium
 `choice` | an enum field, or a text field with `options` | one of the options (an enum's values by default)
 `choices` | a text field with `options` | several options, stored comma-separated in the listed order
 `yesno` | a boolean field | yes or no
+`date` | a date field | a date, `YYYY-MM-DD`
 ```
 
 A step may be `required`, may carry `help`, and may depend on an earlier answer
@@ -1129,6 +1130,57 @@ tone: medium
 `closed` | an exception that closes the day; otherwise its `opens` and `closes` replace the week's hours for those days
 `note` | an exception's note ("Stocktake")
 ```
+
+An owner adds a period or an exception one question at a time with this wizard
+(see "Wizards" above), saved as `opening_hours` over the table - here `opening`
+- with MCP `save_wizard` or control API `data-wizard-save`:
+
+```yaml
+title: Add opening hours or an exception
+table: opening
+steps:
+  - field: kind
+    ask: Is this the weekly hours for a day, or an exception for a date?
+    type: choice
+    required: true
+    help: period is a day of the usual week; exception is a date or dates that differ.
+  - field: day
+    ask: Which day of the week?
+    type: choice
+    required: true
+    when: { field: kind, is: period }
+  - field: date_from
+    ask: On what date does it start?
+    type: date
+    required: true
+    when: { field: kind, is: exception }
+  - field: date_until
+    ask: Until what date?
+    type: date
+    help: Leave it empty for a single day.
+    when: { field: kind, is: exception }
+  - field: closed
+    ask: Is it closed all day?
+    type: yesno
+    when: { field: kind, is: exception }
+  - field: opens
+    ask: When does it open?
+    type: text
+    help: HH:MM, such as 09:00. Leave it empty for a day it is closed.
+  - field: closes
+    ask: When does it close?
+    type: text
+    help: HH:MM, such as 17:30; 24:00 is midnight. Leave it empty for a day it is closed.
+  - field: note
+    ask: A note to show with it?
+    type: text
+    help: Such as Stocktake. Leave it empty for none.
+    when: { field: kind, is: exception }
+```
+
+The times are asked of every row and may be left empty: a period without them,
+or an exception neither closed nor with hours, is refused when the row is
+saved, as below, and nothing is written.
 
 The rows are written through the doors every table has - the manager's data
 page, `save_data_row` (MCP), `data-row-save` (control API), the data endpoint -

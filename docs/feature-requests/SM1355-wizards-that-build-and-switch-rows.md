@@ -117,7 +117,7 @@ period is removed, a deleted row's changes included, the delete among them.
 
 A wizard is `lazysite/db/wizards/<name>.yaml` (inside the data extension's declared
 storage, `lazysite/db/`, so it travels with the tables): `title`, `table`, and `steps`,
-each with `field`, `ask`, `type` (`text`, `price`, `choice`, `choices`, `yesno`) and
+each with `field`, `ask`, `type` (`text`, `price`, `choice`, `choices`, `yesno`, and since the restack `date`) and
 optionally `required`, `help`, `options` and `when: {field, is}`.
 `Lazysite::Data::Wizard::check_definition` checks it against its table: the field is
 declared and of a type the step can write (price writes a decimal, choice an enum or a

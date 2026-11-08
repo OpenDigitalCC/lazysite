@@ -1360,7 +1360,7 @@ my %TOOLS = (
         },
     },
     save_wizard => {
-        description => 'Define a wizard, or replace one: `definition` is YAML naming the `table` and its `steps`, each with `field` (the table field it writes), `ask` (the question), `type` (text, price, choice, choices or yesno), and optionally `required`, `help`, `options` (for choice and choices) and `when` ({field: <an earlier step\'s field>, is: <answer or list>}). Checked against the table before it is stored, and refused by step and rule otherwise: a field the table requires must be asked by a required step with no `when`.',
+        description => 'Define a wizard, or replace one: `definition` is YAML naming the `table` and its `steps`, each with `field` (the table field it writes), `ask` (the question), `type` (text, price, choice, choices, yesno or date), and optionally `required`, `help`, `options` (for choice and choices) and `when` ({field: <an earlier step\'s field>, is: <answer or list>}). Checked against the table before it is stored, and refused by step and rule otherwise: a field the table requires must be asked by a required step with no `when`.',
         cap         => 'manage_data',
         inputSchema => { type => 'object',
             properties => {

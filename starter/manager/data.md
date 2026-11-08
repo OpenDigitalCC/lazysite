@@ -1513,7 +1513,7 @@ function wizardInput(q) {
         + (have.indexOf(o) >= 0 ? ' checked' : '') + '> ' + escHtml(o) + '</label>';
     }).join('');
   }
-  return head + '<input class="mg-inp" id="wiz-text" value="' + escHtml(cur === undefined || cur === null ? '' : cur) + '">';
+  return head + '<input class="mg-inp" id="wiz-text"' + (q.type === 'date' ? ' type="date"' : '') + ' value="' + escHtml(cur === undefined || cur === null ? '' : cur) + '">';
 }
 function wizardAnswer(q) {
   if (q.type === 'yesno') { var yn = document.querySelector('input[name="wiz-yn"]:checked'); return yn ? yn.value : null; }

@@ -37,6 +37,8 @@ package Lazysite::Data::Wizard;
 #   choices  a text field with `options`; the chosen ones are stored joined by
 #            commas, in the order the options are listed
 #   yesno    a boolean field
+#   date     a date field: the answer is YYYY-MM-DD (n776, for a schedule's
+#            exception dates, SM1356)
 #
 # CHECKED AGAINST THE TABLE AT LOAD, refused by step and rule: a field the table
 # does not declare, the table's key when the store assigns it, a type the field
@@ -70,6 +72,7 @@ our %TYPE_FIELD = (
     choice  => [qw(enum text)],
     choices => [qw(text)],
     yesno   => [qw(boolean)],
+    date    => [qw(date)],
 );
 my $MAX_STEPS = 50;
 
@@ -168,7 +171,7 @@ sub check_definition {
 
         my $type = $s->{type} // '';
         my $fits = $TYPE_FIELD{$type}
-            or return $bad->( "'$type' is not a step type (text, price, choice, choices, yesno)", 'type' );
+            or return $bad->( "'$type' is not a step type (text, price, choice, choices, yesno, date)", 'type' );
         my $ftype = $spec->{type} // '';
         return $bad->( "a $type step cannot write '$f', a $ftype field ("
                 . join( ' or ', @$fits ) . ' needed)', 'type' )
@@ -327,6 +330,13 @@ sub _answer_value {
         $p               =~ s/(?<=\d),(?=\d{3}(?:\D|\z))//g;
         return ("is an amount, such as 4.50, not '$v'") unless $p =~ /\A-?\d+(?:\.\d+)?\z/;
         return ( undef, $p );
+    }
+    if ( $t eq 'date' ) {
+        ( my $s = "$v" ) =~ s/\A\s+|\s+\z//g;
+        my ( $y, $m, $dd ) = $s =~ /\A(\d{4})-(\d{2})-(\d{2})\z/;
+        return ("is a date, YYYY-MM-DD such as 2026-12-25, not '$v'")
+            unless defined $y && $m >= 1 && $m <= 12 && $dd >= 1 && $dd <= 31;
+        return ( undef, $s );
     }
     return ( undef, "$v" );    # text
 }

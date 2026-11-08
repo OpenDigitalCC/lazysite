@@ -287,7 +287,9 @@ Archive
   the removal to the audit trail with the row it removed; with the audit trail off it
   removes nothing. `lazysite check` names a `time_zone` the host does not know. Ruling 172:
   the Debian package (`lazysite-common`) lists `tzdata` in its Recommends, as does the
-  Docker image's install list.
+  Docker image's install list. The schedule's wizard (`opening_hours`, in `/docs/data-tables`) adds a
+  period or an exception one question at a time, and wizards gain a `date` step
+  (`YYYY-MM-DD`) for its dates (t/unit/data/89).
 
 - SM1357 (PENDING) **Structured data for search: JSON-LD, every public page in the
   sitemap, and the AI-readable summary.** A table's descriptor may map it to a schema.org

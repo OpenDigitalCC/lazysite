@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion)"
 area: data
-status-note: "SHIPPED (PENDING, 0.16.8) on n773 with ruling 164: schedule: true tables, schedule: blocks, time_zone, the expiry, shows_from/shows_until, the schedule-exceptions job. Wizard definition left for the restack (SM1355)."
+status-note: "SHIPPED (PENDING, 0.16.8) on n773 with ruling 164: schedule: true tables, schedule: blocks, time_zone, the expiry, shows_from/shows_until, the schedule-exceptions job. The schedule wizard ships in /docs/data-tables (n776, with a date step type)."
 ---
 
 # Proposed
@@ -104,10 +104,19 @@ exception undoable, which is for the release manager to decide. With
 
 ## The wizard definition
 
-SM1355's wizard format (n772) is not on main at this base, so no wizard definition ships
-here. For the restack: a `lazysite/db/wizards/opening-hours.yaml` over a `schedule: true`
-table, one step per field above - `kind` (choice), then for a period `day` (choice),
-`opens`, `closes`, and for an exception `date_from`, `date_until`, `closed` (yes/no),
-`opens`/`closes` when not closed, `note` - each `when` on `kind`.
+SM1355's wizard format (n772) was not on main at this base, so the definition waited for
+the restack, where it ships (n776) in `/docs/data-tables`' Schedules section, to be saved
+as `opening_hours` (a wizard name is lower-case letters, digits and `_`, so not
+`opening-hours`) over the site's own `schedule: true` table: the engine ships no table,
+and a wizard naming one a site has not got would be listed with its error on every site.
+The steps: `kind` (choice); for a period `day` (choice); for an exception `date_from`,
+`date_until`, `closed` (yes/no) and `note`, each `when` on `kind`; and `opens` and
+`closes` for every row but optional. A `when` names one field and a step not asked never
+meets it, so "opens/closes for a period, and for an exception when not closed" cannot be
+written; the schedule's own row check refuses at the save a period without its times or
+an exception neither closed nor with hours. The exception's dates needed a step type
+n772's format did not have: `date` (a date field, the answer `YYYY-MM-DD`) joins `text`,
+`price`, `choice`, `choices` and `yesno`. t/unit/data/89 reads the definition out of the
+docs page and builds an exception, a closed day and a period with it.
 
-Tests: t/unit/data/85, 86, 87; t/unit/processor/185.
+Tests: t/unit/data/85, 86, 87, 89; t/unit/processor/185.
