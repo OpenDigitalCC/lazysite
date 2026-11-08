@@ -10,6 +10,30 @@
       "alpine_pkg": "perl-archive-zip",
       "used_by": "theme upload (manager), zip download (manager)"
     },
+    "Crypt::PK::ECC": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libcryptx-perl",
+      "rhel_pkg": "perl-CryptX",
+      "alpine_pkg": "perl-cryptx",
+      "used_by": "passkeys (SM1352): an ECDSA P-256 passkey's signature; web push (SM1363): the VAPID signature; lazy-required only by those two (ruling 187)"
+    },
+    "Crypt::PK::Ed25519": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libcryptx-perl",
+      "rhel_pkg": "perl-CryptX",
+      "alpine_pkg": "perl-cryptx",
+      "used_by": "passkeys (SM1352): an Ed25519 passkey's signature; lazy-required only when one signs in or enrols"
+    },
+    "Crypt::PK::RSA": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libcryptx-perl",
+      "rhel_pkg": "perl-CryptX",
+      "alpine_pkg": "perl-cryptx",
+      "used_by": "passkeys (SM1352): an RSA passkey's signature; lazy-required only when one signs in or enrols"
+    },
     "Cwd": {
       "core": true,
       "license": "Artistic-1.0-Perl",

@@ -27,6 +27,9 @@ Depends:
 # zip download, remote includes, SMTP forms), and tzdata: the zone files a
 # site's time_zone: names, read by schedules and dated rows (SM1356, ruling
 # 172; without them the zone is read as UTC and `lazysite check` says so).
+# libcryptx-perl: CryptX, lazy-required only by passkeys (SM1352) and web
+# push (SM1363), under one ADR 0007 dependency entry (ruling 187); without it
+# those two features say they need it and `lazysite check` names it.
 Recommends:
  libfcgi-perl,
  libfcgi-procmanager-perl,
@@ -34,6 +37,7 @@ Recommends:
  libwww-perl,
  liburi-perl,
  libio-socket-ssl-perl,
+ libcryptx-perl,
  tzdata,
 Suggests:
  libnet-xmpp-perl,

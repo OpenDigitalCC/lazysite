@@ -5278,3 +5278,46 @@ verdict
 : drafted as accepted, for the release manager's confirmation. No trigger fires; the
   change removes a channel and adds a held value whose scope is the request. No
   ahead-of-schedule third-party engagement proposed.
+
+### 2026-11-08 - SM1352, SM1363 (0.16.9, PENDING): CryptX, one Recommends for passkeys and web push
+
+Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+
+what changed
+: CryptX (Debian `libcryptx-perl`) joins the deb's Recommends (ruling 187). It is
+  lazy-required only by passkeys (SM1352: verifying an authenticator's ECDSA P-256, RSA
+  or Ed25519 signature, and importing the public key the browser hands over) and by web
+  push (SM1363: signing the VAPID token with the site's own P-256 key). The one
+  question "does it load" is asked in `Lazysite::Crypto::cryptx_missing`; without it the
+  two features say they need it - on the account and sign-in pages, in the API answer
+  and in `lazysite check` (a WARN when the site uses either, an OK line otherwise) - and
+  nothing else changes. Declared in `dist/config/sbom-deps.json` (`Crypt::PK::ECC`,
+  `Crypt::PK::RSA`, `Crypt::PK::Ed25519`).
+
+threat delta
+: ADR 0007's new-dependency-with-authentication-logic trigger fires: a passkey sign-in
+  is decided by a signature CryptX verifies, so a flaw in its verification (accepting a
+  forged ECDSA signature, a malformed key, a wrong curve) would be a sign-in bypass. Web
+  push's use is signing only, of a token that authorises nothing on this site. The
+  other three triggers are assessed in the SM1352 and SM1363 entries.
+
+controls
+: CryptX is the distribution's package (Debian security support), wraps LibTomCrypt,
+  and is not reached unless a passkey is used or a notice is pushed. The engine never
+  hands it a signature format it chose: an ES256 key must import as `secp256r1`, the
+  algorithm is the one stored at enrolment (-7, -257 or -8) and never the one a sign-in
+  names, the signed bytes are built by the engine (authenticator data then the SHA-256
+  of the client data), and verification is the only call made on a sign-in. Missing,
+  it refuses rather than degrades: no passkey is verified by anything else.
+  t/unit/tools/118 (the check), and the SM1352 tests, which sign fixture keys made with
+  CryptX in the test and are refused a wrong signature.
+
+residual risk
+: A vulnerability in CryptX's verification is the distribution's to fix, and reaches a
+  site through the host's package updates, not lazysite's release. A host without the
+  package simply has neither feature.
+
+verdict
+: drafted for the release manager: accepted, one dependency for two features, loaded
+  only by them, and refusing when absent. No ahead-of-schedule third-party engagement
+  beyond the one ADR 0007 already requires.

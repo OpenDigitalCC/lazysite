@@ -34,6 +34,7 @@ RUN apt-get update \
         ca-certificates \
         curl \
         libarchive-zip-perl \
+        libcryptx-perl \
         libfcgi-perl \
         libfcgi-procmanager-perl \
         libio-socket-ssl-perl \

@@ -23,6 +23,7 @@ On Debian or Ubuntu, install them all with:
 ```bash
 sudo apt-get install \
     libarchive-zip-perl \
+    libcryptx-perl \
     libdbd-sqlite3-perl \
     libdbi-perl \
     libfcgi-perl \
@@ -49,6 +50,7 @@ tone: medium
 text: 3
 ---
 libarchive-zip-perl | Archive::Zip | theme upload (manager), zip download (manager)
+libcryptx-perl | Crypt::PK::ECC, Crypt::PK::Ed25519, Crypt::PK::RSA | passkeys (SM1352): an ECDSA P-256 passkey's signature; web push (SM1363): the VAPID signature; lazy-required only by those two (ruling 187); passkeys (SM1352): an Ed25519 passkey's signature; lazy-required only when one signs in or enrols; passkeys (SM1352): an RSA passkey's signature; lazy-required only when one signs in or enrols
 libdbd-sqlite3-perl | DBD::SQLite | data extension: the SQLite storage engine (tier zero, one file at lazysite/db/data.sqlite)
 libdbi-perl | DBI | data extension: the database interface every adapter is written against
 libfcgi-perl | FCGI | FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)

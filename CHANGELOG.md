@@ -178,6 +178,14 @@ Archive
   its provider is asked again, so the next request goes through the provider's `renew`
   path - for OIDC, a new sign-in that renews the same session with its groups read afresh
   and returns to `next`; no token is stored. A local session is signed out.
+- SM1352 (PENDING) **CryptX is recommended, for passkeys and web push (ruling 187).** The
+  Debian package (`lazysite-common`) and the Docker image's install list add
+  `libcryptx-perl`. It is lazy-required only by passkeys (SM1352) and web push (SM1363),
+  through one question (`Lazysite::Crypto::cryptx_missing`); without it those two say
+  they need it and nothing else changes. `lazysite check` says whether it is installed,
+  and warns when it is not and an account holds a passkey or `notify.conf` routes a
+  notice by `webpush`. One ADR 0007 dependency entry in docs/SECURITY.md
+  (t/unit/tools/118).
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

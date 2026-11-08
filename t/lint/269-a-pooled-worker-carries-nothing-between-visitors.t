@@ -399,6 +399,9 @@ my %T = (
     # SM1369 X5 (H-5, n782): the Odoo engine's modules left the resident set's
     # source closure with the supervisor's by-name services; a hook's modules load
     # in a worker on first use, through the loader (C-23).
+    'lib/Lazysite/Crypto.pm' => {    # SM1352, SM1363
+        '$LOADED' => [ exempt => 'whether CryptX loads: a property of the install, the same for every visitor' ],
+    },
     'lib/Lazysite/Timing.pm' => {
         '%KNOWN'    => [ exempt => 'derived from a constant list' ],
         '$LOADED'   => [ exempt => 'when the file loaded; worker_started() moves it at a fork' ],

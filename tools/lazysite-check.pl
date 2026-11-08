@@ -1461,6 +1461,7 @@ sub run_checks {
     report_unconverted_delivery();
     report_schedule_floor();            # SM1391
     report_time_zone();                 # SM1356
+    report_cryptx();                    # SM1352, SM1363 (ruling 187)
     report_page_titles();               # SM1357
     report_structured_data();           # SM1357
     report_foreign_site_folders();      # SM1357, ruling 171
@@ -3252,6 +3253,45 @@ sub report_time_zone {
         report( 'WARN', "time_zone '$raw' is not a zone this host knows, so schedules and dated rows are read in UTC",
             "name a zone from $dir such as Europe/London (the tzdata package provides them)" );
     }
+    return;
+}
+
+# SM1352, SM1363 (ruling 187): CRYPTX, WHICH PASSKEYS AND WEB PUSH NEED. The deb
+# recommends it rather than depends on it, so a host may lack it; the two features
+# then say so where they are used, and this says so once for the site. A WARN only
+# when the site is using one of them - an account holds a passkey, or notify.conf
+# routes a notice by webpush - because an unused optional library is not a fault.
+sub report_cryptx {
+    require Lazysite::Crypto;
+    my $missing = Lazysite::Crypto::cryptx_missing();
+    if ( !defined $missing ) {
+        report( 'OK', 'CryptX is installed: passkeys and web push can be used' );
+        return;
+    }
+    my @using;
+    if ( open my $fh, '<:raw', "$LZ/auth/user-settings.json" ) {
+        my $raw = do { local $/; <$fh> };
+        close $fh;
+        my $all = eval { JSON::PP::decode_json( $raw // '{}' ) };
+        push @using, 'an account holds a passkey'
+            if ref $all eq 'HASH'
+            && grep { ref $_ eq 'HASH' && ref $_->{passkeys} eq 'ARRAY' && @{ $_->{passkeys} } } values %$all;
+    }
+    if ( open my $fh, '<', "$LZ/notify.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^\s*route\.[\w.-]+\s*:.*\bwebpush\b/i;
+            push @using, 'notify.conf routes a notice by webpush';
+            last;
+        }
+        close $fh;
+    }
+    if (@using) {
+        report( 'WARN', 'CryptX (libcryptx-perl) is not installed, so passkeys and web push do not work, and '
+                . join( '; ', @using ),
+            'install libcryptx-perl (apt install libcryptx-perl); nothing else needs it' );
+        return;
+    }
+    report( 'OK', 'CryptX (libcryptx-perl) is not installed: passkeys and web push are unavailable until it is' );
     return;
 }
 
