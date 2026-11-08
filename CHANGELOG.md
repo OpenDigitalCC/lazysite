@@ -110,6 +110,14 @@ Archive
   `/manager/odoo-unknown-writes`, under `settle_odoo_writes`; the extension-config page
   names no extension.
 
+- SM1369 (PENDING) **X6, H-11: one secrets store.** `Lazysite::Secrets` is the store the
+  connectors and the Odoo extension both use, and any extension by its id: one secret
+  per file, `lazysite/<owner>/keys/<name>.key`, written atomically, `0600` in a `0700`
+  directory, never listed, and "cannot tell" when it cannot be read. The Odoo keys were
+  already laid out so and are read where they are. A connector's secret moves from
+  `connectors/secrets.json` into the store when it is next set; until then the map is
+  read, so every secret set before the change stays readable.
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and

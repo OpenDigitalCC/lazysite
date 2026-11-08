@@ -42,9 +42,13 @@ package Lazysite::Manager::Connectors;
 # not "waiting", and connector-calls lists it.
 #
 # STORE. lazysite/connectors/connectors.json holds every connector except
-# its secret; lazysite/connectors/secrets.json (0600) holds the secrets by
-# connector id and is never read by a listing. lazysite/connectors/calls.jsonl
-# is the record of every call: one line per outcome, never the payload.
+# its secret. SM1369 X6 (H-11, n782): the secrets are in the one secrets store,
+# Lazysite::Secrets, as the owner `connectors` - lazysite/connectors/keys/<id>.key,
+# 0600, one per connector, never read by a listing; the older map
+# lazysite/connectors/secrets.json (0600) is read as a fallback until a
+# connector's secret is next set, cleared or deleted, when its entry leaves the
+# map. lazysite/connectors/calls.jsonl is the record of every call: one line per
+# outcome, never the payload.
 #
 # SM768: A STORE THAT EXISTS AND CANNOT BE OPENED IS NOT AN EMPTY STORE.
 # The field proved it on edge: with lazysite/connectors/ unwritable after a
@@ -136,6 +140,41 @@ sub _unreadable {
 }
 sub _store_unreadable   { return _unreadable( 'connector store', _file() ) }
 sub _secrets_unreadable { return _unreadable( 'secret store',    _secrets_file() ) }
+
+# SM1369 X6 (H-11): A CONNECTOR'S SECRET, from the one secrets store, else from
+# the older map. ( $value, 'ok' ), ( undef, 'absent' ) or ( undef, 'unreadable',
+# $sentence ) - the sentence names the store that could not be read (its name
+# under lazysite/, never the host path) and the unix user.
+sub _secret_state {
+    my ($id) = @_;
+    require Lazysite::Secrets;
+    my $lz = Lazysite::Paths::lazysite_dir($DOCROOT);
+    my ( $v, $st ) = Lazysite::Secrets::get( $lz, 'connectors', $id );
+    return ( $v, 'ok' ) if $st eq 'ok';
+    if ( $st eq 'unreadable' ) {
+        my ($who) = getpwuid($>);
+        return ( undef, 'unreadable',
+            "the secret store (connectors/keys) exists but cannot be opened by this process (unix user "
+                . ( $who // $> ) . ') - see the event log' );
+    }
+    my $legacy = _secrets();
+    return ( undef, 'unreadable', _secrets_unreadable() ) unless defined $legacy;
+    return defined $legacy->{$id} && length $legacy->{$id} ? ( $legacy->{$id}, 'ok' ) : ( undef, 'absent' );
+}
+
+# A connector's entry leaves the older map once its secret is written to, or
+# cleared from, the store; the map goes when it is empty. Best effort: the
+# store's own file now decides, and a map that cannot be rewritten keeps a value
+# the store's file shadows.
+sub _drop_legacy_secret {
+    my ($id) = @_;
+    my $legacy = _secrets();
+    return unless defined $legacy && exists $legacy->{$id};
+    delete $legacy->{$id};
+    if (%$legacy) { _write_json( _secrets_file(), $legacy, 0600 ) }
+    else          { unlink _secrets_file() }
+    return;
+}
 sub _calls_unreadable   { return _unreadable( 'call record',     _calls_file() ) }
 
 # --- validation --------------------------------------------------------------
@@ -266,18 +305,22 @@ sub write_store {
 sub action_connector_list {
     my $all = connectors();
     return { ok => 0, error => _store_unreadable() } unless defined $all;
-    my $sec = _secrets();
+    my ( %has, @unknown, $why );
+    for my $id ( sort keys %$all ) {
+        my ( undef, $st, $w ) = _secret_state($id);
+        $has{$id} = $st eq 'ok' ? 1 : $st eq 'absent' ? 0 : undef;
+        next unless $st eq 'unreadable';
+        push @unknown, $id;
+        $why //= $w;
+    }
     my %out = (
         ok               => 1,
-        secrets_readable => ( defined $sec ? 1 : 0 ),
-        connectors       => [
-            map {
-                { id => $_, %{ $all->{$_} },
-                    has_secret => !defined $sec ? undef : ( defined $sec->{$_} && length $sec->{$_} ) ? 1 : 0 }
-            } sort keys %$all
-        ],
+        secrets_readable => ( @unknown ? 0 : 1 ),
+        connectors => [ map { { id => $_, %{ $all->{$_} }, has_secret => $has{$_} } } sort keys %$all ],
     );
-    $out{warning} = _secrets_unreadable() . '; has_secret is unknown for every connector' unless defined $sec;
+    $out{warning} = "$why; has_secret is unknown for "
+        . ( @unknown == keys %$all ? 'every connector' : 'the connector' . ( @unknown > 1 ? 's ' : ' ' ) . join( ', ', @unknown ) )
+        if @unknown;
     return \%out;
 }
 
@@ -334,13 +377,14 @@ sub action_connector_secret_set {
     return { ok => 0, error => "no connector '$id'" } unless exists $all->{$id};
     return { ok => 0, error => 'secret required' } unless defined $secret && length $secret;
     return { ok => 0, error => 'secret must be one line' } if $secret =~ /[\r\n]/;
-    my $sec = _secrets();
-    # Never written over what could not be read: a store that is unopenable
-    # now may hold every other connector's secret.
-    return { ok => 0, error => _secrets_unreadable() . '; nothing was written' } unless defined $sec;
-    $sec->{$id} = $secret;
-    my ( $ok, $why ) = _write_json( _secrets_file(), $sec, 0600 );
+    # Never written over what could not be read: a secret that is there and
+    # cannot be opened is a fault to mend, not a value to replace.
+    my ( undef, $st, $unread ) = _secret_state($id);
+    return { ok => 0, error => "$unread; nothing was written" } if $st eq 'unreadable';
+    require Lazysite::Secrets;
+    my ( $ok, $why ) = Lazysite::Secrets::put( Lazysite::Paths::lazysite_dir($DOCROOT), 'connectors', $id, $secret );
     return { ok => 0, error => $why } unless $ok;
+    _drop_legacy_secret($id);
     log_event( 'INFO', 'connectors', 'connector secret set', connector => $id );
     return { ok => 1, id => $id };
 }
@@ -354,12 +398,14 @@ sub action_connector_delete {
     # Both stores must be readable before either is written: deleting the
     # connector while its secret cannot be reached leaves a secret nobody
     # can see for a connector nobody can list.
-    my $sec = _secrets();
-    return { ok => 0, error => _secrets_unreadable() . '; nothing was deleted' } unless defined $sec;
+    my ( undef, $st, $unread ) = _secret_state($id);
+    return { ok => 0, error => "$unread; nothing was deleted" } if $st eq 'unreadable';
     delete $all->{$id};
     my ( $ok, $why ) = _write_json( _file(), $all, 0660 );
     return { ok => 0, error => $why } unless $ok;
-    if ( exists $sec->{$id} ) { delete $sec->{$id}; _write_json( _secrets_file(), $sec, 0600 ) }
+    require Lazysite::Secrets;
+    Lazysite::Secrets::clear( Lazysite::Paths::lazysite_dir($DOCROOT), 'connectors', $id );
+    _drop_legacy_secret($id);
     log_event( 'INFO', 'connectors', 'connector deleted', connector => $id );
     return { ok => 1, id => $id };
 }
@@ -710,10 +756,9 @@ sub call {
     delete $payload->{files} unless ref $files eq 'ARRAY' && @{$files};
 
     # A call never leaves without a credential this process cannot see.
-    my $sec = _secrets();
-    return _refused( $id, \%ctx, 'secret store unreadable', _secrets_unreadable() . '; the call would go without its credential' )
-        unless defined $sec;
-    my $secret  = $sec->{$id};
+    my ( $secret, $sst, $unread ) = _secret_state($id);
+    return _refused( $id, \%ctx, 'secret store unreadable', "$unread; the call would go without its credential" )
+        if $sst eq 'unreadable';
     my $call_id = _call_id();
     my $t0      = Time::HiRes::time();
     require LWP::UserAgent;

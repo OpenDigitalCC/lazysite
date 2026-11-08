@@ -81,8 +81,10 @@ subtest 'a connector is bounded at save time' => sub {
 subtest 'the secret is held apart, 0600, and travels in the named header' => sub {
     my $r = Lazysite::Manager::Connectors::action_connector_secret_set( 'echo', 'tok-123' );
     ok( $r->{ok}, 'secret set' ) or diag $r->{error};
-    my $mode = ( stat "$d/lazysite/connectors/secrets.json" )[2] & 0777;
-    is( $mode, 0600, 'secrets.json is 0600' );
+    # SM1369 X6 (H-11): in the one secrets store, a file of its own
+    my $mode = ( stat "$d/lazysite/connectors/keys/echo.key" )[2] & 0777;
+    is( $mode, 0600, 'its file in the secrets store is 0600' );
+    is( ( stat "$d/lazysite/connectors/keys" )[2] & 0777, 0700, 'in a 0700 directory' );
     my $conf = do { local ( @ARGV, $/ ) = "$d/lazysite/connectors/connectors.json"; <> };
     unlike( $conf, qr/tok-123/, 'and the connector file never holds it' );
     my $c = Lazysite::Manager::Connectors::call( 'echo', { q => 'hello' }, mode => 'authenticated', caps => { manage_connectors => 1 }, actor => 'ops', trigger => 'test' );
@@ -182,15 +184,15 @@ subtest 'the sweep expires old records and counts the unanswered' => sub {
 # action must say "cannot tell" - and none may write, or call, past it.
 subtest 'an unopenable secret store is reported, never rendered as absence' => sub {
     plan skip_all => 'root opens everything' if $> == 0;
-    my $sf = "$d/lazysite/connectors/secrets.json";
-    ok( -f $sf, 'the secret store exists' );
+    my $sf = "$d/lazysite/connectors/keys";    # SM1369 X6: the one secrets store's directory
+    ok( -d $sf, 'the secret store exists' );
     chmod 0000, $sf;
     my $list = Lazysite::Manager::Connectors::action_connector_list();
     ok( $list->{ok}, 'the listing still answers (the connector store itself is readable)' );
     is( $list->{secrets_readable}, 0, 'and says the secret store could not be read' );
     my ($echo) = grep { $_->{id} eq 'echo' } @{ $list->{connectors} };
     ok( exists $echo->{has_secret} && !defined $echo->{has_secret}, 'has_secret is null - not 0 - for a secret that is still there' );
-    like( $list->{warning}, qr/secret store \(connectors\/secrets\.json\) exists but cannot be opened by this process \(unix user \S+\)/, 'the warning names the file and the unix user' );
+    like( $list->{warning}, qr/secret store \(connectors\/keys\) exists but cannot be opened by this process \(unix user \S+\)/, 'the warning names the file and the unix user' );
     unlike( $list->{warning}, qr{\Q$d\E}, 'and never the host path' );
 
     my $set = Lazysite::Manager::Connectors::action_connector_secret_set( 'echo', 'tok-999' );
@@ -206,7 +208,7 @@ subtest 'an unopenable secret store is reported, never rendered as absence' => s
     my $calls = Lazysite::Manager::Connectors::action_connector_calls( connector => 'lost', state => 'refused' );
     ok( ( grep { ( $_->{why} // '' ) eq 'secret store unreadable' } @{ $calls->{calls} } ), 'the refusal is in the call record' );
 
-    chmod 0600, $sf;
+    chmod 0700, $sf;
     $list = Lazysite::Manager::Connectors::action_connector_list();
     ($echo) = grep { $_->{id} eq 'echo' } @{ $list->{connectors} };
     is( $echo->{has_secret},       1, 'the secret was there all along' );
@@ -225,8 +227,7 @@ subtest 'an unopenable secret store is reported, never rendered as absence' => s
 subtest 'delete takes the secret with it' => sub {
     my $r = Lazysite::Manager::Connectors::action_connector_delete('echo');
     ok( $r->{ok}, 'deleted' );
-    my $sec = do { local ( @ARGV, $/ ) = "$d/lazysite/connectors/secrets.json"; <> };
-    unlike( $sec, qr/tok-123/, 'the secret went with it' );
+    ok( !-e "$d/lazysite/connectors/keys/echo.key", 'the secret went with it' );
 };
 
 # SM842: THE WEBHOOK IS A CONNECTOR NOW. A connector with nothing but a URL

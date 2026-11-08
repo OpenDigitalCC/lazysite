@@ -7,24 +7,33 @@ package Lazysite::Odoo::Secret;
 # listed, never returned by any action or tool, never logged, and `has_secret`
 # answering 1, 0, or null for "cannot tell".
 #
+# SM1369 X6, H-11 (n782): IN THE ONE SECRETS STORE. The store is core's now,
+# Lazysite::Secrets, shared with the connectors and with any extension; this
+# extension's secrets are its own by its id, at lazysite/odoo/keys/<account>.key,
+# where they always were, so every key set before the change is read where it
+# is. What is this extension's is what a key may be (below) and the log line.
+#
 # ONE FILE PER ACCOUNT, NOT ONE JSON FOR ALL. The key reaches OOM through OOM's
 # own `file` credential strategy (api_key_file), which reads one key from one
 # file and refuses a file group or other can read (Odoo::Ops::Credential). So
-# the store IS that file, and OOM's mode check applies on top of this one. Q2
-# (ruled 2026-10-12) gives an MCP grant an account of its own; that is a second
-# file under the same directory, named by the account.
+# the store's file IS that file (Lazysite::Secrets::path), and OOM's mode check
+# applies on top of the store's. Q2 (ruled 2026-10-12) gives an MCP grant an
+# account of its own; that is a second secret of the same owner, named by the
+# account.
 #
 # AN API KEY, NEVER A PASSWORD. OOM refuses a password in its config; the key
 # is what an Odoo administrator issues for the connection user.
 use strict;
 use warnings;
-use File::Path      qw(make_path);
-use Lazysite::Util  qw(log_event cannot_read);
-use Lazysite::Paths ();
+use Lazysite::Util    qw(log_event);
+use Lazysite::Paths   ();
+use Lazysite::Secrets ();
 
 our $DOCROOT = '';
 
-sub _dir { return Lazysite::Paths::lazysite_dir($DOCROOT) . '/odoo/keys' }
+my $OWNER = 'odoo';
+
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 
 sub _valid_account { return defined $_[0] && $_[0] =~ /\A[a-z][a-z0-9_-]{0,63}\z/ }
 
@@ -32,7 +41,7 @@ sub _valid_account { return defined $_[0] && $_[0] =~ /\A[a-z][a-z0-9_-]{0,63}\z
 sub key_path {
     my ($account) = @_;
     return undef unless _valid_account($account);
-    return _dir() . "/$account.key";
+    return Lazysite::Secrets::path( _lz(), $OWNER, $account );
 }
 
 # 1 (a key is there), 0 (none), undef (the file exists and this process cannot
@@ -40,20 +49,12 @@ sub key_path {
 # key that is still in place).
 sub has_key {
     my ($account) = @_;
-    my $p = key_path($account) // return 0;
-    open my $fh, '<', $p or do {
-        return 0 if $!{ENOENT};
-        cannot_read( "the Odoo key for '$account'", $p );
-        return undef;
-    };
-    my $k = <$fh>;
-    close $fh;
-    return ( defined $k && $k =~ /\S/ ) ? 1 : 0;
+    return 0 unless _valid_account($account);
+    return Lazysite::Secrets::has( _lz(), $OWNER, $account );
 }
 
-# Written on its own, alone in its file, 0600 from the moment it exists: the
-# temporary file is created under a 077 umask, so there is no instant at which
-# the key sits in a file group or other could read.
+# Written on its own, alone in its file, 0600 from the moment it exists (the
+# store's rule).
 sub set_key {
     my ( $account, $key ) = @_;
     return ( 0, 'the account name must be lower-case letters, digits, - or _' )
@@ -63,41 +64,20 @@ sub set_key {
     return ( 0, 'the API key is longer than 512 characters' ) if length $key > 512;
     return ( 0, 'the API key must be printable characters with no spaces' )
         unless $key =~ /\A[\x21-\x7e]+\z/;
-
-    my $dir  = _dir();
-    my $made = eval { make_path( $dir, { mode => 0700 } ) unless -d $dir; 1 };
-    return ( 0, _cannot_write("the key directory: $@") ) unless $made;
-    my $path = key_path($account);
-    my $tmp  = "$path.tmp.$$";
-    my $old  = umask 077;
-    my $ok   = open my $fh, '>', $tmp;
-    umask $old;
-    return ( 0, _cannot_write("$account.key: $!") ) unless $ok;
-    print {$fh} "$key\n";
-    close $fh or do { unlink $tmp; return ( 0, _cannot_write("$account.key: $!") ) };
-    chmod 0600, $tmp;
-    rename $tmp, $path or do { unlink $tmp; return ( 0, _cannot_write("$account.key: $!") ) };
+    my ( $ok, $why ) = Lazysite::Secrets::put( _lz(), $OWNER, $account, $key );
+    return ( 0, $why ) unless $ok;
     log_event( 'INFO', 'odoo', 'odoo key set', account => $account );
     return ( 1, '' );
 }
 
 sub clear_key {
     my ($account) = @_;
-    my $p = key_path($account)
-        // return ( 0, 'the account name must be lower-case letters, digits, - or _' );
-    if ( !unlink $p ) {
-        return ( 1, '' ) if $!{ENOENT};
-        return ( 0, _cannot_write("$account.key: $!") );
-    }
+    return ( 0, 'the account name must be lower-case letters, digits, - or _' )
+        unless _valid_account($account);
+    my ( $ok, $why ) = Lazysite::Secrets::clear( _lz(), $OWNER, $account );
+    return ( 0, $why ) unless $ok;
     log_event( 'INFO', 'odoo', 'odoo key cleared', account => $account );
     return ( 1, '' );
-}
-
-sub _cannot_write {
-    my ($what) = @_;
-    my ($who)  = getpwuid($>);
-    $what =~ s{/\S+/}{}g;    # the file's name, never the host path
-    return "cannot write odoo/keys - $what (unix user " . ( $who // $> ) . ')';
 }
 
 1;

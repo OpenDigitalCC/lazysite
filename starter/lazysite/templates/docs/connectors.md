@@ -79,11 +79,12 @@ POST action=connector-secret-set
 { "id": "crm", "secret": "..." }
 ```
 
-The secret is stored apart from the definition, `0600`, and never listed or
-returned; `connector-list` says only whether one is set: `has_secret` is
-`1`, `0`, or `null` when the secret store exists and the request path
-cannot open it (`secrets_readable: 0`, with a `warning` naming the file
-and the unix user). Null is not "not set" - the credential is still there;
+The secret is stored apart from the definition, in the site's one secrets
+store (`lazysite/connectors/keys/<id>.key`, `0600`, which an extension's own
+secrets share by its id), and never listed or returned; `connector-list` says
+only whether one is set: `has_secret` is `1`, `0`, or `null` when the secret
+store exists and the request path cannot open it (`secrets_readable: 0`, with a
+`warning` naming the file and the unix user). Null is not "not set" - the credential is still there;
 a call through that connector is refused rather than sent without it, and
 no secret is written over a store that could not be read. Only `https://`
 destinations are accepted (plain `http://` to `127.0.0.1` or `localhost`,
