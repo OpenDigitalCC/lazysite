@@ -394,16 +394,9 @@ my %T = (
     'lib/Lazysite/Data/Tables.pm' => { '%_descriptor_cache' => [ exempt => $KEYED ],
         '$NOW' => [ exempt => 'a test\'s clock for the dated-row window (SM1356); nothing in the engine sets it' ] },
     'lib/Lazysite/I18n.pm'        => { '%CACHE' => [ exempt => 'the per-language chrome strings, keyed on (docroot, language); site content, not a visitor\'s' ] },
-    'extensions/odoo/lib/Lazysite/Odoo.pm' => {
-        '%CALL_FIELD' => [ exempt => 'derived from a constant list' ],
-        '$TRANSPORT'  => [ exempt => 'a test seam; unset in the product' ],
-        '$LAST_VIA'   => [ exempt => $STATUS ],
-        '$SIGNED_IN'  => [ exempt => 'SM1366: never assigned, only `local`-ised by the Odoo endpoint for its request, so it is undef again when the request ends' ],
-        '$INCOMPLETE_PLAIN' => [ exempt => 'SM1374: a fixed sentence, never assigned at run time' ],
-        '%REGISTRY'    => [ exempt => 'OOM\'s operation classes for one site configuration, keyed on the docroot, namespaces, pack directories, cache directory and OOM version (SM1179); it holds no person' ],
-    },
-    'extensions/odoo/lib/Lazysite/Odoo/Daemon.pm' => { '%NAME' => [ exempt => 'the daemon\'s name, a function of the docroot and keyed on it' ] },
-    'extensions/odoo/lib/Lazysite/Odoo/Session.pm' => { '$HTTP' => [ exempt => 'a test seam; unset in the product' ] },
+    # SM1369 X5 (H-5, n782): the Odoo engine's modules left the resident set's
+    # source closure with the supervisor's by-name services; a hook's modules load
+    # in a worker on first use, through the loader (C-23).
     'lib/Lazysite/Timing.pm' => {
         '%KNOWN'    => [ exempt => 'derived from a constant list' ],
         '$LOADED'   => [ exempt => 'when the file loaded; worker_started() moves it at a fork' ],
