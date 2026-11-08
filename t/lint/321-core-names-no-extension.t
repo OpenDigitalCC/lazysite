@@ -78,7 +78,8 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 # maintenance exemption; 15 since X5's endpoint kit and services (n782): the
 # supervisor, the warm-fork parent and its wire read the declared services and
 # the warm endpoint; 14 since X6's checks (n782): the Odoo checks are the
-# extension's, declared. It may only shrink.
+# extension's, declared; 13 since X6's panels (n782, ruling 188): the Unknown
+# Odoo writes panel is the extension's own manager page. It may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
@@ -88,7 +89,6 @@ my %ALLOWED = (
     'lazysite-processor/front-door.pm'           => 6,     # X3, X5: the pool preloads no Odoo module; the hook modules load on first use; a warm endpoint is declared (n782)
     'lib/Lazysite/Auth/GroupRefs.pm'             => 7,    # SM1387: a binding's and odoo.conf's group names
     'starter/manager/config.md'                  => 2,
-    'starter/manager/extension-config.md'        => 17,
     'tools/bench-surfaces.pl'                    => 69,
     'tools/coverage-groups.pl'                   => 1,
     'tools/ext-compat.sh'                        => 18,

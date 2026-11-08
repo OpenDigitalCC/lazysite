@@ -701,6 +701,8 @@ sub _hook_problems {
     push @bad, map { $_->{error} } @why;
     # SM1369 X5 (H-4, n782): a declared endpoint is one the extension owns.
     push @bad, map { $_->{error} } Lazysite::Extensions::Hooks::endpoint_owner_problems( $id, $owns );
+    # SM1369 X6 (H-8, n782): and a panel's capability is its own.
+    push @bad, map { $_->{error} } Lazysite::Extensions::Hooks::panel_owner_problems( $id, $owns );
     # SM1369 X2: what the declarations say about each other and about core's
     # names (an owned capability described and vice versa, no core name shadowed,
     # a gate that names capabilities that exist).

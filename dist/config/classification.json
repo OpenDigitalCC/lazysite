@@ -15,8 +15,8 @@
       "bucket": "code"
     },
     {
-      "_comment": "SM1369 X5 (n770): the files an extension declares beyond its modules - its assets (owns.hooks.assets, served at /assets/<id>-<file> and at a declared alias) and its templates (owns.hooks.components) - in its payload beside its descriptor (extensions/<id>/assets, extensions/<id>/templates). Core serves and finds them through the hook index, from the payload the index names, never from the docroot.",
-      "pattern": "^extensions/([a-z][a-z0-9-]*/(?:assets|templates)/.+)$",
+      "_comment": "SM1369 X5 (n770): the files an extension declares beyond its modules - its assets (owns.hooks.assets, served at /assets/<id>-<file> and at a declared alias) and its templates (owns.hooks.components), and (SM1369 X6, H-8, n782) its manager pages (owns.hooks.panels, served at /manager/<id>-<name>) - in its payload beside its descriptor (extensions/<id>/assets, extensions/<id>/templates). Core serves and finds them through the hook index, from the payload the index names, never from the docroot.",
+      "pattern": "^extensions/([a-z][a-z0-9-]*/(?:assets|templates|manager)/.+)$",
       "install_to": "{DOCROOT}/../extensions/$1",
       "bucket": "code"
     },
@@ -748,6 +748,11 @@
       "path": "{DOCROOT}/../extensions/odoo/templates/components",
       "mode": "0755",
       "why": "as ../extensions/odoo - SM1369 X5, the ::: odoo-signin component (owns.hooks.components)"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/odoo/manager",
+      "mode": "0755",
+      "why": "as ../extensions/odoo - SM1369 X6, the extension's own manager page (owns.hooks.panels), served by the processor at /manager/odoo-unknown-writes"
     },
     {
       "path": "{DOCROOT}/../extensions/app-offline",

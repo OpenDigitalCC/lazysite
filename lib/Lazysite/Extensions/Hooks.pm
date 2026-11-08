@@ -137,7 +137,17 @@ our %KINDS = (
     # kind with a `validate` of its own is checked by it, since its rows carry
     # lists and maps the generic shapes above cannot say.
     capability_info => { hook => 'H-7', slice => 'X2', live => 1, form => 'record', validate => \&_validate_capability_info },
-    panels            => { hook => 'H-8',  slice => 'X6' },
+    # SM1369 X6, H-8 (n782; ruling 188: panels are pages): LIVE. A manager page the
+    # extension ships in its payload's manager/ directory, served at
+    # /manager/<id>-<name> for the file <name>.md, only to a manager holding
+    # `cap` - one of the extension's own capabilities - and linked, as `label`,
+    # from its card on the extension-config page. No script is injected into a
+    # core page and there is no mount runtime: the page is an ordinary manager
+    # page, and what it asks of the API is gated by the API's own rows.
+    # Consumers: the processor (lazysite-processor/extensions.pm,
+    # _extension_page) and starter/manager/extension-config.md.
+    panels => { hook => 'H-8', slice => 'X6', live => 1, form => 'records', check_values => \&_check_panels,
+        fields => [qw(page label cap)], required => [qw(page label cap)] },
     api_actions => { hook => 'H-9', slice => 'X2', live => 1, form => 'records', functions => ['handler'],
         validate => \&_validate_api_actions },
     refusal_kinds => { hook => 'H-9', slice => 'X2', live => 1, form => 'record', validate => \&_validate_refusal_kinds },
@@ -684,6 +694,42 @@ sub endpoint_owner_problems {
     return @bad;
 }
 
+# SM1369 X6, H-8 (n782): a panel's capability is one the extension owns.
+sub panel_owner_problems {
+    my ( $id, $owns ) = @_;
+    return () unless ref $owns eq 'HASH' && ref $owns->{hooks} eq 'HASH' && ref $owns->{hooks}{panels} eq 'ARRAY';
+    my %mine = map { ( defined $_ && !ref $_ ) ? ( $_ => 1 ) : () }
+        @{ ref $owns->{capabilities} eq 'ARRAY' ? $owns->{capabilities} : [] };
+    my @bad;
+    for my $p ( grep { ref $_ eq 'HASH' } @{ $owns->{hooks}{panels} } ) {
+        my $c = $p->{cap};
+        next unless defined $c && !ref $c;
+        push @bad, _err( $id, 'hooks.panels', "panel '" . ( $p->{page} // '' ) . "': '$c' is not one of this "
+                . "extension's capabilities (owns.capabilities) - a panel is drawn under the extension's own" )
+            unless $mine{$c};
+    }
+    return @bad;
+}
+
+# A panel's page is one <name>.md file, its label one short line, once each.
+sub _check_panels {
+    my ( $id, $kind, $v ) = @_;
+    my ( @bad, %seen );
+    for my $i ( 0 .. $#$v ) {
+        my $p = $v->[$i];
+        my $f = $p->{page};
+        push @bad, _err( $id, "hooks.$kind", "panels[$i].page must be a page's file name, <name>.md (lower-case letters, digits, hyphens)" )
+            unless defined $f && !ref $f && $f =~ /\A[a-z][a-z0-9-]{0,47}\.md\z/;
+        push @bad, _err( $id, "hooks.$kind", "panels[$i].page '$f' is declared twice" )
+            if defined $f && !ref $f && $seen{$f}++;
+        push @bad, _err( $id, "hooks.$kind", "panels[$i].label must be one line of at most 60 characters" )
+            unless defined $p->{label} && length $p->{label} && length $p->{label} <= 60 && $p->{label} !~ /[\r\n]/;
+        push @bad, _err( $id, "hooks.$kind", "panels[$i].cap must be a capability name" )
+            unless defined $p->{cap} && $p->{cap} =~ /\A[a-z][a-z0-9_]*\z/;
+    }
+    return @bad;
+}
+
 sub _check_endpoints {
     my ( $id, $kind, $v ) = @_;
     my ( @bad, %seen );
@@ -738,6 +784,10 @@ sub check_payload_files {
     push @want, map { [ 'component', "templates/components/$_->{file}" ] }
         grep { ref $_ eq 'HASH' && _plain_file( $_->{file} ) }
         @{ ref $hooks->{components} eq 'ARRAY' ? $hooks->{components} : [] };
+    # SM1369 X6, H-8 (n782): a panel's page, in the payload's manager/
+    push @want, map { [ 'manager page', "manager/$_->{page}" ] }
+        grep { ref $_ eq 'HASH' && _plain_file( $_->{page} ) }
+        @{ ref $hooks->{panels} eq 'ARRAY' ? $hooks->{panels} : [] };
     return (undef) unless @want;
     my $dir = Lazysite::Extensions::payload_dir($descriptor);
     return ( undef,
@@ -758,7 +808,8 @@ sub names_payload_files {
     my ($hooks) = @_;
     return 0 unless ref $hooks eq 'HASH';
     return ( ref $hooks->{assets} eq 'ARRAY' && @{ $hooks->{assets} } )
-        || ( ref $hooks->{components} eq 'ARRAY' && @{ $hooks->{components} } ) ? 1 : 0;
+        || ( ref $hooks->{components} eq 'ARRAY' && @{ $hooks->{components} } )
+        || ( ref $hooks->{panels} eq 'ARRAY'     && @{ $hooks->{panels} } ) ? 1 : 0;
 }
 
 # `requires`: the ids of the extensions this one builds on. Enabling it while

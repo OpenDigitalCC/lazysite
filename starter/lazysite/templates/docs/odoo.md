@@ -102,7 +102,7 @@ page:
 : The name a visitor or a manager is shown for Odoo, default `Odoo`: the sign-in
   dialog's labels, the `/odoo-signin` page and its button, the `/login` link to it,
   the browser helper's messages, the errors the page endpoint answers and the
-  Unknown Odoo writes panel all say it. Empty, they name nothing ("Sign in", "That
+  Unknown Odoo writes page all say it. Empty, they name nothing ("Sign in", "That
   sign-in was not accepted"). The extension, its page, its daemon and these
   settings keep the name Odoo. A page already cached shows the old name until it
   is next rendered.
@@ -652,8 +652,9 @@ keys) and one `odoo-call` audit line naming both. A settled run answers `settled
 or not one the caller may resume, `not-found` (404). `odoo-resume` / `odoo_resume`
 is the same for a signed-in account over the control API and MCP.
 
-**On the manager.** The Odoo extension's row on the Extensions page has **Unknown
-Odoo writes**: each open run, its binding, who made it, when, and each change still
+**On the manager.** The Odoo extension's card on the Extensions page links its
+**Unknown Odoo writes** page (`/manager/odoo-unknown-writes`, shown to a holder of
+`settle_odoo_writes`): each open run, its binding, who made it, when, and each change still
 unknown, with **Check again**, **It was made** and **It was not made** for a change,
 and **Close run** (a dismissal) for the run. A run a person made signed in to Odoo is offered Close run
 alone. Listing (`odoo-unknown-runs` / `odoo_unknown_runs`) and dismissing

@@ -101,6 +101,15 @@ Archive
   it loads, oomd, the Odoo sign-in's group map, read bindings at the old form default)
   move into it and print the same lines while it is on; with it off they no longer run.
 
+- SM1369 (PENDING) **X6, H-8 (ruling 188): an extension's panel is a manager page it
+  ships.** `hooks.panels` (`page`, `label`, `cap`) goes live: the page is a file in the
+  extension's payload (`manager/<name>.md`), served at `/manager/<id>-<name>` to a manager
+  holding `cap` (one of the extension's own capabilities; 403 otherwise), and linked from
+  its card on the extension-config page. No script is injected into a core page. The
+  Odoo extension's Unknown Odoo writes panel is its own page now,
+  `/manager/odoo-unknown-writes`, under `settle_odoo_writes`; the extension-config page
+  names no extension.
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and

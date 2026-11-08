@@ -216,7 +216,7 @@ sub hooks {
                 grants => 'Decide, for a change Odoo cannot be asked about, whether it was made, on a run anyone '
                     . 'made, and dismiss an unsettled run so it is no longer offered. Every decision and every '
                     . 'dismissal is one call record and one audit line naming who. Held by the operator group by default.',
-                unlocks => { ui => ['the Unknown Odoo writes panel of the Odoo extension (Extensions)'] },
+                unlocks => { ui => ['the Unknown Odoo writes page of the Odoo extension (/manager/odoo-unknown-writes, linked from its card on Extensions)'] },
             },
         },
 
@@ -417,6 +417,12 @@ sub hooks {
         # group map and the read bindings at the old form default - the same
         # lines as before, while it is on.
         checks => ['Lazysite::Odoo::Check::run'],
+
+        # SM1369 X6, H-8 (n782; ruling 188): the Unknown Odoo writes page
+        # (SM1278) is this extension's own manager page, served at
+        # /manager/odoo-unknown-writes to a holder of settle_odoo_writes and
+        # linked from its card; it was a panel core drew by this extension's name.
+        panels => [ { page => 'unknown-writes.md', label => 'Unknown Odoo writes', cap => 'settle_odoo_writes' } ],
 
         # SM1369 X5, H-5 (n782): the two services lazysited runs for this
         # extension, each behind its own gate, declared rather than known to the

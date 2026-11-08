@@ -1335,6 +1335,18 @@ sub main {
         $engine_page       = $engine_doc = 1;
         $ENGINE_DOC_RENDER = 1 if index( $doc, "$ENGINE_DOCS_DIR/" ) == 0;
     }
+
+    # SM1369 X6, H-8 (ruling 188): then a manager page an enabled extension ships,
+    # for a holder of the capability it declares; cached as an engine page is.
+    if ( !$engine_page && !defined $DRAFT_BYTES && !-f _content_abs($md_path) ) {
+        my %sv    = resolve_site_vars();
+        my $mroot = ( $sv{manager_path} || '/manager' ) =~ s{\A/+|/+\z}{}gr;
+        if ( my $xp = _extension_page( $base, $mroot ) ) {
+            return if _extension_page_refused( $xp, $uri );
+            $md_path     = $xp->{md};
+            $engine_page = $engine_doc = 1;
+        }
+    }
     my $url_path  = "$croot/$base.url";
     my $html_path = "$croot/$base.html";
 
@@ -1700,7 +1712,7 @@ sub main {
         # sibling domain's or the docroot's files (spec S1).
         my $real = _draft_is($md_path) ? _draft_real($md_path) : realpath($md_path); # SM1030
         if ( !_path_under_content( $real, $croot )
-            && !( $engine_page && _engine_page_real($real) ) )    # SM1283
+            && !( $engine_page && ( _engine_page_real($real) || _extension_page_real($real) ) ) ) # SM1283, SM1369 X6
         {
             not_found($uri);
             return;

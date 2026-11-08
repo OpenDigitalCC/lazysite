@@ -102,9 +102,19 @@ subtest 'a dismissed run goes on the plan store\'s schedule' => sub {
     ok( !-e $p, 'pruned' );
 };
 
-subtest 'the Odoo extension\'s row on the Extensions page offers them' => sub {
-    my $page = do { local $/; open my $fh, '<', "$FindBin::Bin/../../../starter/manager/extension-config.md" or die $!; <$fh> };
-    like( $page, qr/extension\.id === 'odoo'.*Unknown Odoo writes/s, 'an Unknown Odoo writes panel on the Odoo row' );
+subtest 'the Odoo extension\'s own manager page offers them, linked from its row on the Extensions page' => sub {
+    # SM1369 X6, H-8 (ruling 188): a page the extension ships and declares, not a
+    # panel core draws by its name.
+    my $root = "$FindBin::Bin/../../..";
+    my $desc = JSON::PP::decode_json( scalar qx{$^X -I$root/lib $root/extensions/odoo.pl --describe} );
+    is_deeply( $desc->{owns}{hooks}{panels},
+        [ { page => 'unknown-writes.md', label => 'Unknown Odoo writes', cap => 'settle_odoo_writes' } ],
+        'the extension declares the page, under settle_odoo_writes' );
+    my $config = do { local $/; open my $fh, '<', "$root/starter/manager/extension-config.md" or die $!; <$fh> };
+    like( $config, qr/extensionPanels\(extension\)/, 'the Extensions page links an extension\'s declared pages from its card' );
+    unlike( $config, qr/odoo/i, 'and names no Odoo panel of its own' );
+    my $page = do { local $/; open my $fh, '<', "$root/extensions/odoo/manager/unknown-writes.md" or die $!; <$fh> };
+    like( $page, qr/^auth: manager$/m, 'a manager page' );
     like( $page, qr/action=odoo-unknown-runs/, 'listing the open runs' );
     like( $page, qr/action=odoo-resume/,       'checking again and assuming' );
     like( $page, qr/action=odoo-dismiss/,      'and dismissing' );

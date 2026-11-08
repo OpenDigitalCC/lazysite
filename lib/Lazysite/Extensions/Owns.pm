@@ -111,6 +111,10 @@ sub validate_owns {
         require Lazysite::Extensions::Hooks;
         push @bad, Lazysite::Extensions::Hooks::endpoint_owner_problems( $id, $owns );
     }
+    if ( ref $owns->{hooks} eq 'HASH' && exists $owns->{hooks}{panels} ) { # SM1369 X6, H-8
+        require Lazysite::Extensions::Hooks;
+        push @bad, Lazysite::Extensions::Hooks::panel_owner_problems( $id, $owns );
+    }
 
     for my $p ( @{ $owns->{storage} || [] } ) {
         # Explicit blocks rather than `push ... and next if ...`: perlcritic

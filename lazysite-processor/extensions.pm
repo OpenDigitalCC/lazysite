@@ -27,6 +27,8 @@ package main;
 #         _inject_extension_assets, _extension_template_vars,
 #         _extension_component_dirs, _extension_component_dir, _warm_endpoint
 #         (SM1369 X5, H-5: a declared warm endpoint, for the front door),
+#         _extension_page, _extension_page_refused and _extension_page_real
+#         (SM1369 X6, H-8: a manager page an extension ships),
 #         _call_extension_hook (the one door to an extension's own code), and
 #         the identity providers' (X4): _identity_providers, _provider_on,
 #         _provider_signin_page, _provider_signin_paths, _identity_template_vars.
@@ -34,9 +36,10 @@ package main;
 #         renders: only what the index names, only while the extension and
 #         everything it requires is on, only from the payload the index names.
 # CALLS   _enabled_extensions, _lazysite_version, _esc_html, _security_headers,
-#         _timing_header, _static_cache_control, _lazy_lib, log_event (the
-#         script and its parts); decode_json (imported by the script's `use`,
-#         before its parts load).
+#         _timing_header, _static_cache_control, _lazy_lib, log_event,
+#         _site_grants_manager, _request_identity, _groups_grant_cap, _cap_groups,
+#         resolve_site_vars, forbidden, realpath (the script and its parts);
+#         decode_json (imported by the script's `use`, before its parts load).
 # READS   $DOCROOT, $LAZYSITE_DIR, %ACCESS_REC, %STATIC_CT (the script's, `our`
 #         there).
 #
@@ -224,6 +227,62 @@ sub _warm_endpoint {
     for my $pair ( @{ _extension_entries() } ) {
         my ( $id, $e ) = @$pair;
         return 1 if grep { ( $_->{script} // '' ) eq $script && $_->{warm} } _entry_list( $e, 'endpoints' );
+    }
+    return 0;
+}
+
+# SM1369 X6, H-8 (n782; ruling 188: panels are pages): THE MANAGER PAGE AN
+# EXTENSION SHIPS. A request for <manager path>/<id>-<name> that the docroot has
+# no page for is the page <name>.md in the payload's manager/ of an extension
+# that is on now and declares it (hooks.panels): { md, cap, id, label }, or
+# undef. The path is inside the payload the index names, by construction: the
+# id is the index's key and the name one of its declared pages.
+sub _extension_page {
+    my ( $base, $mroot ) = @_;
+    return undef unless defined $base && defined $mroot && length $mroot;
+    my ($leaf) = $base =~ m{\A\Q$mroot\E/([a-z][a-z0-9-]*)\z};
+    return undef unless defined $leaf;
+    for my $pair ( @{ _extension_entries() } ) {
+        my ( $id, $e ) = @$pair;
+        next unless defined $e->{payload} && !ref $e->{payload} && $e->{payload} =~ m{\A/};
+        next unless index( $leaf, "$id-" ) == 0;
+        for my $p ( _entry_list( $e, 'panels' ) ) {
+            next unless defined $p->{page} && !ref $p->{page} && $p->{page} =~ /\A([a-z][a-z0-9-]*)\.md\z/;
+            next unless $leaf eq "$id-$1";
+            my $md = "$e->{payload}/manager/$p->{page}";
+            return undef if -l $md || !-f $md;
+            return { md => $md, cap => $p->{cap}, id => $id, label => $p->{label} };
+        }
+    }
+    return undef;
+}
+
+# The page is drawn only for a holder of its capability (the manager path's gate
+# has already held the `ui` one): an unsecured site's manager holds every one,
+# as the nav does (_render_manager_facts). Returns 1 when it answered 403.
+sub _extension_page_refused {
+    my ( $page, $uri ) = @_;
+    return 0 unless _site_grants_manager();
+    my $ident = _request_identity( conf => { resolve_site_vars() } );
+    return 0 if _groups_grant_cap( $page->{cap}, _cap_groups( @{ $ident->{groups} || [] } ) );
+    log_event( 'INFO', $uri, 'an extension\'s manager page refused: the account does not hold its capability',
+        extension => $page->{id}, cap => $page->{cap} );
+    forbidden();
+    return 1;
+}
+
+# Is a source's real path a declared manager page of an extension that is on?
+# The render path confines a page to the content root; this is the one other
+# tree an extension page may come from (as _engine_page_real is for the
+# engine's own pages).
+sub _extension_page_real {
+    my ($real) = @_;
+    return 0 unless defined $real && length $real;
+    for my $pair ( @{ _extension_entries() } ) {
+        my ( $id, $e ) = @$pair;
+        next unless defined $e->{payload} && !ref $e->{payload} && _entry_list( $e, 'panels' );
+        my $dir = realpath("$e->{payload}/manager") // next;
+        return 1 if index( $real, "$dir/" ) == 0;
     }
     return 0;
 }

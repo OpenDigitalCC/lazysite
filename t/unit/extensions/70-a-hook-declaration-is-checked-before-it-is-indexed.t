@@ -37,8 +37,8 @@ subtest 'a known hook this engine does not call yet is refused, naming its slice
     # H-10). The rest are refused as X1 refused them all.
     my @live = grep { $Lazysite::Extensions::Hooks::KINDS{$_}{live} } hook_kinds();
     is_deeply( \@live,
-        [qw(api_actions assets capability_info checks components endpoints handler_types identity_provider page_sources refusal_kinds services template_vars)],
-        'the live kinds are X2\'s three, X3\'s two, X4\'s one, X5\'s five and X6\'s checks (n782: H-4, H-5, H-6)' );
+        [qw(api_actions assets capability_info checks components endpoints handler_types identity_provider page_sources panels refusal_kinds services template_vars)],
+        'the live kinds are X2\'s three, X3\'s two, X4\'s one, X5\'s five and X6\'s two (n782: H-4, H-5, H-6, H-8)' );
     for my $k ( grep { !$Lazysite::Extensions::Hooks::KINDS{$_}{live} } hook_kinds() ) {
         my $e = errors( validate_hooks( 'x', { $k => [] } ) );
         is( scalar @$e, 1, "$k: refused" );
