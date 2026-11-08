@@ -137,14 +137,17 @@ Nothing a site configures changes, and nothing needs doing; what an operator see
 
 **A table may read its rows from another system (SM1364).** Nothing changes for an
 existing table: a descriptor without `source:` behaves as before. To use it, see
-[Data tables](/docs/data-tables): a GET connector whose `answer_table` names the table,
-a `connector` handler for it, a schedule entry, and `source:` in the descriptor naming
-the connector and the entry. Two things to know. A connector whose `answer_table` names
-a table with a `source:` no longer appends a call row there - the answer becomes the
-table's rows, and a failed call adds nothing. And the schedule's run record
+[Data tables](/docs/data-tables): a GET connector, a `connector` handler for it, a
+schedule entry, and `source:` in the descriptor naming the connector and the entry -
+the descriptor is the one link, so the connector needs no `answer_table`. Two things to
+know. A connector whose `answer_table` names a table with a `source:` no longer
+appends a call row there - the answer becomes the table's rows, and a failed call adds
+nothing; a connector whose `answer_table` names an ordinary table keeps appending. And the schedule's run record
 (`lazysite/daemon/schedule-runs.json`) gains `last_ok` per entry, written from the first
 run after the upgrade; until an entry delivers once, a sourced table's age reads "never
-refreshed".
+refreshed". The record is now written under a lock file beside it,
+`schedule-runs.json.lock`, which the daemon and the manager share; both users must be
+able to write `lazysite/daemon/` for an on-demand refresh to count in the age.
 
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 

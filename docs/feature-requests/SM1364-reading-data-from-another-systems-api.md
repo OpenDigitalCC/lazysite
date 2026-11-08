@@ -38,7 +38,8 @@ PENDING, 0.16.9, on branch n783.
   and `map` (column: field of each item). The key is mapped and is the source's own
   identifier, never the automatic `id`. Refused at save otherwise.
 - **The refresh** is the existing chain: schedule entry -> connector handler -> the
-  connector -> its `answer_table`. An answer table that names a source is refreshed
+  connector. Every table whose `source.connector` names the connector is refreshed
+  (ruling 191: one link, no `answer_table` needed)
   through `import_rows` (`Tables::refresh_from_answer`) instead of being appended to:
   a sent row is updated in its mapped columns, a new one inserted, and a row the source
   stops sending is removed as a recorded, undoable change - only when the answer is a

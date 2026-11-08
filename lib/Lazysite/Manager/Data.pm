@@ -779,10 +779,8 @@ sub action_data_table_refresh {
     return { ok => 0, table => $table, error => "table '$table' is refreshed from connector "
             . "'$s->{connector}', which is not configured - add it on the Connectors page" }
         unless $c;
-    return { ok => 0, table => $table, error => "connector '$s->{connector}' keeps its answers in "
-            . ( length $c->{answer_table} ? "'$c->{answer_table}'" : 'no table' )
-            . ", so a refresh would not reach '$table' - set its answer_table to '$table'" }
-        unless ( $c->{answer_table} // '' ) eq $table;
+    # Ruling 191: no answer_table check - the descriptor's source.connector is the
+    # one link, and Connectors::call refreshes every table that names it.
 
     # The entry's fixed fields, so the on-demand call asks the source what the
     # scheduled one asks. An entry that is not in the schedule sends none.
@@ -800,7 +798,7 @@ sub action_data_table_refresh {
     log_event( ( $r->{ok} ? 'INFO' : 'WARN' ), $table,
         ( $r->{ok} ? 'data table refreshed from its source' : 'data table refresh failed' ),
         connector => $s->{connector}, ( $r->{ok} ? () : ( why => $r->{error} // $r->{state} ) ) );
-    my $kept = ref $r->{kept} eq 'HASH' ? $r->{kept} : {};
+    my $kept = ref $r->{refreshed} eq 'HASH' && ref $r->{refreshed}{$table} eq 'HASH' ? $r->{refreshed}{$table} : {};
     return {
         ok        => ( $r->{ok} ? 1 : 0 ),
         table     => $table,

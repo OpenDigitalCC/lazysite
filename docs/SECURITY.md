@@ -5039,8 +5039,9 @@ Assessment drafted by the developer agent (n783); the trigger ruled by the relea
 what changed
 : A data table's descriptor may name a `source:` - a GET connector, the schedule entry
   that refreshes it, where the list is in the answer and a map from each item's fields to
-  its columns (`Descriptor::_check_source`). A connector whose `answer_table` names such a
-  table writes its answer into the table's rows (`Connectors::_keep_answer` ->
+  its columns (`Descriptor::_check_source`). A connector's answer is written into the rows
+  of every table whose `source.connector` names it (ruling 191: one link;
+  `Connectors::sourced_by`) (`Connectors::_keep_answer` ->
   `Tables::refresh_from_answer` -> `import_rows`) instead of appending a call row. A new
   action and tool, `data-table-refresh` / `refresh_data_table` (`manage_data`), make the
   entry's call on demand, as the caller. Mapped columns are refused at every write door
@@ -5090,9 +5091,11 @@ residual risk
 : A refresh removes the rows its source stops sending (ruling 189): each removal is a
   recorded delete in the row history, undoable, and only a non-empty, well-formed list
   removes anything, so an empty or failed answer cannot empty a table. A source that
-  wrongly omits a row removes it until it sends it again. An on-demand refresh and the
-  daemon writing the run record at the same moment can lose the on-demand `last_ok`, so the
-  age shown is older than it is - the safe direction. The connector's secret store is
+  wrongly omits a row removes it until it sends it again. The run record's two writers
+  (the daemon, an on-demand refresh) share one lock file (ruling 191) and the daemon
+  merges only its own entries; a writer that cannot open the lock writes without it and
+  logs that it did. The manager's data page gains Refresh now (`data-table-refresh`,
+  CSRF-gated like every POST there). The connector's secret store is
   unchanged by this work; if it changes, the refresh reaches it only through
   `Connectors::call`.
 

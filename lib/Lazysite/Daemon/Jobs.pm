@@ -206,7 +206,7 @@ sub schedule_run {
     # refusal already recorded writes nothing, so the record is not rewritten
     # every five minutes for an entry nobody has touched. `lazysite check`
     # names such an entry from the file (report_schedule_floor).
-    my @floor_refused;
+    my ( @floor_refused, @floor_ids );
     for my $e ( @{ Lazysite::Handlers::below_floor_entries($schedule) } ) {
         my $why = "every: " . ( $e->{every} // '' ) . " is below the floor of "
             . "$Lazysite::Handlers::SCHEDULE_FLOOR seconds, so this entry never runs - "
@@ -218,11 +218,12 @@ sub schedule_run {
         Lazysite::Util::log_event( 'WARN', 'scheduler', 'schedule entry refused',
             entry => $e->{id}, reason => $why );
         push @floor_refused, "$e->{id}: $why";
+        push @floor_ids,     $e->{id};
     }
 
     my $due = Lazysite::Handlers::due_entries( $schedule, $runs, $now );
     unless (@$due) {
-        _write_schedule_runs( $root, $runs ) if @floor_refused;
+        _merge_schedule_runs( $root, $runs, @floor_ids ) if @floor_ids;
         return { ok => 1, detail => { entries => scalar @$schedule, due => 0,
                 ( @floor_refused ? ( refused => \@floor_refused ) : () ) } };
     }
@@ -256,7 +257,7 @@ sub schedule_run {
         if   ( $r->{ok} ) { push @ran,    $e->{id} }
         else              { push @failed, "$e->{id}: " . ( $r->{why} // 'failed' ) }
     }
-    _write_schedule_runs( $root, $runs );
+    _merge_schedule_runs( $root, $runs, @floor_ids, map { $_->{id} } @$due );
 
     # NOT ok => 0 when an entry fails. The job DID what it was for; a remote
     # that is down is a fact about that entry, recorded here and in the audit
@@ -299,10 +300,54 @@ sub schedule_run_record {
 # when the record could not be read or written - the refresh stands either way.
 sub record_schedule_run {
     my ( $root, $id, $ok, $why, $now ) = @_;
+    return _locked_runs_update( $root,
+        sub { $_[0]{$id} = _run_outcome( $_[0]{$id}, $now // time, $ok, $why ) } );
+}
+
+# SM1364 (ruling 191): TWO WRITERS, ONE LOCK. The daemon's schedule run and an
+# on-demand refresh (the manager, MCP) both write schedule-runs.json. The daemon
+# reads the record before its deliveries, which call remotes and take seconds;
+# holding a lock across them would stall every on-demand refresh behind the
+# slowest remote. So each writer takes the lock only for a read-modify-write of
+# the entries it changed: the daemon merges its entries into the record as it
+# stands when it writes, and leaves an entry the manager refreshed meanwhile
+# alone. A lock file that cannot be opened (a folder this user may not write)
+# is logged and the write is tried without it, as before the lock existed: the
+# daemon must keep recording, and a manager that cannot write the folder fails
+# at the write and says so (Manager::Data's age_note).
+sub _locked_runs_update {
+    my ( $root, $edit ) = @_;
+    my $f = _schedule_runs_file($root);
+    require File::Path;
+    File::Path::make_path( dirname($f) ) unless -d dirname($f);
+    require Fcntl;
+    my $lk;
+    if ( open $lk, '>>', "$f.lock" ) {
+        flock( $lk, Fcntl::LOCK_EX() ) or undef $lk;
+    }
+    else {
+        undef $lk;
+    }
+    Lazysite::Util::log_event( 'WARN', 'scheduler', 'schedule run record written without its lock',
+        lock => 'daemon/schedule-runs.json.lock', error => "$!" )
+        unless $lk;
     my $runs = _read_schedule_runs($root);
-    return 0 unless defined $runs;
-    $runs->{$id} = _run_outcome( $runs->{$id}, $now // time, $ok, $why );
-    return _write_schedule_runs( $root, $runs );
+    my $ok   = 0;
+    if ( defined $runs ) {
+        $edit->($runs);
+        $ok = _write_schedule_runs( $root, $runs );
+    }
+    close $lk if $lk;
+    return $ok;
+}
+
+# The daemon's write: its own entries, merged into the record as it stands now.
+sub _merge_schedule_runs {
+    my ( $root, $runs, @ids ) = @_;
+    my %seen;
+    @ids = grep { !$seen{$_}++ } @ids;
+    return _locked_runs_update( $root,
+        sub { for my $id (@ids) { $_[0]{$id} = $runs->{$id} if exists $runs->{$id} } } );
 }
 
 sub _read_schedule_runs {

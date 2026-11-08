@@ -127,7 +127,11 @@ Archive
   `refresh_data_table` (manage_data) refresh it now, as the caller. A failed refresh changes nothing and is recorded; the table's age (`data-table`
   `source`) comes from the entry's new `last_ok` in schedule-runs.json. Mapped columns are
   read-only at every door, naming the source (`Tables::_write_prep`, `import_rows`).
-  t/unit/data/110, t/unit/manager/512.
+  The descriptor is the one link (ruling 191): a connector needs no `answer_table` to
+  refresh the tables that name it. The run record is written under one lock by the
+  daemon and an on-demand refresh, the daemon merging only its own entries; the Data
+  page shows a sourced table's age and last outcome with Refresh now.
+  t/unit/data/110, t/unit/manager/512, t/unit/manager/513, t/unit/daemon/38.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

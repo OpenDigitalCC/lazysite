@@ -4,9 +4,8 @@
 # A table's descriptor names a `source:` - a GET connector, the schedule entry
 # that refreshes it and a map from each item's fields to its columns. The
 # refresh is the existing chain (schedule -> connector handler -> connector ->
-# the connector's answer_table), and because the answer table names a source the
-# answer becomes the table's rows through import_rows instead of a call-record
-# row. An on-demand refresh (Manager::Data::action_data_table_refresh, the
+# the table whose source names the connector - the one link, ruling 191), and
+# the answer becomes the table's rows through import_rows. An on-demand refresh (Manager::Data::action_data_table_refresh, the
 # data-table-refresh action and the refresh_data_table tool) is the same call.
 #
 # What must hold, against a remote on 127.0.0.1 this test starts:
@@ -113,8 +112,8 @@ ok( $m->{ok}, 'the sourced table is created' ) or diag explain $m;
 $Lazysite::Manager::Connectors::DOCROOT = $d;
 my $c = Lazysite::Manager::Connectors::action_connector_save( 'bookings',
     { url => "${base}bookings", method => 'GET', modes => { scheduled => 1, authenticated => 1 },
-        answer_table => 'bookings', rate_per_hour => 0, timeout => 3 } );
-ok( $c->{ok}, 'the GET connector is saved, its answers kept in the table' ) or diag explain $c;
+        rate_per_hour => 0, timeout => 3 } );
+ok( $c->{ok}, 'the GET connector is saved - naming no answer table: the descriptor is the one link (ruling 191)' ) or diag explain $c;
 spit( "$d/lazysite/forms/handlers.conf",
     "handlers:\n  - id: bookings-pull\n    type: connector\n    name: Pull\n    connector: bookings\n" );
 spit( "$d/lazysite/forms/schedule.conf",

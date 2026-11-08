@@ -869,14 +869,25 @@ sub call {
 
     my $kept;
     if ( $c->{answer_table} ) {
-        $kept = _keep_answer( $c, $rec, $answer );
+        $kept = _keep_answer( $c, $rec, $answer, $c->{answer_table} );
+    }
+
+    # SM1364 (ruling 191): ONE LINK. A table whose `source.connector` names this
+    # connector is refreshed by its answer, whether or not the connector also
+    # names it as answer_table - the operator says it once, in the descriptor.
+    # A connector that names an answer_table keeps doing what it did.
+    my %refreshed;
+    $refreshed{ $c->{answer_table} } = $kept if ref $kept eq 'HASH' && $kept->{refresh};
+    for my $tbl ( sourced_by($id) ) {
+        $refreshed{$tbl} //= _keep_answer( $c, $rec, $answer, $tbl );
     }
 
     # SM1364: A REFRESH THAT DID NOT LAND IS A CALL THAT DID NOT DELIVER. The
     # remote answered, and the answer could not become the table's rows - so the
     # schedule records the entry as failed with this reason, and an on-demand
     # refresh says so, rather than either reading "ok" while the table is stale.
-    my $refresh_failed = ref $kept eq 'HASH' && $kept->{refresh} && !$kept->{ok};
+    my @failed         = grep { !$refreshed{$_}{ok} } sort keys %refreshed;
+    my $refresh_failed = @failed ? 1 : 0;
     return {
         ok      => ( $state eq 'answered' && !$refresh_failed ? 1 : 0 ),
         state   => $state,
@@ -885,10 +896,27 @@ sub call {
         ms      => $ms,
         answer  => $answer,
         ( $state ne 'answered' ? ( error => "the connector call $state (http $res->{_rc})" )
-            : $refresh_failed ? ( error => $kept->{error} )
+            : $refresh_failed ? ( error => join( '; ', map { $refreshed{$_}{error} } @failed ) )
             :                   () ),
-        ( defined $kept ? ( kept => $kept ) : () ),
+        ( defined $kept ? ( kept      => $kept )       : () ),
+        ( %refreshed    ? ( refreshed => \%refreshed ) : () ),
     };
+}
+
+# SM1364 (ruling 191): the tables whose descriptor names connector $id as its
+# source. Descriptors are cached by Tables::load_table, so this is a directory
+# read per call; a descriptor that does not load is not a source of anything.
+sub sourced_by {
+    my ($id) = @_;
+    require Lazysite::Data::Tables;
+    my @out;
+    for my $t ( @{ Lazysite::Data::Tables::list_tables($DOCROOT) } ) {
+        my $d = eval { Lazysite::Data::Tables::load_table( $DOCROOT, $t ) };
+        push @out, $t
+            if ref $d eq 'HASH' && $d->{ok} && ref $d->{source} eq 'HASH'
+            && ( $d->{source}{connector} // '' ) eq $id;
+    }
+    return @out;
 }
 
 sub _call_id {
@@ -942,7 +970,7 @@ sub _answer_of {
 # declared through the data extension, with the columns named here; a missing
 # table or column is reported on the call, not silently skipped.
 sub _keep_answer {
-    my ( $c, $rec, $answer ) = @_;
+    my ( $c, $rec, $answer, $into ) = @_;
     require Lazysite::Data::Tables;
 
     # SM1364: AN ANSWER TABLE THAT NAMES A SOURCE IS REFRESHED, not appended to.
@@ -951,9 +979,9 @@ sub _keep_answer {
     # not answer changes nothing, so the last good rows stay. The table must name
     # THIS connector as its source - two connectors filling one sourced table
     # would make its rows whichever answered last.
-    my $d = eval { Lazysite::Data::Tables::load_table( $DOCROOT, $c->{answer_table} ) };
+    my $d = eval { Lazysite::Data::Tables::load_table( $DOCROOT, $into ) };
     if ( ref $d eq 'HASH' && $d->{ok} && ref $d->{source} eq 'HASH' ) {
-        my $tbl = $c->{answer_table};
+        my $tbl = $into;
         my $r
             = $d->{source}{connector} ne $rec->{connector}
             ? { ok => 0, error => "table '$tbl' is refreshed from connector '$d->{source}{connector}', "
@@ -981,13 +1009,13 @@ sub _keep_answer {
         http      => $rec->{http},
         answer => ( ref $answer ? JSON::PP->new->canonical->encode($answer) : $answer ),
     };
-    my $r = eval { Lazysite::Data::Tables::insert_row( $DOCROOT, $c->{answer_table}, $row, actor => $rec->{actor} ) };
+    my $r = eval { Lazysite::Data::Tables::insert_row( $DOCROOT, $into, $row, actor => $rec->{actor} ) };
     my $err = $@ ? "$@" : ( $r && !$r->{ok} ? ( $r->{error} // 'insert failed' ) : '' );
     if ($err) {
-        log_event( 'WARN', 'connectors', 'answer not kept', connector => $rec->{connector}, table => $c->{answer_table}, why => $err );
-        return { ok => 0, table => $c->{answer_table}, error => $err };
+        log_event( 'WARN', 'connectors', 'answer not kept', connector => $rec->{connector}, table => $into, why => $err );
+        return { ok => 0, table => $into, error => $err };
     }
-    return { ok => 1, table => $c->{answer_table}, key => $r->{key} };
+    return { ok => 1, table => $into, key => $r->{key} };
 }
 
 # --- the record, for the operator -------------------------------------------

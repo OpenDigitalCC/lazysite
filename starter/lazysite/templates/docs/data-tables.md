@@ -1336,7 +1336,10 @@ source:
 
 **The parts are the [live-data chain](/docs/ai-briefing-building-sites)'s.**
 The operator saves the connector on the Connectors page with `method: GET`,
-`modes.scheduled` on and **`answer_table` naming this table**; its URL, its
+`modes.scheduled` on; it needs no `answer_table` - the descriptor's
+`source.connector` is the one link, and every table that names the connector
+is refreshed by its answer (a connector that already names this table as its
+`answer_table` works the same). Its URL, its
 credential (the connector's secret), the egress bounds and the call record are
 the connector's, and nothing in the descriptor reaches the network. A
 `connector` handler names the connector, and the schedule entry the descriptor
@@ -1350,8 +1353,7 @@ schedule:
     payload: {"venue":"main"}
 ```
 
-Because the answer table names a source, an answer is not appended as a call
-row: each item becomes a row, by `map`. A row the source sends is updated -
+A sourced table's answer is not appended as a call row: each item becomes a row, by `map`. A row the source sends is updated -
 its mapped columns only, so the site's own columns keep their values - and an
 item the table has not seen is inserted. **A row the source stops sending is
 removed**, as a recorded change in the row history (`list_row_changes`, from
@@ -1361,7 +1363,9 @@ with at least one item removes anything: an empty list, or a refresh that
 fails, leaves every row where it is.
 
 **Refresh now** with `refresh_data_table` (MCP) or `data-table-refresh` (API),
-both needing `manage_data`. It is the schedule entry's call, made as you: the
+both needing `manage_data`, or **Refresh now** on the table's rows in the
+manager's Data page, which also shows how old the rows are and how the last
+refresh went. It is the schedule entry's call, made as you: the
 connector's `callers` groups (or `manage_connectors`) decide whether you may
 cause it, and it is recorded against the entry like a scheduled run.
 

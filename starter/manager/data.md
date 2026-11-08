@@ -44,6 +44,12 @@ search: false
     <!-- SM1355: the table's wizards and its row history (with Undo). -->
     <span id="wizard-buttons"></span>
     <button class="mg-btn" data-impact="inert" id="row-history-btn" onclick="loadRowChanges()">History</button>
+    <!-- SM1364 (ruling 191): a table that reads its rows from another system -
+         how old they are, how the last refresh went, and Refresh now. -->
+    <span id="source-bar" hidden>
+      <button class="mg-btn mg-btn-change" data-impact="change" id="source-refresh-btn" onclick="refreshSource()">Refresh now</button>
+      <span class="mg-muted" id="source-age"></span>
+    </span>
     <span id="rows-pager" style="display:none;margin-left:auto;">
       <button class="mg-btn" id="rows-prev" onclick="pageRows(-1)">&larr; Prev</button>
       <button class="mg-btn" id="rows-next" onclick="pageRows(1)">Next &rarr;</button>
@@ -365,6 +371,7 @@ function loadRows(table, page) {
           CURRENT.desc = desc.ok ? desc : null;
           renderRows(rows, CURRENT.desc);
           loadWizardButtons(table);
+          renderSource(CURRENT.desc ? CURRENT.desc.source : null);
         });
     })
     .catch(function(e) { showStatus('Could not load rows: ' + e, true); });
@@ -1455,6 +1462,37 @@ function loadRowChanges() {
       document.getElementById('history-panel').hidden = false;
     })
     .catch(function(e) { showStatus('Could not read the history: ' + e, true); });
+}
+/* SM1364 (ruling 191): a sourced table's age and last outcome, as data-table
+   (and data-table-refresh) answer them under `source`, and its Refresh now. */
+function sourceAge(secs) {
+  secs = Number(secs);
+  if (secs < 120) return secs + ' seconds';
+  if (secs < 7200) return Math.round(secs / 60) + ' minutes';
+  if (secs < 172800) return Math.round(secs / 3600) + ' hours';
+  return Math.round(secs / 86400) + ' days';
+}
+function renderSource(src) {
+  var bar = document.getElementById('source-bar');
+  if (!src) { bar.hidden = true; return; }
+  bar.hidden = false;
+  var t = 'From connector ' + src.connector + ': ';
+  t += src.refreshed_at ? 'refreshed ' + sourceAge(src.age_seconds) + ' ago' : (src.age_note || 'never refreshed');
+  if (src.outcome && src.outcome !== 'ok') t += '; the last refresh ' + src.outcome + (src.reason ? ' - ' + src.reason : '');
+  if (src.read_only && src.read_only.length) t += '. Read-only here: ' + src.read_only.join(', ');
+  document.getElementById('source-age').textContent = t;
+}
+function refreshSource() {
+  var btn = document.getElementById('source-refresh-btn');
+  btn.disabled = true;
+  postJson('data-table-refresh', { table: CURRENT.table }).then(function(d) {
+    btn.disabled = false;
+    if (d.source) renderSource(d.source);
+    if (!d.ok) { showStatus(d.error || 'The table was not refreshed.', true); return; }
+    showStatus('Refreshed: ' + Number(d.inserts || 0) + ' added, ' + Number(d.updates || 0) + ' updated, '
+      + Number(d.removes || 0) + ' removed.');
+    loadRows(CURRENT.table, PAGE.page);
+  }).catch(function(e) { btn.disabled = false; showStatus('Could not refresh: ' + e, true); });
 }
 function undoRowChange(id) {
   if (!confirm('Put the row back as it was before change ' + id + '?')) return;
