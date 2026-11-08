@@ -2298,6 +2298,15 @@ elsif ( $action eq 'data-wizard-save' ) {
     $result = Lazysite::Manager::Data::action_data_wizard_save( $req->{wizard} // $params{wizard},
         $req->{definition} );
 }
+# SM1364: refresh a sourced table now - the schedule entry's call, made as this
+# account (mode authenticated), so the connector's callers decide.
+elsif ( $action eq 'data-table-refresh' ) {
+    my $req = _json_body();
+    $result = Lazysite::Manager::Data::action_data_table_refresh(
+        $req->{table} // $params{table},
+        caps   => ( $token_auth ? \%token_caps : _user_caps($auth_user) ),
+        groups => [ Lazysite::Auth::Settings::effective_groups($auth_user) ] );
+}
 elsif ( $action eq 'lang-status' ) {
     $result = action_lang_status( $params{group} );
 }

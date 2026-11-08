@@ -117,6 +117,16 @@ Archive
   already laid out so and are read where they are. A connector's secret moves from
   `connectors/secrets.json` into the store when it is next set; until then the map is
   read, so every secret set before the change stays readable.
+- SM1364 (PENDING) **data: a table reads its rows from another system's API.** A
+  descriptor's `source:` names a GET connector, the schedule entry that refreshes it,
+  where the list is in the answer and a map from each item's fields to its columns. The
+  refresh is the existing chain (schedule -> connector handler -> connector), and an
+  answer table that names a source is written through `import_rows` rather than appended
+  to. `data-table-refresh` / `refresh_data_table` (manage_data) refresh it now, as the
+  caller. A failed refresh changes nothing and is recorded; the table's age (`data-table`
+  `source`) comes from the entry's new `last_ok` in schedule-runs.json. Mapped columns are
+  read-only at every door, naming the source (`Tables::_write_prep`, `import_rows`).
+  t/unit/data/110, t/unit/manager/512.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

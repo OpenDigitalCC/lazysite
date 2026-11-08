@@ -49,7 +49,8 @@ our @EXPORT_OK = qw(row_write_refusal groups_for
     action_data_safety_export_delete action_data_safety_export_read
     action_data_safety_export_restore
     action_data_row_switch action_data_row_changes action_data_row_undo
-    action_data_wizards action_data_wizard action_data_wizard_save action_data_wizard_run);
+    action_data_wizards action_data_wizard action_data_wizard_save action_data_wizard_run
+    action_data_table_refresh);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -705,6 +706,113 @@ sub action_data_table {
         row_history_days => _history_days($d), # ruling 170: the table's own, or the default
         ( $pending                   ? ( pending_schema => JSON::PP::true )        : () ),
         ( @{ _provenance_notes($d) } ? ( notes          => _provenance_notes($d) ) : () ),
+        ( $d->{source}               ? ( source => source_state($d) ) : () ),    # SM1364
+    };
+}
+
+# SM1364: A SOURCED TABLE'S SOURCE, AND HOW OLD ITS ROWS ARE.
+#
+# The age is read from the schedule's own run record (schedule-runs.json): the
+# entry the descriptor names last delivered at `last_ok`, which a failed refresh
+# does not move - so a table whose source has been down since Tuesday says
+# Tuesday. `read_only` is the mapped columns, the ones every door refuses.
+sub source_state {
+    my ($d) = @_;
+    my $s = $d->{source};
+    require Lazysite::Daemon::Jobs;
+    my $run = Lazysite::Daemon::Jobs::schedule_run_record( $DOCROOT, $s->{schedule} );
+    my %out = (
+        connector => $s->{connector},
+        schedule  => $s->{schedule},
+        map       => $s->{map},
+        read_only => [ sort keys %{ $s->{map} } ],
+        ( defined $s->{rows} ? ( rows => $s->{rows} ) : () ),
+    );
+    if ( !defined $run ) {
+        $out{age_note} = 'the schedule run record cannot be read, so the age of these rows is unknown - see the event log';
+        return \%out;
+    }
+    if ( defined $run->{last_ok} ) {
+        $out{refreshed_at} = 0 + $run->{last_ok};
+        $out{age_seconds}  = time - $run->{last_ok};
+    }
+    else {
+        $out{age_note} = 'never refreshed: the schedule entry has not delivered yet';
+    }
+    $out{last_attempt} = 0 + $run->{last_run} if defined $run->{last_run};
+    $out{outcome}      = $run->{outcome}      if defined $run->{outcome};
+    my $why = $run->{reason} // $run->{refusal_reason};
+    $out{reason} = $why if defined $why && ( $run->{outcome} // '' ) ne 'ok';
+    return \%out;
+}
+
+# SM1364: REFRESH A SOURCED TABLE NOW - the schedule entry's own call, made on
+# demand. It sends the entry's fixed fields through the table's source
+# connector, as the person asking (mode `authenticated`: the connector's callers
+# groups or manage_connectors decide, as for connector-call), and the answer
+# reaches the table by the one path the schedule's answer takes
+# (Connectors::call -> _keep_answer -> Tables::refresh_from_answer). The outcome
+# is recorded against the entry, so the table's age counts from either.
+#
+# A refresh that fails changes nothing: the rows are the last good copy, and the
+# answer says why and how old they are.
+sub action_data_table_refresh {
+    my ( $table, %ctx ) = @_;
+    if ( my $bad = _table_action($table) )                 { return $bad }
+    if ( my $no  = table_rule_refusal( $table, 'write' ) ) { return $no }
+    my $d = load_table( $DOCROOT, $table );
+    return $d unless $d->{ok};
+    my $s = $d->{source};
+    return { ok => 0, kind => 'validation', rule => 'source', table => $table,
+        error => "table '$table' names no source - only a table with `source:` is refreshed" }
+        unless ref $s eq 'HASH';
+
+    require Lazysite::Handlers;
+    require Lazysite::Manager::Connectors;
+    require Lazysite::Daemon::Jobs;
+    no warnings 'once';
+    local $Lazysite::Handlers::DOCROOT            = $DOCROOT;
+    local $Lazysite::Manager::Connectors::DOCROOT = $DOCROOT;
+
+    my $all = Lazysite::Manager::Connectors::connectors();
+    my $c   = ref $all eq 'HASH' ? $all->{ $s->{connector} } : undef;
+    return { ok => 0, table => $table, error => "table '$table' is refreshed from connector "
+            . "'$s->{connector}', which is not configured - add it on the Connectors page" }
+        unless $c;
+    return { ok => 0, table => $table, error => "connector '$s->{connector}' keeps its answers in "
+            . ( length $c->{answer_table} ? "'$c->{answer_table}'" : 'no table' )
+            . ", so a refresh would not reach '$table' - set its answer_table to '$table'" }
+        unless ( $c->{answer_table} // '' ) eq $table;
+
+    # The entry's fixed fields, so the on-demand call asks the source what the
+    # scheduled one asks. An entry that is not in the schedule sends none.
+    my $sched   = Lazysite::Handlers::read_schedule();
+    my ($entry) = grep { ( $_->{id} // '' ) eq $s->{schedule} } @{ $sched || [] };
+    my $r       = Lazysite::Manager::Connectors::call( $s->{connector},
+        { %{ ( $entry && ref $entry->{payload} eq 'HASH' ) ? $entry->{payload} : {} } },
+        mode    => 'authenticated',
+        caps    => $ctx{caps}   // {},
+        groups  => $ctx{groups} // [],
+        actor   => $auth_user,
+        trigger => "refresh:$table" );
+    my $recorded = ( $r->{state} // '' ) eq 'refused' ? 1
+        :   Lazysite::Daemon::Jobs::record_schedule_run( $DOCROOT, $s->{schedule}, $r->{ok}, $r->{error} );
+    log_event( ( $r->{ok} ? 'INFO' : 'WARN' ), $table,
+        ( $r->{ok} ? 'data table refreshed from its source' : 'data table refresh failed' ),
+        connector => $s->{connector}, ( $r->{ok} ? () : ( why => $r->{error} // $r->{state} ) ) );
+    my $kept = ref $r->{kept} eq 'HASH' ? $r->{kept} : {};
+    return {
+        ok        => ( $r->{ok} ? 1 : 0 ),
+        table     => $table,
+        connector => $s->{connector},
+        state     => $r->{state},
+        ( defined $r->{call_id} ? ( call_id => $r->{call_id} ) : () ),
+        ( $r->{ok}
+            ? ( inserts => $kept->{inserts} // 0, updates => $kept->{updates} // 0 )
+            : ( error => ( $r->{error} // 'the refresh failed' ) . ' - the table keeps its last good rows' ) ),
+        source => source_state($d),
+        ( $recorded ? () : ( age_note => 'this refresh could not be written to the schedule run record, '
+                    . 'so the age shown does not count it - see the event log' ) ),
     };
 }
 

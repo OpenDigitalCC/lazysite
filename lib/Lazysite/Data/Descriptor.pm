@@ -593,6 +593,9 @@ sub load_descriptor {
             || $history_days > 36500;
     }
 
+    my ( $source, $src_err ) = _check_source( $name, $raw, $fields, $key );
+    return $src_err if $src_err;
+
     my $domain = $raw->{domain};
     $domain = '' unless defined $domain && !ref $domain;
     $domain =~ s/\A\s+|\s+\z//g;
@@ -637,7 +640,72 @@ sub load_descriptor {
         ( $schedule ? ( schedule        => 1 )       : () ),    # SM1356
         ( %shows    ? ( shows           => \%shows ) : () ),
         ( $sd       ? ( structured_data => $sd )     : () ),    # SM1357
+        ( $source   ? ( source          => $source ) : () ),    # SM1364
     };
+}
+
+# SM1364: A TABLE THAT READS ITS ROWS FROM ANOTHER SYSTEM'S API.
+#
+# `source:` names a GET connector (its URL, credential, egress bounds and call
+# record are the connector's - nothing here reaches the network), the schedule
+# entry that refreshes it (a schedule.conf entry calling a connector handler for
+# that connector; its run record says how old the rows are), where the list sits
+# in the answer (`rows`, a dotted path; absent, the answer itself), and `map`:
+# which field of each item fills which column.
+#
+# THE MAPPED COLUMNS ARE THE SOURCE'S. Tables::_write_prep refuses a write to
+# one at every door, so `map` is the one flag that makes them read-only; an
+# unmapped column stays the site's own and is written as any other.
+#
+# THE KEY IS MAPPED, AND IS NOT THE AUTOMATIC id: a refresh updates the row the
+# source calls by that identifier and inserts one it has not seen, so the key
+# has to be the source's own - an id this store assigned would make every
+# refresh a new set of rows.
+#
+# Returns ( \%source or undef, undef ) or ( undef, $err ).
+my $FIELD_PATH = qr/\A[A-Za-z0-9_][A-Za-z0-9_-]{0,63}(?:\.[A-Za-z0-9_][A-Za-z0-9_-]{0,63}){0,7}\z/;
+
+sub _check_source {
+    my ( $name, $raw, $fields, $key ) = @_;
+    my $s = $raw->{source};
+    return ( undef, undef ) unless defined $s;
+    my $bad = sub { return ( undef, _err( 'descriptor', "table '$name': source: $_[0]", rule => 'source', @_[ 1 .. $#_ ] ) ) };
+    return $bad->('must be a mapping of connector, schedule, map and (optionally) rows')
+        unless ref $s eq 'HASH';
+    for my $k ( sort keys %{$s} ) {
+        return $bad->("'$k' is not a source setting (connector, schedule, rows, map)")
+            unless $k =~ /\A(?:connector|schedule|rows|map)\z/;
+    }
+    my $conn = $s->{connector};
+    return $bad->('connector must name a connector (a-z, 0-9, - or _)')
+        unless defined $conn && !ref $conn && $conn =~ /\A[a-z0-9][a-z0-9_-]{0,63}\z/;
+    my $sched = $s->{schedule};
+    return $bad->( 'schedule must name the schedule.conf entry that refreshes this table - '
+            . 'its run record is how old the rows are' )
+        unless defined $sched && !ref $sched && $sched =~ /\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\z/;
+    my $rows = $s->{rows};
+    return $bad->("rows must be a dotted path to the list in the answer, such as 'data.items'")
+        if defined $rows && ( ref $rows || $rows !~ $FIELD_PATH );
+    my $map = $s->{map};
+    return $bad->('map must be a mapping of column: field in each item of the answer')
+        unless ref $map eq 'HASH' && %{$map};
+    return $bad->( "the key is 'id', which this store assigns - a sourced table's key is the "
+            . "source's own identifier, so name it (key: <column>) and map it" )
+        if $key eq 'id';
+    my %out;
+    for my $col ( sort keys %{$map} ) {
+        return $bad->( "map names '$col', which is not a declared field", field => $col )
+            unless ref $fields->{$col} eq 'HASH';
+        my $from = $map->{$col};
+        return $bad->( "map: the field '$col' reads from must be a dotted path, such as 'id' or 'customer.name'",
+            field => $col )
+            unless defined $from && !ref $from && $from =~ $FIELD_PATH;
+        $out{$col} = "$from";
+    }
+    return $bad->( "map must fill the key '$key' - a refresh finds each row by it", field => $key )
+        unless exists $out{$key};
+    return ( { connector => $conn, schedule => $sched, map => \%out,
+            ( defined $rows ? ( rows => "$rows" ) : () ) }, undef );
 }
 
 1;

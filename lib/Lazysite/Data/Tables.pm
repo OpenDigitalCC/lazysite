@@ -45,7 +45,7 @@ use Lazysite::Paths ();
 our @EXPORT_OK = qw(descriptor_dir list_tables load_table read_rows
     apply_schema schema_history insert_row update_row delete_row export_all_rows
     resolve_binding import_rows drop_table
-    rebuild_table);
+    rebuild_table refresh_from_answer);
 
 sub _err {
     my ( $error, %extra ) = @_;
@@ -802,10 +802,40 @@ sub _auto_key_refusal {
     return undef;
 }
 
+# SM1364: A MAPPED COLUMN IS THE SOURCE'S. A table whose descriptor names a
+# `source:` is refreshed from another system's API, and the columns its map
+# fills are read-only on every door - the manager, the control API, MCP, the data
+# endpoint, a wizard, a switch, a CSV import - because each reaches this file
+# through _write_prep or import_rows. The refusal names the column and the
+# source, since "change it at the source" is the only remedy that lasts: a local
+# edit would be overwritten by the next refresh. The refresh itself writes
+# through import_rows with `source_refresh`, which only the connector's answer
+# path passes (Manager::Connectors::_keep_answer). Unmapped columns stay the
+# site's own.
+#
+# Returns the refusal, or undef.
+sub _sourced_refusal {
+    my ( $d, $columns ) = @_;
+    my $s = $d->{source};
+    return undef unless ref $s eq 'HASH' && ref $s->{map} eq 'HASH';
+    my @hit = sort grep { exists $s->{map}{$_} } @{ $columns || [] };
+    return undef unless @hit;
+    return _err( "table '$d->{table}': "
+            . ( @hit > 1 ? 'columns ' . join( ', ', map { "'$_'" } @hit ) . ' are' : "column '$hit[0]' is" )
+            . " read from connector '$s->{connector}' (this table's source) and read-only here - "
+            . 'change ' . ( @hit > 1 ? 'them' : 'it' ) . ' at the source; the next refresh brings it in',
+        table  => $d->{table}, kind => 'validation', rule => 'sourced', field => $hit[0],
+        source => $s->{connector} );
+}
+
 sub _write_prep {
     my ( $docroot, $name, $input, %opt ) = @_;
     my $d = load_table( $docroot, $name );
     return ( $d, undef, undef ) unless $d->{ok};
+    if ( ref $input eq 'HASH' ) {
+        my $no = _sourced_refusal( $d, [ keys %{$input} ] );
+        return ( $no, undef, undef ) if $no;
+    }
     my $c = coerce_row( $d, $input, %opt );
     return ( $c, undef, undef ) unless $c->{ok};
     # SM1356: a schedule row the schedule could not read is refused here, by
@@ -1298,6 +1328,12 @@ sub import_rows {
             rule  => 'duplicate_column' )
             if $seen{$col}++;
     }
+    # SM1364: a CSV is a door like any other. The key is the address of the row
+    # being updated, so it may be named; any other mapped column may not.
+    unless ( $opt{source_refresh} ) {
+        my $no = _sourced_refusal( $d, [ grep { $_ ne $d->{key} } @{$header} ] );
+        return $no if $no;
+    }
     my $key = $d->{key};
     my ($key_col) = grep { $header->[$_] eq $key } 0 .. $#{$header};
 
@@ -1331,6 +1367,14 @@ sub import_rows {
 
         my $kv        = defined $key_col ? $r->[$key_col] : undef;
         my $is_update = defined $kv && length $kv && $exists{$kv};
+
+        # SM1364: a new row of a sourced table comes from the source - its key
+        # is a mapped column - so a CSV may amend the site's own columns of a
+        # row the source sent, and may not add one.
+        if ( !$is_update && !$opt{source_refresh} && $d->{source} ) {
+            my $no = _sourced_refusal( $d, [$key] );
+            if ($no) { $no->{error} = "row $n: $no->{error}"; $no->{row} = $n; return $no }
+        }
 
         my $c;
         if ($is_update) {
@@ -1393,6 +1437,75 @@ sub import_rows {
     $plan->{applied} = 1;
     touch_stamp( $docroot, $name );
     return $plan;
+}
+
+# SM1364: A SOURCE'S ANSWER, WRITTEN INTO ITS TABLE.
+#
+# The connector has already made the call (its URL, credential, bounds and call
+# record) and decoded the answer; this turns that answer into rows by the
+# table's `source.map` and writes them through import_rows - the same
+# validate-every-row-then-commit-all-or-nothing an operator's CSV gets. So a
+# refresh that fails anywhere - an answer that is not JSON, a list that is not
+# where `rows` says, an item without its key, a value the column refuses -
+# changes nothing, and the last good rows are simply the table.
+#
+# A row the source sends is updated (only its mapped columns: the site's own
+# columns keep their values) or inserted; a row the source no longer sends is
+# left as it is. Removing one is the operator's (delete_data_row), because an
+# answer that is short for a reason of the source's own must not empty a table.
+#
+# Returns import_rows' answer, or a refusal.
+sub refresh_from_answer {
+    my ( $docroot, $name, $answer, %opt ) = @_;
+    my $d = load_table( $docroot, $name );
+    return $d unless $d->{ok};
+    my $s = $d->{source};
+    return _err( "table '$name' names no source", table => $name, kind => 'validation', rule => 'source' )
+        unless ref $s eq 'HASH';
+    my $no = sub { _err( "table '$name': the refresh from connector '$s->{connector}' changed nothing - $_[0]",
+            table => $name, kind => 'refresh', source => $s->{connector} ) };
+    return $no->('the source answered with text, not JSON') unless ref $answer;
+
+    my $list = $answer;
+    if ( defined $s->{rows} ) {
+        for my $step ( split /\./, $s->{rows} ) {
+            $list = ref $list eq 'HASH' ? $list->{$step} : undef;
+            last unless defined $list;
+        }
+        return $no->("the answer has no list at '$s->{rows}'") unless ref $list;
+    }
+    $list = [$list] if ref $list eq 'HASH';
+    return $no->( 'the answer is not a list of items' . ( defined $s->{rows} ? " at '$s->{rows}'" : '' ) )
+        unless ref $list eq 'ARRAY';
+
+    my @cols = sort keys %{ $s->{map} };
+    my ( @rows, %seen );
+    my $n = 0;
+    for my $item ( @{$list} ) {
+        $n++;
+        return $no->("item $n of the answer is not an object") unless ref $item eq 'HASH';
+        my @row;
+        for my $col (@cols) {
+            my $v = $item;
+            for my $step ( split /\./, $s->{map}{$col} ) {
+                $v = ref $v eq 'HASH' ? $v->{$step} : undef;
+                last unless defined $v;
+            }
+            $v = $v ? 1 : 0 if ref $v eq 'JSON::PP::Boolean';
+            return $no->("item $n: '$s->{map}{$col}' (for column '$col') is a structure, not a value")
+                if ref $v;
+            push @row, $v;
+        }
+        my ($kv) = map { $row[$_] } grep { $cols[$_] eq $d->{key} } 0 .. $#cols;
+        return $no->("item $n has no '$s->{map}{ $d->{key} }', which is this table's key")
+            unless defined $kv && length $kv;
+        return $no->("the answer sends '$kv' twice") if $seen{$kv}++;
+        push @rows, \@row;
+    }
+    my $r = import_rows( $docroot, $name, \@cols, \@rows, apply => 1,
+        actor => $opt{actor}, source_refresh => 1 );
+    return $r if $r->{ok};
+    return $no->( $r->{error} // 'the rows were refused' );
 }
 
 # SM480: REMOVE A TABLE - the descriptor and the stored rows together.

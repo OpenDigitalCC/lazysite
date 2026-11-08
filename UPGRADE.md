@@ -135,6 +135,17 @@ Nothing a site configures changes, and nothing needs doing; what an operator see
   next set; until then it is read from the old file, which goes when the last entry
   leaves it. A backup or a copy of `lazysite/` carries both, as it carried the one.
 
+**A table may read its rows from another system (SM1364).** Nothing changes for an
+existing table: a descriptor without `source:` behaves as before. To use it, see
+[Data tables](/docs/data-tables): a GET connector whose `answer_table` names the table,
+a `connector` handler for it, a schedule entry, and `source:` in the descriptor naming
+the connector and the entry. Two things to know. A connector whose `answer_table` names
+a table with a `source:` no longer appends a call row there - the answer becomes the
+table's rows, and a failed call adds nothing. And the schedule's run record
+(`lazysite/daemon/schedule-runs.json`) gains `last_ok` per entry, written from the first
+run after the upgrade; until an entry delivers once, a sourced table's age reads "never
+refreshed".
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

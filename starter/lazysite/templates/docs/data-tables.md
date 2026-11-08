@@ -1308,6 +1308,83 @@ is not ISO 8601, a page the mapping names that the site does not have, a table
 no visitor may read. A type it does not know is emitted as mapped and said to
 be unchecked.
 
+## A table that reads its rows from another system
+
+Where another system already holds a fact - a booking platform's bookings, a
+directory's listings - a table can read it from there instead of keeping a
+second copy someone enters twice. Its descriptor names a **`source:`**: a GET
+connector, the schedule entry that refreshes it, and which field of each item
+fills which column.
+
+```yaml
+title: Bookings
+key: ref                        # the source's own identifier, never the automatic id
+fields:
+  ref:   { type: text, required: true }
+  guest: { type: text }
+  seats: { type: integer }
+  note:  { type: text }         # not mapped: the site's own column
+source:
+  connector: bookings           # a connector with method GET
+  schedule: bookings-refresh    # the schedule.conf entry that refreshes it
+  rows: data.items              # where the list is in the answer (absent: the answer itself)
+  map:                          # column: field of each item (a dotted path reaches inside)
+    ref: id
+    guest: guest.name
+    seats: seats
+```
+
+**The parts are the [live-data chain](/docs/ai-briefing-building-sites)'s.**
+The operator saves the connector on the Connectors page with `method: GET`,
+`modes.scheduled` on and **`answer_table` naming this table**; its URL, its
+credential (the connector's secret), the egress bounds and the call record are
+the connector's, and nothing in the descriptor reaches the network. A
+`connector` handler names the connector, and the schedule entry the descriptor
+names calls the handler with its fixed fields:
+
+```yaml
+schedule:
+  - id: bookings-refresh
+    handler: bookings-pull
+    every: 900
+    payload: {"venue":"main"}
+```
+
+Because the answer table names a source, an answer is not appended as a call
+row: each item becomes a row, by `map`. A row the source sends is updated -
+its mapped columns only, so the site's own columns keep their values - and an
+item the table has not seen is inserted. A row the source stops sending is left
+as it is; remove it with `delete_data_row` when it is gone for good.
+
+**Refresh now** with `refresh_data_table` (MCP) or `data-table-refresh` (API),
+both needing `manage_data`. It is the schedule entry's call, made as you: the
+connector's `callers` groups (or `manage_connectors`) decide whether you may
+cause it, and it is recorded against the entry like a scheduled run.
+
+**A failed refresh changes nothing.** The remote down, an answer that is not
+JSON, a list that is not where `rows` says, an item without the key, a value a
+column refuses - each leaves the table exactly as it was, so its rows are the
+last good copy. The failure is in the connector's call record, the event log and
+the schedule's run record, and the schedule lists the entry as failed with the
+reason.
+
+**How old the rows are** is in `describe_data_table` / `data-table`, under
+`source`: `refreshed_at` and `age_seconds` count from the last refresh that
+delivered, which a failure does not move; `last_attempt`, `outcome` and
+`reason` say what happened since. They are read from the schedule's run record
+(`lazysite/daemon/schedule-runs.json`).
+
+**Mapped columns are read-only.** `source.read_only` lists them. A write to one
+is refused on every door - the manager, the API, MCP, the data endpoint, a
+wizard, a switch and a CSV import - naming the column and the source, because a
+local edit would be undone by the next refresh: change it at the source. A new
+row is refused too, since its key is the source's. An unmapped column is written
+as on any table.
+
+The descriptor is refused when saved for a key that is the automatic `id`, a
+`map` that does not fill the key, a column it does not declare, or a missing
+`schedule`.
+
 ## Where things live
 
 `lazysite/db/tables/<name>.yaml`

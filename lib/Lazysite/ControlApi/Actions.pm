@@ -142,6 +142,9 @@ our %GATE = (
     'data-wizard'      => [qw(manage_data write_data)],
     'data-wizard-run'  => [qw(manage_data write_data)],
     'data-wizard-save' => [qw(manage_data)],
+    # SM1364: refreshing a sourced table writes its rows; the connector's own
+    # callers groups (or manage_connectors) then decide whether the call may go.
+    'data-table-refresh' => [qw(manage_data)],
     # SM576 part 1: see %COOKIE_CAP above - the write half moves to
     # manage_briefs, the read half accepts either.
     'brief-read'      => [qw(manage_content manage_briefs)],
@@ -524,6 +527,8 @@ our %ACTION = (
     'data-wizard' => { cookie_cap => 'manage_data|write_data', params => [ { name => 'wizard', in => 'query', required => 1 } ] },
     'data-wizard-run' => { mcp => 'run_wizard', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data|write_data', params => [ { name => 'wizard', in => 'query_or_body', required => 1 }, { name => 'key', in => 'query_or_body' }, { name => 'answers', in => 'body' }, { name => 'save', in => 'body' } ] },
     'data-wizard-save' => { mcp => 'save_wizard', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'wizard', in => 'query_or_body', required => 1 }, { name => 'definition', in => 'body', required => 1 } ] },
+    # SM1364: refresh a sourced table from its connector now.
+    'data-table-refresh' => { mcp => 'refresh_data_table', mcp_open_world => 1, mutates => 1, cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query_or_body', required => 1 } ] },
     'data-rows' => { mcp => 'read_data_rows', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 }, { name => 'order_by', in => 'query' }, { name => 'order', in => 'query' }, { name => 'limit', in => 'query' }, { name => 'offset', in => 'query' } ] },
     'data-table' => { mcp => 'describe_data_table', cookie_cap => 'manage_data', params => [ { name => 'table', in => 'query', required => 1 } ] },
     # [mcp] SM566: the safety step and the descriptor as text. Both were API-only

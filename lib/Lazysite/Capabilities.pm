@@ -387,7 +387,8 @@ my %ACTION_INFO = (
                     data-safety-exports
                     data-safety-export-read data-safety-export-restore
                     data-row-switch data-row-undo data-row-changes
-                    data-wizards data-wizard data-wizard-run data-wizard-save)
+                    data-wizards data-wizard data-wizard-run data-wizard-save
+                    data-table-refresh)
             ],
 
             mcp => [
@@ -399,7 +400,8 @@ my %ACTION_INFO = (
                     read_data_safety_export restore_data_safety_export
                     read_data_table_source plan_data_migration
                     switch_row undo_row_change list_row_changes
-                    list_wizards run_wizard save_wizard)
+                    list_wizards run_wizard save_wizard
+                    refresh_data_table)
             ],
             # NO WEBDAV ENTRY, and this used to claim one. WebDAV allows
             # only lazysite/layouts/ - "the rest of lazysite/ is protected" -

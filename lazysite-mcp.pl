@@ -1370,6 +1370,20 @@ my %TOOLS = (
             required => [ 'wizard', 'definition' ], additionalProperties => JSON::PP::false },
         run => sub { Lazysite::Manager::Data::action_data_wizard_save( $_[0]->{wizard}, $_[0]->{definition} ) },
     },
+    # SM1364: the on-demand refresh of a sourced table - the schedule entry's
+    # call, made as this grant's account.
+    refresh_data_table => {
+        description => 'Refresh a table that reads its rows from another system (its descriptor names a `source:` connector) now, instead of waiting for its schedule entry. Sends the entry\'s fixed fields through the source connector as this account - the connector\'s callers groups or manage_connectors decide whether it may - and writes the mapped columns of each item the source answers: a row it sends is updated, a new one inserted. A failed refresh changes nothing (the table keeps its last good rows) and says why. The answer carries `source` with `refreshed_at` and `age_seconds`, as describe_data_table does. Mapped columns are read-only on every tool; change them at the source.',
+        cap         => 'manage_data',
+        inputSchema => { type => 'object',
+            properties => { table => { type => 'string', description => 'The sourced table' } },
+            required => ['table'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            return Lazysite::Manager::Data::action_data_table_refresh( $a->{table},
+                caps => $caps, groups => [@Lazysite::Auth::Acl::user_groups] );
+        },
+    },
     # SM1050 (P-1..P-3): the twins of groups-list and group-set, on the same
     # module. An MCP grant is always confined (SM648), so it sees the groups
     # relevant to its domains, and changes only the groups it created.

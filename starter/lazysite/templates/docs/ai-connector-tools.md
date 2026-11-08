@@ -404,6 +404,13 @@ run_wizard `{ wizard, key, answers, save }`
 save_wizard `{ wizard, definition }`
 : Store a wizard's YAML, checked against its table first.
 
+refresh_data_table `{ table }`
+: Refresh a table whose descriptor names a `source:` connector now (SM1364): the
+  schedule entry's call, made as you, so the connector's callers decide. A failed
+  refresh changes nothing and says why; the answer's `source` says how old the
+  rows are. The mapped columns are read-only on every tool - see
+  [Data tables](/docs/data-tables).
+
 Remote sync of the history (push/pull to a git host) is **operator-only** by
 design - it is configured and driven from the manager UI (Remote sync extension)
 and is not exposed over the connector or the control API.

@@ -252,8 +252,7 @@ sub schedule_run {
         my $r = Lazysite::Handlers::deliver( $h->{id}, { %{ $e->{payload} || {} } },
             origin => 'timer',     source   => "timer:$e->{id}", store => $e->{id},
             actor  => $ctx{actor}, handlers => $handlers );
-        $runs->{ $e->{id} } = { last_run => $now, outcome => ( $r->{ok} ? 'ok' : 'failed' ),
-            ( $r->{ok} ? () : ( reason => $r->{why} // 'failed' ) ) };
+        $runs->{ $e->{id} } = _run_outcome( $runs->{ $e->{id} }, $now, $r->{ok}, $r->{why} );
         if   ( $r->{ok} ) { push @ran,    $e->{id} }
         else              { push @failed, "$e->{id}: " . ( $r->{why} // 'failed' ) }
     }
@@ -272,6 +271,39 @@ sub schedule_run {
 # cannot be opened is not an empty record; treating it as one would run every
 # entry at once on every tick.
 sub _schedule_runs_file { return Lazysite::Paths::lazysite_dir( $_[0] ) . "/daemon/schedule-runs.json" }
+
+# One entry's record after a run. SM1364: `last_ok` is when it last delivered,
+# carried across a failure - a sourced table's rows are as old as its last good
+# refresh, and a record that kept only the latest outcome would forget that the
+# moment a refresh failed.
+sub _run_outcome {
+    my ( $prev, $now, $ok, $why ) = @_;
+    my $last_ok = $ok ? $now : ( ref $prev eq 'HASH' ? $prev->{last_ok} : undef );
+    return { last_run => $now, outcome => ( $ok ? 'ok' : 'failed' ),
+        ( $ok              ? ()                      : ( reason => $why // 'failed' ) ),
+        ( defined $last_ok ? ( last_ok => $last_ok ) : () ) };
+}
+
+# SM1364: one entry's run record, for the surfaces that say how old a sourced
+# table is. undef when the record cannot be read (logged by the reader), {} when
+# the entry has never run.
+sub schedule_run_record {
+    my ( $root, $id ) = @_;
+    my $runs = _read_schedule_runs($root);
+    return undef unless defined $runs;
+    return ref $runs->{$id} eq 'HASH' ? { %{ $runs->{$id} } } : {};
+}
+
+# SM1364: an on-demand refresh is the schedule entry's run, recorded as one, so
+# the table's age says when it was last refreshed by either. Returns 1, or 0
+# when the record could not be read or written - the refresh stands either way.
+sub record_schedule_run {
+    my ( $root, $id, $ok, $why, $now ) = @_;
+    my $runs = _read_schedule_runs($root);
+    return 0 unless defined $runs;
+    $runs->{$id} = _run_outcome( $runs->{$id}, $now // time, $ok, $why );
+    return _write_schedule_runs( $root, $runs );
+}
 
 sub _read_schedule_runs {
     my ($root) = @_;

@@ -5031,3 +5031,68 @@ verdict
   assessed under new-external-interface and judged within the existing manager surface;
   no other trigger fires; recorded because credentials move to one store and the manager
   serves pages an extension ships.
+
+### 2026-11-08 - SM1364 (0.16.9, PENDING): a table reads its rows from another system's API
+
+Assessment drafted by the developer agent (n783); the release manager confirms.
+
+what changed
+: A data table's descriptor may name a `source:` - a GET connector, the schedule entry
+  that refreshes it, where the list is in the answer and a map from each item's fields to
+  its columns (`Descriptor::_check_source`). A connector whose `answer_table` names such a
+  table writes its answer into the table's rows (`Connectors::_keep_answer` ->
+  `Tables::refresh_from_answer` -> `import_rows`) instead of appending a call row. A new
+  action and tool, `data-table-refresh` / `refresh_data_table` (`manage_data`), make the
+  entry's call on demand, as the caller. Mapped columns are refused at every write door
+  (`Tables::_sourced_refusal`, from `_write_prep` and `import_rows`). The schedule's run
+  record gains `last_ok`, which `data-table` reads to say how old the rows are.
+
+threat delta
+: Outside data entering tables. A remote system's values now become column values a page
+  can render, where before they sat whole in one `answer` text column. ADR 0007 check:
+  new-external-interface does not fire - the outbound call is the existing connector
+  egress (its URL, secret, modes, callers, rate cap, no redirects, the 64 KB answer cap
+  and the call record, all unchanged), and the refresh action is a new action on the
+  existing doors under existing authentication and `manage_data`. new-authentication-
+  method and new-dependency-with-authentication-logic do not fire (no sign-in change; no
+  new module). new-processing-of-restricted-data is the closest: the data is the
+  source's, possibly personal (a booking's guest), and it was already received and kept
+  by a connector's answer table since SM579; the release manager confirms whether moving
+  it into columns counts.
+: Tampering: a remote can only write the mapped columns of the one table that names its
+  connector as source; `_keep_answer` refuses an answer from any other connector. Values
+  go through `import_rows`' coercion (each column's type, required, unique, a schedule
+  table's row check) and the store's bound statements; a structure in a mapped field is
+  refused, never stringified. The answer is decoded JSON only; text refuses the refresh.
+: Information disclosure: a sourced table is read as any table is - its `public`,
+  `where`, access rule and the template escaping apply to source values as to any other.
+  An operator who marks a sourced table `public: true` publishes what the source sends.
+: Elevation: the on-demand refresh is gated by `manage_data` and the table's own write
+  rule, and the call by the connector (mode `authenticated`: its callers groups or
+  `manage_connectors`), so a `manage_data` holder outside the callers cannot cause the
+  call (tested). Mapped columns cannot be written locally by any door (tested on the
+  manager, the control API, MCP and a CSV import), so a local writer cannot forge a value
+  that reads as the source's.
+: Denial of service: an answer is capped at 64 KB, so a refresh is bounded; it is all or
+  nothing in one transaction, so a bad answer leaves the last good rows.
+
+controls
+: t/unit/data/110 (a refresh against a 127.0.0.1 fixture fills the table; a second keeps
+  unmapped columns; the remote down and an unmappable answer leave the last good rows and
+  are recorded; the age counts from the last good refresh; the on-demand refresh, and its
+  refusal outside the connector's callers; the descriptor's refusals), t/unit/manager/512
+  (mapped columns refused on the manager, the control API, MCP and a CSV import, naming
+  the source; unmapped columns written on each; both refresh doors).
+
+residual risk
+: A row the source stops sending stays until the operator removes it (an answer that is
+  short for the source's own reasons must not empty a table). An on-demand refresh and the
+  daemon writing the run record at the same moment can lose the on-demand `last_ok`, so the
+  age shown is older than it is - the safe direction. The connector's secret store is
+  unchanged by this work; if it changes, the refresh reaches it only through
+  `Connectors::call`.
+
+verdict
+: drafted by the developer agent for the release manager's confirmation: no trigger
+  fired on the reading above, with new-processing-of-restricted-data named for the
+  release manager to rule.

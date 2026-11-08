@@ -871,14 +871,22 @@ sub call {
     if ( $c->{answer_table} ) {
         $kept = _keep_answer( $c, $rec, $answer );
     }
+
+    # SM1364: A REFRESH THAT DID NOT LAND IS A CALL THAT DID NOT DELIVER. The
+    # remote answered, and the answer could not become the table's rows - so the
+    # schedule records the entry as failed with this reason, and an on-demand
+    # refresh says so, rather than either reading "ok" while the table is stale.
+    my $refresh_failed = ref $kept eq 'HASH' && $kept->{refresh} && !$kept->{ok};
     return {
-        ok      => ( $state eq 'answered' ? 1 : 0 ),
+        ok      => ( $state eq 'answered' && !$refresh_failed ? 1 : 0 ),
         state   => $state,
         http    => $res->code,
         call_id => $call_id,
         ms      => $ms,
         answer  => $answer,
-        ( $state ne 'answered' ? ( error => "the connector call $state (http $res->{_rc})" ) : () ),
+        ( $state ne 'answered' ? ( error => "the connector call $state (http $res->{_rc})" )
+            : $refresh_failed ? ( error => $kept->{error} )
+            :                   () ),
         ( defined $kept ? ( kept => $kept ) : () ),
     };
 }
@@ -936,6 +944,33 @@ sub _answer_of {
 sub _keep_answer {
     my ( $c, $rec, $answer ) = @_;
     require Lazysite::Data::Tables;
+
+    # SM1364: AN ANSWER TABLE THAT NAMES A SOURCE IS REFRESHED, not appended to.
+    # Its rows are the source's items, mapped by the table's own `source.map` and
+    # written through import_rows (Tables::refresh_from_answer); a call that did
+    # not answer changes nothing, so the last good rows stay. The table must name
+    # THIS connector as its source - two connectors filling one sourced table
+    # would make its rows whichever answered last.
+    my $d = eval { Lazysite::Data::Tables::load_table( $DOCROOT, $c->{answer_table} ) };
+    if ( ref $d eq 'HASH' && $d->{ok} && ref $d->{source} eq 'HASH' ) {
+        my $tbl = $c->{answer_table};
+        my $r
+            = $d->{source}{connector} ne $rec->{connector}
+            ? { ok => 0, error => "table '$tbl' is refreshed from connector '$d->{source}{connector}', "
+                . "not '$rec->{connector}', so this answer was not kept" }
+            : $rec->{state} ne 'answered'
+            ? { ok => 0, error => "the call to connector '$rec->{connector}' $rec->{state} (http "
+                . ( $rec->{http} // '-' ) . "), so table '$tbl' was not refreshed and keeps its last good rows" }
+            : ( eval { Lazysite::Data::Tables::refresh_from_answer( $DOCROOT, $tbl, $answer, actor => $rec->{actor} ) }
+                || { ok => 0, error => "table '$tbl': the refresh failed inside the engine - " . ( $@ =~ s/\s+\z//r ) } );
+        log_event( ( $r->{ok} ? 'INFO' : 'WARN' ), 'connectors',
+            ( $r->{ok} ? 'source table refreshed' : 'source table not refreshed' ),
+            connector => $rec->{connector}, table => $tbl, call => $rec->{call_id},
+            ( $r->{ok} ? ( inserts => $r->{inserts}, updates => $r->{updates} ) : ( why => $r->{error} ) ) );
+        return { ok => ( $r->{ok} ? 1 : 0 ), refresh => 1, table => $tbl,
+            ( $r->{ok} ? ( inserts => $r->{inserts}, updates => $r->{updates} ) : ( error => $r->{error} ) ) };
+    }
+
     my $row = {
         connector => $rec->{connector},
         call_id   => $rec->{call_id},
