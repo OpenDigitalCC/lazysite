@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-08
 raised-by: "the compliance check run alone for 0.16.8 (tmp/n777-compliance-check.sh): two blocking findings, as the 0.16.2 to 0.16.7 gates had (SM1306, SM1337, SM1367, SM1368, SM1380, SM1394); release manager, rulings 177-180"
 area: release
-status-note: "SHIPPED (PENDING) on n777. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.8; thirteen entries confirmed (ruling 177; SM1414, SM1355, SM1396 fire, contained); rulings 178-180 folded in; the walk's entry (SM1400 and five more), boundary 15, the assets line and three STRIDE rows drafted; four operate-side rows; UPGRADE.md's 0.16.8 section; no code changes."
+status-note: "SHIPPED (PENDING) on n777. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.8; thirteen entries confirmed (ruling 177; SM1414, SM1355, SM1396 fire, contained); rulings 178-180 folded in; the walk's entry (SM1400 and five more), boundary 15, the assets line and three STRIDE rows confirmed (ruling 182); four operate-side rows; UPGRADE.md's 0.16.8 section; no code changes."
 ---
 
 # What was asked
@@ -49,18 +49,18 @@ SM1354-SM1357; SM1407-SM1411; SM1414; the n776 restack). The release manager's r
 - docs/SECURITY.md, a new entry dated 2026-11-08 for SM1400, SM1402, SM1404, SM1405,
   SM1409 and SM1411 (a backup snapshot is not a layout; a conf for no form refused; a
   listing's pickers; a notice mail's shape; a mixed pair not mirrored; the editor's
-  lock), no trigger, drafted at the walk, naming the rest of 0.16.8 and why each moves
+  lock), no trigger, written at the walk and confirmed (ruling 182), naming the rest of 0.16.8 and why each moves
   no control: SM1397, SM1398, SM1399, SM1401, SM1408, SM1410, the withdrawn SM1403 and
   SM1406, n776's test fix-ups, and this walk.
 - docs/SECURITY.md, trust boundary 15 restated (the loader's three callers from
   0.16.8), the assets line restated (rows' earlier values; the kit's browser storage)
   and three STRIDE rows (the member content door; rows' earlier values kept; the kit's
-  storage on a shared browser), drafts; the STRIDE row X3 wrote is confirmed with its
+  storage on a shared browser), confirmed (ruling 182); the STRIDE row X3 wrote is confirmed with its
   entry.
 - docs/compliance/OBLIGATIONS.md, stamped 0.16.8: the register, threat-model, SBOM
   (strict, exit 0, 476 components, the thirteen more listed; sbom-deps.json unchanged)
   and technical-file rows; the fired-trigger and vulnerability-handling rows (0.16.8
-  edge, not security-critical, for confirmation); four new operate-side rows (rows'
+  edge, not security-critical, ruling 182); four new operate-side rows (rows'
   earlier values and the kit's storage; every public page in the sitemap and
   `llms.txt`; `write_content` and `publish_copies`; a rule whose owner is no account)
   and the SM1362 row restated for SM1412 and SM1413; the "what a person must confirm"
@@ -81,7 +81,7 @@ SM1354-SM1357; SM1407-SM1411; SM1414; the n776 restack). The release manager's r
   and keeps that owner's queued changes, which are sent for that owner alone. A session
   ending another way (the site's own `/logout`, an expiry, a closed browser) leaves the
   kept reads under the label, shown to no other login. The entry, its walked note and
-  its STRIDE row say so.
+  its STRIDE row say so. Ruling 183 keeps the purge as built.
 - SM1396's drafted verdict said the identity cookie's contents changed by one key;
   rulings 161 and 163 left it unchanged, as its "what changed" says. The confirmed
   verdict says unchanged.

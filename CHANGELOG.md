@@ -63,11 +63,11 @@ Archive
   code; the other ten fire none. Rulings 178 (the Odoo handler type stays on
   `manage_connectors`), 179 (the sweep's removals are audited, not in the row history)
   and 180 (the schedule wizard is a docs example; a `date` step) are folded into their
-  entries. Drafted at the walk, for confirmation: an entry for SM1400, SM1402, SM1404,
+  entries. Written at the walk and confirmed by the release manager (ruling 182): an entry for SM1400, SM1402, SM1404,
   SM1405, SM1409 and SM1411 that names the rest of 0.16.8, trust boundary 15 and the
   assets line restated, three STRIDE rows and four operate-side rows, the SM1362 row
-  restated. 0.16.8 is edge and not security-critical, for the release manager to
-  confirm. UPGRADE.md's 0.16.8 notes are one section. Docs only; nothing is signed.
+  restated. 0.16.8 is edge and not security-critical
+  (ruling 182). UPGRADE.md's 0.16.8 notes are one section. Docs only; nothing is signed.
 
 - SM1369 (PENDING) **X2: an extension declares its capabilities and its control-API
   and MCP actions, and core carries them from the index (H-7, H-9; rulings 71, 135).**
