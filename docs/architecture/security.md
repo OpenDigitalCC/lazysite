@@ -1402,6 +1402,101 @@ only over TLS. No Odoo is in it.
   the protected-history repository and nothing else. A schedule entry under the
   300-second floor is recorded as refused once and named by the check.
 
+## Declared actions and sources, the offline kit, row history and the member door (0.16.8)
+
+- **An extension's capabilities and actions come from the index** (SM1369 X2, rulings
+  71, 135; trust boundary 15). `owns.hooks` declares `capability_info`, `api_actions`
+  and `refusal_kinds`; the index's `declared` view is built from every installed
+  extension's descriptor by the same validation, which refuses a row with no gate, an
+  ALWAYS row with no reason, a name not prefixed by the extension's id, a core name
+  shadowed, a cookie gate weaker than the token gate. One mirror fills `@CAP_KEYS`, the
+  capability map, `%GATE`/`%ACTION` and the refusal statuses once per process, so every
+  declared row meets the rules a core row does; a declared action runs only through
+  `Lazysite::Extensions::Declared::run_action`, with the extension on at the call.
+  Odoo's ten actions and its two capabilities are its own declaration; `manage_odoo`
+  is topped up onto every group holding `manage_connectors` by the upgrade and on next
+  use (rulings 71, 167). The wire is held to a 0.16.7 capture (t/unit/odoo/136).
+- **Page sources and handler types are the extension's** (SM1369 X3). A declared prefix
+  is resolved by the extension's `resolve` through `call_hook`; core hands the cookie
+  header and identity only to a source that declared `per_viewer`, whose page is never
+  cached and is no-store, makes every value inert, and renders a failing source as the
+  empty string with one WARN line. A declared handler type keeps core's handlers.conf,
+  schema check, cap gate, schedule and delivery record; its `cap` must be a declared
+  capability, the timer's job account must hold it, and a delivery from an origin the
+  type did not list is refused before its code loads. The Odoo type's `cap` stays
+  `manage_connectors` in 0.16.8 (C-14, ruling 178). `schedule`, SM1356's prefix, is
+  core's and refused to an extension.
+- **An extension's files and variables reach the page through the index** (SM1369 X5,
+  the asset part). An asset is one plain file name in the payload's `assets/`, a
+  regular file and not a link, served at `/assets/<id>-<file>` and at an alias that is
+  no engine asset's path; a template variable's name is no core variable's; an injected
+  attribute is `data-*` with an escaped value. The processor reads the enabled list
+  again, so an index left behind serves nothing of an extension that is off. Odoo's
+  helper and sign-in component move into `extensions/odoo/`.
+- **The offline kit** (SM1396, rulings 53, 161, 163). The `app-offline` extension keeps a
+  page's last good answers and queues changes made with no signal in the browser's
+  localStorage, under `owner`, the label of the login `?csrf=1` answers from the site
+  session on a site whose Odoo sign-in is the site sign-in (elsewhere it keeps
+  nothing). A queued change is sent once with its `Idempotency-Key`; an item with no
+  owner is dropped; a sign-out through the Odoo helper empties that owner's kept reads
+  and keeps their queue for them. No token, cookie or password is stored. The identity
+  cookie is unchanged. It fires new-processing-of-restricted-data, confirmed contained
+  (ruling 177).
+- **People are mailed through a notify handler** (SM1412, SM1413, rulings 158, 159).
+  `owner_contact` is retired and ignored; no form mails anyone by default. A notify
+  handler's recipients may name a group, resolved at send to its member accounts,
+  nested members included, at the addresses the account records hold, once each, under
+  the per-recipient cap, the audit row and the unsubscribe link. SM1405 sends every
+  notice as a composed message with no IP line.
+- **An anonymous public write binding keeps no join** (SM1395, rulings 154, 160, 168).
+  `anonymous: 1`, allowed only with `modes: public`, writes the call line and audit row
+  without the address or the visitor hash, and once a plan is spent strips its
+  parameters and the hash from the plan and run records; a repeat carrying the plan's
+  `Idempotency-Key` gets the stored outcome, matched by the plan's own scoped key.
+- **A page's copy, and `publish_copies`** (SM1354, ruling 155). A copy lives in
+  `lazysite/copies/pages/`, is read and written only by those who may write its page
+  and in its page's scope, is never served and is left out of content history. A
+  publish is a save at the page's path, refused as `stale-copy` when the page changed;
+  over MCP or the control API it needs `publish_copies`, off by default and held by no
+  shipped role.
+- **Row history and undo, availability switches and wizards** (SM1355, rulings 156, 170,
+  175, 180). Every row save, delete and switch on every door is recorded in
+  `_row_changes` with the row before and after, its actor and its door; the history is
+  read with `manage_data` under the table's read rule. It is kept for the table's
+  period (90 days, or `row_history_days`), pruned after each recorded write and daily
+  by the daemon's `row-history-prune` job, which needs only `run_jobs` and is audited
+  each run; an undo is refused when the row changed since or past the period. A wizard
+  writes only through the row save, with `date` among its step types. The history fires
+  new-processing-of-restricted-data, confirmed contained (ruling 177).
+- **Schedules and dated rows** (SM1356, rulings 164, 172, 179, 180). `schedule:<table>`
+  reads as the visitor through the table gate and its values are made inert; a row
+  outside `shows_from`/`shows_until` is withheld from the anonymous surfaces; a
+  schedule page is cached only until its next change of state. The hourly
+  `schedule-exceptions` job, under `manage_data`, removes passed exceptions after
+  auditing each with the row, and removes nothing with the trail off; the removals are
+  not in the row history. The schedule wizard is a docs example (`opening_hours`).
+- **JSON-LD and the listings** (SM1357, rulings 165, 171, 174, 176). The JSON-LD and the
+  organisation entry publish only rows an anonymous visitor may read and conf values
+  set for the purpose, through one inert encoder; `sitemap.xml` and `llms.txt` list
+  every public page from one page set and never a protected, draft, copied, raw or
+  system page; a folder that looks like another site's content and is no declared
+  content root is left out of both and of site search.
+- **The member content door** (SM1414, rulings 169, 173). `write_content` admits an
+  account without `ui` to the manager API's cookie door for `read`, `list`, `save`,
+  `mkdir`, `move` and `delete` alone, checked at load; a write needs the governing
+  rule's write list to name the account or its group, and an ungoverned path is
+  refused; paths resolve inside the session's domain's content root and never reach
+  `lazysite/`; a listing shows only what a rule lets the member read. It fires
+  new-external-interface, confirmed contained (ruling 177).
+- **Smaller** (SM1400, SM1401, SM1402, SM1404, SM1407-SM1411). A layout's backup snapshot
+  is listed as a backup, not a layout; removing an account names the rules it owned
+  and `lazysite check` names a rule with no owner; a notify setting for a form that does
+  not exist is refused; MCP `list_files` carries no address-profile picker choices;
+  `analysts` and `lead-readers` are adopted with no member on an older site; a token's
+  group refusal says a token is bound by it; a layout set without its own theme mirrors
+  no mixed pair; an import that stages no account keeps nothing; the editor takes its
+  lock with a POST, and a lint keeps every manager page's mutating fetch a POST.
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

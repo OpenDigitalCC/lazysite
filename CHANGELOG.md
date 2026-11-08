@@ -53,6 +53,22 @@ Archive
 
 ## Unreleased
 
+- SM1415 (PENDING) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.8 stack and stamped 0.16.8. The thirteen
+  register entries the branches wrote are confirmed by the release manager (ruling 177):
+  SM1414 fires new-external-interface, and SM1355 (rows' earlier values in the row
+  history) and SM1396 (the offline kit's browser storage) fire
+  new-processing-of-restricted-data, each contained - by the daily `row-history-prune`
+  job and by the purge at sign-out keyed to the login - with a "walked" note against the
+  code; the other ten fire none. Rulings 178 (the Odoo handler type stays on
+  `manage_connectors`), 179 (the sweep's removals are audited, not in the row history)
+  and 180 (the schedule wizard is a docs example; a `date` step) are folded into their
+  entries. Drafted at the walk, for confirmation: an entry for SM1400, SM1402, SM1404,
+  SM1405, SM1409 and SM1411 that names the rest of 0.16.8, trust boundary 15 and the
+  assets line restated, three STRIDE rows and four operate-side rows, the SM1362 row
+  restated. 0.16.8 is edge and not security-critical, for the release manager to
+  confirm. UPGRADE.md's 0.16.8 notes are one section. Docs only; nothing is signed.
+
 - SM1369 (PENDING) **X2: an extension declares its capabilities and its control-API
   and MCP actions, and core carries them from the index (H-7, H-9; rulings 71, 135).**
   `owns.hooks` gains three live kinds: `capability_info` (each owned capability's
@@ -99,7 +115,8 @@ Archive
   variables, refusals and handlers.conf rows are unchanged, and lint 321's allow-list
   loses seven files. The hook index is rebuilt on every upgrade, so a site using Odoo
   gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
-  `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted.
+  `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted, confirmed
+  (ruling 177).
 - SM1369 (PENDING) **An extension declares its assets, components and template
   variables (X5, the asset part of H-10).** Three hook kinds go live in
   `Lazysite::Extensions::Hooks`: `assets` (a file in the payload, served at
@@ -188,7 +205,8 @@ Archive
   key too (checked as a confirm's), and a key a plan's first confirm or withdraw carried is
   kept on a plan made without one, so the offline kit's resend on an anonymous binding works.
   Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md entry
-  drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/139`,
+  drafted (less processing of personal data; no ADR 0007 trigger), confirmed (ruling 177).
+  `t/unit/odoo/139`,
   `t/unit/odoo/137` (through oomd), `t/unit/odoo/138`.
 
 - SM1405 (PENDING) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
@@ -357,7 +375,7 @@ Archive
   is never reached. CSRF, the audit row and the file checks are unchanged. It implies
   nothing, no shipped role holds it, and a `ui` holder is unchanged. Docs: `/docs/auth`,
   `/docs/ai-briefing-authoring`, UPGRADE.md, a register assessment (ADR 0007 new external
-  interface). `t/integration/377`.
+  interface), confirmed contained (ruling 177). `t/integration/377`.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 

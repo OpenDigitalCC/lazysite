@@ -14,7 +14,10 @@ session cookies (from 0.16.7 a format an outside process on the same host may
 verify read-only, SM1383, holding the same key), site content, form submissions,
 the per-install HMAC secret, the audit trail, the Odoo connection user's key and a
 person's Odoo session (0.15.5), and, since the visitor log names the signed-in
-account (0.16.1, SM1219), account names in the log.
+account (0.16.1, SM1219), account names in the log. From 0.16.8: rows' earlier values
+in the data store's row history, kept for each table's period (SM1355), and, where
+the offline kit is on, a person's kept reads and queued changes in their own browser
+under a label of their login (SM1396).
 
 Trust boundaries (each is where an attacker's input crosses into trusted code):
 
@@ -93,7 +96,13 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     `Lazysite::Extensions::Hooks::call_hook`, runs a function an enabled extension
     declares from its own payload lib (`extensions/<stem>/lib`) inside the calling
     process, with that process's rights, once a slice gives it a caller. In 0.16.6 it has
-    none and no hook kind is accepted. What crosses is the extension's declaration, the
+    none and no hook kind is accepted. From 0.16.8 it has three (restated at the 0.16.8
+    walk, a draft for the release manager's confirmation): the manager API and MCP run
+    an extension's declared actions (SM1369 X2), the processor resolves its page
+    sources and the handler catalogue and the timer run its handler types (X3), and
+    the processor serves its asset files and renders its components and template
+    variables (X5's asset part); Odoo is the first extension declaring each, and the
+    offline kit (SM1396) the second asset consumer. What crosses is the extension's declaration, the
     index the manager writes from it (`lazysite/extensions.index.json`) and the module
     files it names; each is checked at the build and again at the call. See
     `architecture/security.md` - "Extension hooks, agent roles and the primary's reach".
@@ -136,10 +145,13 @@ Elevation of privilege | An extension's own Perl run inside a core process (SM13
 Information disclosure | An account reaching the primary - one granted nothing, or the primary's row - reading and writing every secondary domain's folder under the docroot through the primary's content (SM1372, the residual risk SM1332-SM1334 recorded) | The primary's content is the docroot less the other domains' content roots, one rule (`DomainAccess::foreign_root_of`) asked by the manager API, MCP and WebDAV, on reads, writes and walks; a listing leaves those folders out for a caller refused them (ruling 137) | Closed in 0.16.6 (t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74; row confirmed, ruling 142); the operator group and an account granted a domain keep it; a secondary with no content root of its own serves the primary's content
 Denial of service | The site used as a mailer: a visitor typing a stranger's address in a form whose conf opts in to an acknowledgement, so the site mails it (SM1362) | The message is the form's fixed text with nothing of the submission in it; 3 an hour per address and 60 per site across every form and smtp handler, one record; the form's own per-address limit, render timestamp and honeypot first; a quarantined submission is never answered; an unreadable cap record refuses | 0.16.6 (t/unit/forms/68; row confirmed, ruling 142); opt-in per form; a visitor can still have the fixed text sent to an address they name, within the caps
 Tampering | An Odoo module loaded from the wrong place now that the extension's modules live in its payload lib (SM1369 X7 part one): a stale copy an earlier release left in core's `lib/`, an edited one the upgrade kept as an orphan, a module planted in a second payload lib, or a payload linked in from elsewhere, run in place of the extension's own | `require_payload` loads only a regular file in exactly one payload lib - a real directory beside a descriptor under the engine's own `extensions/`, appended to `@INC`, never prepended - and refuses by name a module that also resolves anywhere else on `@INC`, so nothing loads; the upgrade removes the old copies and the directories they emptied, and keeps an edited copy only as a named orphan, which is then refused, never run | 0.16.7 (t/unit/extensions/75, t/lint/335, t/tools/335; row confirmed by the release manager on 2026-11-07, ruling 149): an edited old copy stops Odoo until it is removed, fail closed; whoever can write the engine tree can write either copy, as before
-Information disclosure | A page source an extension declares (SM1369 X3, H-2) handed a visitor's session credential into a render that is shared and cached, so one viewer's value is served to the next; a value a remote system answered reaching a template with markup in it; a handler type an extension declares (H-3) run from an origin it did not list, or configured, scheduled and run under a capability it never declared | Core hands a source the page, the key, the request address and host and mode `render`, and the cookie header and identity only to a source that declared `per_viewer`, whose page is never read from or written to the page cache and is no-store (the gated page's treatment), and is refused outside a page's own front matter; every value a source answers is made inert by core (escaped, no link scheme) before a template sees it; a source that dies or answers nothing is the empty string and one WARN line; a type's `cap` must be a capability the engine or an extension declares, gates creating, editing and scheduling it and must be held by the timer's job account, and a delivery from an origin the type did not list is refused by core before the extension's code is loaded; two extensions cannot declare one prefix or one type name | 0.16.8 (t/unit/extensions/79, 73; drafted by the developer agent for the release manager's confirmation): the first callers of boundary 15's loader on the request path and in the handler catalogue; what a source reads and what a type does are the extension's own code (Odoo's refusals of a write, a visitor key, a session binding and a download moved with it), and a type's `deliver` runs with the visible fields of a submission, so the extension sees what a core type sees
+Information disclosure | A page source an extension declares (SM1369 X3, H-2) handed a visitor's session credential into a render that is shared and cached, so one viewer's value is served to the next; a value a remote system answered reaching a template with markup in it; a handler type an extension declares (H-3) run from an origin it did not list, or configured, scheduled and run under a capability it never declared | Core hands a source the page, the key, the request address and host and mode `render`, and the cookie header and identity only to a source that declared `per_viewer`, whose page is never read from or written to the page cache and is no-store (the gated page's treatment), and is refused outside a page's own front matter; every value a source answers is made inert by core (escaped, no link scheme) before a template sees it; a source that dies or answers nothing is the empty string and one WARN line; a type's `cap` must be a capability the engine or an extension declares, gates creating, editing and scheduling it and must be held by the timer's job account, and a delivery from an origin the type did not list is refused by core before the extension's code is loaded; two extensions cannot declare one prefix or one type name | 0.16.8 (t/unit/extensions/79, 73; drafted by the developer agent, confirmed by the release manager on 2026-11-08 with the X3 entry, ruling 177): the first callers of boundary 15's loader on the request path and in the handler catalogue; what a source reads and what a type does are the extension's own code (Odoo's refusals of a write, a visitor key, a session binding and a download moved with it), and a type's `deliver` runs with the visible fields of a submission, so the extension sees what a core type sees
 Tampering | The renewal step on the Odoo endpoint, `GET /cgi-bin/lazysite-odoo.pl?renew=1`, reached with no token (SM1381): a cross-site request ending a person's site session (a forced sign-out), `next` or the renewal path as an open redirect, a redirect loop, or repeated requests driving calls to Odoo | Nothing is renewed or ended without the `lzs_odoo_session` cookie, `SameSite=Strict` and scoped to the endpoint, which a cross-site request does not carry; the step grants only what `?csrf=1` grants, under the group map's capability refusal; `next` and the site's `auth_redirect` pass `sanitise_next`, and core accepts the renewal path only as a same-site path with a query; GET only, one Odoo call per stale session, and one renewal a minute per browser (`lzs_renewed`) | 0.16.7 (t/unit/odoo/135, t/unit/auth/74, t/integration/293; row confirmed by the release manager on 2026-11-07, ruling 149): a holder of a stale session can make one Odoo call per request to the step, as with `?csrf=1`; a client that sets `lzs_renewed` itself skips only its own renewal
 Spoofing | One key signing three payloads with no domain separation (SM1383, found; SM1390, closed): a theme-preview cookie `v1:<expiry>:<layout>:<theme>:<user>` read as a legacy session for an account named `v1`, a session read as a preview, a timestamp in the future outliving the lifetime, and the key itself in the hands of an outside process on the same host that verifies `lazysite_auth` | The session verifier refuses a payload beginning `v1:` before anything else is read, and a timestamp or `seen` time more than 300 seconds ahead of its clock; the preview verifier refuses a payload without exactly five fields; no account may be named `v1` on any door that creates or renames one, and `lazysite check` names one that exists; the contract document puts an outside reader in the web server's trust, forbids it the groups in the cookie and every write, and the format changes only versioned, reader before writer | 0.16.7 (t/unit/auth/75, 76; t/integration/361; t/unit/users/71; t/tools/333; row confirmed by the release manager on 2026-11-07, ruling 149): the key stays symmetric, so a process that can verify can mint, and "read-only" is that process's promise; the CSRF token shares the key and never travels with its payload
 Elevation of privilege | A group deleted while an access rule, a page, a domain, a data table, an Odoo binding, a connector or a group map still names it, so a group made later under that name - by any `manage_users` holder, a token included - inherits every grant those references make (SM1387; the cookie Groups page did this) | `group-delete`, MCP `delete_group` and the Groups page all go through the users tool, the store's one writer, which refuses the operator group, a group with a member and a group anything names (`Lazysite::Auth::GroupRefs`, the twelve places), naming each; a confined caller deletes only a group it created with `group-set`; audited as `@group` | 0.16.7 (t/integration/357; row confirmed by the release manager on 2026-11-07, ruling 149): a store naming groups that GroupRefs does not read is not refused, so a new one is added there; a reference left by a deletion before 0.16.7 admits nobody through the name until it is reused
+Elevation of privilege | A member - an account without `ui`, perhaps one of hundreds - writing through the manager API's cookie door once `write_content` opens it (SM1414): a path no rule governs, a file whose rule names someone else, the engine's `lazysite/` tree, another domain's content or the primary's, an action outside the content verbs, a rule widened | The door admits a `write_content` holder only for the six actions declared `member_content` (read, list, save, mkdir, move, delete), checked at load; a write needs the governing rule's write list to name the account or its group, so an ungoverned path and a rule naming others are refused; paths are refused climbing, NUL, backslash or reserved, and resolved inside the session's domain's content root, another domain's root refused; a listing shows only entries a rule lets the member read; acl-set is outside the set; CSRF and the audit row are the door's | 0.16.8 (t/integration/377; row drafted at the 0.16.8 walk, for the release manager's confirmation, with the SM1414 entry confirmed by ruling 177): a folder rule naming a members' group lets any member overwrite or delete another's file under it, which is what the rule says; a listing does not ask the address rules per entry
+Information disclosure | A person's earlier values kept after the table no longer holds them (SM1355): a row's values before a change, and a deleted row's, in the row history (`_row_changes`), read back by someone who may not read the table or for longer than the site means to keep them | The history is read only with `manage_data` under the table's read rule; it is kept for the table's period (90 days by default, `row_history_days` otherwise) and pruned after each recorded write and daily by the daemon's `row-history-prune` job, which needs only `run_jobs` and is audited each run (rulings 170, 175); an undo past the period is refused | 0.16.8 (t/unit/data/81, 82; t/unit/daemon/05; row drafted at the 0.16.8 walk, for the release manager's confirmation, with the SM1355 entry, which fires new-processing-of-restricted-data, confirmed contained by ruling 177): where the daemon does not run, a store nobody writes to keeps expired changes until its next write; the store is in the site's backups as the table is
+Information disclosure | The offline kit's kept reads and queued changes in a browser (SM1396) shown to, or sent as, the next person at a shared device, or kept for nobody and sent as whoever signs in next | What is kept is stored under the owner label `?csrf=1` names (a hash of the login, on a site whose Odoo sign-in is the site sign-in), shown and sent only while that owner is signed in; nothing is kept with no owner; the kit's wrapper of the Odoo helper's sign-out empties that owner's kept reads; a queued change is sent once with its `Idempotency-Key`; no token, cookie or password is stored | 0.16.8 (t/unit/extensions/78; t/unit/odoo/28, 41, 63; row drafted at the 0.16.8 walk, for the release manager's confirmation, with the SM1396 entry, which fires new-processing-of-restricted-data, confirmed contained by ruling 177): a session that ends without the helper's sign-out leaves the kept reads under the owner's label, readable in that browser's storage by whoever uses its profile; a queued change waits for its owner by design
 ```
 
 ## Five priority entries (from the review)
@@ -3157,7 +3169,7 @@ verdict
 
 ### 2026-11-07 - SM1369 X2 (0.16.8): an extension's capabilities and actions reach core's tables from the index
 
-Assessment drafted by the developer agent (n768) for the release manager's confirmation.
+Assessment drafted by the developer agent (n768); confirmed by the release manager on 2026-11-08 (ruling 177).
 Rulings 71 (D-6) and 135; the design is the extension-hooks proposal's H-7 and H-9.
 Ruling 134 asked X2 to reassess X1's new-external-interface finding when the first
 caller lands; this is that caller.
@@ -3217,8 +3229,11 @@ residual risk
   while the extension is installed).
 
 verdict
-: drafted as contained: the trigger X1 recorded is now exercised, by the same code
-  behind the same names, under the same gates; for the release manager to confirm.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): contained, and
+  no trigger fires of its own: the new-external-interface trigger X1 recorded
+  (ruling 134) is now exercised, by the same code behind the same names, under the
+  same gates. The Odoo handler type is X3's and stays under `manage_connectors` in
+  0.16.8 (C-14; ruling 178): the one grant change here is ruling 71's.
 
 ### 2026-11-07 - SM1369 X7 part one (0.16.7): Odoo's modules load from the extension's payload lib
 
@@ -3755,7 +3770,7 @@ verdict
 
 ### 2026-11-07 - SM1369 X3 (0.16.8): page sources and delivery handler types are declared by the extension
 
-Assessment drafted by the developer agent for the release manager's confirmation.
+Assessment drafted by the developer agent (n769); confirmed by the release manager on 2026-11-08 (ruling 177).
 Ruling 55; the design is the extension-hooks proposal, H-2 and H-3; the first callers of
 the X1 loader (boundary 15), on the request path and in the handler catalogue.
 
@@ -3781,7 +3796,9 @@ what changed
   the timer, and keeps handlers.conf, the schema check that refuses an unknown key, the
   cap gate, the schedule and the delivery record. `origins` is where the type may run;
   a delivery from any other origin is refused by core before the extension's code loads.
-  Odoo's type is declared this way, with its schema. The `address_profiles` field type lets
+  Odoo's type is declared this way, with its schema, and its `cap` stays
+  `manage_connectors`, as before X3 (C-14; ruling 178: it moves to `manage_odoo` with
+  X4 in 0.16.9). The `address_profiles` field type lets
   `AddressRefs` find the profiles a handler names by the field's type and `slot`, not by
   the type name `odoo` (I-13).
 : The validator refuses, by name and before anything is indexed: a prefix core owns or
@@ -3847,14 +3864,25 @@ residual risk
   where it rendered an empty mapping before; such a page cannot have a cookie to read.
 
 verdict
-: drafted by the developer agent, for the release manager's confirmation at the 0.16.8
-  compliance walk. No ADR 0007 trigger fires; recorded because the request path and the
-  handler catalogue gain their first callers of boundary 15's loader, as the X1 entry
-  said each slice would be.
+: accepted, confirmed by the release manager on 2026-11-08 at the 0.16.8 compliance
+  walk (ruling 177). No ADR 0007 trigger fires; recorded because the request path and
+  the handler catalogue gain their first callers of boundary 15's loader, as the X1
+  entry said each slice would be. The Odoo handler type keeps `manage_connectors` in
+  0.16.8 (C-14, ruling 178).
+
+walked
+: At the 0.16.8 compliance walk (2026-11-08), against the code on the stack's tip
+  (d092a5b8c): the Odoo handler type's declaration in `extensions/odoo.pl`
+  (`owns.hooks.handler_types`) carries `cap => 'manage_connectors'`, so creating,
+  editing, deleting and scheduling an Odoo handler needs `manage_connectors` as before
+  X3, while the ten actions X2 moved are `manage_odoo`'s (ruling 71); `schedule` is in
+  `@CORE_SOURCE_PREFIXES` beside `scan`, `db`, `json` and `url`, so an extension
+  declaring SM1356's prefix is refused by name at the build (f0916415c,
+  t/unit/extensions/79).
 
 ### 2026-11-07 - SM1369 X5, the asset part (0.16.8): an extension's files and variables reach the page through the index
 
-Assessment drafted by the developer agent (n770) for the release manager's confirmation.
+Assessment drafted by the developer agent (n770); confirmed by the release manager on 2026-11-08 (ruling 177).
 Ruling 55; the design is the extension-hooks proposal's H-10 and "How a hook is found
 and run".
 
@@ -3911,12 +3939,13 @@ residual risk
   to talk to.
 
 verdict
-: drafted: no trigger fires; recorded because the processor now serves files and
-  renders markup named by an extension's declaration, under the checks above.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): no trigger
+  fires; recorded because the processor now serves files and renders markup named by
+  an extension's declaration, under the checks above.
 
 ### 2026-11-07 - SM1396 (0.16.8): the offline kit keeps a person's reads and queued writes in their browser, owned by login
 
-Assessment drafted by the developer agent (n770) for the release manager's confirmation.
+Assessment drafted by the developer agent (n770); confirmed by the release manager on 2026-11-08 (ruling 177).
 Ruling 53 (the condition: owned by login, an item with no owner is nobody's), ruling 74.
 SM1397 (a favicon fallback: two fixed public bytes-strings, a site's file winning) and
 SM1398 (`page_url_raw`, under the SM824 raw-twin contract) move no control.
@@ -3937,9 +3966,17 @@ what changed
   site's origin, keyed by owner.
 
 threat delta
-: None of ADR 0007's four triggers fires: the kit posts to the existing endpoint
-  through the existing helper and header; no sign-in method, dependency or restricted
-  data is added (the label is what the records already hold). The questions are
+: ADR 0007's new-processing-of-restricted-data trigger fires (ruling 177, which names
+  it new processing of personal data): a person's data - the answers a page was given
+  for them and the changes they asked to send - is kept in their browser across pages
+  and sign-ins, where before it lived only in the page. It is contained by the purge
+  at sign-out keyed to the login: the kit wraps the Odoo helper's `signOut` and, for
+  the owner label of the login signing out, empties that owner's kept reads in
+  localStorage; nothing is kept without an owner, and an owner's items are shown and
+  sent only while that login is signed in. The other three triggers do not fire: the
+  kit posts to the existing endpoint through the existing helper and header, and no
+  sign-in method or dependency is added (the label is what the records already hold).
+  The questions are
   Information disclosure on a shared browser (one person's kept answers or queued
   changes shown to, or sent as, another), Tampering of the queue (a change sent twice,
   or a change kept for nobody sent as whoever signs in next). The identity cookie is
@@ -3978,14 +4015,34 @@ residual risk
   K-1, answered by rulings 161 and 163: the identity cookie stays as OI2 states).
 
 verdict
-: drafted: no trigger fires; recorded because a browser now keeps a person's data
-  across pages under a label the server gives, and the identity cookie's contents
-  changed by one key.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): the
+  new-processing-of-restricted-data trigger fires (a person's data kept in their
+  browser) and the change is contained by the purge at sign-out keyed to the login and
+  by the owner rule above, so the ADR 0007 waiver stands. The identity cookie is
+  unchanged (rulings 161, 163).
+
+walked
+: At the 0.16.8 compliance walk (2026-11-08), against the code on the stack's tip
+  (d092a5b8c): `extensions/app-offline/assets/kit.js` keeps one localStorage item,
+  `lazysite-app-offline:v1`, holding `owners`, one bucket of `reads` (at most 50) and
+  `queue` (at most 100) per owner; `keep` and the queue write nothing when there is no
+  owner, and `askOwner` accepts `owner` from `?csrf=1` only in the `signin:` + 16 hex
+  shape. The purge is the kit's wrapper of `LazysiteOdoo.signOut`: once the helper's
+  sign-out answers, it sets the signing-out owner's `reads` to empty and clears the
+  owner, and leaves that owner's `queue`, which is sent for that owner alone at their
+  next sign-in. `lazysite-odoo.pl` answers `owner` from
+  `Lazysite::Odoo::Session::login_label` of the site session's `odoo:<login>` user.
+  What the purge does not reach: a queued change (kept for its owner, by design), and
+  kept reads where the session ends without the helper's sign-out (the site's own
+  `/logout`, an expired session, a closed browser), which stay under the owner's label
+  and are shown to no other login. Kept reads have no age limit of their own; the
+  50-read cap per owner is the bound. t/unit/extensions/78 holds the sign-out
+  (reads dropped, queue kept) and the owner rules.
 
 ### 2026-11-07 - SM1395 (0.16.8): an anonymous public write binding keeps no join
 
-Assessment drafted by the developer agent (n771) for the release manager's confirmation
-at the 0.16.8 walk; ruling 154 asked for the setting.
+Assessment drafted by the developer agent (n771); confirmed by the release manager on
+2026-11-08 at the 0.16.8 walk (ruling 177); ruling 154 asked for the setting.
 
 what changed
 : A binding setting `anonymous: 1` on the Odoo extension's bindings
@@ -4105,13 +4162,13 @@ residual risk
   repeat of it stays not found.
 
 verdict
-: drafted by the developer agent: accept as a hardening (less processing of personal
-  data), no trigger fired. For the release manager to confirm at the 0.16.8 walk.
+: accepted, confirmed by the release manager on 2026-11-08 at the 0.16.8 walk (ruling
+  177): a hardening (less processing of personal data), no trigger fired.
 
 ### 2026-11-07 - SM1413 (0.16.8): a notify handler's recipients may name a group
 
-Assessment drafted by the developer agent (n771) for the release manager's confirmation
-at the 0.16.8 walk; ruling 158.
+Assessment drafted by the developer agent (n771); confirmed by the release manager on
+2026-11-08 at the 0.16.8 walk (ruling 177); ruling 158.
 
 what changed
 : `Lazysite::Outbox`'s recipient grammar gains `{"groups":[...]}`. At send time the
@@ -4149,13 +4206,13 @@ residual risk
   outbox card shows who each queued event resolves to).
 
 verdict
-: drafted by the developer agent: accept, no trigger fired. For the release manager to
-  confirm at the 0.16.8 walk.
+: accepted, confirmed by the release manager on 2026-11-08 at the 0.16.8 walk (ruling
+  177): no trigger fired.
 
 ### 2026-11-07 - SM1412 (0.16.8): owner_contact is retired
 
-Assessment drafted by the developer agent (n771) for the release manager's confirmation
-at the 0.16.8 walk; ruling 159.
+Assessment drafted by the developer agent (n771); confirmed by the release manager on
+2026-11-08 at the 0.16.8 walk (ruling 177); ruling 159.
 
 what changed
 : `Lazysite::Notify` no longer mails a form's submission notice to `owner_contact` in
@@ -4182,15 +4239,16 @@ controls
 residual risk
 : A site that relied on the owner mail on 0.16.6 or 0.16.7 stops getting it at the
   upgrade until it adds a handler; `lazysite check` and UPGRADE.md say so. OBLIGATIONS.md's
-  row for "a form's owner address" names `owner_contact` and is for the walk to revise.
+  row for "a form's owner address" named `owner_contact`; the 0.16.8 walk restates it
+  for a notify handler naming a group (SM1413).
 
 verdict
-: drafted by the developer agent: accept as a hardening (less processing of personal
-  data), no trigger fired. For the release manager to confirm at the 0.16.8 walk.
+: accepted, confirmed by the release manager on 2026-11-08 at the 0.16.8 walk (ruling
+  177): a hardening (less processing of personal data), no trigger fired.
 
 ### 2026-11-07 - SM1354 (0.16.8, PENDING): a page's copy, and publish_copies on existing doors
 
-Assessment drafted by the developer agent (n772) for the release manager's confirmation.
+Assessment drafted by the developer agent (n772); confirmed by the release manager on 2026-11-08 (ruling 177).
 
 what changed
 : A page can be copied to `lazysite/copies/pages/<page path>`, the copy changed by path
@@ -4242,12 +4300,13 @@ residual risk
   grants `publish_copies` lets that group's agents publish without a person looking.
 
 verdict
-: proposed: accepted, no trigger fired; recorded because a new capability gates writes on
-  existing doors and a new carve-out opens part of `lazysite/` to the file verbs.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): no trigger
+  fired; recorded because a new capability gates writes on existing doors and a new
+  carve-out opens part of `lazysite/` to the file verbs.
 
 ### 2026-11-07 - SM1355 (0.16.8, PENDING): availability switches, row history and undo, and wizards
 
-Assessment drafted by the developer agent (n772) for the release manager's confirmation.
+Assessment drafted by the developer agent (n772); confirmed by the release manager on 2026-11-08 (ruling 177).
 
 what changed
 : Seven control-API actions on the existing door (`data-row-switch`, `data-row-undo`,
@@ -4257,14 +4316,24 @@ what changed
   extension's gate. A descriptor may name an `availability` field; a binding may say
   `(available)`. Every row save and delete through `Manager::Data` is recorded in a new
   store table, `_row_changes`, with the row before and after. Wizard definitions are
-  YAML files under `lazysite/db/wizards/`. Ruling 170 adds a daemon job,
+  YAML files under `lazysite/db/wizards/`; ruling 180 adds a `date` step (YYYY-MM-DD,
+  refused in any other shape by name) to the step types, and the schedule's wizard
+  (SM1356) ships as an example in `/docs/data-tables` (`opening_hours`), saved by a site
+  over its own schedule table, not installed as a file. Ruling 170 adds a daemon job,
   `row-history-prune` (daily), to the scheduler's closed job set.
 
 threat delta
-: No ADR 0007 trigger fired: new actions on the existing doors under existing
+: ADR 0007's new-processing-of-restricted-data trigger fires (ruling 177, which names
+  it new processing of personal data): the history keeps rows' earlier values, a
+  person's data among them, including values a later write or a delete removed from
+  the table, for the table's period (90 days by default, rulings 170 and 175). It is
+  contained by the period and the prune: the write path prunes after each recorded
+  change, and the daemon's daily `row-history-prune` job prunes every table the history
+  names, so a store nobody writes to keeps nothing past its period either. The other
+  three triggers do not fire: new actions on the existing doors under existing
   authentication and capabilities (`manage_data`, `write_data`), no new sign-in
-  method, no new dependency (YAML::PP and DBD::SQLite were declared), and no new class
-  of data: the history holds rows the table already holds. The questions are these.
+  method, and no new dependency (YAML::PP and DBD::SQLite were declared). The
+  questions are these.
 : Elevation of privilege, by a switch, an undo or a wizard reaching a row its caller
   may not write. Each is a row write through `update_row`, `delete_row` or
   `Tables::reinsert_row`: the control API asks `row_write_refusal` (writable_by) and
@@ -4299,9 +4368,9 @@ threat delta
   path removes anyway, returns nothing of what it removed, and on a site with no data
   store opens nothing and creates no store. Repudiation: each run is one audit row
   (`row-history-prune`, origin `daemon`) naming the job account, the tables the
-  history held and how many changes went, or the failure. No ADR 0007 trigger: no new
-  interface, account, sign-in method or dependency, and the job is engine code in the
-  closed set.
+  history held and how many changes went, or the failure. The job fires no trigger of
+  its own: no new interface, account, sign-in method or dependency, and the job is
+  engine code in the closed set; it is the control that contains the history's.
 : Tampering, by undoing a change from outside the period: refused as `expired-change`
   (409) even while a not-yet-pruned change is still listed, and the listing marks it
   `undoable: false`.
@@ -4332,12 +4401,30 @@ residual risk
   recorded stands without an undo, and says so.
 
 verdict
-: proposed: accepted, no trigger fired; recorded because new actions write rows on
-  existing doors and the store keeps rows' earlier values.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): the
+  new-processing-of-restricted-data trigger fires (rows' earlier values kept for the
+  table's period) and the change is contained by the daily `row-history-prune` job
+  with the write path's prune, so the ADR 0007 waiver stands; recorded too because new
+  actions write rows on existing doors.
+
+walked
+: At the 0.16.8 compliance walk (2026-11-08), against the code on the stack's tip
+  (d092a5b8c): the scheduler's closed job table (`Lazysite::Daemon::Service::Scheduler`)
+  holds `row-history-prune` with `every => 86400` and `needs => undef`, so `run_jobs`
+  alone admits it (ruling 175); its body, `Lazysite::Daemon::Jobs::row_history_prune`,
+  calls `Lazysite::Data::RowHistory::prune` with `RowHistory::period_for`, opens no
+  store where none exists, and writes one audit row per run (`row-history-prune`,
+  origin `daemon`, the tables and the count, or the failure). `$DEFAULT_KEEP_DAYS` is
+  90. `Lazysite::Manager::Data` makes the same call after each recorded write. The prune
+  runs where the daemon is enabled with a usable job account; elsewhere the write path
+  is the bound, as the residual risk says. The wizard's `date` step is in
+  `Lazysite::Data::Wizard` and the `opening_hours` definition in
+  `starter/lazysite/templates/docs/data-tables.md`, read and run by t/unit/data/89
+  (8f23fa7ef, ruling 180).
 
 ### 2026-11-07 - SM1356 (0.16.8, PENDING): schedules, dated rows, and a daemon job that deletes rows
 
-Assessment drafted by the developer agent (n773) for the release manager's confirmation.
+Assessment drafted by the developer agent (n773); confirmed by the release manager on 2026-11-08 (ruling 177).
 
 what changed
 : A table whose descriptor says `schedule: true` gets the engine's schedule fields
@@ -4351,7 +4438,12 @@ what changed
   expiry (`@<epoch>` in the dependency record) and the cache serves no render past it. A
   new daemon job, `schedule-exceptions` (hourly, `needs => manage_data`), deletes passed
   exceptions after writing each to the audit trail with the row (ruling 164), and deletes
-  nothing when the trail is off.
+  nothing when the trail is off. The schedule's wizard ships as an example in
+  `/docs/data-tables` (`opening_hours`), which a site saves over its own schedule table
+  with `save_wizard` or `data-wizard-save` (`manage_data`); it asks for a period's or
+  an exception's fields one at a time, its dates through the `date` step wizards gain,
+  and `opens` and `closes` are optional steps, so the schedule's own row check refuses
+  an incomplete row at the save, as for any door (ruling 180).
 
 threat delta
 : No ADR 0007 trigger fired. `schedule:` is a new page source on the existing render,
@@ -4383,14 +4475,20 @@ controls
 residual risk
 : A site whose host lacks the named zone reads its schedule in UTC until `lazysite check`
   is read. The schedule's state is only as fresh as the clock of the host.
+: The sweep's removals are not recorded in the row history (ruling 179): it deletes
+  through `Tables::delete_row`, not the manager's recorded delete, so a removed
+  exception is not listed by `list_row_changes` and cannot be undone. The daemon's
+  audit row for each removal, carrying the removed row, is the trail
+  (`removed_exceptions` reads it back); with the audit trail off nothing is removed.
 
 verdict
-: proposed: accepted, no trigger fired; recorded because a daemon job now deletes rows
-  and the data endpoint now withholds rows by date.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): no trigger
+  fired; recorded because a daemon job now deletes rows and the data endpoint now
+  withholds rows by date.
 
 ### 2026-11-07 - SM1357 (0.16.8, PENDING): JSON-LD, every public page in the sitemap, llms.txt on by default
 
-Assessment drafted by the developer agent (n773) for the release manager's confirmation.
+Assessment drafted by the developer agent (n773); confirmed by the release manager on 2026-11-08 (ruling 177).
 
 what changed
 : The engine adds a `<script type="application/ld+json">` block to the pages a table's
@@ -4439,12 +4537,13 @@ residual risk
   engine touches no stamp.
 
 verdict
-: proposed: accepted, no trigger fired; recorded because the summary and the sitemap now
-  list by default and pages gain machine-readable copies of table rows.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): no trigger
+  fired; recorded because the summary and the sitemap now list by default and pages
+  gain machine-readable copies of table rows.
 
 ### 2026-11-07 - SM1407 (0.16.8): analysts and lead-readers reach a site bootstrapped before them
 
-Assessment drafted by the developer agent for the release manager's confirmation.
+Assessment drafted by the developer agent (n774); confirmed by the release manager on 2026-11-08 (ruling 177).
 
 what changed
 : The users tool adopts the two roles the seed alone carried, `analysts` and
@@ -4487,11 +4586,12 @@ residual risk
   neither.
 
 verdict
-: drafted, for the release manager's confirmation; no trigger fired.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177); no trigger
+  fired.
 
 ### 2026-11-07 - SM1414 (0.16.8): a member saves content over their own session
 
-Assessment drafted by the developer agent (n775) for the release manager's confirmation.
+Assessment drafted by the developer agent (n775); confirmed by the release manager on 2026-11-08 (ruling 177).
 
 what changed
 : A new capability, `write_content`, opens the manager API's cookie door
@@ -4593,6 +4693,95 @@ residual risk
   `permission` against `not-found` already tells it.
 
 verdict
-: drafted by the developer agent: accept. The trigger fires and the change is
-  contained by the closed set, the allow-list, the domain resolution, the reserved
-  tree and the listing's cut to readable entries, so the ADR 0007 waiver would stand. For the release manager's confirmation.
+: accepted, confirmed by the release manager on 2026-11-08 (ruling 177): the trigger
+  fires and the change is contained by the closed set, the allow-list, the domain
+  resolution, the reserved tree and the listing's cut to readable entries, so the ADR
+  0007 waiver stands.
+
+### 2026-11-08 - SM1400, SM1402, SM1404, SM1405, SM1409, SM1411 (0.16.8): a backup is not a layout, a conf for no form, a listing's pickers, a notice mail's shape, a mixed pair, the editor's lock, with no trigger
+
+Assessment drafted by the developer agent at the 0.16.8 compliance walk, for the
+release manager's confirmation. The rest of 0.16.8 moves no control: SM1397 answers
+`/favicon.ico` and `/favicon.svg` with two fixed public images where a site has none,
+its own file winning; SM1398 adds `page_url_raw`, a raw twin under the SM824 contract,
+that names nothing a page could not already name; SM1399 is a filing (a candidate);
+SM1401 adds a sentence to an account's removal and a `lazysite check` finding (a rule
+whose owner is no account), changing no rule; SM1408 rewords a refusal whose rule
+stands; SM1410 keeps no staging record for a run that staged no account, which was a
+record of nothing; SM1403 and SM1406 were withdrawn before landing (ruling 159), so
+nothing of them ships; n776's commits renumber three tests and add one
+(t/unit/users/75) where the seed and top-up rules meet, changing no code; SM1415 is
+this walk. The other changes of 0.16.8 have their own entries, confirmed by the release
+manager on 2026-11-08 (ruling 177): SM1369 X2, X3 and X5's asset part, SM1396 (firing
+new-processing-of-restricted-data), SM1395, SM1413, SM1412, SM1354, SM1355 (firing
+new-processing-of-restricted-data), SM1356, SM1357, SM1407 and SM1414 (firing
+new-external-interface).
+
+what changed
+: SM1400, a layout's backup snapshot. `themes-list-all`, the listing the Appearance
+  page, MCP `list_themes` and the control API draw installed layouts from, walked
+  every directory under `layouts/`, so a `<name>-backup-<stamp>` snapshot that
+  `delete_layout` keeps came back as a layout, and a second delete removed it. Every
+  snapshot now leaves `themes` and is listed under `backups`, with the path
+  `artifact-backups-delete` takes (t/unit/manager/476).
+: SM1402, a notify setting for a form that does not exist. `set_form_notify` (MCP)
+  and `form-notify-save` (control API) wrote `lazysite/forms/<name>.conf` for any
+  name; a name neither registered nor bound on a page is now refused (`not-found`)
+  (t/unit/forms/76).
+: SM1404, a listing's picker choices. `Manager::Files::action_list` returned the
+  permissions editor's address-profile choices on every listing, so MCP `list_files`
+  carried an entry named after a rule's address profile; they ride only on the
+  manager API's listing for the Files page (`pickers`) and on `acl-get`
+  (t/unit/manager/477).
+: SM1405, a notice mail's shape. `Notify::_mail_send` handed a notice to the Form
+  SMTP extension as a form submission, with Submitted and IP lines; it is sent as a
+  composed message (`send_message`, SM1020's path) with no IP line, through the same
+  send, transport and hourly bound (t/unit/forms/77).
+: SM1409, a layout set without its own theme. `domain-set` of the layout alone, with
+  the domain's theme still the other layout's, mirrored that mixed pair into the
+  served assets; the set is still accepted, the pair is not mirrored, and the warning
+  names what to send (t/unit/manager/481).
+: SM1411, the editor's lock. The editor sent `lock` and `renew-lock`, both declared
+  mutating, as GETs, which the API refuses, so from 0.7.19 no editor open held its
+  lock; both are POSTs, and a lint keeps every manager page's fetch of a mutating
+  action a POST (t/unit/manager/480, t/lint/340).
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (existing actions answer
+  less, refuse more or are sent as they were declared), no new sign-in method, no new
+  dependency and no new restricted data (SM1405's mail carries less). The questions
+  are these.
+: SM1400: Tampering, by a destructive action reaching a snapshot as if it were a
+  layout. The listing no longer offers it as one; the snapshot is removed only by the
+  backups action, which names it as a backup.
+: SM1402: Tampering, by a write creating configuration nobody asked for. The refusal
+  narrows the action; the capability and the form rules are unchanged.
+: SM1404: Information disclosure, narrowed: an MCP or token listing no longer carries
+  the site's address-profile names, which only the permissions editor reads.
+: SM1405: Information disclosure, narrowed: a notice mail carries no submitter address
+  line, and nothing in the message comes from a visitor that the notice did not carry.
+: SM1409: Elevation of privilege and Tampering, none: what is mirrored is the pair a
+  domain serves, and a mixed pair is mirrored no longer; nothing becomes servable that
+  was not.
+: SM1411: Tampering, narrowed: the editor's lock, a concurrency aid between people who
+  may all write the file, is granted again, and the API's refusal of a mutating action
+  sent as GET (the CSRF gate's precondition) is now met by the shipped page, not worked
+  around; saves were gated as before throughout.
+
+controls
+: SM1400: t/unit/manager/476. SM1402: t/unit/forms/76. SM1404: t/unit/manager/477.
+  SM1405: t/unit/forms/77. SM1409: t/unit/manager/481. SM1411: t/unit/manager/480 and
+  t/lint/340.
+
+residual risk
+: SM1400: snapshots left by earlier releases are listed as backups from 0.16.8 and
+  removed only by the operator. SM1402: a conf written for a form that never existed,
+  before 0.16.8, stays until removed. SM1411: a lock is advisory; a second writer who
+  ignores it still saves, as any writer with the capability could.
+
+verdict
+: drafted at the 0.16.8 compliance walk, for the release manager's confirmation. No
+  trigger fired; recorded because SM1400 changes what a destructive action is offered
+  and SM1411 restores a lock the shipped editor had stopped taking. 0.16.8 is edge and
+  not security-critical, for the release manager to confirm: no change in it fixes a
+  vulnerability (OBLIGATIONS.md, the vulnerability-handling row).
