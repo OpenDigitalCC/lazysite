@@ -694,7 +694,7 @@ sub _escape_db_rows {
 # A source's answer: ( $value ) - a scalar, list or mapping for the template -
 # or ( undef, $why, %detail ) for a refusal.
 # The index file's name, as Lazysite::Extensions::Hooks::index_path spells it
-# (t/unit/extensions/72 pins the two): a stat, so a site with no hooks loads no
+# (t/unit/extensions/79 pins the two): a stat, so a site with no hooks loads no
 # module for this, and one that has loads the reader once per process.
 my $HOOK_INDEX_FILE = 'extensions.index.json';
 

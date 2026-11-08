@@ -266,6 +266,8 @@ Tests
   integration/171 and 114 hand the override capability ruling 71 names; tools/330 reads
   the declared view the upgrade builds, tools/338 the one a fresh install builds
   (ruling 166); tools/339 the upgrade's top-up (ruling 167). Each fails with its change
+  reverted.
+
 # X3: page sources and delivery handler types
 
 Built on n769 for 0.16.8: H-2 and H-3 are live, and Odoo's `odoo:` and
@@ -343,7 +345,7 @@ Odoo
   AddressRefs.pm, and one line of the processor: 35 files.
 
 Tests
-: `t/unit/extensions/72`: a fixture extension's sources through the real
+: `t/unit/extensions/79`: a fixture extension's sources through the real
   processor as a CGI - no credential to a shared render, per viewer never cached
   for another, inert, a dying source and one answering nothing as empty with one
   WARN line each, `live`, `check` at save, one owner per prefix, and the index

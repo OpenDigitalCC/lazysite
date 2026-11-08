@@ -99,7 +99,7 @@ Archive
   variables, refusals and handlers.conf rows are unchanged, and lint 321's allow-list
   loses seven files. The hook index is rebuilt on every upgrade, so a site using Odoo
   gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
-  `odoo:` always did. Tests: t/unit/extensions/72, 73. Register entry drafted.
+  `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted.
 
 ## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
 
