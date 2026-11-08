@@ -27,7 +27,7 @@ sub save {
     my (%h) = @_;
     my ( undef, $r ) = quiet( sub {
             Lazysite::Handlers::action_handler_save( { type => 'odoo', name => $h{id}, %h },
-                caps => { manage_connectors => 1 } );
+                caps => { manage_odoo => 1 } );    # ruling 178: the type is manage_odoo's
     } );
     return $r;
 }
@@ -53,7 +53,7 @@ subtest 'it needs the destination\'s capability' => sub {
                 caps => { manage_forms => 1 } );
     } );
     is( $r->{kind}, 'forbidden', 'manage_forms is not enough' );
-    like( $r->{error}, qr/manage_connectors/, 'it names the capability' );
+    like( $r->{error}, qr/manage_odoo/, 'it names the capability (ruling 178)' );
 };
 
 subtest 'unvalidated is not invalid' => sub {

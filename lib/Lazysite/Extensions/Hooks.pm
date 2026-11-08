@@ -216,9 +216,13 @@ sub _validate_map {
 
 # Returns a LIST of problems, in Owns' shape - empty when the declaration is
 # sound. Every problem at once, as Owns does, for a lint or a sysop.
+our %OWN_CAPS; # the capabilities the declaration in hand describes, while it is validated
+
 sub validate_hooks {
     my ( $id, $hooks ) = @_;
     return ( _err( $id, 'hooks', 'hooks must be a mapping' ) ) unless ref $hooks eq 'HASH';
+    local %OWN_CAPS = map { $_ => 1 } grep { /\A[a-z][a-z0-9_]*\z/ }
+        keys %{ ref $hooks->{capability_info} eq 'HASH' ? $hooks->{capability_info} : {} };
     my @bad;
     for my $kind ( sort keys %$hooks ) {
         my $spec   = $KINDS{$kind};
@@ -337,7 +341,10 @@ sub _check_handler_types {
     my %field  = map { $_ => 1 } Lazysite::Handlers::field_types();
     my %origin = map { $_ => 1 } @HANDLER_ORIGINS;
     no warnings 'once';
-    my %cap = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS;
+    # SM1369 X4 (ruling 178): the engine's capabilities, and the ones this same
+    # declaration describes (capability_info, X2), so a type may be gated by its
+    # extension's own capability (Odoo's by manage_odoo).
+    my %cap = map { $_ => 1 } @Lazysite::Auth::Settings::CAP_KEYS, keys %OWN_CAPS;
     my @bad;
     for my $t ( sort keys %$map ) {
         my $d = $map->{$t};

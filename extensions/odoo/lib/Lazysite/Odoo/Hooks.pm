@@ -96,8 +96,10 @@ sub check_binding {
 #
 # SM747 CU: AN ODOO BINDING - a named OOM operation, run as the site's
 # connection user (the extension's config), with what a request may set and who
-# may cause it. Configuring one is manage_connectors' until X2 brings manage_odoo
-# (OM3, ruling 71): it is authority over where site data goes.
+# may cause it. Configuring one is manage_odoo's (OM3, ruling 71; ruling 178 moved
+# the type's cap from manage_connectors with X4, in 0.16.9): it is authority over
+# where site data goes. A group holding manage_connectors is topped up with it
+# (capability_info's top_up_from), by the users tool and by the upgrade.
 
 # At save: the shape, in the one parser the call uses - so what is saved is what
 # will run. Whether the operation exists is handler_save's.

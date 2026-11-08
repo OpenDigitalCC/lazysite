@@ -111,7 +111,7 @@ page:
 
 The connection user signs in with an **API key** issued in Odoo, never a
 password. The key is set and cleared over the control API or MCP, with
-`manage_connectors`:
+`manage_odoo`:
 
 `odoo-secret-set` / `odoo_secret_set`
 : Body `secret`. One line of printable characters, no spaces, at most 512.
@@ -132,7 +132,8 @@ process cannot read it, which is reported rather than treated as unset.
 ## Bindings
 
 A **binding** is a handler of type `odoo` (*Run an Odoo operation* on the
-Handlers page), configured with `manage_connectors`. It names one operation and
+Handlers page), configured with `manage_odoo` (a group holding `manage_connectors` is
+given it, by the users tool and by the upgrade). It names one operation and
 says what a request may set and who may cause it:
 
 `operation`
@@ -296,7 +297,7 @@ says what a request may set and who may cause it:
 
 `modes`
 : Who may run it, comma separated: `authenticated` (a signed-in account in
-  `callers`, or one holding `manage_connectors`), `public` (anyone - a page, the
+  `callers`, or one holding `manage_odoo`), `public` (anyone - a page, the
   page endpoint, a form), `scheduled` (the schedule). Default
   `authenticated`.
 
@@ -991,7 +992,7 @@ the call id, the actor, the visitor hash, the IP, the Odoo login, the binding,
 the operation, the mode, the phase (`run`, `plan`, `apply`), the outcome, the
 refusal kind, the duration, and, for a call that carried an `Idempotency-Key`, the
 key OOM holds (`idem`) and whether the answer was a repeat (`repeat`). Never a parameter value, a report or a key.
-Kept 90 days. `odoo-calls` / `odoo_calls` (`manage_connectors`) reads it,
+Kept 90 days. `odoo-calls` / `odoo_calls` (`manage_odoo`) reads it,
 optionally for one `binding`. Each call is also one `odoo-call` line in the
 audit trail. A binding with `anonymous: 1` writes its lines, and their audit
 rows, without the visitor hash and without the IP.

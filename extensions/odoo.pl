@@ -200,9 +200,10 @@ sub hooks {
                     . 'lazysite account\'s MCP calls or a scheduled binding runs as (never read one back); read '
                     . 'the connection\'s state and the record of every Odoo call, which names who caused each, '
                     . 'through which binding and operation, and how it ended - never a payload or a credential. '
-                    . 'Run any Odoo binding, as manage_connectors may call any connector. Was manage_connectors\' '
-                    . 'until 0.16.8 (ruling 71): every group holding manage_connectors is topped up with this on '
-                    . 'next use, so nothing changes for a group.',
+                    . 'Create, change, delete and schedule Odoo bindings (the odoo handler type), and run any Odoo '
+                    . 'binding, as manage_connectors may call any connector. Was manage_connectors\' until 0.16.8 '
+                    . '(ruling 71; the bindings, ruling 178): every group holding manage_connectors is topped up '
+                    . 'with this on next use and by the upgrade, so nothing changes for a group.',
                 top_up_from => ['manage_connectors'],
                 unlocks => { ui => ['the Odoo extension\'s settings and Status (Extensions)'] },
             },
@@ -407,7 +408,8 @@ sub hooks {
 sub _handler_type {
     return {
         label     => 'Run an Odoo operation',
-        cap       => 'manage_connectors',
+        # ruling 178 (X4): manage_connectors' until 0.16.8 (C-14)
+        cap       => 'manage_odoo',
         origins   => [qw(form timer)],
         parse     => 'Lazysite::Odoo::Hooks::handler_parse',
         on_save   => 'Lazysite::Odoo::Hooks::handler_save',
