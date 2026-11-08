@@ -127,7 +127,7 @@ my %T       = (
     # per process from its extension index, never in the warm-fork parent's compile.
     'lib/Lazysite/Auth/Settings.pm' => { '@CORE_CAP_KEYS' => 'a copy of the constant core capability list' },
     'lib/Lazysite/Capabilities.pm' => { '%IS_CHANNEL' => $DERIVED },
-    'lib/Lazysite/ControlApi/Actions.pm' => { '%FIELD' => $DERIVED, '%DECLARED_FIELD' => $DERIVED,
+    'lib/Lazysite/ControlApi/Actions.pm' => { '%FIELD' => $DERIVED, '%DECLARED_FIELD' => $DERIVED, '%MEMBER_CONTENT_SET' => $DERIVED,
         '%CORE_ACTION' => 'the names of the constant %ACTION, taken at load', '%CORE_TOOL' => 'the twins of the constant %ACTION, taken at load' },
     'lib/Lazysite/Data/RowHistory.pm' => { '$JSON' => 'a JSON::PP encoder, constructed with no data' },    # SM1355: the scheduler's row-history-prune job requires it
     # SM1369 X3: the live kinds carry a name pattern and a code reference to

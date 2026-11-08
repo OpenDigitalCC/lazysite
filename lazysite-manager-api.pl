@@ -1625,7 +1625,7 @@ if ( $action eq 'list' ) {
     # Files page; MCP list_files asks without it.
     $result = ( !Lazysite::Manager::Common::scopes_reach_docroot( \@REQUEST_SCOPES ) && !_list_names_a_folder() )
         ? Lazysite::Manager::Files::action_list_scope_roots( \@REQUEST_SCOPES )
-        : action_list( $path, pickers => !$MEMBER_DOOR );
+        : action_list( $path, pickers => 1 );
     # SM1414 (ruling 173): a member sees the entries a rule lets them read, in
     # their own domain, by the paths they send, and no picker lists.
     $result = Lazysite::Manager::Files::member_listing( $result, user => $auth_user, root => $MEMBER_ROOT )
