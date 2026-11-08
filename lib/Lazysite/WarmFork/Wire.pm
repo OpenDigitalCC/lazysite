@@ -41,10 +41,17 @@ sub FCGI_MAX_CONTENT ()       { return 65_535 }
 # socket path is at most 104 bytes on every system lazysite runs on; a longer one
 # is no socket at all, and the front door then runs the CGI as before. Returns
 # ( $path ) or ( undef, $why ).
+#
+# SM1369 X5, H-5 (n782): NAMED BY ITS ENDPOINT. A warm endpoint is one an
+# extension declares (hooks.endpoints, warm: 1); its socket is
+# run/<name>-endpoint.sock for the script lazysite-<name>.pl (a path or the bare
+# name), so the Odoo endpoint keeps odoo-endpoint.sock.
 sub socket_for {
-    my ($lazysite_dir) = @_;
+    my ( $lazysite_dir, $script ) = @_;
     return ( undef, 'no lazysite directory' ) unless defined $lazysite_dir && length $lazysite_dir;
-    my $p = "$lazysite_dir/run/odoo-endpoint.sock";
+    my ($name) = ( $script // '' ) =~ m{(?:\A|/)lazysite-([a-z][a-z0-9-]*)\.pl\z};
+    return ( undef, 'no endpoint script (lazysite-<name>.pl) to name the socket by' ) unless defined $name;
+    my $p = "$lazysite_dir/run/$name-endpoint.sock";
     return ( undef, "the socket path is " . length($p) . ' bytes; a Unix socket path is at most 103' )
         if length $p > 103;
     return ($p);

@@ -402,7 +402,26 @@ sub hooks {
         # (Lazysite::Endpoint): its body capped before it is read, the token of
         # a POST checked by the kit before anything of this extension runs, and
         # the visitor key core's (t/lint/351).
-        endpoints => [ { script => 'lazysite-odoo.pl' } ],
+        # H-5: it is warm - the pool's front door hands it to its warm-fork
+        # parent, the odoo-endpoint service below, when one is listening (SM1226)
+        # - and the parent compiles the OOM client the daemon path uses, and what
+        # reads a binding's declaration, beside the endpoint's own modules.
+        endpoints => [
+            { script => 'lazysite-odoo.pl', warm => 1,
+                preload => [ qw(Odoo::Ops Odoo::Ops::Version Odoo::Ops::Client::Daemon Odoo::Ops::Registry
+                        Odoo::Ops::Operation Odoo::Ops::Context Odoo::Ops::Config) ] },
+        ],
+
+        # SM1369 X5, H-5 (n782): the two services lazysited runs for this
+        # extension, each behind its own gate, declared rather than known to the
+        # supervisor by name: oomd, the resident OOM (SM1164 D2), and the page
+        # endpoint's warm-fork parent (SM1226).
+        services => [
+            { name => 'oomd', wanted => 'Lazysite::Daemon::Service::Oomd::wanted',
+                run => 'Lazysite::Daemon::Service::Oomd::run', reason => 'Lazysite::Daemon::Service::Oomd::failure_reason' },
+            { name => 'odoo-endpoint', wanted => 'Lazysite::Daemon::Service::OdooEndpoint::wanted',
+                run => 'Lazysite::Daemon::Service::OdooEndpoint::run' },
+        ],
     };
 }
 

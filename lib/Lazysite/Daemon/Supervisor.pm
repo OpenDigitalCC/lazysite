@@ -110,11 +110,20 @@ sub should_run {
 # It is still loaded LAZILY, inside the coderef, because Scheduler uses this
 # module for conf_value: a top-level `use` in both directions is a circular
 # dependency at compile time.
-# SM1164 D2: the second service is oomd, the Odoo extension's resident OOM. It is
-# listed only when asked for (`oomd => 1`): the caller knows whether the gate
-# holds (Lazysite::Daemon::Service::Oomd::wanted), and a site that has no Odoo
-# extension, or has `odoo_daemon` off, has no such service to start, to report or
-# to find failed. The registry is still closed engine code.
+# SM1369 X5, H-5 (n782): THE OTHER SERVICES ARE DECLARED. An enabled extension
+# names a service in its `hooks.services` - { name, wanted, run, reason } - and
+# this reads the hook index for them (the index the manager writes on enable,
+# disable, save and upgrade; Lazysite::Extensions::Hooks). Each function is the
+# extension's own, in its payload lib, reached only through Hooks::call_hook,
+# which checks again at every call that the extension (and what it requires) is
+# on (G-1). The registry stays closed: no service runs that an installed,
+# enabled extension's validated declaration does not name, and none is ever
+# named by configuration.
+#
+# A declared service is listed only when asked for (`<name> => 1`), as before:
+# the caller knows whether its gate holds (`wanted`, asked every few seconds).
+# A `wanted` that cannot be asked, or dies, is not wanted - nothing starts on a
+# guess (G-9).
 sub services {
     my ( $root, %o ) = @_;
     my @s = (
@@ -125,32 +134,46 @@ sub services {
             },
         },
     );
-    push @s, {
-        name  => 'oomd',
-        start => sub {
-            require Lazysite::Extensions;
-            Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
-            return Lazysite::Daemon::Service::Oomd::run(@_);
-        },
-        }
-        if $o{oomd};
-    # SM1226: the third is the Odoo endpoint's warm-fork parent, listed the same way
-    # (`odoo_endpoint => 1`) while its own gate holds
-    # (Lazysite::Daemon::Service::OdooEndpoint::wanted).
-    push @s, {
-        name  => 'odoo-endpoint',
-        start => sub {
-            require Lazysite::Extensions;
-            Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::OdooEndpoint');
-            return Lazysite::Daemon::Service::OdooEndpoint::run(@_);
-        },
-        }
-        if $o{odoo_endpoint};
+    for my $d ( _declared_services($root) ) {
+        next unless $o{ $d->{name} };
+        push @s, {
+            name  => $d->{name},
+            start => sub {
+                my (@args) = @_;
+                require Lazysite::Extensions::Hooks;
+                my ( $ok, $rc ) = Lazysite::Extensions::Hooks::call_hook( $root, $d->{id}, $d->{run}, @args );
+                return $rc if $ok;
+                log_event( 'ERROR', 'daemon', 'a declared service could not be run',
+                    service => $d->{name}, extension => $d->{id}, why => $rc // '' );
+                return 1;
+            },
+        };
+    }
     return @s;
 }
 
-# The pid of a service that is running under a supervisor, or undef. The proof
-# is the one every other check here uses: the pid AND its start time.
+# The services the enabled extensions declare, from the hook index:
+# ( { name, id, wanted, run, reason }, ... ) in id order. The scheduler's name
+# is core's and a later extension's clash is left out by the index build, so a
+# name is one service.
+sub _declared_services {
+    my ($root) = @_;
+    return () unless defined $root && length $root;
+    require Lazysite::Extensions::Hooks;
+    my $index = Lazysite::Extensions::Hooks::read_index( Lazysite::Paths::lazysite_dir($root) );
+    my ( @out, %seen );
+    for my $id ( sort keys %{ $index->{extensions} || {} } ) {
+        my $e = $index->{extensions}{$id};
+        next unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{services} eq 'ARRAY';
+        for my $sv ( grep { ref $_ eq 'HASH' } @{ $e->{hooks}{services} } ) {
+            my $name = $sv->{name} // next;
+            next if $name eq 'scheduler' || $seen{$name}++;
+            push @out, { name => $name, id => $id, wanted => $sv->{wanted}, run => $sv->{run}, reason => $sv->{reason} };
+        }
+    }
+    return @out;
+}
+
 sub service_pid {
     my ( $docroot, $name ) = @_;
     my $root = _docroot($docroot);
@@ -164,34 +187,24 @@ sub service_state {
     return _read_state( _docroot($docroot), $name );
 }
 
-# SM1164 D2: is oomd to be a service of this docroot? The Odoo extension is
-# enabled, `odoo_daemon` is on or required, and oomd is installed. A failure to
-# find out is "no": nothing is started on a guess.
 our $SERVICE_GATE_EVERY = 5;
 
-sub _oomd_wanted {
+# The services that have a gate of their own, by name: every declared one. The
+# scheduler has none (the daemon extension is its gate).
+sub _gated {
     my ($root) = @_;
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
-    my $w = eval { Lazysite::Daemon::Service::Oomd::wanted($root) };
-    return $w ? 1 : 0;
+    return map { $_->{name} => $_->{name} } _declared_services($root);
 }
 
-# SM1226: the services that have a gate of their own, by name, each with what the
-# services() call names it; the scheduler has none (the daemon extension is its gate).
-sub _gated { return ( oomd => 'oomd', 'odoo-endpoint' => 'odoo_endpoint' ) }
-
-sub _odoo_endpoint_wanted {
-    my ($root) = @_;
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::OdooEndpoint');
-    my $w = eval { Lazysite::Daemon::Service::OdooEndpoint::wanted($root) };
-    return $w ? 1 : 0;
-}
-
+# Is a declared service to run now? Its own `wanted`, asked with the docroot. A
+# name the index no longer declares is not wanted, so its process is stopped.
 sub _wanted {
     my ( $root, $name ) = @_;
-    return $name eq 'oomd' ? _oomd_wanted($root) : _odoo_endpoint_wanted($root);
+    my ($d) = grep { $_->{name} eq $name } _declared_services($root);
+    return 0 unless $d && defined $d->{wanted};
+    require Lazysite::Extensions::Hooks;
+    my ( $ok, $w ) = Lazysite::Extensions::Hooks::call_hook( $root, $d->{id}, $d->{wanted}, $root );
+    return $ok && $w ? 1 : 0;
 }
 
 # Listed in Status when wanted, or while a process of it remains.
@@ -201,11 +214,15 @@ sub _listed {
     return defined service_pid( $root, $name ) ? 1 : 0;
 }
 
-sub _oomd_reason {
-    my ($root) = @_;
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::Oomd');
-    return 'oomd said: ' . Lazysite::Daemon::Service::Oomd::failure_reason($root);
+# Why a failed service fails, in its own words, when it declares a `reason`:
+# "; <name> said: <reason>", or ''.
+sub _service_reason {
+    my ( $root, $name ) = @_;
+    my ($d) = grep { $_->{name} eq $name } _declared_services($root);
+    return '' unless $d && defined $d->{reason};
+    require Lazysite::Extensions::Hooks;
+    my ( $ok, $why ) = Lazysite::Extensions::Hooks::call_hook( $root, $d->{id}, $d->{reason}, $root );
+    return $ok && defined $why && !ref $why && length $why ? "; $name said: $why" : '';
 }
 
 # --- state ---------------------------------------------------------------
@@ -421,8 +438,8 @@ sub status {
     # and go, then reports "stopped" or "still stopping (pid N)". A wait
     # bounded by the gate interval, not a guess.
     # SM1164: oomd is listed while it is wanted or a process of it is still there.
-    my %gated  = _gated();
-    my @listed = services( $root, map { $gated{$_} => _listed( $root, $_ ) } keys %gated );
+    my %gated  = _gated($root);
+    my @listed = services( $root, map { $_ => _listed( $root, $_ ) } keys %gated );
     if ( !$enabled && $a{settle} ) {
         my $deadline = time + $a{settle};
         while ( time < $deadline ) {
@@ -487,7 +504,7 @@ sub status {
                 ? ( message => "$s->{name} kept dying and the supervisor has "
                         . "stopped restarting it ($st->{fails} consecutive "
                         . 'failures)'
-                        . ( $s->{name} eq 'oomd' ? '; ' . _oomd_reason($root) : '' ),
+                        . _service_reason( $root, $s->{name} ),
                     remedy => 'see the site log for why it dies; restart the '
                         . 'host service (systemctl restart lazysited@<domain>) '
                         . 'once the cause is fixed'
@@ -716,14 +733,14 @@ sub run {
     }
 
     log_event( 'INFO', 'daemon', 'supervisor starting',
-        services => scalar( () = services( $root, oomd => 1, odoo_endpoint => 1 ) ) );
+        services => scalar( () = services( $root, map { $_ => 1 } keys %{ { _gated($root) } } ) ) );
 
     # ADOPT BY STOPPING. A service left over from a supervisor that died without
     # stopping its children (kill -9, OOM) is still ours - same docroot, same
     # jobs - and starting a fresh one beside it is the duplication above. It is
     # stopped, deliberately and with a log line, before a fresh one is started
     # under this supervisor's care.
-    for my $s ( services( $root, oomd => 1, odoo_endpoint => 1 ) ) {
+    for my $s ( services( $root, map { $_ => 1 } keys %{ { _gated($root) } } ) ) {
         my $old = _read_pid( $root, $s->{name} );
         my $st  = _read_state( $root, $s->{name} );
 
@@ -771,7 +788,8 @@ sub run {
     # the other services; its failures and `failed` mark are forgotten, so a
     # later enable starts clean.
     # SM1226: the Odoo endpoint's warm-fork parent the same way, by name.
-    my %gated        = _gated();
+    # SM1369 X5 (H-5): each is a service an enabled extension declares.
+    my %gated        = _gated($root);
     my %wanted       = map { $_ => _wanted( $root, $_ ) } keys %gated;
     my $gate_read_at = time;
     my %stopping;    # name => { pid, deadline }
@@ -813,10 +831,13 @@ sub run {
             }
         }
 
-        # 2b. each gated service's own gate (SM1164 D2: oomd; SM1226: the Odoo
-        # endpoint's warm-fork parent).
+        # 2b. each declared service's own gate (SM1164 D2: oomd; SM1226: the Odoo
+        # endpoint's warm-fork parent; SM1369 X5: declared, H-5).
         if ( time - $gate_read_at >= $SERVICE_GATE_EVERY ) {
             $gate_read_at = time;
+            # a service declared since (an extension enabled) joins; one no longer
+            # declared stays, not wanted, until its process is stopped
+            %gated = ( %gated, _gated($root) );
             $wanted{$_} = _wanted( $root, $_ ) for keys %gated;
         }
         for my $g ( sort keys %gated ) {
@@ -839,7 +860,7 @@ sub run {
         }
 
         # 3. Start what should be running and is not.
-        for my $s ( services( $root, map { $gated{$_} => $wanted{$_} } keys %gated ) ) {
+        for my $s ( services( $root, map { $_ => $wanted{$_} } keys %gated ) ) {
             my $name = $s->{name};
             next if $child{$name};
             next if $failed{$name};

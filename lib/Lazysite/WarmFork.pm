@@ -42,7 +42,7 @@ package Lazysite::WarmFork;
 # children. A parent whose service has gone (it is re-parented) exits too.
 #
 # RUN AS A PROGRAM by its service:
-#   perl -I LIB lib/Lazysite/WarmFork.pm --docroot D --script S --socket P
+#   perl -I LIB lib/Lazysite/WarmFork.pm --docroot D --script S --socket P [--preload M ...]
 use strict;
 use warnings;
 use Socket                   qw(AF_UNIX SOCK_STREAM SOMAXCONN sockaddr_un);
@@ -64,18 +64,11 @@ our $CHECK_EVERY = 5;        # seconds between looks at the loaded files
 our $SETTLE      = 2;        # a change must hold this long (an upgrade copies many files)
 our $MAX_PARAMS  = 1_048_576;
 
-# THE OOM CLIENT the endpoint's daemon path uses (SM1164 D3), and what it reads a
-# binding's declaration with. Code only; each is skipped when absent (the in-process
-# path, or no OOM at all).
-our @OOM_PRELOAD = qw(
-    Odoo::Ops
-    Odoo::Ops::Version
-    Odoo::Ops::Client::Daemon
-    Odoo::Ops::Registry
-    Odoo::Ops::Operation
-    Odoo::Ops::Context
-    Odoo::Ops::Config
-);
+# SM1369 X5, H-5 (n782): THE MODULES THE EXTENSION DECLARES for the parent to
+# compile beside the endpoint's own (hooks.endpoints, preload - for the Odoo
+# endpoint, the OOM client its daemon path uses), handed to the program by the
+# extension's service as --preload. Code only (t/lint/272); each is skipped when
+# it does not load (the in-process path, or no OOM at all).
 
 # --- the parent's code ----------------------------------------------------------
 
@@ -90,7 +83,7 @@ our @ALWAYS = qw(Lazysite::Auth::Identity Lazysite::Timing Lazysite::Util);
 # file-scope initialisers, which t/lint/272 holds to constants. Returns
 # ( \@loaded, \@skipped, $error ), $error when the endpoint itself did not compile.
 sub preload {
-    my ($script) = @_;
+    my ( $script, @declared ) = @_;
     my ( @loaded, @skipped );
     {
         package main;    ## no critic (Modules::ProhibitMultiplePackages)
@@ -106,7 +99,7 @@ sub preload {
         if ( eval { require $f; 1 } ) { push @loaded, $m; push @queue, _names( _slurp( $INC{$f} ) ) }
         else                          { push @skipped, $m }
     }
-    for my $m (@OOM_PRELOAD) {
+    for my $m ( grep { /\A[A-Z][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*\z/ } @declared ) {
         ( my $f = "$m.pm" ) =~ s{::}{/}g;
         local $@;
         if   ( eval { require $f; 1 } ) { push @loaded,  $m }
@@ -173,7 +166,7 @@ sub _listen {
 sub serve {
     my (%o) = @_;
     my ( $script, $path ) = @o{qw(script socket)};
-    my ( $loaded, $skipped, $error ) = preload($script);
+    my ( $loaded, $skipped, $error ) = preload( $script, @{ $o{preload} || [] } );
     return _fail("the endpoint did not load: $error") if defined $error;
     _log( 'INFO', 'preload skipped a module that did not load', modules => join( ',', @$skipped ) ) if @$skipped;
 
@@ -402,6 +395,7 @@ sub main {
     my (@argv) = @_;
     my %o;
     for ( my $i = 0; $i < @argv; $i++ ) {
+        if ( $argv[$i] eq '--preload' ) { push @{ $o{preload} }, $argv[ ++$i ]; next }
         $o{$1} = $argv[ ++$i ] if $argv[$i] =~ /\A--(docroot|script|socket|check-every|settle)\z/;
     }
     # a test's: how often the loaded files are looked at, and how long a change must hold

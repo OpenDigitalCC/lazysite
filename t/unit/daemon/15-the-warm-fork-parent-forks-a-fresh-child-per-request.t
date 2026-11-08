@@ -94,7 +94,7 @@ no warnings 'once';
 $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT       = $probe;
 @Lazysite::Daemon::Service::OdooEndpoint::PROGRAM_ARGS = ( '--check-every', 1, '--settle', 1 );
 
-my ($sock) = Lazysite::WarmFork::Wire::socket_for($LZ);
+my ($sock) = Lazysite::WarmFork::Wire::socket_for( $LZ, 'lazysite-odoo.pl' );
 ok( defined $sock, 'the site has a socket path' ) or BAIL_OUT('no socket path');
 like( $sock, qr{\A\Q$LZ\E/run/odoo-endpoint\.sock\z}, 'in the site\'s own lazysite/run' );
 
@@ -108,7 +108,7 @@ subtest 'the service is wanted only behind a pool, while the Odoo extension is e
     ok( Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'the extension on, a pool conf for this docroot: wanted' );
     unlink "$base/pools/t.conf";
     ok( !Lazysite::Daemon::Service::OdooEndpoint::wanted($d), 'no pool conf (plain CGI): no process' );
-    my ( $long, $why ) = Lazysite::WarmFork::Wire::socket_for( '/x' . ( 'y' x 120 ) );
+    my ( $long, $why ) = Lazysite::WarmFork::Wire::socket_for( '/x' . ( 'y' x 120 ), 'lazysite-odoo.pl' );
     ok( !defined $long, 'a socket path past the Unix limit is no socket' );
     like( $why, qr/at most 103/, '...and says why' );
 };

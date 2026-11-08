@@ -22,7 +22,7 @@ use Lazysite::Endpoint ();
 
 our $DOCROOT = '';
 our $COOKIE  = 'lzs_odoo_visitor';
-our $MAX_AGE = $Lazysite::Endpoint::VISITOR_MAX_AGE;
+our $MAX_AGE = 30 * 86400;    # as the kit's $VISITOR_MAX_AGE
 
 my $ID = 'odoo';
 

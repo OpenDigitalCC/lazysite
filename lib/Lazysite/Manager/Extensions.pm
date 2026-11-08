@@ -782,7 +782,10 @@ sub rebuild_hook_index {
         # SM1369 X5: a declaration that names files to serve or render is indexed
         # with its payload directory, functions or none.
         my ($payload) = Lazysite::Extensions::Hooks::check_payload_files( $id, $x->{full}, $owns->{hooks} );
-        next unless @$fns || defined $payload; # an empty map names nothing to call or serve
+        # SM1369 X5 (H-4, H-5): and one that declares an endpoint, which the
+        # front door reads (warm) with no function of its own to call.
+        my $eps = ref $owns->{hooks}{endpoints} eq 'ARRAY' && @{ $owns->{hooks}{endpoints} };
+        next unless @$fns || defined $payload || $eps; # an empty map names nothing to call or serve
         my @req = @{ $owns->{requires} || [] };
         $entries{$id} = {
             key           => $x->{key},

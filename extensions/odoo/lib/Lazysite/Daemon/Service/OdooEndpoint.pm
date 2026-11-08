@@ -43,6 +43,11 @@ our $READY_WAIT = 30;    # seconds the program has to say it is ready
 our $STOP_WAIT  = 10;
 our @PROGRAM_ARGS;    # more arguments for the program (a test's --check-every, --settle)
 
+# SM1369 X5, H-5 (n782): the endpoint this parent serves, as the extension
+# declares it (hooks.endpoints, warm: 1): its socket is named for it, and the
+# modules it declares to preload are handed to the program.
+our $ENDPOINT = 'lazysite-odoo.pl';
+
 # The endpoint the web server would run: the site's cgi-bin beside the docroot
 # (every shipped layout), else the engine tree this module was loaded from (a
 # source tree, the deb's /usr/share/lazysite). undef when neither has it.
@@ -76,7 +81,7 @@ sub wanted {
     local $Lazysite::Manager::Extensions::DOCROOT = $root;
     return 0 unless Lazysite::Manager::Extensions::extension_enabled('extensions/odoo.pl');
     return 0 unless defined script_for($root);
-    my ($sock) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($root) );
+    my ($sock) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($root), $ENDPOINT );
     return defined $sock ? 1 : 0;
 }
 
@@ -88,16 +93,29 @@ sub _program {
     return ( $lib, $wf );
 }
 
+# The modules the extension declares for the parent to compile beside the
+# endpoint's own (hooks.endpoints, preload), from the site's hook index: the
+# OOM client its daemon path uses. Code only (t/lint/272); each is skipped by
+# the program when it does not load.
+sub _declared_preload {
+    my ($root) = @_;
+    require Lazysite::Extensions::Hooks;
+    my $ep = Lazysite::Extensions::Hooks::warm_endpoint( Lazysite::Paths::lazysite_dir($root), $ENDPOINT );
+    return $ep && ref $ep->{preload} eq 'ARRAY' ? @{ $ep->{preload} } : ();
+}
+
 sub _start {
     my ( $root, $script, $sock ) = @_;
     my ( $lib, $prog ) = _program();
+    my @pre = map { ( '--preload', $_ ) } _declared_preload($root);
     pipe( my $r, my $w ) or return;
     my $pid = fork();
     return unless defined $pid;
     if ( $pid == 0 ) {
         close $r;
         open STDOUT, '>&', $w;
-        exec( $^X, '-I', $lib, $prog, '--docroot', $root, '--script', $script, '--socket', $sock, @PROGRAM_ARGS )
+        exec( $^X, '-I', $lib, $prog, '--docroot', $root, '--script', $script, '--socket', $sock,
+            @pre, @PROGRAM_ARGS )
             or do { print STDERR "cannot run the warm-fork parent: $!\n"; POSIX::_exit(127) };
     }
     close $w;
@@ -144,7 +162,7 @@ sub run {
     local $SIG{HUP}  = 'IGNORE';    # the children read the config per request
 
     my $script = script_for($root);
-    my ( $sock, $why ) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($root) );
+    my ( $sock, $why ) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($root), $ENDPOINT );
     unless ( defined $script && defined $sock ) {
         log_event( 'ERROR', 'warm-fork', 'the Odoo endpoint cannot be warm-forked',
             reason => defined $script ? $why : 'lazysite-odoo.pl is not found' );

@@ -47,7 +47,7 @@ $Lazysite::Daemon::Supervisor::SERVICE_GATE_EVERY = 1;
 $Lazysite::Daemon::Supervisor::GATE_EVERY         = 1;
 $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT  = "$root/lazysite-odoo.pl";
 
-my ($sock) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($d) );
+my ($sock) = Lazysite::WarmFork::Wire::socket_for( Lazysite::Paths::lazysite_dir($d), 'lazysite-odoo.pl' );
 
 sub spit { my ( $p, $t ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 

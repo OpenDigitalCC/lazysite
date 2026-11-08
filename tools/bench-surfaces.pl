@@ -534,8 +534,8 @@ sub start_warm {
     Lazysite::Extensions::require_payload('Lazysite::Daemon::Service::OdooEndpoint');
     require Lazysite::WarmFork::Wire;
     no warnings 'once';
-    $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT = "$ROOT/lazysite-odoo.pl";
-    my ($sock) = Lazysite::WarmFork::Wire::socket_for($LZ);
+    my $script = $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT = "$ROOT/lazysite-odoo.pl";
+    my ($sock) = Lazysite::WarmFork::Wire::socket_for( $LZ, $script );
     return undef unless defined $sock;
     my $pid = fork() // die "fork: $!";
     if ( !$pid ) {

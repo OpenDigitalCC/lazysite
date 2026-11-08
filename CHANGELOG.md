@@ -83,6 +83,16 @@ Archive
   per call; the browser helper always sends a token and fetches fresh ones once on a
   `csrf` refusal.
 
+- SM1369 (PENDING) **X5, H-5: an extension declares the services lazysited runs for it,
+  and which of its endpoints is warm.** `hooks.services` (`name`, `wanted`, `run`,
+  `reason`) goes live: the supervisor lists, gates, starts, stops and reports each one an
+  enabled extension declares, through the hook loader, and names none itself. An
+  endpoint declares `warm: 1` and a `preload` list: the pool's front door hands a warm
+  endpoint to its warm-fork parent by reading the index, the parent's socket is named for
+  its endpoint (`odoo-endpoint.sock` is unchanged), and the program compiles the declared
+  list in place of a list core kept. The Odoo extension declares oomd and its
+  endpoint's parent as services, unchanged in behaviour.
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and

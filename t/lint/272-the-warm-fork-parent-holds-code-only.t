@@ -32,8 +32,8 @@
 #
 # What a request brings is held at runtime by t/integration/325, which reads the
 # parent's memory after it has served signed-in requests. The OOM modules the
-# parent preloads (@OOM_PRELOAD) are another project's code and are covered there
-# too, by value rather than by source.
+# parent preloads (the endpoint's declared preload list, SM1369 X5) are another
+# project's code and are covered there too, by value rather than by source.
 use strict;
 use warnings;
 use Test::More;
@@ -278,6 +278,27 @@ subtest 'the parent calls nothing of the endpoint\'s; only the child runs it' =>
         'and reads no file itself: no configuration, no key, no secret' );
     is_deeply( [ $pre =~ /\b_slurp\(\s*([^)]*?)\s*\)/g ], [ '$script', '$INC{$f}' ],
         'the only files it reads are the sources it walks for module names (the endpoint and each module loaded)' );
+};
+
+# SM1369 X5, H-5 (n782): THE DECLARED PRELOAD LIST HOLDS CODE ONLY. The modules an
+# extension declares for its warm endpoint's parent (hooks.endpoints, preload)
+# are handed to the program as names and only required: each must be a module
+# name, and none a Lazysite:: module - lazysite's own code reaches the parent
+# through the endpoint's own `use` and `require` lines, which the set above
+# walks and classifies, never by a list that could bypass that.
+subtest 'a declared preload list names modules, none of them lazysite\'s' => sub {
+    my $out  = qx{$^X -I$root/lib $root/extensions/odoo.pl --describe 2>/dev/null};
+    my $desc = eval { decode_json($out) } || {};
+    my @eps  = grep { ref $_ eq 'HASH' && $_->{warm} } @{ $desc->{owns}{hooks}{endpoints} || [] };
+    ok( scalar @eps, 'the Odoo endpoint is declared warm' );
+    for my $ep (@eps) {
+        my @pre = @{ $ep->{preload} || [] };
+        ok( scalar @pre, "$ep->{script}: it declares a preload list" );
+        is_deeply( [ grep { !/\A[A-Z]\w*(?:::\w+)*\z/ } @pre ], [], "$ep->{script}: every entry is a module name" );
+        is_deeply( [ grep {/\ALazysite::/} @pre ], [], "$ep->{script}: none is lazysite's own" );
+    }
+    my ($pre) = $text{'lib/Lazysite/WarmFork.pm'} =~ /^(sub preload \{.*?^\})/ms;
+    like( $pre, qr/grep \{ \/\\A\[A-Z\]/, 'the program requires a declared name only when it is a module name' );
 };
 
 done_testing;

@@ -112,9 +112,21 @@ our %KINDS = (
     # kit, Lazysite::Endpoint (its body capped before it is read, the token of a
     # POST checked by the kit before the extension's code runs): t/lint/351
     # reads this list and checks each script.
+    # H-5 (n782): `warm` 1 - the pool's front door hands the endpoint to its
+    # warm-fork parent, a service the extension declares, by reading this rather
+    # than by the script's name; `preload` the modules that parent compiles
+    # beside the endpoint's own (code only, t/lint/272).
     endpoints => { hook => 'H-4', slice => 'X5', live => 1, form => 'records', check_values => \&_check_endpoints,
-        fields => [qw(script)], required => [qw(script)] },
-    services          => { hook => 'H-5',  slice => 'X5' },
+        fields => [qw(script warm)], lists => [qw(preload)], required => [qw(script)] },
+    # SM1369 X5, H-5 (n782): LIVE. A service lazysited supervises for the
+    # extension: `wanted` its gate, asked every few seconds with the docroot
+    # (anything but a true answer, a death included, is "not wanted" - nothing
+    # starts on a guess); `run` the service itself, in its own child, given
+    # docroot => ... and returning its exit code; `reason`, when it has one, the
+    # words Status adds when the supervisor has given up on it. Consumer:
+    # Lazysite::Daemon::Supervisor.
+    services => { hook => 'H-5', slice => 'X5', live => 1, form => 'records', check_values => \&_check_services,
+        functions => [qw(wanted run reason)], fields => [qw(name)], required => [qw(name wanted run)] },
     checks            => { hook => 'H-6',  slice => 'X6' },
     # SM1369 X2: the three kinds whose consumers are built (see "X2" below). A
     # kind with a `validate` of its own is checked by it, since its rows carry
@@ -419,6 +431,21 @@ sub cross_problems {
             }
             else { $owner{"signin:$p"} = $id }
         }
+        # SM1369 X5, H-5 (n782): a service name and an endpoint have one owner each.
+        for my $sv ( grep { ref $_ eq 'HASH' } @{ ref $hooks->{services} eq 'ARRAY' ? $hooks->{services} : [] } ) {
+            my $n = $sv->{name} // next;
+            if ( my $o = $owner{"service:$n"} ) {
+                push @{ $bad{$id} }, "the service '$n' is already declared by the extension '$o'";
+            }
+            else { $owner{"service:$n"} = $id }
+        }
+        for my $ep ( grep { ref $_ eq 'HASH' } @{ ref $hooks->{endpoints} eq 'ARRAY' ? $hooks->{endpoints} : [] } ) {
+            my $s = $ep->{script} // next;
+            if ( my $o = $owner{"endpoint:$s"} ) {
+                push @{ $bad{$id} }, "the endpoint '$s' is already declared by the extension '$o'";
+            }
+            else { $owner{"endpoint:$s"} = $id }
+        }
     }
     return %bad;
 }
@@ -521,6 +548,26 @@ sub page_sources {
     }
     @out = sort { length( $b->{prefix} ) <=> length( $a->{prefix} ) || $a->{prefix} cmp $b->{prefix} } @out;
     return @out;
+}
+
+# SM1369 X5, H-5 (n782): THE WARM ENDPOINT A SCRIPT IS, from the index: the
+# declaration { script, warm, preload, extension } of an extension that is on
+# now, whose endpoint `$script` (a path or the bare name) is warm, or undef.
+sub warm_endpoint {
+    my ( $lz, $script ) = @_;
+    my ($name) = ( $script // '' ) =~ m{([^/]+)\z};
+    return undef unless defined $name && length $name;
+    my $index = read_index($lz);
+    my $on    = enabled_keys($lz);
+    for my $id ( sort keys %{ $index->{extensions} } ) {
+        my $e = $index->{extensions}{$id};
+        next unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{endpoints} eq 'ARRAY';
+        next unless $on->{ $e->{key} // '' };
+        for my $ep ( grep { ref $_ eq 'HASH' } @{ $e->{hooks}{endpoints} } ) {
+            return { %$ep, extension => $id } if ( $ep->{script} // '' ) eq $name && $ep->{warm};
+        }
+    }
+    return undef;
 }
 
 # THE HANDLER TYPES THE INDEX DECLARES, for Lazysite::Handlers: type name to
@@ -642,6 +689,32 @@ sub _check_endpoints {
             next;
         }
         push @bad, _err( $id, "hooks.$kind", "endpoints[$i].script '$s' is declared twice" ) if $seen{$s}++;
+        my $e = $v->[$i];
+        push @bad, _err( $id, "hooks.$kind", "endpoints[$i].warm must be 0 or 1" )
+            if exists $e->{warm} && ( $e->{warm} // '' ) !~ /\A[01]\z/;
+        if ( exists $e->{preload} ) {
+            push @bad, _err( $id, "hooks.$kind", "endpoints[$i].preload is for a warm endpoint (warm: 1)" )
+                unless $e->{warm};
+            push @bad, _err( $id, "hooks.$kind", "endpoints[$i].preload: '$_' is not a module name" )
+                for grep { !/\A[A-Z][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*\z/ } @{ $e->{preload} };
+        }
+    }
+    return @bad;
+}
+
+# A service's name: lower-case letters, digits and hyphens, never the
+# scheduler's (core's own service), once each.
+sub _check_services {
+    my ( $id, $kind, $v ) = @_;
+    my ( @bad, %seen );
+    for my $i ( 0 .. $#$v ) {
+        my $n = $v->[$i]{name};
+        unless ( defined $n && !ref $n && $n =~ /\A[a-z][a-z0-9-]{0,31}\z/ ) {
+            push @bad, _err( $id, "hooks.$kind", "services[$i].name must be lower-case letters, digits and hyphens" );
+            next;
+        }
+        push @bad, _err( $id, "hooks.$kind", "services[$i].name '$n' is the engine's own service" ) if $n eq 'scheduler';
+        push @bad, _err( $id, "hooks.$kind", "services[$i].name '$n' is declared twice" ) if $seen{$n}++;
     }
     return @bad;
 }

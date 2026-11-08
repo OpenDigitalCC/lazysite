@@ -113,7 +113,7 @@ ok( wait_until( sub { oomd_up($d) }, 30 ), 'oomd is up' ) or BAIL_OUT('oomd did 
 
 no warnings 'once';
 $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT = "$root/lazysite-odoo.pl";
-my ($warm_sock) = Lazysite::WarmFork::Wire::socket_for($LZ);
+my ($warm_sock) = Lazysite::WarmFork::Wire::socket_for( $LZ, 'lazysite-odoo.pl' );
 sub warm_up {
     return 0 unless -S $warm_sock;
     socket( my $s, AF_UNIX, SOCK_STREAM, 0 ) or return 0;

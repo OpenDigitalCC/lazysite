@@ -359,8 +359,10 @@ sub _front_relay {
     # SM1226: the Odoo endpoint is answered by its warm-fork parent when one is
     # listening; when none is (no lazysited, the extension just enabled, a restart
     # in progress), the CGI runs below exactly as before.
-    if ( !$decision->{wrapped} && ( $decision->{target} // '' ) eq 'lazysite-odoo.pl' ) {
-        my $done = _front_warm($body);
+    # SM1369 X5 (H-5): a warm endpoint is one an enabled extension declares
+    # (hooks.endpoints, warm: 1), read from the hook index, not known by name.
+    if ( !$decision->{wrapped} && _warm_endpoint( $decision->{target} ) ) {
+        my $done = _front_warm( $body, $decision->{target} );
         return $done if defined $done;
     }
 
@@ -485,21 +487,21 @@ sub _front_relay {
 # the request it is never re-run, whatever happens - a write may have been made -
 # so a failure after that point is answered here, as the relay answers one.
 sub _front_warm {
-    my ($body) = @_;
+    my ( $body, $target ) = @_;
     _lazy_lib('Lazysite::WarmFork::Wire');
-    my ($sock) = Lazysite::WarmFork::Wire::socket_for($LAZYSITE_DIR);
+    my ($sock) = Lazysite::WarmFork::Wire::socket_for( $LAZYSITE_DIR, $target );
     return undef unless defined $sock && -S $sock;
     my $r = Lazysite::WarmFork::Wire::request( $sock, {%ENV}, $body, timeout => $RELAY_TIMEOUT );
     return undef unless $r->{connected};
     my $out = $r->{out} // '';
     if ( $r->{timed_out} ) {
         log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'warm-fork relay timed out',
-            surface => 'lazysite-odoo.pl', seconds => $RELAY_TIMEOUT );
+            surface => $target, seconds => $RELAY_TIMEOUT );
         return _front_fail( '504 Gateway Timeout', 'lazysite: surface timed out' ) unless length $out;
     }
     unless ( length $out ) {
         log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'warm-fork relay produced nothing',
-            surface => 'lazysite-odoo.pl', why => $r->{why} // '' );
+            surface => $target, why => $r->{why} // '' );
         return _front_fail( '500 Internal Server Error', 'lazysite: surface produced no response' );
     }
     print $out;

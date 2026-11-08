@@ -25,7 +25,8 @@ package main;
 #         _extension_entries (its entries, of the extensions on now),
 #         _extension_asset (an asset by request path), _serve_extension_asset,
 #         _inject_extension_assets, _extension_template_vars,
-#         _extension_component_dirs, _extension_component_dir,
+#         _extension_component_dirs, _extension_component_dir, _warm_endpoint
+#         (SM1369 X5, H-5: a declared warm endpoint, for the front door),
 #         _call_extension_hook (the one door to an extension's own code), and
 #         the identity providers' (X4): _identity_providers, _provider_on,
 #         _provider_signin_page, _provider_signin_paths, _identity_template_vars.
@@ -210,6 +211,21 @@ sub _serve_extension_asset {
     print $body unless ( $ENV{REQUEST_METHOD} // 'GET' ) eq 'HEAD';
     $ACCESS_REC{b} = length $body;
     return 1;
+}
+
+# SM1369 X5, H-5 (n782): IS A cgi-bin SCRIPT A WARM ENDPOINT? One an extension
+# that is on now declares (hooks.endpoints, warm: 1): the front door then hands
+# the request to its warm-fork parent, a service the same extension declares,
+# and runs the CGI as before when none is listening. Read from the index, so
+# core knows no endpoint by name.
+sub _warm_endpoint {
+    my ($script) = @_;
+    return 0 unless defined $script && $script =~ /\Alazysite-[a-z][a-z0-9-]*\.pl\z/;
+    for my $pair ( @{ _extension_entries() } ) {
+        my ( $id, $e ) = @$pair;
+        return 1 if grep { ( $_->{script} // '' ) eq $script && $_->{warm} } _entry_list( $e, 'endpoints' );
+    }
+    return 0;
 }
 
 # THE ONE DOOR TO AN EXTENSION'S OWN CODE from the processor: the loader checks

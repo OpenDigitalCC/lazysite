@@ -75,18 +75,17 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 # helper, the component and the banner behind hooks (SM1369 X5); 18 since X4 (n781)
 # made the Odoo site sign-in an identity provider (H-1): the session, its log
 # names, the display name, the sign-in page, the login option and the
-# maintenance exemption. It may only shrink.
+# maintenance exemption; 15 since X5's endpoint kit and services (n782): the
+# supervisor, the warm-fork parent and its wire read the declared services and
+# the warm endpoint. It may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
     'installers/hestia/lazysite-fcgi.tpl'        => 1,
     'installers/nginx/vhost-fcgi.conf.example'   => 1,
     'lazysite-processor.pl'                      => 2,
-    'lazysite-processor/front-door.pm'           => 9,     # X3, X5: the pool preloads no Odoo module; the hook modules load on first use
+    'lazysite-processor/front-door.pm'           => 6,     # X3, X5: the pool preloads no Odoo module; the hook modules load on first use; a warm endpoint is declared (n782)
     'lib/Lazysite/Auth/GroupRefs.pm'             => 7,    # SM1387: a binding's and odoo.conf's group names
-    'lib/Lazysite/Daemon/Supervisor.pm'          => 22,
-    'lib/Lazysite/WarmFork.pm'                   => 9,
-    'lib/Lazysite/WarmFork/Wire.pm'              => 1,
     'starter/manager/config.md'                  => 2,
     'starter/manager/extension-config.md'        => 17,
     'tools/bench-surfaces.pl'                    => 69,
