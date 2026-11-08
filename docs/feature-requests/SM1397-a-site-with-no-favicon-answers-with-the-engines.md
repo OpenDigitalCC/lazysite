@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "found beside the offline kit (n770 brief, item 4), from the layouts catalogue"
 area: front end
-status-note: "SHIPPED (PENDING) on n770: lazysite-processor/pipeline.pm _serve_favicon_fallback (an SVG and a real 16x16 ICO built in Perl), last in the pipeline before not_found; a file the site has wins, from the content root or the docroot. t/unit/processor/181."
+status-note: "SHIPPED (0.16.8) on n770: lazysite-processor/pipeline.pm _serve_favicon_fallback (an SVG and a real 16x16 ICO built in Perl), last in the pipeline before not_found; a file the site has wins, from the content root or the docroot. t/unit/processor/181."
 ---
 
 # What happened

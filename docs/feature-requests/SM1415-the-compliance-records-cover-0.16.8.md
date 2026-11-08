@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-08
 raised-by: "the compliance check run alone for 0.16.8 (tmp/n777-compliance-check.sh): two blocking findings, as the 0.16.2 to 0.16.7 gates had (SM1306, SM1337, SM1367, SM1368, SM1380, SM1394); release manager, rulings 177-180"
 area: release
-status-note: "SHIPPED (PENDING) on n777. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.8; thirteen entries confirmed (ruling 177; SM1414, SM1355, SM1396 fire, contained); rulings 178-180 folded in; the walk's entry (SM1400 and five more), boundary 15, the assets line and three STRIDE rows confirmed (ruling 182); four operate-side rows; UPGRADE.md's 0.16.8 section; no code changes."
+status-note: "SHIPPED (0.16.8) on n777. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.8; thirteen entries confirmed (ruling 177; SM1414, SM1355, SM1396 fire, contained); rulings 178-180 folded in; the walk's entry (SM1400 and five more), boundary 15, the assets line and three STRIDE rows confirmed (ruling 182); four operate-side rows; UPGRADE.md's 0.16.8 section; no code changes."
 ---
 
 # What was asked

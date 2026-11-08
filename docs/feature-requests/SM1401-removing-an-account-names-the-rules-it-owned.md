@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "0.16.7 edge triage, T-91"
 area: auth
-status-note: "SHIPPED (PENDING) on n771: cmd_remove names the rules the account owned (paths, the store, the remedy) on the command line and in the API's remove answer (orphaned_rules, message - the Users page shows it); lazysite check report_rules_without_an_owner warns per stored rule whose owner is no account, local counting as one. No rule is changed. t/unit/users/73, t/tools/336."
+status-note: "SHIPPED (0.16.8) on n771: cmd_remove names the rules the account owned (paths, the store, the remedy) on the command line and in the API's remove answer (orphaned_rules, message - the Users page shows it); lazysite check report_rules_without_an_owner warns per stored rule whose owner is no account, local counting as one. No rule is changed. t/unit/users/73, t/tools/336."
 ---
 
 # What happened

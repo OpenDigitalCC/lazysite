@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "0.16.7 edge triage, T-92"
 area: forms
-status-note: "SHIPPED (PENDING) on n771: Handlers::action_form_notify_save refuses (kind not-found, field form) a name whose conf does not exist and that no page binds (Manager::Common::form_pages), naming create_form; a registered form, and a page-bound form with no conf yet, save as before. t/unit/forms/76; /docs/forms."
+status-note: "SHIPPED (0.16.8) on n771: Handlers::action_form_notify_save refuses (kind not-found, field form) a name whose conf does not exist and that no page binds (Manager::Common::form_pages), naming create_form; a registered form, and a page-bound form with no conf yet, save as before. t/unit/forms/76; /docs/forms."
 ---
 
 # What happened

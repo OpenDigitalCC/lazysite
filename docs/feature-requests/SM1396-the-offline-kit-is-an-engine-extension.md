@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "ruling 53 (release manager, 2026-11-04, triage Q8); ruling 74 (D-9); planned as X8 of SM1369, n770"
 area: extensions
-status-note: "SHIPPED (PENDING) on n770: extensions/app-offline.pl (requires odoo; declares assets/kit.js and the variable app_offline_kit), Lazysite::Ext::AppOffline, the kit; ?csrf=1 answers `owner` (a label of the login) only with the Odoo site sign-in, the identity cookie unchanged (rulings 161, 163); docs under /docs/app and in the layouts briefing. t/unit/extensions/77, 78, t/unit/odoo/28, 41, 63."
+status-note: "SHIPPED (0.16.8) on n770: extensions/app-offline.pl (requires odoo; declares assets/kit.js and the variable app_offline_kit), Lazysite::Ext::AppOffline, the kit; ?csrf=1 answers `owner` (a label of the login) only with the Odoo site sign-in, the identity cookie unchanged (rulings 161, 163); docs under /docs/app and in the layouts briefing. t/unit/extensions/77, 78, t/unit/odoo/28, 41, 63."
 ---
 
 # The ruling

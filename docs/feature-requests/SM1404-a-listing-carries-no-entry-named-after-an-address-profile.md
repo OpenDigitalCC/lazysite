@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "0.16.7 edge triage, T-93 (reproduce before anything)"
 area: manager
-status-note: "SHIPPED (PENDING) on n771: Manager::Files::action_list returns `address_profiles` only when asked (pickers => 1); the manager API's list branch asks, MCP list_files does not; acl-get is unchanged. t/unit/manager/477."
+status-note: "SHIPPED (0.16.8) on n771: Manager::Files::action_list returns `address_profiles` only when asked (pickers => 1); the manager API's list branch asks, MCP list_files does not; acl-get is unchanged. t/unit/manager/477."
 ---
 
 # What happened

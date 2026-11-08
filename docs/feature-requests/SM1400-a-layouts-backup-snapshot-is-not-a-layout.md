@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "0.16.7 edge triage, T-87"
 area: themes
-status-note: "SHIPPED (PENDING) on n771: Manager::Themes::action_themes_list_all leaves every -backup- directory (a layout's or a theme's) out of `themes` and lists it under `backups` {artifact, layout, name, path}; the Appearance page's Backups panel draws that list; MCP list_themes and the control API answer with the same listing. t/unit/manager/476."
+status-note: "SHIPPED (0.16.8) on n771: Manager::Themes::action_themes_list_all leaves every -backup- directory (a layout's or a theme's) out of `themes` and lists it under `backups` {artifact, layout, name, path}; the Appearance page's Backups panel draws that list; MCP list_themes and the control API answer with the same listing. t/unit/manager/476."
 ---
 
 # What happened

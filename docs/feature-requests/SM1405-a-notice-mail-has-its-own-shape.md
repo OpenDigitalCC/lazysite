@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager, 0.16.8 wave 1 (n771)"
 area: forms
-status-note: "SHIPPED (PENDING) on n771: Notify::_mail_send hands a notice to the Form SMTP extension as a composed message (send_message: subject, text), not a form submission; no handler layout, no IP line; transport and hourly bound unchanged. Ruling 157: every notice mail. Test re-aimed at SM485's account notice and a claim link (the owner mail is retired, SM1412). t/unit/forms/77."
+status-note: "SHIPPED (0.16.8) on n771: Notify::_mail_send hands a notice to the Form SMTP extension as a composed message (send_message: subject, text), not a form submission; no handler layout, no IP line; transport and hourly bound unchanged. Ruling 157: every notice mail. Test re-aimed at SM485's account notice and a claim link (the owner mail is retired, SM1412). t/unit/forms/77."
 ---
 
 # What happened

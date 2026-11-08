@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 154), 0.16.8 wave 1"
 area: odoo
-status-note: "SHIPPED (PENDING) on n771: anonymous on public bindings; no ip or visitor on the call line or audit row; a spent plan loses its values and (ruling 160) the visitor hash; ruling 168, a repeated confirm or withdraw with the same Idempotency-Key gets the first outcome, matched by the plan's scoped key (_spent_repeat). t/unit/odoo/139-138; SECURITY.md entry drafted."
+status-note: "SHIPPED (0.16.8) on n771: anonymous on public bindings; no ip or visitor on the call line or audit row; a spent plan loses its values and (ruling 160) the visitor hash; ruling 168, a repeated confirm or withdraw with the same Idempotency-Key gets the first outcome, matched by the plan's scoped key (_spent_repeat). t/unit/odoo/139-138; SECURITY.md entry drafted."
 ---
 
 # What happened

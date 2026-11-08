@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.7"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.8"
 brand: plain
 ---
 
@@ -2048,6 +2048,20 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.8** (2026-11-08, edge) - **Odoo's actions, sources and assets become
+  the extension's own, a form mails only whom a notify handler names, and a row
+  keeps its history with undo.** Odoo's actions, capabilities, page sources,
+  handler type, helper and sign-in component are declared by the extension and
+  reach core from the index, with manage_odoo its own capability (SM1369 X2,
+  X3, X5's asset part); the offline kit is an extension, app-offline (SM1396);
+  owner_contact is retired and a notify handler's recipients may name a group
+  (SM1412, SM1413); a page is copied, changed and published over itself
+  (SM1354); a row is switched on or off, built by a wizard, and kept in a
+  history with undo (SM1355); a table may be a schedule, and a row may show
+  between two dates (SM1356); every public page is in the sitemap and llms.txt,
+  with JSON-LD from a table's mapping (SM1357); a member saves content over
+  their own session with write_content (SM1414); an anonymous public write
+  binding keeps no join (SM1395)
 - **0.16.7** (2026-11-07, edge) - **Odoo's modules move into the extension's
   own lib, a stale Odoo session is renewed, and a group is deleted on every
   door.** Odoo's modules load from the extension's payload lib, the same code

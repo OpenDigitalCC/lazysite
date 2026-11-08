@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager, rulings 157-159 (Q86, Q88-Q90)"
 area: forms
-status-note: "SHIPPED (PENDING) on n771: Notify::_mail_owner, its call and the submission.email built-ins removed; lazysite check report_retired_notify_keys WARNs on a set owner_contact with the remedy; /docs/forms and UPGRADE.md say the key is ignored from 0.16.8. t/unit/forms/78 (no handler named: nobody mailed, submission stored), t/tools/337."
+status-note: "SHIPPED (0.16.8) on n771: Notify::_mail_owner, its call and the submission.email built-ins removed; lazysite check report_retired_notify_keys WARNs on a set owner_contact with the remedy; /docs/forms and UPGRADE.md say the key is ignored from 0.16.8. t/unit/forms/78 (no handler named: nobody mailed, submission stored), t/tools/337."
 ---
 
 # What was ruled

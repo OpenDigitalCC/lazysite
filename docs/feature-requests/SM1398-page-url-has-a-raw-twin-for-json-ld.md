@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "found beside the offline kit (n770 brief, item 4), from the layouts catalogue"
 area: layouts
-status-note: "SHIPPED (PENDING) on n770: render.pm adds page_url_raw beside page_url, under the SM824 contract (never in markup, only inside | json); documented in the layouts briefing and the reference. t/unit/processor/144 gains the case."
+status-note: "SHIPPED (0.16.8) on n770: render.pm adds page_url_raw beside page_url, under the SM824 contract (never in markup, only inside | json); documented in the layouts briefing and the reference. t/unit/processor/144 gains the case."
 ---
 
 # What happened

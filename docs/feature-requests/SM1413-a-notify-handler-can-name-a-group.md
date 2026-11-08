@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager, rulings 157-158 (Q86, Q88, Q89)"
 area: forms
-status-note: "SHIPPED (PENDING) on n771: Outbox recipient grammar gains {\"groups\":[...]} (members by Auth::Settings::group_closure_in, once each; a member with no address skipped as a no-address ledger line and the rule's status no_address); an unknown group is refused at save naming it. t/unit/notify/10; /docs/forms."
+status-note: "SHIPPED (0.16.8) on n771: Outbox recipient grammar gains {\"groups\":[...]} (members by Auth::Settings::group_closure_in, once each; a member with no address skipped as a no-address ledger line and the rule's status no_address); an unknown group is refused at save naming it. t/unit/notify/10; /docs/forms."
 ---
 
 # What was asked

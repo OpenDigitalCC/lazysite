@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1415 (PENDING) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and
+## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
+
+- SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.8 stack and stamped 0.16.8. The thirteen
   register entries the branches wrote are confirmed by the release manager (ruling 177):
   SM1414 fires new-external-interface, and SM1355 (rows' earlier values in the row
@@ -69,7 +71,7 @@ Archive
   restated. 0.16.8 is edge and not security-critical
   (ruling 182). UPGRADE.md's 0.16.8 notes are one section. Docs only; nothing is signed.
 
-- SM1369 (PENDING) **X2: an extension declares its capabilities and its control-API
+- SM1369 (ebf87fe5) **X2: an extension declares its capabilities and its control-API
   and MCP actions, and core carries them from the index (H-7, H-9; rulings 71, 135).**
   `owns.hooks` gains three live kinds: `capability_info` (each owned capability's
   section, grid label, title, grant sentence, UI unlocks and what tops it up),
@@ -96,7 +98,7 @@ Archive
   `lazysite check` reads the index's capabilities and reports a failed build or an
   enabled extension whose hooks are not indexed. Lint 321's allow-list falls from 42
   files to 34.
-- SM1369 (PENDING) **Page sources and delivery handler types are declared by the
+- SM1369 (742ce069) **Page sources and delivery handler types are declared by the
   extension (X3: H-2, H-3).** An enabled extension's `owns.hooks.page_sources` gives a page
   variable a prefix that core resolves by calling the extension's own code from its payload
   lib through the hook index; `per_viewer` marks such a page as never cached for another
@@ -117,7 +119,7 @@ Archive
   gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
   `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted, confirmed
   (ruling 177).
-- SM1369 (PENDING) **An extension declares its assets, components and template
+- SM1369 (e246bb85) **An extension declares its assets, components and template
   variables (X5, the asset part of H-10).** Three hook kinds go live in
   `Lazysite::Extensions::Hooks`: `assets` (a file in the payload, served at
   `/assets/<id>-<file>` and at a declared alias on every domain, injected into a page
@@ -134,7 +136,7 @@ Archive
   t/unit/extensions/76; t/integration/174, 171 and 172 build the index as the manager
   would.
 
-- SM1396 (PENDING) **The offline kit is an engine extension, `app-offline`.** Ruling 53,
+- SM1396 (e246bb85) **The offline kit is an engine extension, `app-offline`.** Ruling 53,
   built on the asset hooks as their second consumer (ruling 74): one declared script
   (`/assets/app-offline-kit.js`) and one variable, `[% app_offline_kit %]`, the tag while
   the extension is on and nothing otherwise; `requires: odoo`. The kit wraps the Odoo
@@ -150,17 +152,17 @@ Archive
   the layouts briefing. New: t/unit/extensions/77, 78 (a 127.0.0.1 endpoint stand-in);
   t/unit/odoo/28, 41, 63.
 
-- SM1397 (PENDING) **A site with no favicon answers with the engine's.** `/favicon.ico`
+- SM1397 (e246bb85) **A site with no favicon answers with the engine's.** `/favicon.ico`
   and `/favicon.svg` that reach the engine on a site with no such file are answered with
   a small neutral mark (an SVG, and a real 16x16 ICO), cacheable for an hour; a file the
   site has wins. t/unit/processor/181.
 
-- SM1398 (PENDING) **`page_url_raw`, the raw twin of `page_url`** for JSON-LD through
+- SM1398 (e246bb85) **`page_url_raw`, the raw twin of `page_url`** for JSON-LD through
   `| json`, under the SM824 contract. t/unit/processor/144.
 
 - Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
   as a candidate.
-- SM1412 (PENDING) **`owner_contact` is retired (ruling 159).** SM1362's copy of each form's
+- SM1412 (f9d737c0) **`owner_contact` is retired (ruling 159).** SM1362's copy of each form's
   notice to the one address `lazysite/notify.conf` named as `owner_contact` (0.16.6) is
   removed, with the built-in templates written for it; the key is ignored from 0.16.8. A
   form mails nobody unless it names a notify handler (ruling 158): its submissions are
@@ -169,7 +171,7 @@ Archive
   group (SM1413). The acknowledgement to the submitter is unchanged. Docs: `/docs/forms`,
   UPGRADE.md. `t/unit/forms/78`, `t/tools/337`.
 
-- SM1413 (PENDING) **A notify handler's recipients may name a group (ruling 158).** No one
+- SM1413 (09619d6c) **A notify handler's recipients may name a group (ruling 158).** No one
   is mailed by default - a form's submissions are stored - and people are mailed through a
   notify handler the form names. Its `recipients` gain `{"groups":["site-owners"]}`: each
   member account of each named group, nested membership as the group store resolves it, at
@@ -181,7 +183,7 @@ Archive
   refused at save, naming it. Docs: `/docs/forms` (how a form mails people, the notify
   handler). `t/unit/notify/10`.
 
-- SM1395 (PENDING) **An anonymous public write binding keeps no join (ruling 154).** A
+- SM1395 (93572fda) **An anonymous public write binding keeps no join (ruling 154).** A
   binding with `modes: public`, `apply: immediate` and a write operation kept two records
   that together tied what a visitor sent to where it came from: the plan store (the
   parameters, the owner `visitor:<hash>`) and the call record (the IP and the same hash on
@@ -209,7 +211,7 @@ Archive
   `t/unit/odoo/139`,
   `t/unit/odoo/137` (through oomd), `t/unit/odoo/138`.
 
-- SM1405 (PENDING) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
+- SM1405 (6502e71f) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
   handed a notice to the Form SMTP extension as a form submission (the subject as
   `subject_prefix`, the notice as a `message` field), so a notice mail arrived with the
   subject `[SITE] A form was submitted - ` (nothing after the dash) and a body laid out as a
@@ -220,7 +222,7 @@ Archive
   only transport, the same hourly bound. Every notice mail that send makes (SM485's account
   notices, an import's claim links) takes the same shape. `t/unit/forms/77`.
 
-- SM1401 (PENDING) **Removing an account names the rules it owned (triage T-91).** An access
+- SM1401 (5d4a0683) **Removing an account names the rules it owned (triage T-91).** An access
   rule kept its owner's login after the account went, in force as written and changeable by
   the operator alone, and nothing said so. `lazysite-users.pl remove` and the manager's
   account delete (the users API's `remove`, now answering `orphaned_rules`) say which rules
@@ -231,7 +233,7 @@ Archive
   (`Acl::_is_operator` answers 0 under token auth). The rule itself is not changed.
   `t/unit/users/73`, `t/tools/336`.
 
-- SM1402 (PENDING) **A notify setting for a form that does not exist is refused (triage
+- SM1402 (0f6fadb2) **A notify setting for a form that does not exist is refused (triage
   T-92).** `set_form_notify` (MCP) and `form-notify-save` (API) asked only whether the
   caller reaches the form, and `action_form_notify_save` wrote `lazysite/forms/<name>.conf`
   for any name - a conf for a form nobody made. A name that is neither registered (its conf
@@ -239,7 +241,7 @@ Archive
   not-found`, `field: form`), naming `create_form`; a registered form still saves, and a form
   a page binds whose conf is not there yet is made as before. `t/unit/forms/76`.
 
-- SM1404 (PENDING) **A listing carries no entry named after a rule's address profile (triage
+- SM1404 (d66320e1) **A listing carries no entry named after a rule's address profile (triage
   T-93).** On 0.16.6 an operator's `list_files /zz78-addr` showed, beside the page, an entry
   named after the folder rule's address profile with no type. Reproduced on a scratch site:
   what wrote it is SM1139's `address_profiles` (the permissions editor's picker choices, a
@@ -248,7 +250,7 @@ Archive
   only (`pickers`, the Files page being their one reader); MCP `list_files` asks without
   them. `acl-get` carries them as before. `t/unit/manager/477`.
 
-- SM1400 (PENDING) **A layout's backup snapshot is not a layout (triage T-87).** `delete_layout`
+- SM1400 (c2bab12f) **A layout's backup snapshot is not a layout (triage T-87).** `delete_layout`
   (and an activate) keeps `<name>-backup-<stamp>` beside the layouts, and the listing every
   door draws installed layouts and themes from (`themes-list-all`: the Appearance page, MCP
   `list_themes`, the control API) walked every directory under `layouts/`, so the snapshot
@@ -257,7 +259,7 @@ Archive
   `backups` (`artifact`, `layout`, `name`, `path`, the path `artifact-backups-delete` takes); the
   Appearance page's Backups panel draws that list. `layouts-available` and the catalogue
   annotation already left snapshots out. `t/unit/manager/476`.
-- SM1354 (PENDING) **Copy a page, change the copy, publish it over the page.** Ruling 155.
+- SM1354 (3ddb3af2) **Copy a page, change the copy, publish it over the page.** Ruling 155.
   `page-copy` / `copy_page` takes a private copy at `lazysite/copies/pages/<page>`, one
   per page, read and written only by those who may write the page and in the page's
   scope; it is edited like any page and rendered by `preview_page` and the manager's
@@ -270,7 +272,7 @@ Archive
   API a publish needs the new `publish_copies` as well, off by default and held by no
   shipped role. The copies folder takes no upload, delete, folder, move or file copy.
 
-- SM1355 (PENDING) **Wizards that build rows, availability switches, and row history
+- SM1355 (0555aaba) **Wizards that build rows, availability switches, and row history
   with undo.** Ruling 156. A table may name a boolean `availability` field;
   `switch_row` / `data-row-switch` and the manager's Available column turn a row on or
   off at once, as one recorded change, with the row write the table already grants; a
@@ -289,7 +291,7 @@ Archive
   price, choice, choices, yes/no; required, help, `when`) and builds or edits one row:
   `run_wizard` / `data-wizard-run` and the data page's wizard buttons. A required
   question cannot be skipped.
-- SM1356 (PENDING) **Schedules: weekly hours, exceptions, and rows that show between two
+- SM1356 (56b6ec7f) **Schedules: weekly hours, exceptions, and rows that show between two
   dates.** A table whose descriptor says `schedule: true` is a schedule: weekly periods
   (several a day, one may run past midnight) and exceptions (a date or a range, closed or
   other hours), with fields the engine gives it, written through the doors every table
@@ -309,7 +311,7 @@ Archive
   period or an exception one question at a time, and wizards gain a `date` step
   (`YYYY-MM-DD`) for its dates (t/unit/data/89).
 
-- SM1357 (PENDING) **Structured data for search: JSON-LD, every public page in the
+- SM1357 (56b6ec7f) **Structured data for search: JSON-LD, every public page in the
   sitemap, and the AI-readable summary.** A table's descriptor may map it to a schema.org
   type (`structured_data:` - type, pages, properties: a field, a `=literal` or a nested
   object), checked at save; the engine puts JSON-LD on the pages it names from the rows an
@@ -331,13 +333,13 @@ Archive
   The live-data recipe in `/docs/ai-briefing-building-sites` says so: a poll's row
   refreshes a `ttl:` page that reads the table, and `ttl:` bounds one whose table did not
   change (t/integration/360).
-- SM1410 (PENDING) **a staging run that stages no account is not kept.**
+- SM1410 (c51599e0) **a staging run that stages no account is not kept.**
   `accounts-import-stage` and `stage_accounts` wrote a staging record with `staged: 0`
   when every row was invalid and answered ok with its id. Such a run now writes nothing
   and is refused, still listing each invalid row and saying nothing was staged; a kept
   run's reply names accounts-import-remove with its id (t/integration/369).
 
-- SM1409 (PENDING) **a layout set without a theme of its own says so in words.**
+- SM1409 (c0a9c044) **a layout set without a theme of its own says so in words.**
   `domain-set` of the layout alone, with the domain's theme still the other layout's,
   mirrored the mixed pair and warned that assets belong under a path naming the new
   layout and the old theme. The set stays accepted (the two-call binding sends the layout
@@ -345,14 +347,14 @@ Archive
   layout's, the layout's own themes and what to send: layout and theme together
   (t/unit/manager/481).
 
-- SM1408 (PENDING) **a token's group refusal says what it is.** Every token deletes and
+- SM1408 (0adbda3c) **a token's group refusal says what it is.** Every token deletes and
   changes only the groups it created, and the refusal called it "a domain-confined
   caller", which a token confined to no domain read as wrong. The rule stands; the
   group-delete and group-set refusals (delete_group, set_group over MCP) and
   delete_group's description now say a token is bound by it and the operator deletes or
   changes any group from the manager's Groups page (t/integration/368).
 
-- SM1407 (PENDING) **`analysts` and `lead-readers` reach a site bootstrapped before
+- SM1407 (22c49a44) **`analysts` and `lead-readers` reach a site bootstrapped before
   them.** The two roles shipped with the bundle layer (0.11.2) in the seed only, and no
   adoption named them, so an older site got the agent roles and the bundles and never
   these. They are adopted once, with no member, through the had-record, where the bundle
@@ -360,14 +362,14 @@ Archive
   them), and never on a store whose manager group carries the `seeded` mark, whose seed
   wrote them (t/unit/users/74).
 
-- SM1411 (PENDING) **the editor takes and renews its lock with a POST.** The editor sent
+- SM1411 (eda480c7) **the editor takes and renews its lock with a POST.** The editor sent
   `lock` and `renew-lock` as GETs; both are declared mutating and the API refuses a
   mutating action sent as GET, so from 0.7.19 no editor open was granted its lock, and from
   0.15.5 the page showed "This action must be sent as POST." as its lock label and opened
   with Save disabled (the first change enabled it, so saves went through, unlocked). Both
   are POSTs now, as `unlock` was. A lint keeps every manager page's fetch of a mutating
   action a POST (t/unit/manager/480, t/lint/340).
-- SM1414 (PENDING) **A member saves content over their own session (ruling 169).** Since
+- SM1414 (0a909aa2) **A member saves content over their own session (ruling 169).** Since
   SM1057 (0.15.5) the manager API refused every signed-in account without `ui`, so a member
   app's authors could not save a file. A new capability, `write_content`, passes `read`,
   `list`, `save`, `mkdir`, `move` and `delete` on that door for a holder without `ui`, and

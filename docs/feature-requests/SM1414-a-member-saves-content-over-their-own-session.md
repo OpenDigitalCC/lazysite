@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "inbox triage 2026-11-06, row T-111; release manager, rulings 169 (Q99) and 173 (Q103)"
 area: security
-status-note: "SHIPPED (PENDING) on n775: write_content (Capabilities, @CAP_KEYS, the grids); the cookie door's member_content set (Actions), list added by ruling 173; a write needs a rule naming the caller (Acl::write_rule_names); a listing shows what a rule lets them read (Files::member_listing); paths in the session domain's root. Register entry drafted. t/integration/377."
+status-note: "SHIPPED (0.16.8) on n775: write_content (Capabilities, @CAP_KEYS, the grids); the cookie door's member_content set (Actions), list added by ruling 173; a write needs a rule naming the caller (Acl::write_rule_names); a listing shows what a rule lets them read (Files::member_listing); paths in the session domain's root. Register entry drafted. t/integration/377."
 ---
 
 # What was asked
