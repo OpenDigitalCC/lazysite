@@ -377,7 +377,7 @@ sub hooks {
         components    => [ { file => 'odoo-signin.tt' } ],
         template_vars => [
             { name => 'odoo_signin_banner', render => 'Lazysite::Odoo::SiteSignin::banner' },
-            { name => 'odoo_display_name',  render => 'Lazysite::Odoo::Name::display_name_var' },
+            { name => 'odoo_display_name', render => 'Lazysite::Odoo::Name::display_name_var' },
         ],
     };
 }
