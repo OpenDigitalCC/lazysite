@@ -3851,6 +3851,7 @@ verdict
   compliance walk. No ADR 0007 trigger fires; recorded because the request path and the
   handler catalogue gain their first callers of boundary 15's loader, as the X1 entry
   said each slice would be.
+
 ### 2026-11-07 - SM1369 X5, the asset part (0.16.8): an extension's files and variables reach the page through the index
 
 Assessment drafted by the developer agent (n770) for the release manager's confirmation.
@@ -3980,6 +3981,7 @@ verdict
 : drafted: no trigger fires; recorded because a browser now keeps a person's data
   across pages under a label the server gives, and the identity cookie's contents
   changed by one key.
+
 ### 2026-11-07 - SM1395 (0.16.8): an anonymous public write binding keeps no join
 
 Assessment drafted by the developer agent (n771) for the release manager's confirmation
