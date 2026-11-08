@@ -6,7 +6,7 @@
 # `by`, the journal's and OOM's audit's actor. Once the plan is spent each is
 # `visitor` with no hash, and the parameters are null, in both folders; the
 # maker's confirm, which checks the owner before the plan is spent, still works.
-# In-process is t/unit/odoo/136. The pack LazysiteTest::OdooMade makes a partner
+# In-process is t/unit/odoo/139. The pack LazysiteTest::OdooMade makes a partner
 # in oomd's world.
 #
 # Ruling 168: a repeat of the spent plan's confirm with the same Idempotency-Key

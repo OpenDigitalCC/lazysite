@@ -188,7 +188,7 @@ Archive
   key too (checked as a confirm's), and a key a plan's first confirm or withdraw carried is
   kept on a plan made without one, so the offline kit's resend on an anonymous binding works.
   Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md entry
-  drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/136`,
+  drafted (less processing of personal data; no ADR 0007 trigger). `t/unit/odoo/139`,
   `t/unit/odoo/137` (through oomd), `t/unit/odoo/138`.
 
 - SM1405 (PENDING) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`

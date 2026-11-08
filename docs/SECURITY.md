@@ -4051,7 +4051,7 @@ threat delta
   read).
 
 controls
-: t/unit/odoo/136: after an anonymous immediate apply the call line and its audit
+: t/unit/odoo/139: after an anonymous immediate apply the call line and its audit
   row carry no address and no hash; the plan, run and journal records hold no
   parameter value and keep their field names, fingerprint and outcomes; the setting
   is refused on a non-public binding and for a value that is neither 0 nor 1; the

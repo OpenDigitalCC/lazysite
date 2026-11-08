@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-07
 raised-by: "release manager (ruling 154), 0.16.8 wave 1"
 area: odoo
-status-note: "SHIPPED (PENDING) on n771: anonymous on public bindings; no ip or visitor on the call line or audit row; a spent plan loses its values and (ruling 160) the visitor hash; ruling 168, a repeated confirm or withdraw with the same Idempotency-Key gets the first outcome, matched by the plan's scoped key (_spent_repeat). t/unit/odoo/136-138; SECURITY.md entry drafted."
+status-note: "SHIPPED (PENDING) on n771: anonymous on public bindings; no ip or visitor on the call line or audit row; a spent plan loses its values and (ruling 160) the visitor hash; ruling 168, a repeated confirm or withdraw with the same Idempotency-Key gets the first outcome, matched by the plan's scoped key (_spent_repeat). t/unit/odoo/139-138; SECURITY.md entry drafted."
 ---
 
 # What happened
@@ -85,7 +85,7 @@ binding that keeps none of it.
 Out of scope: the extension hooks (n768-n770); this touches Odoo.pm's record
 writers and the binding parser only.
 
-Test: `t/unit/odoo/136` - after an anonymous immediate apply the call line and
+Test: `t/unit/odoo/139` - after an anonymous immediate apply the call line and
 the audit row carry no address and no hash; the plan, run and journal records
 hold no parameter value and keep their names, fingerprint and outcomes; the
 setting is refused on a non-public binding and for an unreadable value; the
@@ -95,7 +95,7 @@ setting records as before. Fails with the setting reverted (the binding cannot
 be saved) and with the record writers reverted (the lines carry both and the
 records keep their values).
 
-Ruling 160: `t/unit/odoo/136` also checks that the owner keeps the hash until
+Ruling 160: `t/unit/odoo/139` also checks that the owner keeps the hash until
 the confirm, that the maker's confirm still works, that afterwards (and after
 an immediate apply) the owner is `visitor` and no file in the plan folder names
 the hash, and that a second confirm is not found with no hash on its line.
