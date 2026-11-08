@@ -55,7 +55,10 @@ exception neither closed nor with hours, a range ending before it starts.
 `time_zone:` in `lazysite.conf` (new) names a zone from the host's zoneinfo; the
 arithmetic is POSIX's `mktime`/`localtime` under it, so summer time is the zone's own
 rule (tested across both of Europe/London's 2026 changes). Unset is UTC; a name the host
-does not know is UTC, logged, and named by `lazysite check`.
+does not know is UTC, logged, and named by `lazysite check`. Ruling 172: the Debian
+package lists `tzdata` in its Recommends (`debian/control`, the `lazysite-common` stanza;
+the Docker image's install list follows it), and the check still names a zone the host
+cannot find.
 
 ## Blocks a layout renders
 

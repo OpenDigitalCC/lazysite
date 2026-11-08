@@ -7,7 +7,8 @@
 #   * the JSON-LD the engine emits, checked against each mapping's type: a row
 #     missing what its type needs, a date that is not ISO 8601, a page the
 #     mapping names that the site does not have, a table no visitor may read;
-#   * the site's time_zone, when it names a zone the host does not know;
+#   * the site's time_zone, when it names a zone the host does not know (and
+#     ruling 172: the Debian package recommends tzdata);
 #   * ruling 171: a folder that looks like another site's content (under sites/,
 #     or holding its own lazysite.conf) and is not a declared content root.
 use strict;
@@ -108,6 +109,20 @@ subtest 'another site\'s folder, undeclared' => sub {
         'with the remedy' );
     unlike( $out, qr{(?:sites/declared|plainfolder) looks like}, 'a declared root and an ordinary folder are not named' );
     unlike( run_check( site() ), qr{looks like another site's content}, 'silent on a site with none' );
+};
+
+# Ruling 172: the Debian package recommends tzdata, the zone files time_zone:
+# names; the check (below) still names a zone the host cannot find.
+subtest 'the package recommends tzdata' => sub {
+    open my $cf, '<', repo_root() . '/debian/control' or die "debian/control: $!";
+    my $control = do { local $/; <$cf> };
+    close $cf;
+    my ($stanza) = $control =~ /(^Package: lazysite-common\n.*?)(?:\n\n|\z)/ms;
+    ok( $stanza, 'control has a lazysite-common stanza' ) or return;
+    my ($rec) = $stanza =~ /^Recommends:\n((?: \S+,?\n)+)/m;
+    like( $rec // '', qr/^ tzdata,?$/m, 'lazysite-common Recommends tzdata' );
+    my ($dep) = $stanza =~ /^Depends:\n((?: \S+,?\n)+)/m;
+    unlike( $dep // '', qr/tzdata/, 'and does not Depend on it' );
 };
 
 subtest 'the time zone' => sub {

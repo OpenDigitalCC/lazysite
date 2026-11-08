@@ -43,6 +43,7 @@ RUN apt-get update \
         libwww-perl \
         nginx \
         perl \
+        tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # The release, where the .debs put the engine payload. install.pl reads its

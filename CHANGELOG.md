@@ -284,7 +284,9 @@ Archive
   expires when the next row enters or leaves it. Ruling 164: the daemon's
   `schedule-exceptions` job (hourly, `manage_data`) removes a passed exception and writes
   the removal to the audit trail with the row it removed; with the audit trail off it
-  removes nothing. `lazysite check` names a `time_zone` the host does not know.
+  removes nothing. `lazysite check` names a `time_zone` the host does not know. Ruling 172:
+  the Debian package (`lazysite-common`) lists `tzdata` in its Recommends, as does the
+  Docker image's install list.
 
 - SM1357 (PENDING) **Structured data for search: JSON-LD, every public page in the
   sitemap, and the AI-readable summary.** A table's descriptor may map it to a schema.org

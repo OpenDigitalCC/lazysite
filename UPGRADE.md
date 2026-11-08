@@ -192,7 +192,8 @@ engine (an `sqlite3` shell) touches no stamp and still waits for the ttl.
 **Schedules and the site's time zone (SM1356).** New and opt-in: a table is a schedule
 only when its descriptor says `schedule: true`, and `time_zone:` defaults to UTC, which
 is what every date in the engine already was. A site with dated rows or a schedule sets
-`time_zone:` to its zone (the host needs the `tzdata` package; `lazysite check` names a
+`time_zone:` to its zone (the host needs the `tzdata` package, which `lazysite-common`
+now recommends, so an install that skips Recommends must add it; `lazysite check` names a
 zone it cannot find). Passed exceptions are removed by the daemon's new
 `schedule-exceptions` job, which runs as the job account and needs `manage_data` on it;
 without that grant the job records a refusal and the exceptions stay, harmlessly.

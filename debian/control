@@ -24,7 +24,9 @@ Depends:
  ${misc:Depends},
 # Recommends = the packaged production runtime (SM142 FastCGI pool) and the
 # lazily-loaded modules behind stock manager features (theme/layout install,
-# zip download, remote includes, SMTP forms).
+# zip download, remote includes, SMTP forms), and tzdata: the zone files a
+# site's time_zone: names, read by schedules and dated rows (SM1356, ruling
+# 172; without them the zone is read as UTC and `lazysite check` says so).
 Recommends:
  libfcgi-perl,
  libfcgi-procmanager-perl,
@@ -32,6 +34,7 @@ Recommends:
  libwww-perl,
  liburi-perl,
  libio-socket-ssl-perl,
+ tzdata,
 Suggests:
  libnet-xmpp-perl,
 Description: static site builder and manager - engine payload and CLI

@@ -86,7 +86,7 @@ works on staging and production.
   `Europe/London`. Schedules and dated rows (`shows_from`, `shows_until`) are
   read in it, summer time included. Default unset: UTC. A name the host does not
   know is read as UTC and `lazysite check` says so (the `tzdata` package
-  provides the names).
+  provides the names; the Debian package recommends it).
 
 `site_type`, `site_address`, `site_phone`, `site_email`, `site_hours`
 : The site's own details, for the organisation entry search engines read: the
