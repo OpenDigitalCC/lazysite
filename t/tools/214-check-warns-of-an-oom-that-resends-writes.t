@@ -24,8 +24,10 @@ sub site {
     my $doc = site_tempdir();
     make_path("$doc/lazysite/$_") for qw(auth cache logs manager);
     open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
-    print {$cf} "site_name: T\n" . ( $odoo ? "extensions:\n  - extensions/odoo.pl\n" : '' );
+    print {$cf} "site_name: T\n";
     close $cf;
+    # SM1369 X6 (H-6): the check is the extension's own, run from the hook index.
+    if ($odoo) { require OdooTest; OdooTest::enable_odoo($doc) }
     return $doc;
 }
 

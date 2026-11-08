@@ -127,7 +127,12 @@ our %KINDS = (
     # Lazysite::Daemon::Supervisor.
     services => { hook => 'H-5', slice => 'X5', live => 1, form => 'records', check_values => \&_check_services,
         functions => [qw(wanted run reason)], fields => [qw(name)], required => [qw(name wanted run)] },
-    checks            => { hook => 'H-6',  slice => 'X6' },
+    # SM1369 X6, H-6 (n782): LIVE. Functions `lazysite check` calls for an enabled
+    # extension, each with ( docroot, lazysite_dir ), answering
+    # [ { level => OK|WARN|FAIL, text, fix } ], printed with the check's own
+    # report(); one that dies is a WARN naming the extension. Consumer:
+    # tools/lazysite-check.pl, report_extension_checks.
+    checks => { hook => 'H-6', slice => 'X6', live => 1, form => 'functions' },
     # SM1369 X2: the three kinds whose consumers are built (see "X2" below). A
     # kind with a `validate` of its own is checked by it, since its rows carry
     # lists and maps the generic shapes above cannot say.
@@ -1275,6 +1280,9 @@ sub declared_entry {
             values %{ $hooks->{handler_types} };
         $e{handler_caps} = [ sort keys %c ] if %c;
     }
+    # SM1369 X6, H-6 (n782): that it declares checks, so `lazysite check` can say
+    # of one installed and off that its checks are not run.
+    $e{checks} = 1 if ref $hooks->{checks} eq 'ARRAY' && @{ $hooks->{checks} };
     return keys %e > 2 ? \%e : undef;
 }
 

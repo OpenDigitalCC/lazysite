@@ -23,6 +23,9 @@ sub site {
     open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\n";
     close $cf;
+    # SM1369 X6 (H-6): the check is the Odoo extension's own, run while it is on.
+    require OdooTest;
+    OdooTest::enable_odoo($doc);
     for ( [ 'scheduled', $sched ], [ 'scheduled-expiry', $expiry ] ) {
         next unless $_->[1];
         open my $fh, '>', "$doc/lazysite/odoo/$_->[0].json" or die $!;

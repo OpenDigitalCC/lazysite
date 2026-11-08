@@ -1444,20 +1444,10 @@ sub run_checks {
     # --- 8g2. is the login rate limiter actually counting? (SM798) --------------
     report_login_rate_limit();
 
-    # --- 8g3. do the Odoo keys scheduled bindings run on expire soon? (SM1161) ---
-    report_odoo_scheduled_keys();
-
-    # --- 8g3b. does the OOM the site loads resend a write? (SM1244) -----------
-    report_odoo_oom_version();
-
-# --- 8g4. is the Odoo extension's resident OOM running where the site asks for it? (SM1164 D4) ---
-    report_odoo_daemon();
-
-    # --- 8g5. the Odoo sign-in as the site sign-in (SM1160) --------------------
-    report_odoo_site_signin();
-
-    # --- 8g6. read bindings still capped at the old form default (SM1173) -----
-    report_odoo_read_caps();
+    # --- 8g3. what each enabled extension checks of itself (SM1369 X6, H-6) ----
+    # (the Odoo extension's: its scheduled keys' expiry SM1161, the OOM it loads
+    # SM1244, oomd SM1164 D4, the Odoo sign-in SM1160, old read caps SM1173)
+    report_extension_checks();
 
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
@@ -4200,209 +4190,55 @@ sub report_login_rate_limit {
     return;
 }
 
-# SM1161 (L5): A SCHEDULED BINDING'S OWN ODOO KEY EXPIRES, AND NOTHING ELSE
-# WOULD SAY SO UNTIL THE NIGHT'S RUN FAILED.
+# SM1369 X6, H-6 (ruling 55): WHAT AN EXTENSION CHECKS OF ITSELF.
 #
-# A scheduled binding may run as an Odoo login of its own, on a key the operator
-# set (lazysite/odoo/scheduled.json). A key issued with a duration stops when it
-# runs out, and the first sign is a timer that quietly stops delivering. The date
-# is what `odoo-status` last read from OOM (lazysite/odoo/scheduled-expiry.json)
-# - this check makes no call to Odoo - and the days left are worked out HERE, from
-# that date, so a key that expired after the last read is still found.
-#
-# WARN within 14 days and when past; an expiry never read, or that OOM does not
-# report for this Odoo, is said so at ok - it is not a finding, but it is not
-# silence either. The key itself is never read, shown or named by file.
-sub report_odoo_scheduled_keys {
-    my $dir = "$LZ/odoo";
-    my ( $sched, $st, $err ) = _read_json_state("$dir/scheduled.json");
-    if ( $st eq 'unreadable' ) {
-        report( 'WARN', "the Odoo scheduled-binding accounts cannot be read ($err), so their keys' expiry is not checked",
-            'run the check as the web server user, or fix the file\'s group access' );
-        return;
+# An enabled extension declares its checks (`hooks.checks`, functions in its
+# payload lib); each is called through the hook loader with the docroot and the
+# lazysite directory and answers [ { level, text, fix } ], printed here with
+# report() like any of this tool's own findings. A check that cannot run, or
+# dies, is a WARN naming the extension and never ends the run; a finding that
+# is not one (another level, no text) is a WARN too, so nothing an extension
+# says is lost or invents a level the summary does not count. An extension
+# that is installed and off, and declares checks, is one line: installed, off.
+sub report_extension_checks {
+    require Lazysite::Extensions::Hooks;
+    my $idx      = Lazysite::Extensions::Hooks::read_index($LZ);
+    my $on       = Lazysite::Extensions::Hooks::enabled_keys($LZ);
+    my $declared = ref $idx->{declared} eq 'HASH' ? $idx->{declared} : {};
+    my %ran;
+    for my $id ( sort keys %{ $idx->{extensions} || {} } ) {
+        my $e = $idx->{extensions}{$id};
+        next unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{checks} eq 'ARRAY';
+        next unless $on->{ $e->{key} // '' };
+        $ran{$id} = 1;
+        my $name = ( ref $declared->{$id} eq 'HASH' ? $declared->{$id}{name} : undef ) // $id;
+        for my $fn ( @{ $e->{hooks}{checks} } ) {
+            my ( $ok, $rows ) = Lazysite::Extensions::Hooks::call_hook( $DOC, $id, $fn, $DOC, $LZ );
+            unless ($ok) {
+                report( 'WARN', "the $name extension's check did not run ($fn): " . ( $rows // 'no reason given' ),
+                    'see the site log; the other checks ran' );
+                next;
+            }
+            for my $f ( ref $rows eq 'ARRAY' ? @$rows : () ) {
+                my $level = ref $f eq 'HASH' && defined $f->{level} && !ref $f->{level} ? $f->{level} : '';
+                unless ( $level =~ /\A(?:OK|WARN|FAIL)\z/ && defined $f->{text} && !ref $f->{text} && length $f->{text} ) {
+                    report( 'WARN', "the $name extension's check ($fn) answered a finding that is not one "
+                            . '(a level of OK, WARN or FAIL, and its text)' );
+                    next;
+                }
+                report( $level, $f->{text}, defined $f->{fix} && !ref $f->{fix} && length $f->{fix} ? $f->{fix} : undef );
+            }
+        }
     }
-    return unless $st eq 'ok' && %$sched;
-    my $seen = _read_json("$dir/scheduled-expiry.json") || {};
-    my $now  = time;
-    for my $b ( sort keys %$sched ) {
-        my $login = $sched->{$b}{login} // '?';
-        my $e     = $seen->{$b};
-        my $what  = "the Odoo key for scheduled binding '$b' (login $login)";
-        if ( ref $e ne 'HASH' || ( $e->{key} // '' ) ne ( $sched->{$b}{id} // '' ) ) {
-            report( 'OK', "$what: expiry not yet read - the Odoo status page reads it" );
-            next;
-        }
-        unless ( defined $e->{expires_by} ) {
-            report( 'OK', "$what: expiry not reported (" . ( $e->{expiry} // 'unknown' ) . ')' );
-            next;
-        }
-        my $left = int( ( $e->{expires_by} - $now ) / 86400 );
-        my $when = POSIX::strftime( '%Y-%m-%d', gmtime $e->{expires_by} );
-        my $hint = 'issue a new key in Odoo for that login and set it again on the Odoo page '
-            . "(odoo-secret-set with scheduled=$b)";
-        if ( $e->{expires_by} <= $now ) {
-            report( 'WARN', "$what has expired ($when): its scheduled runs are refused by Odoo", $hint );
-        }
-        elsif ( $left < 14 ) {
-            report( 'WARN', "$what expires $when ($left day" . ( $left == 1 ? '' : 's' ) . ' left)', $hint );
-        }
-        else {
-            report( 'OK', "$what expires $when ($left days left)" );
-        }
+    for my $id ( sort keys %$declared ) {
+        my $d = $declared->{$id};
+        next unless ref $d eq 'HASH' && $d->{checks} && !$ran{$id};
+        next if $on->{ $d->{key} // '' }; # on, and refused or not indexed: report_hook_index says so
+        report( 'OK', 'the ' . ( $d->{name} // $id ) . ' extension is installed, off - its checks run while it is on' );
     }
     return;
 }
 
-# SM1164 D4: a site that sets odoo_daemon to on or required has asked for oomd.
-# When it is not running a call falls back to the slower in-process path (on) or
-# is refused (required), and nothing says so until a page is slow or fails: so
-# the check names the site, says which socket it should answer on (the site's own
-# or oomd's default directory, which a long path forces), and why it is not
-# there when the supervisor knows.
-# SM1244 (#376): OOM 0.37 AND EARLIER CAN SEND A WRITE AGAIN WHEN ITS ANSWER TIMED
-# OUT, so a change can be made twice in Odoo. 0.38 calls such a change `unknown`
-# and does not repeat it (runs-38, SM1216). The site loads OOM the way any Perl
-# does - `require Odoo::Ops` on its @INC: the installed libodoo-oom-perl, unless
-# PERL5LIB names another copy (the vendored t/vendor/oom is the suite's, never a
-# site's) - so this asks the same question in the same way and names the file it
-# found. ODOO_OOM_SHARE says where OOM's DATA is, not its code, and plays no part.
-# Only while the Odoo extension is on: a site that does not call Odoo is not at risk.
-our $OOM_SAFE_RESEND;
-BEGIN { $OOM_SAFE_RESEND = q{0.38} }    # set before the checks above run
-
-sub report_odoo_oom_version {
-    my $on = eval {
-        require Lazysite::Manager::Extensions;
-        no warnings 'once';
-        local $Lazysite::Manager::Extensions::DOCROOT = $opt{docroot};
-        Lazysite::Manager::Extensions::extension_enabled('extensions/odoo.pl');
-    };
-    return unless $on;
-    my ( $have, $file );
-    if ( eval { require Odoo::Ops::Version; 1 } ) {
-        no warnings 'once';
-        ( $have, $file ) = ( $Odoo::Ops::Version::VERSION, $INC{'Odoo/Ops/Version.pm'} );
-    }
-    elsif ( eval { require Odoo::Ops; 1 } ) {
-        ( $have, $file ) = ( eval { Odoo::Ops->VERSION }, $INC{'Odoo/Ops.pm'} );
-    }
-    else {
-        report( 'WARN', 'the Odoo extension is on and OOM cannot be loaded (Odoo::Ops), so every Odoo call is refused',
-            'install OOM ' . $OOM_SAFE_RESEND . ' or later (libodoo-oom-perl)' );
-        return;
-    }
-    require version;
-    my $old = !defined $have || !eval { version->parse($have) >= version->parse($OOM_SAFE_RESEND) };
-    unless ($old) {
-        report( 'OK', "the Odoo extension loads OOM $have ($file)" );
-        return;
-    }
-    report( 'WARN',
-        'the Odoo extension is on and the OOM it loads is ' . ( $have // 'unversioned' ) . " ($file): "
-            . "OOM older than $OOM_SAFE_RESEND can send a write again when its answer timed out, "
-            . 'so a change can be made twice in Odoo',
-        "install OOM $OOM_SAFE_RESEND or later (libodoo-oom-perl >= $OOM_SAFE_RESEND, and odoo-oom-tools "
-            . 'for oomd)' );
-    return;
-}
-
-sub report_odoo_daemon {
-    my $d = $opt{docroot};
-    return unless -r "$LZ/odoo.conf";
-    my $st = eval {
-        require Lazysite::Extensions;
-        Lazysite::Extensions::require_payload('Lazysite::Odoo::Daemon');
-        Lazysite::Extensions::require_payload('Lazysite::Odoo');
-        no warnings 'once';
-        local $Lazysite::Odoo::DOCROOT = $d;
-        Lazysite::Odoo::Daemon::status($d);
-    };
-    return unless ref $st eq 'HASH' && $st->{mode} ne 'off';
-    my $where = $st->{socket_in} eq 'site'
-        ? "its socket is under the site ($st->{socket})"
-        : "the site path is too long for a socket, so it uses oomd's default directory ($st->{socket})";
-    if ( $st->{running} ) {
-        my $h = $st->{health} || {};
-        report( 'OK', "the Odoo extension's oomd is running ($st->{name}, OOM $h->{version}, $h->{workers} workers); $where" );
-        # SM1244: a call oomd answers runs in oomd's OOM, not the one the site
-        # loads, so its version is asked the same question.
-        require version;
-        report( 'WARN',
-            "the Odoo extension's oomd runs OOM $h->{version}: OOM older than $OOM_SAFE_RESEND can send a write "
-                . 'again when its answer timed out, so a change can be made twice in Odoo',
-            "install OOM $OOM_SAFE_RESEND or later (odoo-oom-tools and libodoo-oom-perl >= $OOM_SAFE_RESEND) "
-                . 'and restart oomd' )
-            if defined $h->{version}
-            && !eval { version->parse( $h->{version} ) >= version->parse($OOM_SAFE_RESEND) };
-        return;
-    }
-    my $level = $st->{mode} eq 'required' ? 'FAIL' : 'WARN';
-    my $why
-        = !$st->{installed} ? 'oomd is not installed (the odoo-oom-tools package)'
-        : $st->{failed}     ? "the supervisor stopped restarting it: $st->{reason}"
-        :   'the daemon extension is not running it - it must be enabled and its runtime running';
-    report( $level,
-        "the Odoo extension has odoo_daemon: $st->{mode} and oomd ($st->{name}) is not running; $why",
-        ( $st->{mode} eq 'required' ? 'every Odoo call is refused until it runs' : 'Odoo calls take the slower in-process path until it runs' )
-            . "; $where" );
-    return;
-}
-
-# SM1160: on a site that opted in (odoo_site_signin: on) the mapping of Odoo groups to site
-# groups is part of who can see what. Each entry refused (a target that carries a capability, a
-# malformed id or name) is named: it grants nothing and is the operator's to correct. An xml id
-# Odoo does not know cannot be named since OOM 0.37 (SM1217), and the line says so rather than
-# reading as "all known". Reads the config; makes no call to Odoo.
-sub report_odoo_site_signin {
-    require Lazysite::Extensions;
-    Lazysite::Extensions::require_payload('Lazysite::Odoo::SiteSignin');
-    my $r = Lazysite::Odoo::SiteSignin::report($LZ);
-    return unless $r->{enabled};
-    report( 'OK', "the Odoo sign-in is the site sign-in; $r->{mapped} Odoo group" . ( $r->{mapped} == 1 ? '' : 's' ) . ' mapped'
-            . ( defined $r->{unknown_note} ? " ($r->{unknown_note})" : '' ) );
-    for my $x ( @{ $r->{refused} } ) {
-        report( 'WARN', "odoo_group_map: '$x->{xmlid} = $x->{group}' is refused and grants nothing - $x->{why}",
-            'correct the entry on the Odoo page; a site group that carries a capability cannot be given by an Odoo group' );
-    }
-    return;
-}
-
-# SM1173: READ BINDINGS SAVED WITH THE OLD FORM DEFAULT.
-#
-# Reads default to 2,000 per caller and 20,000 per binding, but the manager form
-# used to save 20 and 200 into every binding, so a read made there still holds
-# them as its OWN caps and keeps them. The operator may have meant it, so this is
-# a WARN that names the binding and changes nothing. Whether a binding reads is
-# the operation's own answer (Lazysite::Odoo::writes_of); when OOM or the
-# connection cannot be asked the binding is not named - nothing is guessed.
-sub report_odoo_read_caps {
-    my $list = eval {
-        require Lazysite::Handlers;
-        no warnings 'once';
-        local $Lazysite::Handlers::DOCROOT = $DOC;
-        Lazysite::Handlers::read_handlers();
-    };
-    return unless ref $list eq 'ARRAY';
-    my @old = grep {
-        ( $_->{type} // '' ) eq 'odoo'
-            && ( $_->{rate_per_visitor_hour} // '' ) eq '20'
-            && ( $_->{rate_per_hour}         // '' ) eq '200'
-    } @$list;
-    return unless @old;
-    my $ok = eval { require Lazysite::Extensions; Lazysite::Extensions::require_payload('Lazysite::Odoo'); 1 };
-    return unless $ok;
-    no warnings 'once';
-    local $Lazysite::Odoo::DOCROOT = $DOC;
-    for my $b ( sort { $a->{id} cmp $b->{id} } @old ) {
-        my $w = eval { Lazysite::Odoo::writes_of($b) };
-        next unless defined $w && !$w;
-        report( 'WARN',
-            "binding $b->{id} is a read capped at 20/200 per hour, the old form default; "
-                . 'clear its two Cap fields in the manager to take 2000/20000',
-            'the Handlers page: empty rate_per_visitor_hour and rate_per_hour on that binding' );
-    }
-    return;
-}
 
 sub report_private_store_usable {
     my $d = $opt{docroot};

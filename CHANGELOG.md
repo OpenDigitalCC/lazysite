@@ -93,6 +93,14 @@ Archive
   list in place of a list core kept. The Odoo extension declares oomd and its
   endpoint's parent as services, unchanged in behaviour.
 
+- SM1369 (PENDING) **X6, H-6: `lazysite check` runs what an enabled extension checks of
+  itself.** `hooks.checks` goes live: each function answers findings (`level`, `text`,
+  `fix`) that the check prints with its own `report()`; one that dies is a WARN naming
+  the extension and the run goes on; an extension installed and off is one line,
+  "installed, off". The Odoo extension's five checks (its scheduled keys' expiry, the OOM
+  it loads, oomd, the Odoo sign-in's group map, read bindings at the old form default)
+  move into it and print the same lines while it is on; with it off they no longer run.
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and

@@ -412,6 +412,12 @@ sub hooks {
                         Odoo::Ops::Operation Odoo::Ops::Context Odoo::Ops::Config) ] },
         ],
 
+        # SM1369 X6, H-6 (n782): what `lazysite check` says of this extension -
+        # its scheduled keys' expiry, the OOM it loads, oomd, the Odoo sign-in's
+        # group map and the read bindings at the old form default - the same
+        # lines as before, while it is on.
+        checks => ['Lazysite::Odoo::Check::run'],
+
         # SM1369 X5, H-5 (n782): the two services lazysited runs for this
         # extension, each behind its own gate, declared rather than known to the
         # supervisor by name: oomd, the resident OOM (SM1164 D2), and the page

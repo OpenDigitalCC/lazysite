@@ -77,7 +77,8 @@ my %NAMED = ( odoo => qr{(?<![A-Za-z])(?:[Oo]doo|ODOO|[Oo]om|OOM)d?(?![a-z])} );
 # names, the display name, the sign-in page, the login option and the
 # maintenance exemption; 15 since X5's endpoint kit and services (n782): the
 # supervisor, the warm-fork parent and its wire read the declared services and
-# the warm endpoint. It may only shrink.
+# the warm endpoint; 14 since X6's checks (n782): the Odoo checks are the
+# extension's, declared. It may only shrink.
 my %ALLOWED = (
     'installers/apache/vhost-fcgi.conf.example'  => 1,
     'installers/hestia/lazysite-fcgi.stpl'       => 1,
@@ -91,7 +92,6 @@ my %ALLOWED = (
     'tools/bench-surfaces.pl'                    => 69,
     'tools/coverage-groups.pl'                   => 1,
     'tools/ext-compat.sh'                        => 18,
-    'tools/lazysite-check.pl'                    => 57,
     'tools/lazysite-server.pl'                   => 1,
     'tools/precheck-areas.pl'                    => 3,
     'tools/vendor-oom.sh'                        => 20,
