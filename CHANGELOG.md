@@ -296,7 +296,8 @@ Archive
   through any door refreshes the pages that show its table at once, `ttl:` or not (each
   table's change stamp). `sitemap.xml` and `llms.txt` list every public page - a page with
   no `register:` key is in both - and never a protected, draft, copied, `api:`/`raw:`,
-  `search: false`, demonstration or system page. Ruling 165: `llms.txt` is on by default
+  `search: false`, demonstration or system page. Ruling 174: the two are built from one page
+  set and list exactly the same pages (a page registered for either is in both). Ruling 165: `llms.txt` is on by default
   with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
   `lazysite check` names a public page with no title or description, a shared title, and
   the findings in the emitted JSON-LD against each mapping's type.

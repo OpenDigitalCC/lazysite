@@ -11,6 +11,8 @@
 #     a read rule), a draft section, an api:/raw: page, a page copy (SM1354
 #     keeps them under lazysite/copies/), a page that says search: false, a
 #     starter demonstration page, and the engine's system pages at the root;
+#   * ruling 174: the two are built from one page set and name exactly the
+#     same pages (a page registered for only one is in both);
 #   * the summary carries titles, descriptions and the organisation entry;
 #   * `llms_txt: off` turns the summary off - not generated, not served - and
 #     leaves the sitemap as it was;
@@ -50,6 +52,9 @@ sub site {
     spit( "$d/plain.md",      "---\ntitle: Plain page\nsubtitle: A page nobody registered\n---\nP\n" );
     spit( "$d/feed-only.md",  "---\ntitle: Feed only\nregister:\n  - feed.rss\n---\nF\n" );
     spit( "$d/both.md",       "---\ntitle: Both\nregister:\n  - sitemap.xml\n  - llms.txt\n---\nB\n" );
+    spit( "$d/map-only.md",   "---\ntitle: Map only\nregister:\n  - sitemap.xml\n---\nS\n" );
+    spit( "$d/llms-only.md",  "---\ntitle: Summary only\nregister:\n  - llms.txt\n---\nS\n" );
+    spit( "$d/moved.md",      "---\ntitle: Moved\nredirect: /plain\n---\nR\n" );
     spit( "$d/members.md",    "---\ntitle: Members\nauth: required\nregister:\n  - sitemap.xml\n  - llms.txt\n---\nM\n" );
     spit( "$d/grouped.md",    "---\ntitle: Grouped\nauth_groups:\n  - staff\n---\nG\n" );
     spit( "$d/ruled/page.md", "---\ntitle: Ruled\n---\nR\n" );
@@ -75,7 +80,7 @@ subtest 'the sitemap lists every public page and nothing else' => sub {
     like( $map, qr{<loc>http://localhost/plain</loc>}, 'a page nobody registered is listed' );
     like( $map, qr{<loc>http://localhost/</loc>},      'the home page too' );
     like( $map, qr{<loc>http://localhost/both</loc>},  'a registered page, as before' );
-    for my $out (qw(feed-only members grouped ruled/page upcoming/next data rawfile hidden demo login 404 api-test raw-test)) {
+    for my $out (qw(feed-only members grouped ruled/page upcoming/next data rawfile hidden demo moved login 404 api-test raw-test)) {
         unlike( $map, qr{<loc>http://localhost/\Q$out\E</loc>}, "not /$out" );
     }
     unlike( $map, qr{COPY|copies}, 'and no page copy' );
@@ -97,6 +102,33 @@ subtest 'the summary: public pages, titles, descriptions, the organisation' => s
 
     my $plain = site();
     unlike( body( run_processor( $plain, '/llms.txt' ) ), qr{## About}, 'no organisation entry on a site that states none' );
+};
+
+# Ruling 174: the two are built from ONE page set, so they name exactly the same
+# pages - a page registered for only one of them is in both - and no protected
+# page is in either.
+subtest 'the sitemap and the summary name exactly the same pages' => sub {
+    my $d   = site();
+    my $map = run_processor( $d, '/sitemap.xml' );
+    my $txt = body( run_processor( $d, '/llms.txt' ) );
+    my @in_map = sort map { s{\Ahttp://localhost}{}r } $map =~ m{<loc>([^<]+)</loc>}g;
+    my @in_txt = sort map {
+        my $u = s{\Ahttp://localhost}{}r;
+        $u =~ s{/index\.md\z}{/} or $u =~ s{\.md\z}{};
+        $u
+    } $txt =~ m{^- \[[^\]]*\]\(([^)]+)\)}mg;
+    ok( scalar(@in_map) >= 4, 'the sitemap lists pages (' . scalar(@in_map) . ')' );
+    is_deeply( \@in_txt, \@in_map, 'the summary names the same page paths as the sitemap' )
+        or diag( "sitemap: @in_map\nsummary: @in_txt" );
+    ok( ( grep { $_ eq '/map-only' } @in_txt ), 'a page registered for the sitemap alone is in the summary too' );
+    ok( ( grep { $_ eq '/llms-only' } @in_map ), 'and one registered for the summary alone is in the sitemap' );
+    for my $protected (qw(/members /grouped /ruled/page)) {
+        ok( !( grep { $_ eq $protected } @in_map, @in_txt ), "protected $protected is in neither" );
+    }
+    for my $out (qw(/upcoming/next /rawfile /data /moved /hidden)) {
+        ok( !( grep { $_ eq $out } @in_map, @in_txt ), "$out is in neither" );
+    }
+    ok( !( grep { m{copies} } @in_map, @in_txt ), 'nor is a page copy' );
 };
 
 subtest 'llms_txt: off turns the summary off, and only the summary' => sub {

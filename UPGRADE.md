@@ -168,7 +168,8 @@ before.
 listed only pages whose front matter said `register: [sitemap.xml]` (or `llms.txt`).
 From this release a page with no `register:` key is in both, so on upgrade the sitemap
 and the summary grow to the site's whole public content. A page that has a `register:`
-list keeps what it says; a protected, draft, copied, `api:`/`raw:`, redirect or starter
+list keeps what it says, and one that names either the sitemap or `llms.txt` is now in
+both (ruling 174: the two list exactly the same pages); a protected, draft, copied, `api:`/`raw:`, redirect or starter
 demonstration page and the engine's sign-in and error pages are never listed. To keep a
 page out, give it `search: false`, or a `register:` list that does not name the
 registry. `llms.txt` is on by default (a site that had no page registered for it now

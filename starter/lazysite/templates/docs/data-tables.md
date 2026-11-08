@@ -1240,7 +1240,8 @@ published once one of the details is set. See
 
 **The sitemap and the AI-readable summary list every public page.** A page with
 no `register:` key is in `sitemap.xml` and `llms.txt`; a page with one keeps
-what it says. Left out whatever they register: a protected or draft page, a page
+what it says. The two list the same pages, from one page set: a page registered
+for either is in both. Left out whatever they register: a protected or draft page, a page
 copy, an `api:` or `raw:` page, a page that says `search: false`, a redirect,
 a starter demonstration page and the engine's sign-in and error pages. The
 summary (`llms.txt`) carries each page's title and description and the

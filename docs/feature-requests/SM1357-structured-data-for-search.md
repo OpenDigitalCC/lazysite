@@ -93,8 +93,11 @@ wait for the page's `ttl:`. The expiry (SM1356) is the same record's `@<epoch>` 
 
 There was already a sitemap (`sitemap.xml`, a registry) and an `llms.txt` registry, each
 listing only the pages that registered for it. Extended, not duplicated:
-`_registry_lists` lists in both every page with no `register:` key, and keeps a page's
-own list where it has one. Never listed: a draft, ACL-governed or gated page
+every page with no `register:` key is listed in both, and a page's own list is kept where
+it has one. Ruling 174 (release manager, 2026-11-08): the two are equivalent, built from
+ONE page set (`_public_page_set`, which both call) and listing exactly the same pages, so a
+page registered for either is in both; protected pages are excluded from both.
+t/unit/processor/187 compares the two lists' page paths on one fixture. Never listed: a draft, ACL-governed or gated page
 (`_registry_hidden`, as before), anything under `lazysite/` (SM1354's page copies), an
 `api:`/`raw:` page, `search: false`, a redirect, `starter_role: demonstration` (SM486) and
 the engine's system pages at a content root. `llms.txt` is on by default with titles,

@@ -15,7 +15,9 @@ from page metadata. Pages opt in by listing registry names in their
 
 **`sitemap.xml` and `llms.txt` list every public page** (from 0.16.8). A page
 with no `register:` key is in both; a page with one keeps what it says, so a
-page that registers only for a feed is in neither. Never listed, whatever they
+page that registers only for a feed is in neither. The two are built from one
+page set and always list the same pages: a page registered for either of them
+is in both. Never listed, whatever they
 register: a protected or draft page, a page copy, an `api:` or `raw:` page, a
 page with `search: false`, a redirect, a starter demonstration page and the
 engine's sign-in and error pages. `llms.txt` also carries the site's

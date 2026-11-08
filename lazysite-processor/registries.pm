@@ -13,7 +13,9 @@ package main;
 #         for a page a walk leaves out, SM976 Q15h); _listed_by_default,
 #         _registry_lists, _llms_txt_on and _registry_organisation (SM1357, ruling
 #         165: the sitemap and the summary list every public page, the summary
-#         has a switch and carries the organisation entry); scan_pages(), the walk
+#         has a switch and carries the organisation entry); _public_page_set and
+#         _in_public_page_set (ruling 174: the one page set both list);
+#         scan_pages(), the walk
 #         the registries are built from; update_registries() and its P-3 memo of whether any
 #         registry template exists; _feed_dates; the registry serving path -
 #         _serve_registry, _registry_cache_path, _registry_ct, _registry_stale
@@ -205,14 +207,37 @@ sub _registry_listable {
     return 1;
 }
 
-# Which pages a registry lists: its own registrants, and for the sitemap and the
-# summary every public page (above) - an api or raw page never, even registered.
+# Which pages a feed lists: its own registrants. The sitemap and the summary list
+# the ONE public page set instead (_public_page_set, below).
 sub _registry_lists {
     my ( $name, $page ) = @_;
-    my $registered = grep { $_ eq $name } @{ $page->{register} || [] };
-    return $registered ? 1 : 0 unless $name eq 'sitemap.xml' || $name eq 'llms.txt';
-    return 0                   unless $page->{_listable};
-    return ( $registered || $page->{_default} ) ? 1 : 0;
+    return ( grep { $_ eq $name } @{ $page->{register} || [] } ) ? 1 : 0;
+}
+
+# Ruling 174: THE SITEMAP AND THE SUMMARY ARE EQUIVALENT - built from one page
+# set and listing exactly the same pages. Before, each read its own registrants,
+# so a page registered for the sitemap alone was in the sitemap and missing from
+# llms.txt, and the two drifted apart page by page. Both now call this one
+# function. A page is in the set when it is listable (_registry_listable: not
+# api/raw, search: false, a redirect or a demonstration page) and either nobody
+# registered it (_listed_by_default) or it registered for EITHER of the two. A
+# draft, a protected page (auth:, auth_groups:, a read rule) and a page copy
+# never reach @pages at all (scan_pages, _registry_hidden).
+sub _public_page_set_registry {
+    my ($name) = @_;
+    return ( $name eq 'sitemap.xml' || $name eq 'llms.txt' ) ? 1 : 0;
+}
+
+sub _in_public_page_set {
+    my ($page) = @_;
+    return 0 unless $page->{_listable};
+    return 1 if $page->{_default};
+    return ( grep { _public_page_set_registry($_) } @{ $page->{register} || [] } ) ? 1 : 0;
+}
+
+sub _public_page_set {
+    my (@pages) = @_;
+    return grep { _in_public_page_set($_) } @pages;
 }
 
 # Ruling 165: the summary is ON by default; `llms_txt: off` in lazysite.conf
@@ -861,7 +886,11 @@ sub _registry_stale {
 
             # Filter pages registered for this registry
             my $registry_name = $output_name;
-            my @registered = grep { _registry_lists( $registry_name, $_ ) } @pages; # SM1357
+            # Ruling 174: the sitemap and the summary from the one page set.
+            my @registered =
+                _public_page_set_registry($registry_name)
+                ? _public_page_set(@pages)
+                : grep { _registry_lists( $registry_name, $_ ) } @pages;
 
             # SM179 P3: for a language set, attach each page's hreflang alternates
             # so the sitemap can advertise its siblings (xhtml:link). Copy each
