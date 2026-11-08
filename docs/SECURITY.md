@@ -5034,7 +5034,7 @@ verdict
 
 ### 2026-11-08 - SM1364 (0.16.9, PENDING): a table reads its rows from another system's API
 
-Assessment drafted by the developer agent (n783); the release manager confirms.
+Assessment drafted by the developer agent (n783); the trigger ruled by the release manager (ruling 190).
 
 what changed
 : A data table's descriptor may name a `source:` - a GET connector, the schedule entry
@@ -5048,17 +5048,19 @@ what changed
   record gains `last_ok`, which `data-table` reads to say how old the rows are.
 
 threat delta
-: Outside data entering tables. A remote system's values now become column values a page
-  can render, where before they sat whole in one `answer` text column. ADR 0007 check:
-  new-external-interface does not fire - the outbound call is the existing connector
-  egress (its URL, secret, modes, callers, rate cap, no redirects, the 64 KB answer cap
+: ADR 0007's new-processing-of-restricted-data trigger fires (ruling 190, as ruling
+  177, which names it new processing of personal data): a remote system's values, a
+  person's data among them (a booking's guest), now become column values a page can
+  render, where before they sat whole in one `answer` text column, and a refresh removes
+  rows the source stops sending. It is contained by the connector's callers (who may
+  cause the call), the table's read rules (`public`, `where`, its access rule - who may
+  read the rows) and the read-only mapping (no local door can write a source column).
+  The other three triggers do not fire. new-external-interface does not fire: the
+  outbound call is the existing connector egress (its URL, secret, modes, callers, rate cap, no redirects, the 64 KB answer cap
   and the call record, all unchanged), and the refresh action is a new action on the
   existing doors under existing authentication and `manage_data`. new-authentication-
   method and new-dependency-with-authentication-logic do not fire (no sign-in change; no
-  new module). new-processing-of-restricted-data is the closest: the data is the
-  source's, possibly personal (a booking's guest), and it was already received and kept
-  by a connector's answer table since SM579; the release manager confirms whether moving
-  it into columns counts.
+  new module).
 : Tampering: a remote can only write the mapped columns of the one table that names its
   connector as source; `_keep_answer` refuses an answer from any other connector. Values
   go through `import_rows`' coercion (each column's type, required, unique, a schedule
@@ -5095,6 +5097,7 @@ residual risk
   `Connectors::call`.
 
 verdict
-: drafted by the developer agent for the release manager's confirmation: no trigger
-  fired on the reading above, with new-processing-of-restricted-data named for the
-  release manager to rule.
+: accepted, ruled by the release manager (ruling 190): ADR 0007's
+  new-processing-of-restricted-data trigger fires and is contained by the connector's
+  callers, the table's read rules and the read-only mapping, so the ADR 0007 waiver
+  stands. The other three triggers do not fire. Drafted by the developer agent (n783).
