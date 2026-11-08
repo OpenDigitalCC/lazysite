@@ -3297,69 +3297,112 @@ sub report_cryptx {
     return;
 }
 
-# SM1357: EVERY PUBLIC PAGE HAS A TITLE AND A DESCRIPTION, and no two share a
-# title. The sitemap and the AI-readable summary list every public page, and a
-# search engine shows a page by its title and description: a page with neither is
-# listed as its address. A text scan of the front matter, as the rest of this
-# tool reads pages; "public" is the registries' rule (no auth: beyond none, no
-# auth_groups, not api/raw, not search: false, not a redirect, not a starter
-# demonstration page). The description is meta_desc, else subtitle.
+# SM1357: EVERY PUBLIC PAGE HAS A TITLE AND A DESCRIPTION, and no two pages of
+# one domain share a title. The sitemap and the AI-readable summary list every
+# public page, and a search engine shows a page by its title and description: a
+# page with neither is listed as its address.
+#
+# n785: PER DOMAIN, FROM THE PAGE SET THE SITEMAP LISTS. This walked the whole
+# docroot, so `index.md` and `sites/b/index.md` - the home pages of two domains -
+# were one shared title. Each domain's set now comes from the processor itself
+# (`--page-set`, _public_page_set_listing: ruling 174's one set, from the scan
+# its sitemap and llms.txt are built from), so another domain's root, ruling
+# 171's folders and every page the sitemap leaves out are not counted, and each
+# warning names its domain. The primary first, then each alias with a content
+# root of its own; an alias without one shares the primary's pages. On a site with
+# one domain the warnings name none (ruling 199). Title and
+# description as the registries publish them: meta_title else title, meta_desc
+# else subtitle.
 sub report_page_titles {
-    my $d = $opt{docroot};
-    my ( @untitled, @undescribed, %by_title, $n );
-    find_noting( 'the page title check',
-        { no_chdir => 1, wanted => sub {
-                my $p = $File::Find::name;
-                if ( -d $p ) {
-                    $File::Find::prune = 1
-                        if $p eq Lazysite::Paths::internal_lazysite_dir($d) || ( -l $p && $p ne $d );
-                    return;
-                }
-                return unless $p =~ /\.md\z/;
-                open my $fh, '<', $p or return;
-                my $text = do { local $/; <$fh> };
-                close $fh;
-                my ($fm) = $text =~ /\A---\s*\n(.*?)\n---\s*\n/s;
-                $fm //= '';
-                my %m;
-                while ( $fm =~ /^([a-z_]+)[ \t]*:[ \t]*(.*?)[ \t]*$/mg ) { $m{$1} //= $2 }
-                s/\A(["'])(.*)\1\z/$2/ for values %m;
-                return if length( $m{auth} // '' ) && $m{auth} !~ /\Anone\z/i;
-                return if exists $m{auth_groups};
-                return if ( $m{api} // '' ) =~ /\Atrue\z/i || ( $m{raw} // '' ) =~ /\Atrue\z/i;
-                return if ( $m{search}         // '' ) =~ /\Afalse\z/i;
-                return if length( $m{redirect} // '' );
-                return if ( $m{starter_role}   // '' ) eq 'demonstration';
-                $n++;
-                my $rel   = $p =~ s{\A\Q$d\E/}{}r;
-                my $title = $m{meta_title} // $m{title} // '';
-                push @untitled, $rel unless length $title;
-                push @undescribed, $rel unless length( $m{meta_desc} // '' ) || length( $m{subtitle} // '' );
-                push @{ $by_title{ lc $title } }, $rel if length $title;
-        } }, $d );
+    my $d      = $opt{docroot};
+    my $bin    = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    my ($proc) = grep { defined && -f && -r }
+        ( defined $opt{cgibin} ? "$CGI/lazysite-processor.pl" : () ),
+        Lazysite::Paths::find_processor($d),
+        "$bin/../lazysite-processor.pl";    # the engine tree this tool runs from
+    unless ( defined $proc ) {
+        report( 'WARN', 'the page title check did not run: no lazysite-processor.pl was found',
+            'pass --cgibin with the cgi-bin directory that holds it' );
+        return;
+    }
+    my $site_url  = conf_value( $conf, 'site_url' ) // '';
+    my ($primary) = $site_url =~ m{\A\w+://([^/:]+)};
+    my @hosts     = ( [ undef, $primary // 'the primary domain' ],
+        map { [ $_, $_ ] } grep { length } map { lc s/^\s+|\s+$//gr } split /,/, conf_value( $conf, 'alias_hosts' ) // '' );
+
+    my ( $n,    $bad ) = ( 0, 0 );
+    my ( @read, %seen );
+    for my $h (@hosts) {
+        my ( $host, $label ) = @{$h};
+        my $set = _page_set_of( $proc, $d, $host );
+        unless ( ref $set eq 'HASH' ) {
+            report( 'WARN', "$label: the page title check did not run: $proc --page-set gave no page set",
+                'run it by hand with DOCUMENT_ROOT set to see why' );
+            $bad = 1;
+            next;
+        }
+        next unless defined $set->{root} && !$seen{ $set->{root} }++;
+        my ( @untitled, @undescribed, %by_title );
+        for my $p ( @{ $set->{pages} || [] } ) {
+            $n++;
+            my $title = $p->{title} // '';
+            push @untitled,    $p->{url} unless length $title;
+            push @undescribed, $p->{url} unless length( $p->{description} // '' );
+            push @{ $by_title{ lc $title } }, $p->{url} if length $title;
+        }
+        push @read, [ $label, \@untitled, \@undescribed, \%by_title ];
+    }
+    # Ruling 199: a site with one domain is not told which domain it is.
+    for my $r (@read) {
+        $r->[0] = '' if @read == 1;
+        $bad    = 1  if _report_page_titles_of( @{$r} );
+    }
+    report( 'OK', "$n public page(s), each with a title and a description of its own" ) unless $bad;
+    return;
+}
+
+# One domain's page set, from the processor as a command (never a request).
+sub _page_set_of {
+    my ( $proc, $d, $host ) = @_;
+    local %ENV = %ENV;
+    delete @ENV{qw(GATEWAY_INTERFACE REQUEST_METHOD REQUEST_URI REDIRECT_URL QUERY_STRING HTTP_HOST)};
+    $ENV{DOCUMENT_ROOT} = $d;
+    $ENV{HTTP_HOST}     = $host if defined $host;
+    open my $err, '>&', \*STDERR    or return undef;
+    open STDERR,  '>',  '/dev/null' or return undef;
+    my $ok = open my $ph, '-|', $^X, $proc, '--page-set';
+    open STDERR, '>&', $err or return undef;
+    return undef unless $ok;
+    my $out = do { local $/; <$ph> };
+    close $ph or return undef;
+    return eval { JSON::PP->new->utf8->decode( $out // '' ) };
+}
+
+# The three findings for one domain; true when there was any.
+sub _report_page_titles_of {
+    my ( $label, $untitled, $undescribed, $by_title ) = @_;
+    my $on   = length $label ? "$label: " : '';
     my $list = sub {
         my @show = sort @_;
         my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
         splice @show, 8 if @show > 8;
         return join( ', ', @show ) . $more;
     };
-    report( 'WARN', scalar(@untitled) . ' public page(s) have no title: ' . $list->(@untitled)
+    report( 'WARN', $on . scalar(@$untitled) . ' public page(s) have no title: ' . $list->(@$untitled)
             . ' - a search engine and the sitemap list such a page by its address',
         'give each a title: in its front matter (meta_title: sets the one search engines see, if it should differ)' )
-        if @untitled;
-    report( 'WARN', scalar(@undescribed) . ' public page(s) have no description: ' . $list->(@undescribed)
+        if @$untitled;
+    report( 'WARN', $on . scalar(@$undescribed) . ' public page(s) have no description: ' . $list->(@$undescribed)
             . ' - a search result and the AI-readable summary (llms.txt) show nothing under the title',
         'give each a subtitle: or a meta_desc: of a sentence or two' )
-        if @undescribed;
-    my @dup = grep { @{ $by_title{$_} } > 1 } sort keys %by_title;
-    report( 'WARN', scalar(@dup) . ' title(s) are shared by more than one public page: '
-            . join( '; ', map { join( ' and ', sort @{ $by_title{$_} } ) } @dup[ 0 .. ( $#dup < 7 ? $#dup : 7 ) ] )
+        if @$undescribed;
+    my @dup = grep { @{ $by_title->{$_} } > 1 } sort keys %$by_title;
+    report( 'WARN', $on . scalar(@dup) . ' title(s) are shared by more than one public page: '
+            . join( '; ', map { join( ' and ', sort @{ $by_title->{$_} } ) } @dup[ 0 .. ( $#dup < 7 ? $#dup : 7 ) ] )
             . ' - a search engine cannot tell them apart',
         'give each page its own title (or meta_title)' )
         if @dup;
-    report( 'OK', ( $n // 0 ) . ' public page(s), each with a title and a description of its own' )
-        unless @untitled || @undescribed || @dup;
-    return;
+    return @$untitled || @$undescribed || @dup ? 1 : 0;
 }
 
 # SM1357: THE JSON-LD THE ENGINE EMITS, checked against each mapping's type - built

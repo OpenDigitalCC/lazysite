@@ -228,6 +228,13 @@ Archive
   body (ruling 196); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
   (t/unit/notify/41, t/unit/account/38).
+- SM1357 (PENDING) **check: a title is shared within one domain, not across two.**
+  `lazysite check`'s shared-title and missing-description checks read each domain's own
+  public page set - the one its sitemap and `llms.txt` list (ruling 174), from the
+  processor - instead of walking the whole docroot, so two domains' home pages with the
+  same title are no longer a duplicate. Each warning names the page's address, and its
+  domain on a site of several (ruling 199); a folder ruling 171 leaves out is not
+  counted, and an alias without a content root of its own shares the primary's pages.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

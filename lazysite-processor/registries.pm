@@ -14,7 +14,9 @@ package main;
 #         _registry_lists, _llms_txt_on and _registry_organisation (SM1357, ruling
 #         165: the sitemap and the summary list every public page, the summary
 #         has a switch and carries the organisation entry); _public_page_set and
-#         _in_public_page_set (ruling 174: the one page set both list);
+#         _in_public_page_set (ruling 174: the one page set both list),
+#         _registry_scan_root (the root a host's registries are built from) and
+#         _public_page_set_listing (that set as `lazysite check` reads it, n785);
 #         _foreign_site_folder (ruling 171: another site's folder, undeclared) and
 #         the scan's two askers of it, _scan_foreign_dir and _scan_under_foreign_dir
 #         (ruling 176: site search leaves those folders out too);
@@ -242,6 +244,36 @@ sub _in_public_page_set {
 sub _public_page_set {
     my (@pages) = @_;
     return grep { _in_public_page_set($_) } @pages;
+}
+
+# The content root this request's host builds its registries from (SM110/SM151,
+# update_registries): its own content_root, else the docroot - and undef for an
+# alias without a root of its own, which shares the docroot's registries and
+# builds none.
+sub _registry_scan_root {
+    my %sv = resolve_site_vars();
+    if ( defined $sv{content_root} && length $sv{content_root} ) {
+        my $c = confine_content_root( $DOCROOT, $sv{content_root} );
+        return $c if defined $c;
+    }
+    return $sv{alias_host} ? undef : $DOCROOT;
+}
+
+# n785 (SM1357): THIS HOST'S PUBLIC PAGE SET, as `lazysite check` reads it for its
+# title and description checks - the pages the host's sitemap and llms.txt list,
+# from the same scan and the same set, so the check counts per domain what each
+# domain publishes (another domain's root, ruling 171's folders and everything
+# else the set leaves out are not counted). { root, pages => [ { url, title,
+# description } ] }, title and description as the registries publish them
+# (meta_title else title, meta_desc else subtitle); root is undef, with no pages,
+# for an alias that shares the docroot.
+sub _public_page_set_listing {
+    my $root  = _registry_scan_root();
+    my @pages = defined $root ? _public_page_set( scan_pages($root) ) : ();
+    return {
+        root => $root,
+        pages => [ map { +{ url => $_->{url}, title => $_->{meta_title}, description => $_->{meta_desc} } } @pages ],
+    };
 }
 
 # Ruling 171: A FOLDER THAT LOOKS LIKE ANOTHER SITE'S CONTENT is left out of the
@@ -857,14 +889,8 @@ sub _registry_stale {
         # overlaid vars (site_name etc.) would bake into the docroot-shared
         # registries the primary serves. The primary host - with or without a
         # base content_root - generates as before.
-        my %sv       = resolve_site_vars();
-        my $root     = $DOCROOT;
-        my $has_root = 0;
-        if ( defined $sv{content_root} && length $sv{content_root} ) {
-            my $c = confine_content_root( $DOCROOT, $sv{content_root} );
-            if ( defined $c ) { $root = $c; $has_root = 1; }
-        }
-        return if $sv{alias_host} && !$has_root;
+        my $root = _registry_scan_root();
+        return unless defined $root;
 
         if ( !defined $_has_registries ) {
             if ( -d $REGISTRY_DIR ) {

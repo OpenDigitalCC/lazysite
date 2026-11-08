@@ -5516,3 +5516,37 @@ verdict
 : drafted for the release manager: accepted, contained - one optional field, one
   destination the operator chose, bounded. To be listed in the site's personal-data
   records with the address.
+
+### 2026-11-08 - SM1357 (0.16.9, PENDING): the processor lists a domain's public page set for `lazysite check`
+
+Assessment drafted by the developer agent (n785); the release manager confirms.
+
+what changed
+: `lazysite-processor.pl --page-set` prints, as JSON, the public page set of the
+  domain HTTP_HOST names: each page's address, title and description, the pages its
+  `sitemap.xml` and `llms.txt` list (`registries.pm _public_page_set_listing`, over
+  `scan_pages` and ruling 174's `_public_page_set`). `lazysite check` runs it once per
+  domain for its title and description checks, in place of its own walk of the docroot.
+
+threat delta
+: No ADR 0007 trigger fired. new-external-interface comes closest and is not met: the
+  mode answers only on the command line - it is refused when GATEWAY_INTERFACE or
+  REQUEST_METHOD is set, which every web server sets, so a CGI query string with no `=`
+  (which a server may pass as arguments) cannot reach it. What it prints is the set the
+  domain's sitemap and summary already publish, so nothing in it is new to a visitor.
+: Information disclosure: the listing is the registries' own set, so a protected,
+  draft, copied, api/raw or `search: false` page and another domain's pages are left out
+  as they are from the sitemap (t/unit/processor/187 holds the set; t/tools/381 holds
+  the per-domain reading).
+
+controls
+: t/tools/381 (per domain, ruling 171's folders not counted), t/tools/340 (the
+  findings), t/unit/processor/187 (the page set).
+
+residual risk
+: `lazysite check` run as root runs the processor as root; it reads the docroot and the
+  conf and writes nothing (its log lines go to standard error, which the check discards).
+
+verdict
+: drafted as accepted, for the release manager's confirmation: no trigger fired;
+  recorded because the processor gains an entry point outside a request.

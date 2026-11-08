@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 # SM1356 / SM1357: `lazysite check` checks what search engines read.
 #
-#   * every public page has a title and a description, and no two share a title -
+#   * every public page has a title and a description, and no two share a title
+#     (n785: per domain, t/tools/381) -
 #     a protected, api:, raw:, search: false or starter demonstration page is
 #     not public and is not asked;
 #   * the JSON-LD the engine emits, checked against each mapping's type: a row
@@ -52,10 +53,11 @@ subtest 'titles and descriptions' => sub {
     spit( "$d/hidden.md",     "---\nsearch: false\n---\nH\n" );
     spit( "$d/demo.md",       "---\nstarter_role: demonstration\n---\nD\n" );
     my $out = run_check($d);
-    like( $out, qr/1 public page\(s\) have no title: untitled\.md/, 'a page with no title is named' ) or diag $out;
-    like( $out, qr/public page\(s\) have no description: bare\.md/, 'a page with no description is named' );
+    # n785: by the address the sitemap lists.
+    like( $out, qr/\] 1 public page\(s\) have no title: \/untitled /, 'a page with no title is named (one domain: no domain named, ruling 199)' ) or diag $out;
+    like( $out, qr/public page\(s\) have no description: \/bare /, 'a page with no description is named' );
     unlike( $out, qr/no description: [^\n]*(?:twin|members|data|hidden|demo)/, 'meta_desc and subtitle both count; a page that is not public is not asked' );
-    like( $out, qr/title\(s\) are shared by more than one public page: twin-a\.md and twin-b\.md/, 'a shared title is named' );
+    like( $out, qr/title\(s\) are shared by more than one public page: \/twin-a and \/twin-b /, 'a shared title is named' );
 
     my $good = site();
     like( run_check($good), qr/1 public page\(s\), each with a title and a description of its own/, 'all well: OK' );

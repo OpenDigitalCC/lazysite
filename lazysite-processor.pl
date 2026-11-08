@@ -678,6 +678,18 @@ sub handle_one_request {
 # proxy answers about the proxy (SM283).
 my $RUNTIME = 'cgi';
 
+# n785 (SM1357): `lazysite check` reads each domain's public page set from here -
+# the one the sitemap and llms.txt list (_public_page_set_listing) - rather than
+# walking the docroot itself, so a title two domains share is not a duplicate.
+# Run from the command line only (HTTP_HOST names the domain): a web server sets
+# GATEWAY_INTERFACE and REQUEST_METHOD, and a CGI query string with no `=` would
+# otherwise arrive as an argument.
+if ( !defined $ENV{GATEWAY_INTERFACE} && !defined $ENV{REQUEST_METHOD} && grep { $_ eq '--page-set' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP->new->utf8->canonical->encode( _public_page_set_listing() ), "\n";
+    exit 0;
+}
+
 my $_fcgi = eval { require FCGI; FCGI::Request() };
 if ( $_fcgi && $_fcgi->IsFastCGI() ) {
     $RUNTIME = 'pool';
