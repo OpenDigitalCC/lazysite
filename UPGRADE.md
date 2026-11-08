@@ -68,7 +68,18 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.16.8)
+## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
+
+**`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`
+line in `lazysite/notify.conf` (0.16.6, SM1362) no longer mails a form's notice to that
+address; nothing reads it. By default no form mails anyone: submissions are stored, and
+the notice goes to the bell. To mail people when a form is submitted, add a `notify`
+handler on the Handlers page whose recipients name them - usually a group, e.g.
+`[{"groups":["site-owners"]}]` (SM1413), with the addresses set on each account on the
+Users page - and add it to the form's targets after the handler that stores the
+submission. Then delete the `owner_contact` line. `lazysite check` names a site that
+still sets it. A form's acknowledgement to the submitter (`acknowledge_field`) is
+unchanged.
 
 **Odoo's actions and capabilities are the extension's own declaration (SM1369, X2).**
 The ten `odoo-*` control-API actions and `odoo_*` MCP tools, their parameters, their
@@ -122,48 +133,6 @@ The front end needs nothing: a request for a missing `/assets/...` path already 
 the engine on the shipped nginx and Apache configurations (`try_files` and
 `FallbackResource`).
 
-**The offline kit (SM1396).** A new extension, `app-offline`, off until enabled on the
-Extensions page; it needs the Odoo extension on, and the Odoo sign-in as the site
-sign-in (`odoo_site_signin: on`) to keep anything. Enabling it adds nothing to a page
-until a layout renders `[% app_offline_kit %]`. On a site with the Odoo site sign-in,
-the page endpoint's `?csrf=1` answers one more field, `owner` (a label of the
-signed-in login, from the site session); a person already signed in has it at once.
-On a default Odoo site `?csrf=1` names no owner and the kit keeps no reads and queues
-no changes. The identity cookie is unchanged.
-
-**A favicon for a site with none (SM1397)** and **`page_url_raw` (SM1398)** need
-nothing from an operator.
-
-**`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`
-line in `lazysite/notify.conf` (0.16.6, SM1362) no longer mails a form's notice to that
-address; nothing reads it. By default no form mails anyone: submissions are stored, and
-the notice goes to the bell. To mail people when a form is submitted, add a `notify`
-handler on the Handlers page whose recipients name them - usually a group, e.g.
-`[{"groups":["site-owners"]}]` (SM1413), with the addresses set on each account on the
-Users page - and add it to the form's targets after the handler that stores the
-submission. Then delete the `owner_contact` line. `lazysite check` names a site that
-still sets it. A form's acknowledgement to the submitter (`acknowledge_field`) is
-unchanged.
-
-**A new capability, `publish_copies`, held by nobody (SM1354).** Pages can be copied,
-changed and published over the original. A person in the manager publishes with
-`manage_content`, as they save today. An agent publishes over MCP or the control API
-only with `publish_copies` as well, which the upgrade grants to no group: the manager
-groups' top-up and `lazysite check` leave it out by design, and a manager group is
-offered it to grant. Grant it to an agent's group only where the site has decided an
-agent may publish its own change. The copies live in `lazysite/copies/`, which content
-history leaves out; nothing else changes on upgrade.
-
-**Row changes are recorded (SM1355).** From this release every row save, delete and
-switch is recorded in the data store, in a table named `_row_changes` that the first
-recorded write creates; nothing needs migrating. The history is kept 90 days unless a
-table's descriptor sets `row_history_days`. Where the daemon runs, its new daily job
-`row-history-prune` removes expired changes from a store nobody writes to, as the
-existing `daemon_job_user`; it needs no grant beyond `run_jobs`. A table gains a switch only when its
-descriptor names an `availability` field, and wizards exist only where
-`lazysite/db/wizards/` holds them, so an upgraded site's tables and pages behave as
-before.
-
 **The sitemap and llms.txt list every public page (SM1357, ruling 165).** Until now they
 listed only pages whose front matter said `register: [sitemap.xml]` (or `llms.txt`).
 From this release a page with no `register:` key is in both, so on upgrade the sitemap
@@ -184,11 +153,15 @@ site's `llms.txt.tt` is its own and is not replaced: the *About* section the new
 template prints from the organisation details appears on a site only once its template
 is taken from the starter (`starter/lazysite/templates/registries/llms.txt.tt`).
 
-**A row written refreshes the pages that show it (SM1357).** A page binding a table with
-`db:` and carrying a `ttl:` used to show a changed row only when the ttl ran out; it now
-renders again on its next request after any row write the engine makes (each table has a
-change stamp in `lazysite/db/stamps/`, made on first use). A row changed outside the
-engine (an `sqlite3` shell) touches no stamp and still waits for the ttl.
+**Row changes are recorded (SM1355).** From this release every row save, delete and
+switch is recorded in the data store, in a table named `_row_changes` that the first
+recorded write creates; nothing needs migrating. The history is kept 90 days unless a
+table's descriptor sets `row_history_days`. Where the daemon runs, its new daily job
+`row-history-prune` removes expired changes from a store nobody writes to, as the
+existing `daemon_job_user`; it needs no grant beyond `run_jobs`. A table gains a switch only when its
+descriptor names an `availability` field, and wizards exist only where
+`lazysite/db/wizards/` holds them, so an upgraded site's tables and pages behave as
+before.
 
 **Schedules and the site's time zone (SM1356).** New and opt-in: a table is a schedule
 only when its descriptor says `schedule: true`, and `time_zone:` defaults to UTC, which
@@ -199,23 +172,13 @@ zone it cannot find). Passed exceptions are removed by the daemon's new
 `schedule-exceptions` job, which runs as the job account and needs `manage_data` on it;
 without that grant the job records a refusal and the exceptions stay, harmlessly.
 
-**The editor holds its lock again (SM1411).** The manager's editor now takes and renews
-its edit lock with a POST, so opening a file no longer shows "This action must be sent
-as POST." beside the toolbar, and a second editor on the same file is told who has it.
-Nothing to do but the upgrade, which replaces the page.
+**A rule whose owner was removed is named (SM1401).** Removing an account
+(`lazysite-users.pl remove`, or Delete on the manager's Users page) now says which access
+rules it owned, and `lazysite check` names each stored rule whose owner is no account.
+Such a rule stays in force as written, and only the operator can change it: remove it on
+the manager's Permissions page, or re-own it with `lazysite acl set --owner`. The engine
+changes no rule.
 
-**Two roles reach an older site (SM1407).** On a site bootstrapped before 0.11.3 that
-has the role bundles, the next Users or Groups page load adds the `analysts` and
-`lead-readers` roles it lacks, with no members, nested into their bundles as on a new
-install (and the `cap-audit` bundle with `analysts`). Nobody's access changes until an
-operator puts an account in one. A role deleted after it was added stays deleted.
-
-**An import with no valid row is refused (SM1410).** `accounts-import-stage` and
-`stage_accounts` given only invalid rows now answer `ok: 0` with the same `invalid`
-list and no id, and keep nothing; before, they answered ok with an id and kept an empty
-run. A script that staged and then checked `staged` needs no change; one that took `ok`
-alone as "kept" now sees the refusal. Empty runs kept by earlier releases stay in the
-import list until removed there.
 
 **Members can be let back into the manager API to save content (SM1414, ruling 169).**
 A new capability, `write_content`, lets an account without `ui` call `read`, `list`, `save`,
@@ -226,6 +189,69 @@ after the upgrade except the operator group, whose access it does not change, an
 account without `ui` is refused as before. To let a member app's authors save posts,
 grant their group `write_content` on the Groups page and give the folder they write
 a rule naming the group in its write list. See `/docs/auth`.
+
+**A new capability, `publish_copies`, held by nobody (SM1354).** Pages can be copied,
+changed and published over the original. A person in the manager publishes with
+`manage_content`, as they save today. An agent publishes over MCP or the control API
+only with `publish_copies` as well, which the upgrade grants to no group: the manager
+groups' top-up and `lazysite check` leave it out by design, and a manager group is
+offered it to grant. Grant it to an agent's group only where the site has decided an
+agent may publish its own change. The copies live in `lazysite/copies/`, which content
+history leaves out; nothing else changes on upgrade.
+
+**The offline kit (SM1396).** A new extension, `app-offline`, off until enabled on the
+Extensions page; it needs the Odoo extension on, and the Odoo sign-in as the site
+sign-in (`odoo_site_signin: on`) to keep anything. Enabling it adds nothing to a page
+until a layout renders `[% app_offline_kit %]`. On a site with the Odoo site sign-in,
+the page endpoint's `?csrf=1` answers one more field, `owner` (a label of the
+signed-in login, from the site session); a person already signed in has it at once.
+On a default Odoo site `?csrf=1` names no owner and the kit keeps no reads and queues
+no changes. The identity cookie is unchanged.
+
+**A row written refreshes the pages that show it (SM1357).** A page binding a table with
+`db:` and carrying a `ttl:` used to show a changed row only when the ttl ran out; it now
+renders again on its next request after any row write the engine makes (each table has a
+change stamp in `lazysite/db/stamps/`, made on first use). A row changed outside the
+engine (an `sqlite3` shell) touches no stamp and still waits for the ttl.
+
+**An import with no valid row is refused (SM1410).** `accounts-import-stage` and
+`stage_accounts` given only invalid rows now answer `ok: 0` with the same `invalid`
+list and no id, and keep nothing; before, they answered ok with an id and kept an empty
+run. A script that staged and then checked `staged` needs no change; one that took `ok`
+alone as "kept" now sees the refusal. Empty runs kept by earlier releases stay in the
+import list until removed there.
+
+**Smaller changes, nothing to do.**
+
+- The editor holds its lock again (SM1411): the manager's editor takes and renews its
+  edit lock with a POST, so opening a file no longer shows "This action must be sent as
+  POST." beside the toolbar, and a second editor on the same file is told who has it.
+  The upgrade replaces the page.
+- Two roles reach an older site (SM1407): on a site bootstrapped before 0.11.3 that has
+  the role bundles, the next Users or Groups page load adds the `analysts` and
+  `lead-readers` roles it lacks, with no members, nested into their bundles as on a new
+  install (and the `cap-audit` bundle with `analysts`). Nobody's access changes until an
+  operator puts an account in one; a role deleted after it was added stays deleted.
+- A layout's backup snapshot (`<name>-backup-<stamp>`, kept by `delete_layout` and an
+  activate) is no longer listed as a layout on the Appearance page, by MCP `list_themes`
+  or by the control API; it is listed under Backups and removed there (SM1400).
+- `set_form_notify` (MCP) and `form-notify-save` (control API) refuse a form that is
+  neither registered nor bound on a page (`kind: not-found`), naming `create_form`
+  (SM1402).
+- MCP `list_files` no longer carries an entry named after a folder rule's address
+  profile; the permissions editor's choices ride on the manager's own listing (SM1404).
+- A notice mail - a notify rule's, an account notice, an import's claim link - arrives
+  with its own subject and the notice as its body, with no Submitted or IP lines
+  (SM1405).
+- A token's refusal to delete or change a group it did not create now says a token is
+  bound by that rule, and that the operator changes any group on the Groups page
+  (SM1408).
+- `domain-set` of a layout alone, with the domain's theme still another layout's, is
+  accepted and mirrors no mixed pair; the warning says what to send, the layout and the
+  theme together (SM1409).
+- A site with no favicon answers `/favicon.ico` and `/favicon.svg` with the engine's
+  (SM1397), and templates gain `page_url_raw` (SM1398).
+
 
 ## Odoo's modules leave core's lib, and the rest of 0.16.7
 
