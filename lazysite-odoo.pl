@@ -194,6 +194,7 @@ sub main {
     # SM1147: the visitor cookie, the session cookie and the identity cookie are
     # read by these small modules; Lazysite::Odoo (the engine, with Egress under
     # it) is _engine()'s, called by the branches that reach Odoo.
+    require Lazysite::Endpoint;            # SM1369 X5 (H-4): the request kit
     require Lazysite::Odoo::Visitor;
     require Lazysite::Odoo::SiteSignin;    # SM1160: configuration only, loads no engine
     local $Lazysite::Odoo::DOCROOT          = $docroot;
@@ -287,7 +288,7 @@ sub main {
     my $files;
     if ($multipart) {
         my $refused;
-        ( $req, $files, $refused ) = _read_multipart( $docroot, $q, $len );
+        ( $req, $files, $refused ) = _read_multipart( $docroot, $q, $len, user => $user, visitor => $visitor );
         return reply(@$refused) if $refused;
     }
     if ( $method eq 'POST' && !$multipart ) {
@@ -319,7 +320,10 @@ sub main {
                 ? 'body too large'
                 : "the request is $len bytes; this binding takes at most $budget bytes" } )
             if $len > $budget;
-        read( STDIN, $raw, $len ) if $len;
+        # SM1369 X5 (H-4): the body through the kit, held to the budget decided above.
+        my $refused;
+        ( $raw, $refused ) = Lazysite::Endpoint::read_body( $len, $budget );
+        return reply(@$refused) if $refused;
         $req = eval { JSON::PP->new->utf8->decode($raw) };
         return reply( '400 Bad Request', { ok => 0, kind => 'invalid', error => 'the body must be a JSON object' } )
             unless ref $req eq 'HASH';
@@ -343,6 +347,15 @@ sub main {
             return reply( '403 Forbidden',
                 { ok => 0, kind => 'address', error => 'Sign-in is not available from your address.' } )
                 if Lazysite::Auth::AddressScope::refuse_signin( Lazysite::Paths::lazysite_dir($docroot), 'api' );
+        }
+
+        # SM1369 X5 (H-4, G-4): THE KIT'S TOKEN CHECK, before anything of the
+        # extension runs on this body: the session's token for the verified
+        # account, or the visitor token bound to the visitor cookie. Each branch
+        # below may then ask for the one its operation needs (_csrf_ok).
+        if ( my $r = Lazysite::Endpoint::post_guard( docroot => $docroot, id => 'odoo', req => $req,
+                user => $user, visitor => $visitor ) ) {
+            return reply(@$r);
         }
         if ( $req->{signin} || $req->{signout} ) {
             my %ctx = ( mode => 'public', visitor_key => $visitor );
@@ -524,13 +537,13 @@ sub _idem_ctx {
 # The tokens, the mode, the callers and the sign-in-first rule (SM1168) are
 # _post_one's and run unchanged on the request this returns.
 sub _read_multipart {
-    my ( $docroot, $q, $len ) = @_;
+    my ( $docroot, $q, $len, %who ) = @_;
     my $no = sub {
         my ( $kind, $error ) = @_;
         return ( undef, undef, [ _refusal_pair( { ok => 0, kind => $kind, error => $error } ) ] );
     };
     require Lazysite::Odoo::Upload;
-    my $bnd = Lazysite::Odoo::Upload::boundary( $ENV{CONTENT_TYPE} );
+    my $bnd = Lazysite::Endpoint::multipart_boundary( $ENV{CONTENT_TYPE} );
     return $no->( 'invalid', 'the multipart request has no boundary in its Content-Type' ) unless defined $bnd;
     my $id = $q->{binding};
     return $no->( 'invalid',
@@ -551,23 +564,24 @@ sub _read_multipart {
         if $len > $allow;
     return $no->( 'invalid', 'the multipart request has no body' ) unless $len > 0;
 
-    my $body = '';
-    my $got  = 0;
-    binmode STDIN;
-    while ( $got < $len ) {
-        my $r = read( STDIN, $body, $len - $got, $got );
-        last unless $r;
-        $got += $r;
-    }
-    return $no->( 'invalid', "the body is $got bytes where Content-Length said $len" ) unless $got == $len;
+    # SM1369 X5 (H-4): read and parsed by the kit, and its tokens checked by the
+    # kit (G-4) before anything below reads the request.
+    my ( $body, $short ) = Lazysite::Endpoint::read_body( $len, $allow );
+    return ( undef, undef, $short ) if $short;
+    no warnings 'once';    # the upload module's limits, required above
 
-    my ( $parts, $perr ) = Lazysite::Odoo::Upload::parse( $body, $bnd );
+    my ( $parts, $perr ) = Lazysite::Endpoint::parse_multipart( $body, $bnd,
+        json_limit => $Lazysite::Odoo::Upload::JSON_LIMIT, max_parts => $Lazysite::Odoo::Upload::MAX_PARTS );
     undef $body;
     return $no->( 'invalid', $perr ) unless $parts;
     my $req = {};
     if ( defined $parts->{json} && length $parts->{json} ) {
         $req = eval { JSON::PP->new->utf8->decode( $parts->{json} ) };
         return $no->( 'invalid', 'the json part must be a JSON object' ) unless ref $req eq 'HASH';
+    }
+    if ( my $r = Lazysite::Endpoint::post_guard( docroot => $docroot, id => 'odoo', req => $req,
+            user => $who{user}, visitor => $who{visitor} ) ) {
+        return ( undef, undef, $r );
     }
     return $no->( 'invalid', 'a batch carries no files: send each call with files as its own multipart request' )
         if exists $req->{calls};
@@ -657,8 +671,7 @@ sub _csrf_ok {
         return 0 if $b;
     }
     if ( $ctx->{mode} eq 'authenticated' ) {
-        my $t = $ENV{HTTP_X_CSRF_TOKEN} // $req->{token} // '';
-        return Lazysite::Auth::Session::verify_csrf_token( $t, $ctx->{actor} );
+        return Lazysite::Endpoint::session_token_ok( $ctx->{actor}, $req ); # SM1369 X5: the kit's check
     }
     return Lazysite::Odoo::Visitor::verify_csrf( $req->{visitor_token} // '', $ctx->{visitor_key} );
 }
@@ -670,11 +683,7 @@ sub _csrf_refusal {
 
 sub _csrf_pair {
     my ($ctx) = @_;
-    return ( '403 Forbidden',
-        { ok => 0, kind => 'csrf',
-            error => ( $ctx->{mode} eq 'public' && !$ctx->{visitor_key} )
-            ? 'no visitor key on this request - fetch tokens from ?csrf=1 first'
-            : 'missing or stale token - fetch fresh ones from ?csrf=1 and retry' } );
+    return Lazysite::Endpoint::csrf_refusal( no_key => ( $ctx->{mode} eq 'public' && !$ctx->{visitor_key} ) );
 }
 
 # SM1225: a binding with `answer: download` is answered with the document its call

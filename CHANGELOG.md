@@ -70,6 +70,18 @@ Archive
   group holding `manage_connectors`. The handler and schedule actions open, on every door, for a
   capability a declared handler type names (ruling 192), so `manage_odoo` alone manages
   Odoo bindings and their schedules, and no other kind of handler.
+- SM1369 (PENDING) **X5, H-4: an extension's endpoint reads its body and checks the token
+  of a POST through core's request kit.** `Lazysite::Endpoint` caps a body before it is
+  read, parses a multipart one, holds the visitor key (moved from the Odoo extension:
+  the same cookie, secret and signatures, so no visitor in the field is lost; each
+  extension has its own secret) and checks every POST (`post_guard`) for the session's
+  token or the visitor token before the extension's code runs (G-4). `hooks.endpoints`
+  goes live; the Odoo page endpoint declares itself and uses the kit, at the same
+  `lazysite-odoo.pl` location. t/lint/351 holds every declared endpoint to the kit. A
+  POST to the Odoo endpoint that carries no token at all is now refused 403 `csrf`
+  whole, a batch included, where a session binding answered 401 and a batch answered
+  per call; the browser helper always sends a token and fetches fresh ones once on a
+  `csrf` refusal.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

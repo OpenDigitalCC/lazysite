@@ -107,7 +107,13 @@ our %KINDS = (
         required  => [qw(label cap origins schema deliver)],
         check     => \&_check_handler_types,
     },
-    endpoints         => { hook => 'H-4',  slice => 'X5' },
+    # SM1369 X5, H-4 (n782): LIVE. An endpoint the extension answers a browser
+    # from - one of its owns.endpoints, by script name - is held to the request
+    # kit, Lazysite::Endpoint (its body capped before it is read, the token of a
+    # POST checked by the kit before the extension's code runs): t/lint/351
+    # reads this list and checks each script.
+    endpoints => { hook => 'H-4', slice => 'X5', live => 1, form => 'records', check_values => \&_check_endpoints,
+        fields => [qw(script)], required => [qw(script)] },
     services          => { hook => 'H-5',  slice => 'X5' },
     checks            => { hook => 'H-6',  slice => 'X6' },
     # SM1369 X2: the three kinds whose consumers are built (see "X2" below). A
@@ -602,6 +608,40 @@ sub _check_template_vars {
             if defined $n && !ref $n && $CORE_VARS{$n};
         push @bad, _err( $id, "hooks.$kind", "template_vars[$i].name '$n' is declared twice" )
             if defined $n && !ref $n && $seen{$n}++;
+    }
+    return @bad;
+}
+
+# ---- SM1369 X5, H-4 (n782): an endpoint is a script the extension declares ----
+#
+# A bare script name, lazysite-<name>.pl, once each, and one of the extension's
+# own owns.endpoints (endpoint_owner_problems, which sees both keys; the index
+# build and Owns::validate_owns call it).
+sub endpoint_owner_problems {
+    my ( $id, $owns ) = @_;
+    return () unless ref $owns eq 'HASH' && ref $owns->{hooks} eq 'HASH' && ref $owns->{hooks}{endpoints} eq 'ARRAY';
+    my %mine = map { ( defined $_ && !ref $_ ) ? ( $_ => 1 ) : () }
+        @{ ref $owns->{endpoints} eq 'ARRAY' ? $owns->{endpoints} : [] };
+    my @bad;
+    for my $e ( grep { ref $_ eq 'HASH' } @{ $owns->{hooks}{endpoints} } ) {
+        my $s = $e->{script};
+        next unless defined $s && !ref $s;
+        push @bad, _err( $id, 'hooks.endpoints', "'$s' is not one of this extension's endpoints (owns.endpoints)" )
+            unless $mine{$s};
+    }
+    return @bad;
+}
+
+sub _check_endpoints {
+    my ( $id, $kind, $v ) = @_;
+    my ( @bad, %seen );
+    for my $i ( 0 .. $#$v ) {
+        my $s = $v->[$i]{script};
+        unless ( defined $s && !ref $s && $s =~ /\Alazysite-[a-z][a-z0-9-]*\.pl\z/ ) {
+            push @bad, _err( $id, "hooks.$kind", "endpoints[$i].script must be a script name, lazysite-<name>.pl" );
+            next;
+        }
+        push @bad, _err( $id, "hooks.$kind", "endpoints[$i].script '$s' is declared twice" ) if $seen{$s}++;
     }
     return @bad;
 }

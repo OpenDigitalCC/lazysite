@@ -38,13 +38,13 @@ our $MAX_BODY = 32 * 1024 * 1024;
 our $PART_OVERHEAD = 2048;
 our $MAX_PARTS     = 12;     # the json part and up to ten files, and one to spare
 
-# is_multipart( $content_type ) -> boundary or undef
+# is_multipart( $content_type ) -> boundary or undef. SM1369 X5 (H-4): the
+# kit's, so the tokens of the json part are read by core before the endpoint
+# runs anything of the extension (t/lint/351).
 sub boundary {
     my ($ct) = @_;
-    return undef unless defined $ct && $ct =~ m{\Amultipart/form-data\b}i;
-    my ( $q, $u ) = $ct =~ m{;\s*boundary=(?:"([^"]{1,70})"|([^\s;"]{1,70}))}i;
-    my $bnd = $q // $u;
-    return ( defined $bnd && length $bnd ) ? $bnd : undef;
+    require Lazysite::Endpoint;
+    return Lazysite::Endpoint::multipart_boundary($ct);
 }
 
 # allowance( $cap_bytes, $max_files ) -> the most a body for those files may be:
@@ -57,59 +57,11 @@ sub allowance {
 
 # parse( $body, $boundary ) -> ( { json => $text, files => { field => [ {name, bytes, claimed} ] } }, '' )
 #                          or ( undef, why )
-# Strict: the body is exactly --B CRLF headers CRLF CRLF content CRLF ... --B--.
+# The kit's strict parser, held to this endpoint's json limit and part count.
 sub parse {
     my ( $body, $bnd ) = @_;
-    my $dash  = "--$bnd";
-    my $start = index( $body, "$dash\r\n" );
-    return ( undef, 'the body is not multipart/form-data (no opening boundary)' ) unless $start == 0;
-    my $end  = "\r\n$dash--";
-    my $stop = rindex( $body, $end );
-    return ( undef, 'the body is cut short (no closing boundary)' ) if $stop < 0;
-    my $inner = substr( $body, length($dash) + 2, $stop - length($dash) - 2 ); # parts only
-    my @raw   = split_on( $inner, "\r\n$dash\r\n" );
-    return ( undef, "a request holds at most $MAX_PARTS parts" ) if @raw > $MAX_PARTS;
-    my ( $json, %files );
-    for my $part (@raw) {
-        my $sep = index( $part, "\r\n\r\n" );
-        return ( undef, 'a part has no header block' ) if $sep < 0;
-        my $head    = substr( $part, 0, $sep );
-        my $content = substr( $part, $sep + 4 );
-        my ($disp)  = $head =~ /^Content-Disposition:[ \t]*(.*)$/mi;
-        return ( undef, 'a part has no Content-Disposition' ) unless defined $disp && $disp =~ /\Aform-data\b/i;
-        my ($name) = $disp =~ /;\s*name="([^"]*)"/;
-        return ( undef, 'a part has no name' ) unless defined $name && length $name;
-        my ($file) = $disp =~ /;\s*filename="([^"]*)"/;
-        my ($type) = $head =~ /^Content-Type:[ \t]*([^\r\n;]+)/mi;
-        if ( !defined $file ) {
-            return ( undef, "the part '$name' is not a file: send plain values in the part named json" )
-                unless $name eq 'json';
-            return ( undef, 'the json part is sent twice' ) if defined $json;
-            return ( undef, "the json part is longer than $JSON_LIMIT bytes" ) if length $content > $JSON_LIMIT;
-            $json = $content;
-            next;
-        }
-        return ( undef, 'the part named json is a body, not a file' ) if $name eq 'json';
-        return ( undef, "the file field '$name' is not a name" ) unless $name =~ /\A[A-Za-z][A-Za-z0-9_.-]{0,127}\z/;
-        my $fname = $file;
-        utf8::decode($fname) or $fname =~ s/[^\x20-\x7e]/_/g;
-        return ( undef, "the file field '$name' has no file name" ) unless length $fname;
-        push @{ $files{$name} }, { name => $fname, bytes => $content, claimed => $type };
-    }
-    return ( { json => $json, files => \%files }, '' );
-}
-
-# Splits on a literal separator, without regex on binary content.
-sub split_on {
-    my ( $s, $sep ) = @_;
-    my @out;
-    my $pos = 0;
-    while ( ( my $i = index( $s, $sep, $pos ) ) >= 0 ) {
-        push @out, substr( $s, $pos, $i - $pos );
-        $pos = $i + length $sep;
-    }
-    push @out, substr( $s, $pos );
-    return @out;
+    require Lazysite::Endpoint;
+    return Lazysite::Endpoint::parse_multipart( $body, $bnd, json_limit => $JSON_LIMIT, max_parts => $MAX_PARTS );
 }
 
 1;

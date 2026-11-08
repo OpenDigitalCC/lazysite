@@ -105,6 +105,13 @@ sub validate_owns {
             if exists $owns->{requires};
     }
 
+    # SM1369 X5, H-4 (n782): an endpoint held to the request kit is one this
+    # extension declares as its own.
+    if ( ref $owns->{hooks} eq 'HASH' && exists $owns->{hooks}{endpoints} ) {
+        require Lazysite::Extensions::Hooks;
+        push @bad, Lazysite::Extensions::Hooks::endpoint_owner_problems( $id, $owns );
+    }
+
     for my $p ( @{ $owns->{storage} || [] } ) {
         # Explicit blocks rather than `push ... and next if ...`: perlcritic
         # refuses the mixed-precedence form (PBP p70) and it is genuinely

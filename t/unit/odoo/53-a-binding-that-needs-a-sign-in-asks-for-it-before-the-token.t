@@ -6,8 +6,10 @@
 # signin-required, so the person was never asked to sign in.
 #
 # Held here:
-#   * no session, a session binding: 401 signin-required, with or without a token,
-#     alone and as a call of a batch, and Odoo is not asked;
+#   * no session, a session binding: 401 signin-required with the visitor token
+#     the helper always sends, alone and as a call of a batch, and Odoo is not
+#     asked; with no token at all the request kit refuses it first, 403 csrf
+#     (SM1369 X5, G-4), and the helper fetches fresh tokens and sends it again;
 #   * nothing of the binding is told (no rows, no operation) - the answer is "you
 #     are not signed in", which the visitor knows;
 #   * the token check is not weakened: a request WITH a session and a wrong or
@@ -81,12 +83,16 @@ subtest 'no Odoo session: a session binding asks for the sign-in, token or not' 
     my ( $st, undef, $j, $raw ) = request( 'POST', '', { binding => 'mine', visitor_token => $VT }, HTTP_COOKIE => $VC );
     is( $st, 401, 'with the visitor token: 401' ) or diag $raw;
     is( $j->{kind}, 'signin-required', 'by name' );
+    # SM1369 X5 (H-4, G-4): a POST that carries no token it may carry is refused
+    # by the request kit before anything of the extension runs - the visitor
+    # token the helper always sends is one it may carry, so the sign-in prompt
+    # above is unchanged; the helper fetches fresh tokens once on a csrf refusal.
     ( $st, undef, $j ) = request( 'POST', '', { binding => 'mine' }, HTTP_COOKIE => $VC );
-    is( $st, 401, 'with no token: 401, not 403 csrf' );
-    is( $j->{kind}, 'signin-required', 'by name' );
+    is( $st, 403, 'with no token: the kit refuses it, 403 csrf' );
+    is( $j->{kind}, 'csrf', 'by name' );
     ( $st, undef, $j ) = request( 'POST', '', { binding => 'mine' } );
-    is( $st, 401, 'with no cookie at all: 401' );
-    is( $j->{kind}, 'signin-required', 'by name' );
+    is( $st, 403, 'with no cookie at all: 403 csrf' );
+    like( $j->{error}, qr/fetch tokens from \?csrf=1 first/, 'saying what to fetch first' );
     is( scalar @{ $conn_fake->calls }, $c0, 'Odoo was not asked' );
     ok( !exists $j->{report} && !exists $j->{operation}, 'the answer says nothing of the binding' );
 };
@@ -97,9 +103,9 @@ subtest 'the same in a batch: that call answers 401 inside it, the others run' =
     is( $st, 200, 'the batch is answered' );
     is_deeply( [ map { $_->{status} } @{ $j->{results} } ], [ 401, 200 ], 'sign in; and the public call runs' ) or diag explain $j;
     is( $j->{results}[0]{kind}, 'signin-required', 'by name' );
-    ( undef, undef, $j ) = request( 'POST', '', { calls => [ { binding => 'mine' }, { binding => 'shared' } ] }, HTTP_COOKIE => $VC );
-    is_deeply( [ map { $_->{status} } @{ $j->{results} } ], [ 401, 403 ],
-        'with no token: the session call asks for the sign-in, the public call is still 403 csrf' ) or diag explain $j;
+    ( $st, undef, $j ) = request( 'POST', '', { calls => [ { binding => 'mine' }, { binding => 'shared' } ] }, HTTP_COOKIE => $VC );
+    is( $st, 403, 'with no token the batch is refused whole by the kit (SM1369 X5)' ) or diag explain $j;
+    is( $j->{kind}, 'csrf', 'as csrf' );
 };
 
 subtest 'a public binding: the visitor token is checked as before' => sub {

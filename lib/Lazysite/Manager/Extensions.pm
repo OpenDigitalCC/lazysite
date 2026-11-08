@@ -699,6 +699,8 @@ sub _hook_problems {
     }
     my ( undef, undef, @why ) = Lazysite::Extensions::Hooks::check_functions( $id, $full, $owns->{hooks} );
     push @bad, map { $_->{error} } @why;
+    # SM1369 X5 (H-4, n782): a declared endpoint is one the extension owns.
+    push @bad, map { $_->{error} } Lazysite::Extensions::Hooks::endpoint_owner_problems( $id, $owns );
     # SM1369 X2: what the declarations say about each other and about core's
     # names (an owned capability described and vice versa, no core name shadowed,
     # a gate that names capabilities that exist).

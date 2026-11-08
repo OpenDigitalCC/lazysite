@@ -397,6 +397,12 @@ sub hooks {
             renew        => '/cgi-bin/lazysite-odoo.pl?renew=1',
             signin_page  => 'odoo-signin',
         },
+
+        # SM1369 X5, H-4 (n782): the page endpoint is held to core's request kit
+        # (Lazysite::Endpoint): its body capped before it is read, the token of
+        # a POST checked by the kit before anything of this extension runs, and
+        # the visitor key core's (t/lint/351).
+        endpoints => [ { script => 'lazysite-odoo.pl' } ],
     };
 }
 

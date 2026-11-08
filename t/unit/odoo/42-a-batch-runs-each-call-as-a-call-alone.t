@@ -168,18 +168,21 @@ subtest 'more than the cap is refused whole, and nothing reaches Odoo' => sub {
 
 subtest 'every call needs the token, and a call cannot bring its own' => sub {
     my $c0 = scalar @{ $conn_fake->calls };
+    # SM1369 X5 (H-4, G-4): a request that carries no token it may carry is
+    # refused by the request kit, whole, before any call of it is looked at.
     my ( $st, undef, $j ) = batch( [ { binding => 'add', params => { product => 1 } }, { binding => 'shared' } ], no_token => 1 );
-    is( $st, 200, 'the batch is answered' );
-    is_deeply( [ map { $_->{status} } @{ $j->{results} } ], [ 403, 403 ], 'with no token every call is refused' );
-    is( $j->{results}[0]{kind}, 'csrf', 'as csrf' );
+    is( $st, 403, 'with no token the batch is refused whole' );
+    is( $j->{kind}, 'csrf', 'as csrf' );
+    ok( !exists $j->{results}, 'no call of it is answered' );
     is( scalar @{ $conn_fake->calls }, $c0, 'and Odoo was not asked' );
 
     ( $st, undef, $j ) = request( 'POST', '', { calls => [ { binding => 'add', params => { product => 1 }, visitor_token => $VT } ] },
         HTTP_COOKIE => $VC );
-    is( $j->{results}[0]{status}, 403, 'a token inside a call is not the request\'s token' );
+    is( $st, 403, 'a token inside a call is not the request\'s token' );
 
     ( $st, undef, $j ) = batch( [ { binding => 'add', params => { product => 1 } } ], cookie => 'x=1' );
-    is( $j->{results}[0]{status}, 403, 'a token with no visitor cookie (a cross-site post): refused' );
+    is( $st, 403, 'a token with no visitor cookie (a cross-site post): refused' );
+    is( scalar @{ $conn_fake->calls }, $c0, 'and Odoo was never asked' );
 };
 
 subtest 'a sign-in or sign-out is not a batch call' => sub {
