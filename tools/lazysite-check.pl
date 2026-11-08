@@ -3404,10 +3404,11 @@ sub report_foreign_site_folders {
                     $File::Find::prune = 1;
                     return;
                 }
+                my $own_conf = -f "$p/lazysite.conf" || -f Lazysite::Paths::lazysite_dir($p) . '/lazysite.conf';
                 my $why =
                     $p =~ m{\A\Q$d\E/sites/[^/]+\z} ? 'it is under sites/'
-                    : ( -f "$p/lazysite.conf" || -f "$p/lazysite/lazysite.conf" ) ? 'it holds its own lazysite.conf'
-                    :                                                               undef;
+                    : $own_conf                     ? 'it holds its own lazysite.conf'
+                    :                                 undef;
                 return unless $why;
                 push @found, [ $p =~ s{\A\Q$d\E/}{}r, $why ];
                 $File::Find::prune = 1;

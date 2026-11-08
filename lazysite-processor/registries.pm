@@ -259,7 +259,7 @@ sub _public_page_set {
 sub _foreign_site_folder {
     my ($path) = @_;
     return 1 if $path =~ m{\A\Q$DOCROOT\E/sites/[^/]+\z};
-    return 1 if -f "$path/lazysite.conf" || -f "$path/lazysite/lazysite.conf";
+    return 1 if -f "$path/lazysite.conf" || -f _lazysite_dir_for($path) . "/lazysite.conf";
     return 0;
 }
 
