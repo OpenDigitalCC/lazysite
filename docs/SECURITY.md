@@ -4786,3 +4786,98 @@ verdict
   and SM1411 restores a lock the shipped editor had stopped taking. 0.16.8 is edge and
   not security-critical (ruling 182): no change in it fixes a
   vulnerability (OBLIGATIONS.md, the vulnerability-handling row).
+
+### 2026-11-08 - SM1369 X4 (0.16.9, PENDING): a sign-in method changed - the Odoo site sign-in is an identity provider an extension declares
+
+Assessment drafted by the developer agent (n781), for the release manager's
+confirmation. Ruling 55; the design is the extension-hooks proposal, H-1 (G-1, G-2, G-3,
+G-9; risk R-1, "X4 ships alone with a sabotage test per guarantee"); rulings 178, 181,
+184 and 186. ADR 0007's sign-in-method trigger fires.
+
+what changed
+: H-1. An enabled extension's `owns.hooks.identity_provider` declares an identity
+  provider: `on`, `still_valid` and `groups` (required), `login_option` and `banner`
+  (functions in its payload lib, called through boundary 15's loader), `renew` (a same-site
+  path with a query), `signin_page` (a page name that is not one of the engine's) and
+  `grants` (0 or 1). The provider's id is the extension's id. The SM1160 session is
+  generalised in place: the same cookie, the same registry, the same revocation, the same
+  CSRF key. `mint_provider_session` and `renew_provider_session` replace the Odoo-named
+  functions; the record now names its `provider`, and a record written before (the
+  provider's id as a flag, `odoo => 1`) is read as that provider's. The verifier
+  dispatches on the cookie's `<id>=` prefix to the provider the index names, asks its
+  `on`, refuses on an unsecured site, checks revocation and the record, asks
+  `still_valid` (stale: refused with the provider's `renew` path), and asks `groups`.
+: Odoo is the first provider (`Lazysite::Odoo::SiteSignin::provider_*`): `on` is
+  `odoo_site_signin`, `still_valid` is `odoo_identity_ttl`, `groups` the current map,
+  `/odoo-signin` its sign-in page, its /login option "Sign in with <name>", its banner
+  the existing one. It does not declare `grants`.
+: The processor serves a provider's sign-in page as a system page while `on` says so,
+  exempts it from maintenance, and gives the layouts `signin_banner` and
+  `login_options`; /login renders the options. Core names no extension in the session
+  verifier, the auth wrapper's actor rule, the identity reader, the maintenance rule,
+  the render path or /login (lint 321: 24 files to 18).
+: Ruling 178: the Odoo delivery handler type's `cap` is `manage_odoo` (was
+  `manage_connectors`, C-14). A handler type may name its own extension's capability.
+
+threat delta
+: The sign-in-method trigger fires: who may cause a session to be minted is now any
+  enabled extension that declares a provider, where it was one named code path (R-1).
+  Spoofing: an extension minting a session under another provider's id or a local
+  name; a session outliving its provider. Elevation of privilege: a provider handing a
+  group that carries a capability (G-3), and ruling 186's widening, a provider that
+  declares its groups grant. Denial of service and failure: a provider function that
+  dies, hangs or answers something else. Tampering: a provider writing or reading the
+  key or the registry itself. The other three triggers do not fire: no new external
+  interface (the endpoints, pages and actions are the ones that were; the loader is
+  boundary 15's), no new dependency, no new processing of restricted data (the record
+  holds what SM1160's held).
+
+controls
+: Only core signs (G-2): the provider has no key and no way to the registry but
+  `mint_provider_session` and `renew_provider_session`; the cookie is HMAC-signed by
+  core with the site key, a cookie signed with any other key is `signature`. A cookie's
+  `<id>=` prefix cannot be a local name ('=' and ':' are not in one), and its provider is
+  read from the index, never from the cookie; a record names its provider, and a record
+  of another provider over the same sid is no session. Off means off (G-1): the
+  extension must be enabled and indexed at the mint and at every verification
+  (`Hooks::identity_provider` reads lazysite.conf again) and the provider's `on` must
+  say yes; an index left behind for an extension the conf no longer lists verifies
+  nothing. No external identity gets a capability (G-3): every group a provider's
+  `groups` answers is checked by core (`Auth::Settings::group_carries_capability`,
+  nested groups and declared capabilities included) and one that carries any
+  capability is dropped with a WARN naming it; an unsecured site refuses every provider
+  session. Fails closed (G-9): a function that cannot be loaded, dies or answers outside
+  its contract is `<id>-failed`, no session; stale holds no groups. Ruling 186's
+  allowance is a declaration (`grants => 1`), which only OIDC (SM1351, the next wave) is
+  to make; every sign-in and renewal through such a provider writes an audit row
+  (`login-grant`, `renew-grant`) naming the groups it granted. The provider's sign-in
+  page is the provider's while `on`, and a page name of the engine's own is refused; one
+  page has one provider. t/unit/extensions/80 (a fixture provider) holds each guarantee
+  and was sabotaged per guarantee: the enabled check (G-1), the capability filter (G-3),
+  the failed `on` (G-9), the record's provider, the pre-X4 record, the grant audit, the
+  sign-in page's `on`, and the maintenance exemption - each fails it (and t/tools/335,
+  t/unit/processor/171 where they reach). t/tools/335: a person signed in as 0.16.8 did,
+  byte for byte, stays signed in across the real upgrade, with /odoo-signin and the /login
+  option served by the installed code. Ruling 178: t/unit/odoo/140 (the upgrade's
+  top-up keeps a manage_connectors group's reach; a declined manage_odoo stays declined).
+
+residual risk
+: A provider is the extension's own code under boundary 15's contract-not-sandbox: in
+  process it could read the key file as the site user. What core guarantees is the path
+  - nothing signs but core, and a disabled or failing provider signs nobody in - not
+  that an installed extension is honest; trust stays what is installed (ADR 0009). A
+  declared `grants` provider can grant any group, operators included (ruling 186); its
+  audit rows are the record, and the widening is recorded here for OIDC's own entry to
+  assess. A site that had `odoo_site_signin: on` with the Odoo extension off had working
+  sessions and now has none (off means off; UPGRADE.md). The handler actions' door still
+  opens for the four destination capabilities only, so a group holding `manage_odoo`
+  alone cannot reach Odoo bindings through it (an open question for the release
+  manager); every group the upgrade topped up holds both.
+
+verdict
+: drafted as contained, for the release manager's confirmation. The trigger fires and
+  is contained: the sign-in path is SM1160's, generalised, with the guarantees core held
+  for Odoo now held for any provider, each sabotaged; no capability reaches a provider
+  session unless a provider declares `grants`, which nothing does in this release. No
+  ahead-of-schedule third-party engagement proposed beyond the one ADR 0007 already
+  requires; the OIDC entry (SM1351) is where ruling 186's widening is first used.

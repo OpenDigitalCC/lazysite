@@ -68,6 +68,36 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased (0.16.9)
+
+**The Odoo site sign-in is an identity provider (SM1369, X4).** A site whose sign-in is
+the Odoo login (`odoo_site_signin: on`) keeps working as it did: the same `lazysite_auth`
+cookie, the same `odoo:<login>` identity, the same groups from `odoo_group_map`, the same
+`/odoo-signin` page, "Sign in with Odoo" on `/login`, the "Signed in as" banner and the
+same log lines. Nobody is signed out by the upgrade: a session signed in before it
+verifies after it. What changes:
+
+- The sign-in is the extension's declaration, read from the extension index the upgrade
+  rebuilds. **The Odoo extension must be enabled** for its sessions to count: on a site
+  that had `odoo_site_signin: on` in `odoo.conf` with the extension turned off, those
+  sessions are now refused (off means off). Turn the extension on, or the setting off.
+- A layout of your own that renders `[% odoo_signin_banner %]` keeps working; the
+  default layout now renders the general `[% signin_banner %]`, and `/login` lists each
+  provider's option from `login_options`. A site's own copy of `login.md` that tested
+  `odoo_signin_banner` keeps its old link.
+- A group the Odoo map names is still refused if it carries any capability; that rule is
+  now the engine's own, applied to every identity provider.
+
+**Odoo bindings are configured with `manage_odoo` (ruling 178).** Creating, changing,
+deleting and scheduling a handler of type `odoo` needed `manage_connectors`; it now needs
+`manage_odoo`. The upgrade's capability top-up (0.16.8, ruling 167) already gives
+`manage_odoo` to every group holding `manage_connectors`, so nothing changes for such a
+group, its people, its tokens or a scheduled binding's job account. A group whose
+operator set `manage_odoo` off keeps it off, and now cannot configure Odoo bindings, and a
+scheduled binding whose job account holds only `manage_connectors` with `manage_odoo` off
+is refused at its next run, naming `manage_odoo`: grant it, or move the entry to another
+account. Saved bindings and their rows in `handlers.conf` are unchanged.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

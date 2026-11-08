@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7. Built for 0.16.8: X2 on n768 (capabilities, actions, refusal kinds; Odoo's declared, wire unchanged); X3 on n769 (page sources, handler types); X5's asset part on n770 (assets, components, template_vars; Odoo's helper, component, banner), X8 (SM1396) on it. Next X4, X5's endpoint and services, X6, X7's rest (0.16.9)."
+status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7; X2, X3, X5's asset part and X8 (SM1396) 0.16.8. Built for 0.16.9: X4 on n781 (H-1, the identity provider; Odoo's site sign-in its first consumer; the Odoo handler type on manage_odoo, ruling 178). Next X5's endpoint and services, X6, X7's rest (0.16.9)."
 ---
 
 # The ruling
@@ -359,6 +359,65 @@ Tests
   relied on the type or the source being core's. Each fails with its change
   reverted.
 
+# X4: the identity provider (H-1)
+
+Built on n781 for 0.16.9, alone, as the proposal's risk R-1 asks. The accepted design
+(rulings 181, 184): the Odoo site session (SM1160) generalised in place, one registry,
+no parallel path.
+
+The declaration
+: `owns.hooks.identity_provider` is one record: `on(ctx)`, `still_valid(ctx, record)`
+  ('ok' or 'stale') and `groups(ctx, record)` (the record's groups the provider still
+  grants), required; `login_option(ctx)` ({ label, path }) and `banner(ctx)`, optional;
+  `renew`, a same-site path with a query; `signin_page`, a page name that is not one of
+  the engine's; `grants`, 0 or 1. The provider's id is the extension's id. The build
+  refuses a second extension declaring the same sign-in page.
+
+The session
+: Core's, as SM1160's was. `mint_provider_session(provider, login, name, groups, ip,
+  ua)` signs `<id>=<login>:ts:sid:` and writes the record with `provider`;
+  `renew_provider_session` writes a newer line; `session_cookie_headers` and
+  `session_clear_headers` set and clear the cookies. The verifier dispatches on the
+  `<id>=` prefix to the indexed provider, enabled now (`Hooks::identity_provider`),
+  asks `on`, refuses an unsecured site, checks revocation and the record (of that
+  provider), asks `still_valid` and `groups`, and drops any group that carries a
+  capability unless the provider declares `grants` (ruling 186: OIDC only, SM1351);
+  a mint or renewal through a granting provider writes an audit row naming the groups.
+  A record written before X4 (`odoo => 1`, no `provider`) is read as the provider's,
+  so nobody is signed out. The why codes are `<id>-off`, `<id>-unsecured`,
+  `<id>-stale` (with `renew`) and `<id>-failed`, so Odoo's log lines keep their words.
+  `stale_ok` replaces `odoo_stale_ok`; the identity carries `provider` for `odoo`.
+
+The sign-in surfaces
+: The processor (`extensions.pm`) serves a provider's `signin_page` as a system page
+  while its `on` says yes, passes it to the maintenance rule as exempt, and gives the
+  layouts `signin_banner` (each provider's banner) and `login_options` ({ id, label,
+  path }); /login renders the options (`login-<id>`), the fallback chrome the banner.
+  The page's template stays where it was (H-10's system pages are X5's rest).
+
+Odoo
+: `extensions/odoo.pl` declares the provider with `Lazysite::Odoo::SiteSignin`'s
+  `provider_on`, `provider_still_valid`, `provider_groups`, `provider_login_option` and
+  `banner`, renew `/cgi-bin/lazysite-odoo.pl?renew=1`, sign-in page `odoo-signin`, no
+  `grants`. Its map's capability refusal is core's rule
+  (`Auth::Settings::group_carries_capability`). The endpoint and the engine call the
+  generic names. Lint 321's allow-list falls from 24 files to 18.
+
+The handler type's capability (ruling 178)
+: Odoo's handler type is `manage_odoo`'s (C-14). A type may name a capability its own
+  declaration describes. The upgrade's top-up (ruling 167) keeps every manage_connectors
+  group's reach.
+
+Tests
+: `t/unit/extensions/80` (a fixture provider: the declaration, the mint and the
+  cookie, G-1, G-2, G-3 and the grant audit, G-9 and stale, a pre-X4 record and another
+  provider's record, the page, option, banner and maintenance through the real
+  processor), sabotaged per guarantee; `t/tools/335` signs a person in as 0.16.8 did,
+  byte for byte, and they stay signed in across the real upgrade, with the sign-in page
+  and the /login option from the installed code; `t/unit/odoo/140` (ruling 178, the
+  upgrade's top-up). 63, 135, processor/171, auth/68, 70, 74, extensions/70 and
+  integration/293 follow the names. Each fails with its change reverted.
+
 # X5, the asset part: assets, components and template variables (H-10)
 
 Built on n770 for 0.16.8, as ruling 74 (D-9) places it: before the offline kit,
@@ -448,6 +507,11 @@ C-23 | X3: the pool's preload | The pool preloads `Lazysite::Extensions::Hooks` 
 C-24 | The injected tag's path (X5) | The alias when one is declared (`/assets/lazysite-odoo.js`), so a page that loads the helper by the documented path is not given it twice | The declared path, `/assets/<id>-<file>`, with the alias answering as well
 C-25 | A declared asset with the extension off (X5) | Not served and not injected: off means off (G-1); before, the docroot carried the helper whatever the conf said | Keep serving a file whose extension is off
 C-26 | What the index build sees on `@INC` (X5) | The test helper builds a fixture's index with the in-tree payload libs off `@INC`, as a site's processes have it; the rule C-3 stands unchanged | Relax C-3's "found nowhere else" for a copy under the engine's own tree
+C-27 | The provider's id (X4) | The extension's id, so no second name to validate or keep apart | A separate `id` field, as the proposal sketched
+C-28 | Odoo's sign-in with the extension off (X4) | Refused (`odoo-off`): the provider is the extension's, and off means off (G-1) | Honoured as before, which read odoo.conf whatever the toggle said
+C-29 | An unsecured site (X4) | Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
+C-30 | The record's shape (X4) | New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
+C-31 | The handler actions' door (X4) | Unchanged: any of the four destination capabilities opens it, then the type's cap decides, so manage_odoo alone does not reach it; every topped-up group holds both | Widen the door from the declared types' caps (Q-X4-1)
 ```
 
 # ADR 0007
@@ -467,3 +531,10 @@ doors are the first callers, for the ten actions that were core's own branches. 
 code that runs is the same engine behind the same names under the same gates, and the
 wire is held to a 0.16.7 capture; the X2 register entry is drafted as contained, for
 the release manager's confirmation.
+
+X4 (n781): the sign-in-method trigger fires. Any enabled extension may now declare an
+identity provider; core still signs every session, and the guarantees it held for Odoo
+(off means off, no capability through a provider's group, fail closed) are held for any
+provider and sabotaged one by one. The register entry is drafted as contained, for the
+release manager's confirmation; ruling 186's `grants` allowance is built and unused
+until OIDC (SM1351).

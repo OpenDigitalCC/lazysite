@@ -53,6 +53,22 @@ Archive
 
 ## Unreleased
 
+- SM1369 (PENDING) **X4: an extension declares an identity provider, and the Odoo site
+  sign-in is the first (H-1; rulings 178, 186).** `owns.hooks.identity_provider` gives
+  core a provider's `on`, `still_valid`, `groups`, `login_option` and `banner`, its
+  `renew` path, its `signin_page` and whether its groups may `grant`. Core keeps the
+  session: it signs the `<id>=<login>` cookie, writes and reads the record (now naming
+  its provider), revokes, refuses an unsecured site, and drops any group the provider
+  hands it that carries a capability unless the provider declares `grants` (only OIDC
+  will, SM1351), auditing every sign-in through such a provider with the groups it
+  granted. The provider's extension must be on at every check. The processor serves
+  the sign-in page while the provider is on, keeps it reachable in maintenance, and
+  gives layouts `signin_banner` and `login_options`, which /login lists. Odoo's sign-in
+  is declared this way; nobody is signed out by the upgrade, and the cookie, identity,
+  groups, pages and log lines are as they were. Odoo bindings (the `odoo` handler type)
+  are configured with `manage_odoo` (ruling 178), which the upgrade's top-up gives every
+  group holding `manage_connectors`.
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and
