@@ -1656,13 +1656,19 @@ A binding carries a **row ceiling** and reports when it clamps, so a page that
 outgrows its limit says so in the log rather than quietly showing a short list.
 `items_total` beside `items.size` is how a page says "showing 200 of 250".
 
-## Freshness is the page's `ttl:`, and modes currently do not differ
+## Freshness is the table's change stamp and the page's `ttl:`, and modes currently do not differ
 
-A table has **no timestamp that can prove a cached page still current** - the
-store is written through WAL, so a row changes without the file's mtime moving.
-So a `db:` binding withdraws the mtime proof of freshness, and the page's own
-`ttl:` becomes the only bound it has: a page declaring one is served from cache
-for that window, and a page declaring none is re-rendered on every request.
+The store's file has **no timestamp that can prove a cached page still current** -
+it is written through WAL, so a row changes without the file's mtime moving.
+So a `db:` binding withdraws the mtime proof of freshness. What proves it instead
+is the table's **change stamp** (SM1357, 0.16.8): every write the engine makes to
+a table touches `lazysite/db/stamps/<table>`, a render records the stamp of each
+table it read, and a page is rendered again on its next request once the stamp is
+newer than the render, `ttl:` or not. The page's own `ttl:` bounds a page whose
+tables did not change: a page declaring one is served from cache for that window,
+and a page declaring none is re-rendered on every request. A row changed outside
+the engine (an `sqlite3` shell on the store) touches no stamp, and waits for the
+`ttl:`.
 
 The descriptor grammar accepts `mode=snapshot` (the default), `mode=live` and
 `mode=client`. **`snapshot` and `live` currently behave identically** -
@@ -1671,8 +1677,9 @@ SM604 every `db:` binding does it, because otherwise one `json:` binding on the
 same page vouched for the table's freshness, which nothing can do. `client`
 is genuinely different: no rows at render, the page's own script fetches them.
 
-Choose a `ttl:` from how stale the data may be before it misleads someone. That
-is the decision; the mode is not, today.
+Choose a `ttl:` from how stale the page's other sources may be before they
+mislead someone; a row the engine writes refreshes the page either way. That is
+the decision; the mode is not, today.
 
 ## Four doors write to a table, and they are not equivalent
 
