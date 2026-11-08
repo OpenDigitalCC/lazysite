@@ -100,7 +100,6 @@ Archive
   loses seven files. The hook index is rebuilt on every upgrade, so a site using Odoo
   gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
   `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted.
-  `odoo:` always did. Tests: t/unit/extensions/72, 73. Register entry drafted.
 - SM1369 (PENDING) **An extension declares its assets, components and template
   variables (X5, the asset part of H-10).** Three hook kinds go live in
   `Lazysite::Extensions::Hooks`: `assets` (a file in the payload, served at
