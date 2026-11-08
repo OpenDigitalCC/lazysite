@@ -754,7 +754,7 @@ sub _escape_db_rows {
 # An enabled extension declares its sources in the hook index
 # (`owns.hooks.page_sources`: prefix, resolve, check, per_viewer, live,
 # read_only), and the render asks the index for a prefix it does not resolve
-# itself (scan:, db:, json:, url: are tested first, above). Nothing here knows
+# itself (scan:, db:, schedule:, json:, url:, which no extension may declare). Nothing here knows
 # any extension by name; what a source reads, and what it refuses, is the
 # extension's own code (lint 321). The rules core keeps are the ones a shared,
 # cached render needs:

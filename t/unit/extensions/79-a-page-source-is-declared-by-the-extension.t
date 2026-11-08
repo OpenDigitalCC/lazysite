@@ -140,6 +140,9 @@ subtest 'the vocabulary is checked before it is indexed' => sub {
     }
     like( errors( validate_hooks( 'x', { page_sources => [ source( 'db', 'get' ) ] } ) )->[0],
         qr/prefix 'db' is the engine's own/, 'the engine\'s prefix refusal names it' );
+    # n776: schedule: (SM1356, n773) is the engine's too, resolved before the index is asked.
+    like( errors( validate_hooks( 'x', { page_sources => [ source( 'schedule', 'get' ) ] } ) )->[0] // '',
+        qr/prefix 'schedule' is the engine's own/, 'schedule, the engine\'s since SM1356, is refused too' );
 };
 
 subtest 'a shared render: the source is handed no credential, and its value is made inert' => sub {

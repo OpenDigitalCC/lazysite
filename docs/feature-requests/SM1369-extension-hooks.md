@@ -323,7 +323,7 @@ address_profiles (I-13)
   for the place is `handler`.
 
 The validator
-: Refused by name before anything is indexed: a prefix core owns (scan, db,
+: Refused by name before anything is indexed: a prefix core owns (scan, db, schedule (n776),
   json, url), one with a colon or capitals, one declared twice, a source without
   `read_only => 1`; a type named for a core type (smtp, file, table, connector,
   notify) or a retired one (webhook, api, db), a `cap` that is not in the

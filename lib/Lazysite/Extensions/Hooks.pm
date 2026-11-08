@@ -287,7 +287,7 @@ sub validate_hooks {
 
 # The prefixes the processor resolves itself (lazysite-processor/sources.pm,
 # resolve_tt_vars, tested before it asks the index) - a source cannot take one.
-our @CORE_SOURCE_PREFIXES = qw(scan db json url);
+our @CORE_SOURCE_PREFIXES = qw(scan db json url schedule);    # schedule: SM1356 (n773)
 
 # Where core delivers a handler from: a form's submission
 # (extensions/form-handler.pl) and the scheduler's timer (Daemon::Jobs). A type
