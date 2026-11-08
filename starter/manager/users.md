@@ -645,6 +645,14 @@ function accountSettingsHtml(row) {
     cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' + mfaCtl +
       '<span class="mg-status" id="mfamsg-' + ue + '"></span></div>';
     cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
+    // SM1352: passkeys are added and removed by the person, on /account. A manager can
+    // only remove them all - for a lost phone - which also signs the account out.
+    cred += '<div class="mg-line"><span class="mg-line-lbl">Passkeys</span>' +
+      (s.passkeys
+        ? '<span class="mg-tag mg-tag-on">' + s.passkeys + '</span> ' +
+          '<button class="mg-btn mg-btn-sm" onclick="wipePasskeys(\'' + ue + '\')">Remove all passkeys</button>'
+        : '<span class="mg-tag mg-tag-off">none</span> <span class="mg-muted">the account adds its own on /account</span>') +
+      '<span class="mg-status" id="pkmsg-' + ue + '"></span></div>';
     h += sec('Credentials', cred);
   }
 
@@ -1522,6 +1530,20 @@ function cancel2fa(user) {
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM1352: every passkey of the account goes (a lost phone), and its sessions with them.
+function wipePasskeys(user) {
+  var msg = document.getElementById('pkmsg-' + user);
+  mgConfirm('Remove all passkeys of "' + user + '"? They can add new ones on their account page, and every session of the account is signed out.', { danger: true, ok: 'Remove all passkeys' }).then(function(__ok) {
+    if (!__ok) return;
+    apiCall({ action: 'passkey-wipe', username: user })
+    .then(function(d) {
+      if (msg) { msg.textContent = d.ok ? ('Removed ' + d.removed + '.') : d.error; msg.className = 'mg-status ' + (d.ok ? 'mg-status-success' : 'mg-status-error'); }
+      loadUsers();
+    })
+    .catch(function(e) {});
+  });
 }
 
 function disable2fa(user) {

@@ -5321,3 +5321,82 @@ verdict
 : drafted for the release manager: accepted, one dependency for two features, loaded
   only by them, and refusing when absent. No ahead-of-schedule third-party engagement
   beyond the one ADR 0007 already requires.
+
+### 2026-11-08 - SM1352 (0.16.9, PENDING): passkeys
+
+Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+
+what changed
+: A second interactive sign-in method beside the password: a passkey (WebAuthn). The
+  auth wrapper gains `?action=passkey-challenge` (a fresh challenge, JSON) and
+  `?action=passkey-login` (the signed answer, a form POST that ends in the password's
+  own session and landing); `?action=claim` accepts a passkey in place of a password,
+  so the first one is enrolled through the existing emailed one-time link. The control
+  API gains four `self`, cookie-only actions (`me-passkeys`, `me-passkey-begin`,
+  `me-passkey-add`, `me-passkey-remove`), and the users tool `passkey-add`,
+  `passkey-remove`, `passkey-used` and the operator's `passkey-wipe` (through the
+  `users` action, `manage_users`, not delegable). A group key, `passkey_only`, refuses
+  its members' passwords in the password branch of sign-in. Public keys only are stored,
+  in the account's record; challenges are one file each under
+  `lazysite/auth/passkey-challenges/`. Built as ruled (ruling 187): attestation `none`,
+  the key from `getPublicKey()` (SPKI DER), no CBOR; an ordinary local session.
+
+threat delta
+: ADR 0007's new-authentication-method trigger fires, and new-external-interface (two
+  unauthenticated wrapper actions, four account actions). New-dependency is the CryptX
+  entry. No restricted data is processed: a public key, a counter and a label. The
+  questions:
+  - Spoofing: could a signature the site did not ask for, one made for another site, a
+    replay of a captured answer, or a cloned authenticator sign someone in? Could a
+    passkey be planted in someone else's account?
+  - Elevation of privilege: could a passkey sign-in skip a gate a password sign-in
+    passes (disabled, expired, `ui` off, address limits, the rate limiter)?
+  - Tampering: could a manager add a passkey to another person's account, as SM1042
+    stopped them enrolling two-factor?
+  - Denial of service: could an anonymous caller fill the disk with challenges?
+  - Repudiation: is every sign-in, enrolment and wipe attributable?
+
+controls
+: A challenge is 32 random bytes, issued for one purpose (signin, enrol or claim; enrol
+  and claim bound to one account), answerable for five minutes, and spent by the first
+  answer that names it (a rename, so of two answers only one can have it). The client
+  data's origin must be this request's own host over https, and the authenticator
+  data's RP ID hash must be that host's; the user-present flag is required; the
+  signature is verified with the key and the algorithm stored at enrolment, over the
+  bytes the engine builds; a counter that does not move forward is refused. At most
+  1000 challenges wait at once; expired ones are removed as new ones are issued.
+: A passkey sign-in passes the address scope, the shared rate limiter and every account
+  gate of the password sign-in, in the same order, and mints the same session through
+  the same code (`_land_signed_in`); only the TOTP step is skipped, a passkey being a
+  second factor. A failure sleeps as a wrong password does and is audited with its
+  reason.
+: A passkey is added only by the account it signs in: through its own session
+  (re-authenticated with the current password when it has one) or its own setup link.
+  The manager API refuses `passkey-add`, `-remove` and `-used`; the users tool refuses
+  an actor that is not the account; the operator may only wipe them all, which also
+  ends the account's sessions and is audited. An account enrolled through a link has a
+  locked credential marker, never an empty one, so the localhost no-password door does
+  not open for it.
+: `passkey_only` is checked after the password matched (it tells a guesser nothing),
+  and a group store that cannot be read refuses (cannot tell).
+: t/unit/auth/107 (ES256, RS256 and Ed25519 fixture keys made with CryptX in the test;
+  a wrong signature, a replayed challenge, a wrong origin, another RP ID, a made-up
+  challenge and a stale counter are refused), t/unit/auth/108 (passkey only),
+  t/unit/auth/109 (the setup link), t/unit/account/36 (the account's own passkeys, the
+  manager's refusals, the wipe), each sabotaged one control at a time.
+
+residual risk
+: An account with no password adds a second passkey on the strength of its session
+  alone: a stolen session of such an account can plant one (the wipe removes it). The
+  authenticator's make is not checked (attestation `none`), so a software
+  authenticator is as good as a phone's. The challenge directory is per site, so a
+  flood of anonymous challenge requests can hold the 1000 slots for five minutes and
+  delay passkey sign-ins (passwords are unaffected). User verification (a PIN or
+  fingerprint) is preferred, not required.
+
+verdict
+: drafted for the release manager: accepted, contained. The method reuses the
+  password sign-in's gates and session, adds no secret to the store, and its
+  enrolment is the account's alone. No ahead-of-schedule third-party engagement beyond
+  the one ADR 0007 already requires; the passkey paths should be in that engagement's
+  scope.

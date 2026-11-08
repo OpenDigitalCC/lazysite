@@ -180,6 +180,10 @@ tone: medium
 `me-2fa-enrol` | cookie only | current_password (body)
 `me-notices` | cookie only |  
 `me-notices-seen` | cookie only | id (body), dismiss (body)
+`me-passkey-add` | cookie only | id (body), client_data (body), authenticator_data (body), public_key (body), alg (body), label (body)
+`me-passkey-begin` | cookie only | current_password (body)
+`me-passkey-remove` | cookie only | id (body)
+`me-passkeys` | cookie only |  
 `me-password` | cookie only | current_password (body), new_password (body)
 `me-recovery-codes` | cookie only | current_password (body), code (body)
 `me-session-revoke` | cookie only | sid (body)

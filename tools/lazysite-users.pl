@@ -324,6 +324,9 @@ our %CLI_AUDIT_ACTION = (
     cmd_mfa_disable               => 'user-mfa-disable',
     cmd_mfa_confirm               => 'user-mfa-confirm',
     cmd_mfa_recovery_regenerate   => 'user-mfa-recovery-regenerate',              # SM1042
+    cmd_passkey_add               => 'user-passkey-add',                          # SM1352
+    cmd_passkey_remove            => 'user-passkey-remove',                       # SM1352
+    cmd_passkey_wipe => 'user-passkey-wipe',    # SM1352: the operator's, for a lost phone
     cmd_group_settings_set        => 'user-group-settings-set',
     cmd_group_create              => 'user-group-create',
     cmd_group_delete              => 'user-group-delete',
@@ -377,6 +380,7 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_verify_credential   => 'verification stamp; audited by the caller',
     cmd_partner_caps        => 'verification stamp; audited by the caller',
     cmd_mfa_verify          => 'verification; audited api-side',
+    cmd_passkey_used => 'verification stamp (counter, last used); the sign-in is audited by the auth wrapper',
     cmd_connect_code        => 'api-only; audited by the calling surface',
     cmd_redeem_connect_code => 'api-only; audited by the calling surface',
     cmd_onboarding_web      => 'api-only; audited by the calling surface',
@@ -487,6 +491,21 @@ if ($API_MODE) {
             print encode_json( { ok => 0, kind => 'forbidden',
                     error => "Two-factor is set up by the account it protects; '$actor' "
                         . "may reset another account's, never set it up or see its codes." } );
+            exit 0;
+        }
+    }
+
+    # SM1352: a passkey is added or removed by the account it signs in, as a
+    # second factor is set up (above). The operator's remedy for a lost phone is
+    # passkey-wipe, which adds nothing.
+    if ( $action =~ /\A(?:passkey-add|passkey-remove)\z/ ) {
+        my $actor = $req->{actor};
+        if ( defined $actor && length $actor && $actor ne 'local'
+            && $actor ne ( $req->{username} // '' ) )
+        {
+            print encode_json( { ok => 0, kind => 'forbidden',
+                    error => "A passkey is added or removed by the account it signs in; '$actor' "
+                        . "may remove all of another account's passkeys (passkey-wipe), never add one." } );
             exit 0;
         }
     }
@@ -773,7 +792,7 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'claim-redeem' ) {
             $result = cmd_claim_redeem( $req->{username}, $req->{claim},
-                password => $req->{password} );
+                password => $req->{password}, passkey => $req->{passkey} );    # SM1352
         }
         elsif ( $action eq 'mfa-enroll' ) {
             my $r = cmd_mfa_enroll( $req->{username} );
@@ -791,6 +810,18 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'mfa-recovery-regenerate' ) {    # SM1042
             $result = cmd_mfa_recovery_regenerate( $req->{username} );
+        }
+        elsif ( $action eq 'passkey-add' ) {                # SM1352
+            $result = cmd_passkey_add( $req->{username}, $req->{passkey} );
+        }
+        elsif ( $action eq 'passkey-remove' ) {
+            $result = cmd_passkey_remove( $req->{username}, $req->{id} );
+        }
+        elsif ( $action eq 'passkey-wipe' ) {
+            $result = cmd_passkey_wipe( $req->{username} );
+        }
+        elsif ( $action eq 'passkey-used' ) {
+            $result = cmd_passkey_used( $req->{username}, $req->{id}, $req->{count} );
         }
         elsif ( $action eq 'totp-code' ) {
             $result = { ok => 1, code => totp_code( $req->{secret}, $req->{time}, $req->{step}, $req->{digits} ) };
@@ -908,6 +939,7 @@ elsif ( $cmd eq 'claim-create' )              { cmd_claim_create_cli(@args) }
 elsif ( $cmd eq 'claim-redeem' )              { cmd_claim_redeem_cli(@args) }
 elsif ( $cmd eq 'mfa-enroll' )                { cmd_mfa_enroll(@args) }
 elsif ( $cmd eq 'mfa-disable' )               { cmd_mfa_disable(@args) }
+elsif ( $cmd eq 'passkey-wipe' )              { cmd_passkey_wipe(@args) }         # SM1352
 elsif ( $cmd eq 'partner-create' )            { cmd_partner_create_cli(@args) }
 elsif ( $cmd eq 'permissions' )               { cmd_permissions_cli(@args) }
 elsif ( $cmd eq 'audit-registry' )            { cmd_audit_registry() }
@@ -2985,6 +3017,25 @@ sub cmd_claim_redeem {
         # token-only (ui off) accounts have no interactive password
         my $ui = ( exists $s->{ui} && !$s->{ui} ) ? 0 : 1;
         die $GENERIC unless $ui;
+
+        # SM1352: THE FIRST PASSKEY, THROUGH THE SAME LINK. Instead of a password
+        # the holder may enrol a passkey, which the auth wrapper has already
+        # verified against a challenge issued for this account. An account with
+        # no password is given a locked marker in its place, which no password
+        # matches: an empty one is the localhost no-password account, and a
+        # passkey must not make an account that.
+        if ( defined $opt{passkey} ) {
+            _passkey_append( $all, $user, $opt{passkey} ); # dies on a bad one, before anything
+            _end_other_sessions( $user, undef );           # SM1040: as a password does
+            $users{$user} = '!passkey' unless length( $users{$user} // '' );
+            write_users(%users);
+            delete $all->{$user}{$_} for qw(claim_hash claim_expires_at claim_purpose token_expires_at);
+            write_settings($all);
+            log_event( 'INFO', $user, 'claim redeemed', purpose => 'passkey' );
+            cli_audit( 'user-claim-redeem', $user, 'passkey' );
+            return { ok => 1, purpose => 'passkey' };
+        }
+
         my $pw = $opt{password};
         die "Password required\n" unless defined $pw && length $pw;
         # SM1041: a password the policy refuses leaves the link UNUSED - the
@@ -3148,6 +3199,121 @@ sub cmd_mfa_disable {
     log_event( 'INFO', $user, 'mfa disabled' );
     cli_audit( 'user-mfa-disable', $user );
     print "MFA disabled for '$user'.\n" unless $API_MODE;
+    return { ok => 1 };
+}
+
+# --- SM1352: passkeys ---------------------------------------------------------
+#
+# The account's passkeys, in its own record: `passkeys: [ { id, key, alg, label,
+# created, used, count } ]`. This tool is the store's single writer; the
+# verification is Lazysite::Auth::Passkey's, done by the caller before it asks
+# for a write, so what arrives here is a passkey that has already proved itself.
+# Nothing here is a secret: a passkey's key is public.
+
+# The shape a stored passkey must have, or the reason it does not.
+sub _passkey_fault {
+    my ($p) = @_;
+    return 'a passkey is required' unless ref $p eq 'HASH';
+    return 'the passkey id is not base64url' unless defined $p->{id} && $p->{id} =~ /\A[A-Za-z0-9_-]{16,1400}\z/;
+    return 'the passkey key is not base64url' unless defined $p->{key} && $p->{key} =~ /\A[A-Za-z0-9_-]{16,2800}\z/;
+    return 'the passkey algorithm is not one this site verifies'
+        unless defined $p->{alg} && grep { $p->{alg} eq $_ } qw(-7 -257 -8);
+    return undef;
+}
+
+sub _passkey_record {
+    my ($p) = @_;
+    my $label = defined $p->{label} && !ref $p->{label} ? "$p->{label}" : '';
+    $label =~ s/[\x00-\x1f\x7f]+/ /g;
+    return { id => "$p->{id}", key => "$p->{key}", alg => 0 + $p->{alg},
+        label => substr( $label, 0, 64 ), created => time(), count => 0 + ( $p->{count} // 0 ) };
+}
+
+# Add one passkey, or die. Refused when another account (or this one) already
+# holds the credential, or the account holds $Passkey::MAX_PER_ACCOUNT.
+sub _passkey_append {
+    my ( $all, $user, $p ) = @_;
+    if ( my $f = _passkey_fault($p) ) { die "$f\n" }
+    for my $u ( keys %$all ) {
+        next unless ref $all->{$u} eq 'HASH' && ref $all->{$u}{passkeys} eq 'ARRAY';
+        die "That passkey is already registered here.\n"
+            if grep { ref $_ eq 'HASH' && ( $_->{id} // '' ) eq $p->{id} } @{ $all->{$u}{passkeys} };
+    }
+    my $list = $all->{$user}{passkeys} ||= [];
+    require Lazysite::Auth::Passkey;
+    die "An account may hold $Lazysite::Auth::Passkey::MAX_PER_ACCOUNT passkeys; remove one first.\n"
+        if @$list >= $Lazysite::Auth::Passkey::MAX_PER_ACCOUNT;
+    push @$list, _passkey_record($p);
+    return;
+}
+
+sub cmd_passkey_add {
+    my ( $user, $p ) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+    my $all = read_settings();
+    die "the account settings could not be read; nothing was changed\n"
+        unless Lazysite::Auth::Settings::settings_readable();
+    $all->{$user} ||= {};
+    _passkey_append( $all, $user, $p );
+    write_settings($all);
+    log_event( 'INFO', $user, 'passkey added' );
+    cli_audit( 'user-passkey-add', $user );
+    return { ok => 1, id => $p->{id} };
+}
+
+sub cmd_passkey_remove {
+    my ( $user, $id ) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    die "id is required (one of your passkeys)\n" unless defined $id && !ref $id && length $id;
+    my $all  = read_settings();
+    my $list = ref $all->{$user} eq 'HASH' ? $all->{$user}{passkeys}            : undef;
+    my @keep = grep { ( $_->{id} // '' ) ne $id } ref $list eq 'ARRAY' ? @$list : ();
+    return { ok => 0, kind => 'not-found', error => 'No passkey of yours has that id.' }
+        unless ref $list eq 'ARRAY' && @keep < @$list;
+    if (@keep) { $all->{$user}{passkeys} = \@keep }
+    else       { delete $all->{$user}{passkeys} }
+    write_settings($all);
+    log_event( 'INFO', $user, 'passkey removed' );
+    cli_audit( 'user-passkey-remove', $user );
+    return { ok => 1, id => $id, remaining => scalar @keep };
+}
+
+# The operator's remedy for a lost phone: every passkey of the account goes, and
+# so does every session it holds - a lost phone is usually a signed-in one.
+# Sessions first, so a failure changes nothing.
+sub cmd_passkey_wipe {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+    my $all  = read_settings();
+    my $list = ref $all->{$user} eq 'HASH' ? $all->{$user}{passkeys} : undef;
+    my $n    = ref $list eq 'ARRAY'        ? scalar @$list           : 0;
+    if ($n) {
+        _end_every_session( $user, 'wiped of its passkeys' );
+        delete $all->{$user}{passkeys};
+        write_settings($all);
+    }
+    log_event( 'WARN', $user, 'passkeys removed by an operator', count => $n );
+    cli_audit( 'user-passkey-wipe', $user, "$n passkey(s) removed; sessions signed out" );
+    print "Removed $n passkey(s) from '$user'" . ( $n ? ' and signed its sessions out' : '' ) . ".\n"
+        unless $API_MODE;
+    return { ok => 1, removed => $n };
+}
+
+# After a verified sign-in: the authenticator's counter and when it was used.
+sub cmd_passkey_used {
+    my ( $user, $id, $count ) = @_;
+    my $all  = read_settings();
+    my $list = ref $all->{ $user // '' } eq 'HASH' ? $all->{$user}{passkeys} : undef;
+    return { ok => 0, error => 'no such passkey' } unless ref $list eq 'ARRAY';
+    my ($p) = grep { ( $_->{id} // '' ) eq ( $id // '' ) } @$list;
+    return { ok => 0, error => 'no such passkey' } unless $p;
+    $p->{count} = 0 + ( $count // 0 ) if ( $count // '' ) =~ /\A\d+\z/;
+    $p->{used}  = time();
+    write_settings($all);
     return { ok => 1 };
 }
 
@@ -5676,6 +5842,22 @@ sub cmd_group_settings_set {
     # MORE THAN ONE GROUP MAY CARRY IT. A registration joins all of them, which
     # is what an operator composing a role out of two groups would expect, and
     # refusing a second would be a rule nobody could discover.
+    # SM1352: `passkey_only` - the group's members sign in with a passkey, and the
+    # sign-in page refuses their password. One key, checked in the password branch
+    # of sign-in and nowhere else. It confers nothing (it only takes a way in
+    # away), so any holder of group management may set it. Stored as an explicit
+    # 0 when off, as registration is. Audited like the rest.
+    if ( defined $key && $key eq 'passkey_only' ) {
+        my $gs = read_group_settings();
+        $gs->{$group} ||= _new_group_record($group);
+        my $on = ( defined $value && $value =~ /^(?:on|1|true|yes)$/i ) ? 1 : 0;
+        $gs->{$group}{passkey_only} = $on;
+        write_group_settings($gs);
+        log_event( 'WARN', $group, 'passkey-only flag set', passkey_only => $on );
+        cli_audit( 'user-group-settings-set', $group, 'passkey_only=' . ( $on ? 'on' : 'off' ) );
+        return { ok => 1, passkey_only => $on ? JSON::PP::true() : JSON::PP::false() };
+    }
+
     if ( defined $key && $key eq 'registration' ) {
         my $gs = read_group_settings();
         $gs->{$group} ||= _new_group_record($group);
@@ -6664,6 +6846,8 @@ Commands:
   mfa-enroll USERNAME         Begin TOTP enrolment (prints the otpauth:// URI
                               and the recovery codes, once)
   mfa-disable USERNAME        Remove TOTP enrolment and any recovery codes
+  passkey-wipe USERNAME       Remove every passkey of the account (a lost phone)
+                              and sign its sessions out
   partner-create NAME --by PARENT [--layouts] [--config] [--no-themes] [--create-subs]
                               Provision an automated partner: sub-user with
                               partner capability defaults (webdav +
@@ -6768,11 +6952,11 @@ exist, on the one page they would consult before their first successful command.
 =item Credentials and partners
 
 C<token>, C<pairing-key>, C<token-exchange>, C<token-rotate>, C<brief>,
-C<claim-create>, C<claim-redeem>, C<mfa-enroll>, C<mfa-disable>,
+C<claim-create>, C<claim-redeem>, C<mfa-enroll>, C<mfa-disable>, C<passkey-wipe>,
 C<partner-create>, C<account-create>, C<account-disable>, C<account-enable>,
 C<account-reassign>, C<account-promote>, C<account-scope-independent> - issue
 and rotate credentials, hand an account its own setup/reset claim, enrol or
-remove TOTP, provision an automated partner with an onboarding brief, and manage
+remove TOTP, remove a lost phone's passkeys, provision an automated partner with an onboarding brief, and manage
 sub-account trees.
 
 =back

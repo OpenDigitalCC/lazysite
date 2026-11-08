@@ -17,6 +17,7 @@ package main;
 #         placeholder pass (SM931, SM967); the TAGS refusal (SM968); a
 #         compile-cache fault never breaking a render.
 # CALLS   resolve_site_vars, resolve_tt_vars, _is_manager, _site_grants_manager,
+#         _passkeys_available (the script's, SM1352),
 #         _draft_requested,
 #         _groups_grant_cap, _domain_scopes, _domain_home, _language_set,
 #         _esc_html, _esc_query_stash, _front_matter_reserved,
@@ -500,6 +501,7 @@ sub _render_stash {
         languages       => \@languages,                # SM179 P2: switcher/hreflang
         t               => {},                         # SM179 P5: layout chrome strings
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
+        passkeys => \&_passkeys_available, # SM1352: the sign-in and setup pages offer one
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session
             # cookie. Themes drop [% auth_control %] into their header instead of a
@@ -695,5 +697,6 @@ sub render_content {
 # SM1328's display name and SM1160's banner were read and built here. SM1369 X5:
 # both are template variables the extension declares (template_vars), rendered
 # by its own code through lazysite-processor/extensions.pm when a template asks.
+
 
 1;

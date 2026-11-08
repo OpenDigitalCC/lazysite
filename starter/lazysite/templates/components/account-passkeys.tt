@@ -1,0 +1,27 @@
+[%# SM1352: built-in account component - your own passkeys.
+    Use on /account:
+      ::: account-passkeys
+      :::
+    Lists your passkeys, adds one (the current password first, when the account has
+    one; then the phone or computer makes it) and removes one, through the
+    me-passkey* actions and /assets/lazysite-account.js. A passkey is added and
+    removed only by the account it signs in; a manager can only remove them all,
+    for a lost phone. Without the server library a passkey needs, the region says
+    so. A layout may override this file, keeping the data-ls-* attributes and the
+    field names. -%]
+<section class="lz-account lz-account-passkeys" data-ls-account="passkeys">
+  <p class="lz-account-state" data-ls-field="passkey-state"></p>
+  <ul class="lz-account-list" data-ls-passkeys></ul>
+
+  <form class="lz-account-form" data-ls-passkey="add" hidden>
+    <label for="lz-pk-label">Name for this passkey</label>
+    <input type="text" id="lz-pk-label" name="label" maxlength="64" placeholder="for example: my phone">
+    <div data-ls-passkey-password hidden>
+      <label for="lz-pk-pw">Current password</label>
+      <input type="password" id="lz-pk-pw" name="current_password" autocomplete="current-password">
+    </div>
+    <div class="lz-account-actions"><button type="submit">Add a passkey</button></div>
+  </form>
+
+  <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
+</section>

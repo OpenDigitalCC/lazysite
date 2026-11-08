@@ -319,6 +319,19 @@ sub _account_page_enabled {
     return $on;
 }
 
+# SM1352: can this server verify a passkey? CryptX on @INC (its ECC class is the one
+# every passkey path loads first). Looked up, never loaded: the render path stays
+# free of it (ADR 0001), and a template that never asks never looks. The sign-in
+# and setup pages offer a passkey only when this is true. Here, not in a part,
+# because a part touches no @INC (t/lint/215).
+sub _passkeys_available {
+    for my $d (@INC) {
+        next     if ref $d;
+        return 1 if -f "$d/Crypt/PK/ECC.pm";
+    }
+    return 0;
+}
+
 # SM1340 (ruling 79): `design_guide: /path` names this site's design guide, which
 # the engine's layouts doc and layouts briefing link as "This site's design guide".
 # A same-site path only, held to the rule Lazysite::Util::sanitise_next applies -

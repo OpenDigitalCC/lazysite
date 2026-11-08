@@ -389,6 +389,11 @@ my %RAN_ONLY = (
     'me-recovery-codes' => 'needs two-factor on and a current code; the template has none',
     # SM1364: t/unit/data/110 lands it against a remote it starts on 127.0.0.1.
     'data-table-refresh' => 'calls a sourced table\'s connector over the network; the test makes no network call',
+    # SM1352: a Host to belong to, an authenticator's answer, or an enrolled passkey -
+    # none of which the template makes; t/unit/account/36 lands all three.
+    'me-passkey-begin'  => 'needs a Host the passkey belongs to; the requests here carry none',
+    'me-passkey-add'    => "needs an authenticator's signed answer to a challenge issued for the account",
+    'me-passkey-remove' => 'needs a passkey the account holds; the template enrols none',
 );
 
 # SM944 S34 finding F-1 (found by this test): file-upload's rate check ran in

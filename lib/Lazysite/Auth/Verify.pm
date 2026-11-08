@@ -176,6 +176,8 @@ sub effective_settings {
         ? JSON::PP::true()
         : JSON::PP::false(),
         mfa_required => $s->{mfa_required} ? JSON::PP::true() : JSON::PP::false(),
+     # SM1352: how many passkeys the account holds - a count; the keys stay in the record.
+        passkeys => ( ref $s->{passkeys} eq 'ARRAY' ? scalar @{ $s->{passkeys} } : 0 ),
         email        => $s->{email},
     };
 }

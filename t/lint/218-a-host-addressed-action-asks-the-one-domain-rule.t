@@ -291,6 +291,9 @@ my %NOT_INSTANCE_WIDE = (
     'me-2fa-confirm'         => "the caller's own second factor (a self action, lint 246)",
     'me-2fa-disable'         => "the caller's own second factor (a self action, lint 246)",
     'me-recovery-codes'      => "the caller's own recovery codes (a self action, lint 246)",
+    'me-passkey-begin'       => "a challenge for the caller's own passkey (a self action, lint 246)",
+    'me-passkey-add'         => "the caller's own passkey (a self action, lint 246)",
+    'me-passkey-remove'      => "one of the caller's own passkeys (a self action, lint 246)",
     'regenerate-registries' => 'derived output, rebuilt from the content on the next request: '
         . 'the result is the same whoever asks, and no setting changes',
     'site-backup-upload' => 'stores a package; it changes a site only through site-backup-apply, '

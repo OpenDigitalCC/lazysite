@@ -1,10 +1,13 @@
 /* lazysite-account.js - SM1043 (SM1034 phase 1a): the member's own account page.
  *
  * Binds the built-in ::: account-* components on /account to the control API's
- * me-* actions. Every one of those acts on the signed-in caller and nobody else:
- * this script never sends an account name, because the server would not read
- * one. It sends the session cookie (same origin) and the CSRF token the
- * `csrf-token` action mints for that session, on every POST.
+ * me-* actions. SM1352: it also binds the passkey regions of the sign-in
+ * and setup-link pages, which talk to the auth wrapper (lazysite-auth.pl) instead,
+ * because nobody is signed in there yet (the setup link names its own account).
+ * Every me-* action acts on the signed-in caller and nobody else: this script
+ * never sends one an account name, because the server would not read one. It
+ * sends the session cookie (same origin) and the CSRF token the `csrf-token`
+ * action mints for that session, on every POST.
  *
  * VALUES GO IN AS TEXT, ALWAYS - textContent, never innerHTML - as in
  * lazysite-data.js. A display name, a browser string, a notice: all of it is
@@ -338,7 +341,156 @@
     refresh();
   }
 
-  var BIND = { summary: summary, password: password, sessions: sessions, bell: bell, '2fa': twofa };
+  // --- passkeys (SM1352) ------------------------------------------------------
+  // WebAuthn, the plain way: the browser makes or uses the key, and this sends
+  // the server what it answered, as base64url. Enrolment takes the key from
+  // getPublicKey() (SPKI) with attestation 'none'. Sign-in and the setup link
+  // post a form, so the server's landing and refusals are the ordinary ones.
+  var AUTH = '/cgi-bin/lazysite-auth.pl';
+  function b64u(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function unb64u(str) {
+    var s = atob(String(str || '').replace(/-/g, '+').replace(/_/g, '/'));
+    var b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b.buffer;
+  }
+  function passkeysUsable() {
+    return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+  }
+  function authChallenge(fields) {
+    var body = Object.keys(fields).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(fields[k]); }).join('&');
+    return fetch(AUTH + '?action=passkey-challenge', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: body
+    }).then(function (r) { return r.json(); }, function () { return { ok: false, error: 'The server could not be reached.' }; });
+  }
+  function createOptions(c) {
+    return { publicKey: {
+      challenge: unb64u(c.challenge),
+      rp: { id: c.rp_id, name: c.rp_name || c.rp_id },
+      user: { id: unb64u(c.user_id), name: c.user_name, displayName: c.user_display || c.user_name },
+      pubKeyCredParams: (c.algorithms || [-7]).map(function (a) { return { type: 'public-key', alg: a }; }),
+      excludeCredentials: (c.exclude || []).map(function (id) { return { type: 'public-key', id: unb64u(id) }; }),
+      authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' },
+      attestation: 'none', timeout: c.timeout || 300000
+    } };
+  }
+  function created(cred) {
+    var r = cred.response;
+    if (!r.getPublicKey || !r.getAuthenticatorData || !r.getPublicKeyAlgorithm) return null;
+    var pk = r.getPublicKey();
+    if (!pk) return null;
+    return { id: b64u(cred.rawId), client_data: b64u(r.clientDataJSON), authenticator_data: b64u(r.getAuthenticatorData()),
+      public_key: b64u(pk), alg: r.getPublicKeyAlgorithm() };
+  }
+  function fillAndSend(form, fields) {
+    Object.keys(fields).forEach(function (k) {
+      var el = form.elements['pk_' + k];
+      if (el) el.value = fields[k];
+    });
+    form.submit();
+  }
+
+  function passkeySignin(region) {
+    if (!passkeysUsable()) return;
+    region.hidden = false;
+    var form = q(region, 'form[data-ls-passkey-form]'), go = q(region, '[data-ls-passkey-go]');
+    if (!form || !go) return;
+    go.addEventListener('click', function () {
+      say(region, '');
+      authChallenge({ purpose: 'signin' }).then(function (c) {
+        if (!(c && c.ok)) { say(region, (c && c.error) || 'A passkey cannot be used here just now.', true); return null; }
+        return navigator.credentials.get({ publicKey: {
+          challenge: unb64u(c.challenge), rpId: c.rp_id, timeout: c.timeout || 300000, userVerification: 'preferred' } });
+      }).then(function (cred) {
+        if (!cred) return;
+        var r = cred.response;
+        fillAndSend(form, { id: b64u(cred.rawId), client_data: b64u(r.clientDataJSON),
+          authenticator_data: b64u(r.authenticatorData), signature: b64u(r.signature) });
+      }).catch(function () { say(region, 'No passkey was used. Try again, or sign in with your password.', true); });
+    });
+  }
+
+  function passkeyClaim(region) {
+    if (!passkeysUsable()) return;
+    region.hidden = false;
+    var form = q(region, 'form[data-ls-passkey-form]'), go = q(region, '[data-ls-passkey-go]');
+    if (!form || !go) return;
+    go.addEventListener('click', function () {
+      say(region, '');
+      authChallenge({ purpose: 'claim', username: form.elements.username.value }).then(function (c) {
+        if (!(c && c.ok)) { say(region, (c && c.error) || 'A passkey cannot be added here just now.', true); return null; }
+        return navigator.credentials.create(createOptions(c));
+      }).then(function (cred) {
+        if (!cred) return;
+        var f = created(cred);
+        if (!f) { say(region, 'This browser cannot add a passkey this way. Set a password instead.', true); return; }
+        fillAndSend(form, f);
+      }).catch(function () { say(region, 'No passkey was made. Try again, or set a password.', true); });
+    });
+  }
+
+  function passkeys(region) {
+    var state = q(region, '[data-ls-field="passkey-state"]'), ul = q(region, '[data-ls-passkeys]');
+    var add = q(region, 'form[data-ls-passkey="add"]'), pwrow = q(region, '[data-ls-passkey-password]');
+    function refresh() {
+      call('me-passkeys').then(function (r) {
+        if (!r || !r.ok) { say(region, (r && r.error) || 'Your passkeys could not be read.', true); return; }
+        if (!r.available) { if (state) state.textContent = r.needs || 'Passkeys are not available on this site.'; if (add) add.hidden = true; return; }
+        var n = (r.passkeys || []).length;
+        if (state) state.textContent = n ? 'You have ' + n + ' passkey' + (n === 1 ? '' : 's') + '.' : 'You have no passkeys.';
+        if (ul) {
+          while (ul.firstChild) ul.removeChild(ul.firstChild);
+          (r.passkeys || []).forEach(function (p) {
+            var li = document.createElement('li');
+            li.textContent = (p.label || 'Passkey') + ' - added ' + when(p.created) + (p.used ? ', last used ' + when(p.used) : '') + ' ';
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = 'Remove this passkey';
+            b.addEventListener('click', function () {
+              post('me-passkey-remove', { id: p.id }).then(function (res) {
+                say(region, (res && (res.message || res.error)) || '', !(res && res.ok));
+                refresh();
+              });
+            });
+            li.appendChild(b);
+            ul.appendChild(li);
+          });
+        }
+        if (pwrow) pwrow.hidden = !r.has_password;
+        if (add) add.hidden = !passkeysUsable();
+        if (!passkeysUsable()) say(region, 'This browser cannot make a passkey.');
+      });
+    }
+    if (add) add.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var label = add.elements.label.value;
+      post('me-passkey-begin', { current_password: add.elements.current_password.value }).then(function (c) {
+        add.elements.current_password.value = '';
+        if (!(c && c.ok)) { say(region, (c && c.error) || 'A passkey cannot be added just now.', true); return null; }
+        return navigator.credentials.create(createOptions(c));
+      }).then(function (cred) {
+        if (!cred) return null;
+        var f = created(cred);
+        if (!f) { say(region, 'This browser cannot add a passkey this way.', true); return null; }
+        f.label = label;
+        return post('me-passkey-add', f);
+      }).then(function (res) {
+        if (!res) return;
+        say(region, (res.message || res.error) || '', !res.ok);
+        if (res.ok) add.reset();
+        refresh();
+      }).catch(function () { say(region, 'No passkey was made.', true); });
+    });
+    refresh();
+  }
+
+  var BIND = { summary: summary, password: password, sessions: sessions, bell: bell, '2fa': twofa,
+    passkeys: passkeys, 'passkey-signin': passkeySignin, 'passkey-claim': passkeyClaim };
   window.lzAccountBind = BIND;    // phase 1b and 1c add their regions here
 
   function start() {

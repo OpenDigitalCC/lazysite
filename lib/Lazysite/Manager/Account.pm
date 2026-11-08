@@ -43,6 +43,10 @@ package Lazysite::Manager::Account;
 #   dispatch_me_2fa_confirm    me-2fa-confirm: turn it on with a code (1c)
 #   dispatch_me_2fa_disable    me-2fa-disable: turn it off - password and code (1c)
 #   dispatch_me_recovery_codes me-recovery-codes: new recovery codes (1c)
+#   action_me_passkeys         me-passkeys: my passkeys, and whether this site can use them (SM1352)
+#   dispatch_me_passkey_begin  me-passkey-begin: the password, then a challenge to add one
+#   dispatch_me_passkey_add    me-passkey-add: the browser's answer, verified and stored
+#   dispatch_me_passkey_remove me-passkey-remove: one of mine
 
 use strict;
 use warnings;
@@ -59,7 +63,8 @@ use Lazysite::Manager::Common qw($auth_user $token_auth users_api _request_ip _j
 our @EXPORT_OK = qw(account_page_enabled action_me dispatch_me_password action_me_sessions
     dispatch_me_session_revoke action_me_sign_out_everywhere me_refusal
     action_me_notices dispatch_me_notices_seen
-    dispatch_me_2fa_enrol dispatch_me_2fa_confirm dispatch_me_2fa_disable dispatch_me_recovery_codes);
+    dispatch_me_2fa_enrol dispatch_me_2fa_confirm dispatch_me_2fa_disable dispatch_me_recovery_codes
+    action_me_passkeys dispatch_me_passkey_begin dispatch_me_passkey_add dispatch_me_passkey_remove);
 
 our $DOCROOT;                          # set by the script
 our $LAZYSITE_DIR;                     # set by the script
@@ -124,13 +129,12 @@ sub _reauth_refusal {
 sub action_me {
     if ( my $r = me_refusal() ) { return $r }
     my $s     = Lazysite::Auth::Verify::effective_settings( $DOCROOT, $auth_user ) || {};
-    my %users = Lazysite::Auth::Verify::read_users();
     return {
         ok           => 1,
         user         => $auth_user,
         display_name => $s->{display_name},
         email        => $s->{email},
-        has_password => ( length( $users{$auth_user} // "" ) ? JSON::PP::true() : JSON::PP::false() ),
+        has_password => ( _has_password() ? JSON::PP::true() : JSON::PP::false() ), # SM1352: not the passkey marker
         mfa_enrolled => ( $s->{mfa_enrolled} ? JSON::PP::true() : JSON::PP::false() ),
         mfa_pending  => ( $s->{mfa_pending}  ? JSON::PP::true() : JSON::PP::false() ),
         groups              => [ @{ $s->{groups} || [] } ],
@@ -310,6 +314,132 @@ sub dispatch_me_recovery_codes {
     return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'New codes could not be made.' }
         unless ref $r eq 'HASH' && $r->{ok};
     return { ok => 1, recovery_codes => $r->{recovery_codes} };
+}
+
+# --- SM1352: the member's own passkeys ------------------------------------------
+#
+# Listed, added and removed by the account they sign in, here, and by nobody
+# else: an operator can only remove them all (the users tool's passkey-wipe, on
+# the Users page), for a lost phone. Adding one needs the current password when
+# the account has one - a stolen session must not be able to plant a way back in
+# - and a challenge issued to this account for enrolment, which the browser's
+# answer must carry (Lazysite::Auth::Passkey). Without CryptX each action says
+# so, and the list says it too.
+
+sub _has_password {
+    my %users = Lazysite::Auth::Verify::read_users();
+    my $h     = $users{$auth_user} // '';
+    return ( length $h && $h ne '!passkey' ) ? 1 : 0;
+}
+
+sub _site_name {
+    open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" or return undef;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $n = Lazysite::Util::conf_text_value( $text, 'site_name' );
+    return defined $n && length $n ? $n : undef;
+}
+
+sub _passkey_view {
+    my ($p) = @_;
+    return { id => $p->{id}, label => $p->{label} // '', created => $p->{created},
+        used => $p->{used}, alg => $p->{alg} };
+}
+
+sub action_me_passkeys {
+    if ( my $r = me_refusal() ) { return $r }
+    require Lazysite::Auth::Passkey;
+    require Lazysite::Crypto;
+    no warnings 'once';
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+    my $missing = Lazysite::Crypto::cryptx_missing();
+    return {
+        ok => 1,
+        available => ( $missing ? JSON::PP::false() : JSON::PP::true() ),
+        ( $missing ? ( needs => $missing ) : () ),
+        has_password => ( _has_password() ? JSON::PP::true() : JSON::PP::false() ),
+        passkeys => [ map { _passkey_view($_) } @{ Lazysite::Auth::Passkey::passkeys_of($auth_user) } ],
+    };
+}
+
+# Step one of adding: the current password (when the account has one), then a
+# challenge for this account and what the browser needs to make the passkey.
+sub dispatch_me_passkey_begin {
+    if ( my $r = me_refusal() ) { return $r }
+    require Lazysite::Auth::Passkey;
+    require Lazysite::Crypto;
+    if ( my $m = Lazysite::Crypto::cryptx_missing() ) { return { ok => 0, kind => 'unavailable', error => $m } }
+    my $req = _json_body() || {};
+    if ( _has_password() ) {
+        if ( my $r = _reauth_refusal( $req->{current_password} ) ) { return $r }
+    }
+    my ($rp) = Lazysite::Auth::Passkey::rp_of();
+    return { ok => 0, error => 'This request has no host a passkey can belong to.' } unless defined $rp;
+    my ( $ch, $why ) = Lazysite::Auth::Passkey::issue_challenge( "$LAZYSITE_DIR/auth",
+        purpose => 'enrol', user => $auth_user );
+    return { ok => 0, error => $why } unless defined $ch;
+    no warnings 'once';
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";
+    my $s = Lazysite::Auth::Verify::effective_settings( $DOCROOT, $auth_user ) || {};
+    return {
+        ok           => 1,
+        challenge    => $ch,
+        rp_id        => $rp,
+        rp_name      => ( _site_name() // $rp ),
+        user_id      => Lazysite::Auth::Passkey::b64u_encode($auth_user),
+        user_name    => $auth_user,
+        user_display => ( $s->{display_name} // $auth_user ),
+        algorithms   => [ Lazysite::Auth::Passkey::algorithms() ],
+        exclude => [ map { $_->{id} } @{ Lazysite::Auth::Passkey::passkeys_of($auth_user) } ],
+        timeout => $Lazysite::Auth::Passkey::CHALLENGE_TTL * 1000,
+    };
+}
+
+# Step two: the browser's answer, verified, then stored by the users tool.
+sub dispatch_me_passkey_add {
+    if ( my $r = me_refusal() ) { return $r }
+    require Lazysite::Auth::Passkey;
+    my $req = _json_body() || {};
+    my %in  = (
+        id                 => $req->{id},
+        client_data        => $req->{client_data},
+        authenticator_data => $req->{authenticator_data},
+        public_key         => $req->{public_key},
+        alg                => $req->{alg},
+        label              => $req->{label},
+    );
+    ref $in{$_} and $in{$_} = undef for keys %in;    # text values only
+    my ( $rp, $origin ) = Lazysite::Auth::Passkey::rp_of();
+    my $v = Lazysite::Auth::Passkey::verify_registration(
+        auth_dir => "$LAZYSITE_DIR/auth",
+        rp       => $rp,
+        origin   => $origin,
+        purposes => ['enrol'],
+        user     => $auth_user,
+        %in,
+    );
+    unless ( $v->{ok} ) {
+        log_event( 'WARN', $auth_user, 'account page: passkey not accepted', why => $v->{error} );
+        return { ok => 0, kind => ( $v->{kind} // 'invalid' ), error => "The passkey was not added: $v->{error}." };
+    }
+    my $r = users_api( { action => 'passkey-add', username => $auth_user, actor => $auth_user,
+            passkey => $v->{passkey} } );
+    return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'The passkey was not added.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, id => $v->{passkey}{id}, message => 'Passkey added. You can sign in with it now.' };
+}
+
+sub dispatch_me_passkey_remove {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req = _json_body() || {};
+    my $id  = $req->{id};
+    return { ok => 0, kind => 'invalid', field => 'id', error => 'id is required (one of your passkeys, from me-passkeys).' }
+        unless defined $id && !ref $id && length $id;
+    my $r = users_api( { action => 'passkey-remove', username => $auth_user, actor => $auth_user, id => $id } );
+    return { ok => 0, kind => ( ref $r eq 'HASH' && $r->{kind} ) || 'error',
+        error => ( ref $r eq 'HASH' && $r->{error} ) || 'The passkey was not removed.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, id => $id, message => 'Passkey removed.' };
 }
 
 # SM1034 phase 1b (SM1010 R2): the member's own bell - the notices addressed to

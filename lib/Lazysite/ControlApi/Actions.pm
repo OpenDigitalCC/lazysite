@@ -947,6 +947,14 @@ our %ACTION = (
     'me-2fa-confirm' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns on their own second factor with a code from their app', params => [ { name => 'code', in => 'body' } ] },
     'me-2fa-disable' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns off their own second factor, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
     'me-recovery-codes' => { self => 1, mutates => 1, cookie_only_reason => 'a person replaces their own recovery codes, with the password and a current code', params => [ { name => 'current_password', in => 'body' }, { name => 'code', in => 'body' } ] },
+    # SM1352: the member's own passkeys. Added and removed by the account they
+    # sign in, never by a manager (who may only remove them all: users
+    # passkey-wipe). Adding one re-authenticates with the current password when
+    # the account has one.
+    'me-passkeys' => { self => 1, cookie_only_reason => 'it lists the signed-in person\'s own passkeys', params => [] },
+    'me-passkey-begin' => { self => 1, mutates => 1, cookie_only_reason => 'a person starts adding a passkey to their own account, re-authenticated with the current password', params => [ { name => 'current_password', in => 'body', note => 'needed when the account has a password' } ] },
+    'me-passkey-add' => { self => 1, mutates => 1, cookie_only_reason => 'a person adds a passkey to their own account, answering the challenge me-passkey-begin gave', params => [ { name => 'id', in => 'body', required => 1 }, { name => 'client_data', in => 'body', required => 1 }, { name => 'authenticator_data', in => 'body', required => 1 }, { name => 'public_key', in => 'body', required => 1, note => 'getPublicKey(): SPKI DER, base64url' }, { name => 'alg', in => 'body', required => 1 }, { name => 'label', in => 'body' } ] },
+    'me-passkey-remove' => { self => 1, mutates => 1, cookie_only_reason => 'a person removes one of their own passkeys', params => [ { name => 'id', in => 'body', required => 1, note => 'one of your passkeys, from me-passkeys' } ] },
     # SM1369 X2 (H-9): an extension's rows are declared by it and mirrored in
     # from the index (declare_action), never written here.
     'start-page' => { params => [ { name => 'username', in => 'query' } ] },

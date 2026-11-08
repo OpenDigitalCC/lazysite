@@ -180,6 +180,22 @@ OIDC provider's link to work when the page carries a `next`. The Sessions page g
 **Require sign-in again** for the selected sessions: a provider's session (OIDC or Odoo)
 signs in again through its provider at its next request, and a local one is signed out.
 
+**Install CryptX for passkeys and web push (SM1352, SM1363, ruling 187).** The Debian
+package now recommends `libcryptx-perl`, so `apt` installs it with the upgrade unless
+recommends are turned off; a tarball host installs it by hand
+(`apt install libcryptx-perl`, RHEL `perl-CryptX`, Alpine `perl-cryptx`). Without it
+nothing changes, the two new features are simply unavailable, and `lazysite check` says
+so.
+
+**Passkeys arrive on the sign-in, setup-link and account pages (SM1352).** Nothing is
+needed: the shipped `/login`, `/claim` and `/account` system pages offer a passkey to a
+browser that can use one. A site that wrote its own `login.md`, `claim.md` or
+`account.md` keeps it unchanged; to offer passkeys there, copy the passkey block from the
+engine's page (the `data-ls-account="passkey-signin"`, `"passkey-claim"` and
+`::: account-passkeys` parts). A layout that overrides `components/account-*.tt` gains
+`account-passkeys.tt` from the engine. To make a group sign in by passkey only:
+`lazysite users --docroot <docroot> group-set <group> passkey_only on`.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

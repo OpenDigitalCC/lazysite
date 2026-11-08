@@ -277,6 +277,12 @@ elsif ( $action eq 'logout' ) {
 elsif ( $action eq 'claim' && $method eq 'POST' ) {
     handle_claim();
 }
+elsif ( $action eq 'passkey-challenge' && $method eq 'POST' ) {    # SM1352
+    handle_passkey_challenge();
+}
+elsif ( $action eq 'passkey-login' && $method eq 'POST' ) {    # SM1352
+    handle_passkey_login();
+}
 elsif ( $action eq 'exchange' && $method eq 'POST' ) {
     _require_token_exchange();
     handle_exchange();
@@ -340,6 +346,16 @@ sub handle_login {
 
     return unless _account_gates( $username, $ip, $auth_redirect, \%form );
 
+    _land_signed_in( $username, $next, '' );
+    return;
+}
+
+# SM1352: the session a verified sign-in gets - by password or by passkey, the
+# same ordinary local session (the Session.pm core path) and the same landing.
+# $how is the audit detail ('' for a password, 'passkey').
+sub _land_signed_in {
+    my ( $username, $next, $how ) = @_;
+
     # Load groups for user
     my $groups_str = load_user_groups($username);
 
@@ -353,8 +369,8 @@ sub handle_login {
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
-    log_event( 'INFO', $username, 'login success', ip => _request_ip() );
-    _audit_auth( $username, 'login', 'ok', '' );
+    log_event( 'INFO', $username, 'login success', ip => _request_ip(), ( length $how ? ( by => $how ) : () ) );
+    _audit_auth( $username, 'login', 'ok', $how );
 
     # Manager-aware landing: a recognised manager who did not come from a specific
     # page (next defaulted to home) lands in the manager UI instead of the public
@@ -383,6 +399,110 @@ sub handle_login {
     # HttpOnly cookie above remains the gate.
     print "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
     print "Location: $next\r\n\r\n";
+    return;
+}
+
+# SM1352: A CHALLENGE FOR A PASSKEY - to sign in (no account named: the passkey
+# says which), or to enrol the first one through a setup link (bound to the
+# account the link is for; the link itself is checked when the answer comes
+# back, by claim-redeem). JSON, for the page's script; nothing is decided here.
+sub handle_passkey_challenge {
+    my %form = parse_post();
+    no warnings 'once';    # the module's settings, read by full name
+    require Lazysite::Auth::Passkey;
+    require Lazysite::Crypto;
+    if ( my $m = Lazysite::Crypto::cryptx_missing() ) {
+        json_response( { ok => 0, code => 'needs_cryptx', error => $m }, 200 );
+        return;
+    }
+    my $purpose = ( $form{purpose} // 'signin' ) eq 'claim' ? 'claim' : 'signin';
+    my $user    = $form{username} // '';
+    $user =~ s/[^a-zA-Z0-9_.-]//g;
+    $user = substr( $user, 0, 64 );
+    if ( $purpose eq 'claim' && !length $user ) {
+        json_response( { ok => 0, error => 'username is required to enrol through a setup link' }, 200 );
+        return;
+    }
+    my ($rp) = Lazysite::Auth::Passkey::rp_of();
+    unless ( defined $rp ) {
+        json_response( { ok => 0, error => 'this request has no host a passkey can belong to' }, 200 );
+        return;
+    }
+    my ( $ch, $why ) = Lazysite::Auth::Passkey::issue_challenge( $AUTH_DIR, purpose => $purpose,
+        ( $purpose eq 'claim' ? ( user => $user ) : () ) );
+    unless ( defined $ch ) {
+        log_event( 'WARN', $user, 'passkey challenge not issued', why => $why );
+        json_response( { ok => 0, error => $why }, 200 );
+        return;
+    }
+    json_response( { ok => 1, challenge => $ch, rp_id => $rp,
+            rp_name    => ( read_conf_key('site_name') || $rp ),
+            timeout    => $Lazysite::Auth::Passkey::CHALLENGE_TTL * 1000,
+            algorithms => [ Lazysite::Auth::Passkey::algorithms() ],
+            ( $purpose eq 'claim'
+                ? ( user_id => Lazysite::Auth::Passkey::b64u_encode($user), user_name => $user )
+                : () ) }, 200 );
+    return;
+}
+
+# SM1352: SIGN IN WITH A PASSKEY. A form POST, as the password's is, so every
+# refusal and the landing are the password sign-in's own: the address scope, the
+# rate limiter (a passkey attempt counts as a sign-in attempt), then the
+# signature, then the account gates - all but the second factor, which a passkey
+# is - and an ordinary local session.
+sub handle_passkey_login {
+    my %form          = parse_post();
+    my $next          = sanitise_next( $form{next} // '/' );
+    my $auth_redirect = read_conf_key('auth_redirect') || '/login';
+    my $ip            = _request_ip();
+
+    require Lazysite::Auth::AddressScope;
+    if ( Lazysite::Auth::AddressScope::refuse_signin( $LAZYSITE_DIR, 'web' ) ) {
+        log_event( 'WARN', '', 'passkey sign-in refused: address not allowed', ip => $ip );
+        _audit_auth( '', 'login', 'fail', 'address-refused; passkey' );
+        redirect("$auth_redirect?error=address");
+        return;
+    }
+    unless ( check_login_rate($ip) ) {
+        log_event( 'WARN', '', 'login rate limit exceeded', ip => $ip, by => 'passkey' );
+        _audit_auth( '', 'login', 'fail', 'rate-limited; passkey' );
+        sleep $LOGIN_DELAY;
+        redirect("$auth_redirect?error=rate");
+        return;
+    }
+
+    require Lazysite::Auth::Passkey;
+    my ( $rp, $origin ) = Lazysite::Auth::Passkey::rp_of();
+    my $v = Lazysite::Auth::Passkey::verify_assertion(
+        auth_dir           => $AUTH_DIR,
+        rp                 => $rp,
+        origin             => $origin,
+        id                 => $form{pk_id},
+        client_data        => $form{pk_client_data},
+        authenticator_data => $form{pk_authenticator_data},
+        signature          => $form{pk_signature},
+    );
+    my $username = $v->{ok} ? $v->{user} : '';
+    if ( $v->{ok} && !defined load_users()->{$username} ) {
+        $v = { ok => 0, error => 'the passkey belongs to an account that no longer exists' };
+    }
+    unless ( $v->{ok} ) {
+        log_event( 'WARN', $username, 'passkey sign-in failed', ip => $ip, why => $v->{error} );
+        _audit_auth( $username, 'login', 'fail', "passkey: $v->{error}" );
+        sleep $LOGIN_DELAY unless ( $v->{kind} // '' ) eq 'unavailable';
+        redirect( "$auth_redirect?error=" . ( ( $v->{kind} // '' ) eq 'unavailable' ? 'passkey-unavailable' : 'passkey' ) );
+        return;
+    }
+
+    return unless _account_gates( $username, $ip, $auth_redirect, \%form, passkey => 1 );
+
+    # The counter and the last use, after the gates: a refused account's passkey
+    # is not marked used. A failed write costs only the clone check's freshness.
+    my $u = users_tool_api( { action => 'passkey-used', username => $username, id => $v->{id},
+            count => $v->{count} } );
+    log_event( 'WARN', $username, 'passkey use could not be recorded' ) unless ref $u eq 'HASH' && $u->{ok};
+
+    _land_signed_in( $username, $next, 'passkey' );
     return;
 }
 
@@ -459,6 +579,25 @@ sub _verify_credential {
             redirect("$auth_redirect?error=1");
             return 0;
         }
+        # SM1352: "PASSKEY ONLY" - one group key, checked here, in the password
+        # branch, and nowhere else. After the password has matched, so it tells a
+        # guesser nothing about the account's groups. A group store that cannot be
+        # read cannot say the password is allowed, so it refuses (cannot tell),
+        # as a broken session store does.
+        {
+            require Lazysite::Auth::Passkey;
+            my $only = Lazysite::Auth::Passkey::passkey_only($username);
+            if ( !defined $only || $only ) {
+                my $why = defined $only ? 'passkey-only' : 'cannot-tell: groups-settings.json';
+                log_event( 'WARN', $username, 'password sign-in refused: '
+                        . ( defined $only ? 'a group of the account signs in by passkey only'
+                        : 'the group settings cannot be read, so passkey-only cannot be ruled out' ),
+                    ip => $ip );
+                _audit_auth( $username, 'login', 'fail', $why );
+                redirect( "$auth_redirect?error=" . ( defined $only ? 'passkey-only' : 'unavailable' ) );
+                return 0;
+            }
+        }
         if ( $expected =~ /\A[0-9a-f]{64}\z/ ) {
             my $new_hash = hash_password($password);
             if ( update_user_hash( $username, $new_hash ) ) {
@@ -479,7 +618,7 @@ sub _verify_credential {
 # describe. Each refusal answers the request itself; true means a cookie
 # may now issue.
 sub _account_gates {
-    my ( $username, $ip, $auth_redirect, $form ) = @_;
+    my ( $username, $ip, $auth_redirect, $form, %opt ) = @_;
 
     # SM070: enforce the per-user `ui` access mechanism. Placed after
     # credential verification (both the verified-password and the
@@ -539,7 +678,9 @@ sub _account_gates {
     # SM072 batch 4: second factor. If TOTP is enrolled, a valid code (or a
     # single-use recovery code) is required before a cookie issues. After
     # password + ui verification, so it leaks nothing to a password guesser.
-    if ( mfa_enrolled($username) ) {
+    # SM1352: not after a passkey, which is itself the second factor - something
+    # the person holds, unlocked by something they know or are.
+    if ( !$opt{passkey} && mfa_enrolled($username) ) {
         my $code = $form->{code} // '';
         $code =~ s/[^0-9A-Za-z-]//g;
         my $v = users_tool_api( { action => 'mfa-verify', username => $username, code => $code } );
@@ -731,9 +872,41 @@ sub handle_claim {
         return;
     }
 
+    # SM1352: THE FIRST PASSKEY, ENROLLED THROUGH THIS LINK in place of a
+    # password. The passkey proves itself here (a challenge issued for this
+    # account, this site's origin); the link is proved, and spent, by
+    # claim-redeem, which answers a bad one exactly as it does for a password.
+    my $passkey;
+    if ( length( $form{pk_id} // '' ) ) {
+        require Lazysite::Auth::Passkey;
+        my ( $rp, $origin ) = Lazysite::Auth::Passkey::rp_of();
+        my $v = Lazysite::Auth::Passkey::verify_registration(
+            auth_dir           => $AUTH_DIR,
+            rp                 => $rp,
+            origin             => $origin,
+            purposes           => ['claim'],
+            user               => $username,
+            id                 => $form{pk_id},
+            client_data        => $form{pk_client_data},
+            authenticator_data => $form{pk_authenticator_data},
+            public_key         => $form{pk_public_key},
+            alg                => $form{pk_alg},
+            label              => $form{pk_label},
+        );
+        unless ( $v->{ok} ) {
+            log_event( 'WARN', $username, 'claim: passkey not accepted', ip => $ip, why => $v->{error} );
+            _audit_auth( $username, 'claim-redeem', 'fail', "passkey: $v->{error}" );
+            redirect( "/claim?u=$username&c=$claim&error="
+                    . ( ( $v->{kind} // '' ) eq 'unavailable' ? 'passkey-unavailable' : 'passkey' ) );
+            return;
+        }
+        $passkey = $v->{passkey};
+    }
+
     my $r = users_tool_api( {
             action => 'claim-redeem', username => $username,
-            claim  => $claim,         password => $password,
+            claim  => $claim,
+            ( $passkey ? ( passkey => $passkey ) : ( password => $password ) ),
     } );
 
     # SM1041: a valid link with a password the policy refuses. The claim is not
@@ -757,13 +930,13 @@ sub handle_claim {
     }
 
     log_event( 'INFO', $username, 'claim redeemed', ip => $ip );
-    _audit_auth( $username, 'claim-redeem', 'ok', '' );
+    _audit_auth( $username, 'claim-redeem', 'ok', ( $passkey ? 'passkey' : '' ) );
     if ( $r->{token} ) {
         claim_token_page( $username, $r->{token} );    # machine: show token once
     }
     else {
         my $auth_redirect = read_conf_key('auth_redirect') || '/login';
-        redirect("$auth_redirect?claimed=1");          # human: go sign in
+        redirect( "$auth_redirect?claimed=" . ( $passkey ? 'passkey' : '1' ) ); # human: go sign in
     }
     return;
 }

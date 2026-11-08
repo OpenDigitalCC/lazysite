@@ -358,6 +358,15 @@ sub action_users {
                     . 'never set it up or see its codes.' }
                 if $act =~ /\A(?:mfa-enroll|mfa-confirm|mfa-recovery-regenerate|mfa-verify|totp-code)\z/x;
 
+            # SM1352: a passkey is added or removed by the account it signs in, on
+            # /account; a manager may only remove them all (passkey-wipe), for a lost
+            # phone. The counter a sign-in stamps is the auth wrapper's alone.
+            return { ok => 0, kind => 'forbidden',
+                error => 'A passkey is added or removed by the person it signs in, on their own '
+                    . 'account page (/account). A manager can remove all of an account\'s passkeys '
+                    . '(passkey-wipe), never add one.' }
+                if $act =~ /\A(?:passkey-add|passkey-remove|passkey-used)\z/;
+
             # SM1040: a password change or a 2FA disable signs the account's
             # other sessions out and keeps the one making the change - which is
             # this request's session only when the account is the caller's own.

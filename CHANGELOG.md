@@ -187,6 +187,23 @@ Archive
   notice by `webpush`. One ADR 0007 dependency entry in docs/SECURITY.md
   (t/unit/tools/118).
 
+- SM1352 (PENDING) **Passkeys (ruling 187).** A person signs in with their phone's or
+  computer's passkey: "Sign in with a passkey" on the sign-in page (and so in the
+  installed app), an answer to a one-use challenge (`?action=passkey-challenge`) posted
+  to `?action=passkey-login`, which passes the password sign-in's address limits, rate
+  limiter and account gates and mints the same local session (no TOTP step after a
+  passkey). The first passkey is enrolled through the ordinary setup link (`/claim`:
+  "Use a passkey instead"); more are added, listed and removed on `/account`
+  (`::: account-passkeys`; `me-passkeys`, `me-passkey-begin` with the current password
+  when the account has one, `me-passkey-add`, `me-passkey-remove`). A manager can only
+  remove them all - "Remove all passkeys" on the Users page, `users` action
+  `passkey-wipe` (`manage_users`), which also signs the account out and is audited.
+  `passkey_only` on a group refuses its members' passwords, in the password branch.
+  Attestation `none`, the key from `getPublicKey()` (SPKI DER), ES256, RS256 and
+  Ed25519; only public keys are stored, in the account's record. ADR 0007
+  new-authentication-method entry in docs/SECURITY.md (t/unit/auth/107-109,
+  t/unit/account/36).
+
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
 - SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and

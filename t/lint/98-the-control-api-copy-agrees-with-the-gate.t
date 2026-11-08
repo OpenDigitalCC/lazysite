@@ -135,7 +135,8 @@ subtest 'THE RESOLVED GATE IS WHAT IT WAS BEFORE THE MOVE' => sub {
     #   67 cookie-only, SM1042: me-2fa-enrol, -confirm, -disable, me-recovery-codes - a person's own second factor. No gate was added.
     #   69 cookie-only, SM1138: address-profile-set, address-profile-delete - the operator's, and the
     #        operator is never a token (SM991). The token count moves by the read alone.
-    is( scalar @cookie_only, 69, '69 are cookie-only' );
+    #   73 cookie-only, SM1352: me-passkeys, me-passkey-begin, -add, -remove - a person's own passkeys. No gate was added.
+    is( scalar @cookie_only, 73, '73 are cookie-only' );
 
     # Three spot checks, one per capability state, so a wholesale re-derivation
     # cannot pass by producing a table of the right size.

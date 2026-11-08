@@ -23,6 +23,11 @@ search: false
 ::: account-2fa
 :::
 
+## Passkeys
+
+::: account-passkeys
+:::
+
 ## Where you are signed in
 
 ::: account-sessions

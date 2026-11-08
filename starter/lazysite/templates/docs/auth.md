@@ -237,6 +237,9 @@ sign out everywhere.
   `me-2fa-disable`, `me-recovery-codes`): set up with the current password and
   confirm with a code from the app; turn off or make new recovery codes with the
   password and a current code. See "Two-factor (TOTP)" below.
+- **Passkeys** (`::: account-passkeys`, actions `me-passkeys`, `me-passkey-begin`,
+  `me-passkey-add`, `me-passkey-remove`): list, add (with the current password when
+  the account has one) and remove your own. See "Passkeys" below.
 - `account_page: disabled` in `lazysite.conf` turns it off: `/account` answers
   404 (unless the site wrote its own page) and the `me-*` actions refuse, naming
   the setting.
@@ -353,6 +356,50 @@ which signs that account out everywhere) - never set it up or see a code.
 The shared secret lives in `user-settings.json` under the same `0640`/`2770`
 protection as other credentials (the auth dir is off the web and group-restricted;
 no at-rest encryption - an accepted tradeoff for self-hosting).
+
+### Passkeys
+
+A passkey signs a person in with their phone's or computer's fingerprint, face or
+screen lock, with nothing to remember. The site keeps only the passkey's public
+key, with the account; no secret is stored. Passwords and emailed links keep
+working beside it.
+
+- **The first passkey** is added through the ordinary setup link: the `/claim`
+  page offers "Use a passkey instead" next to the password form. The link is used
+  up as it would be for a password, and every other session of the account is
+  signed out. An account set up this way has no password at all (its stored
+  credential is a locked marker no password matches); it can be given one later
+  with a setup link.
+- **More passkeys** are added on `/account` (`::: account-passkeys`, actions
+  `me-passkeys`, `me-passkey-begin`, `me-passkey-add`, `me-passkey-remove`): name
+  it, give the current password when the account has one, and let the phone make
+  it. Each is listed with when it was added and last used, and removed with one
+  button. An account holds up to 20.
+- **Signing in**: the sign-in page offers "Sign in with a passkey" to a browser
+  that can use one. It is an ordinary sign-in in every way that matters: the same
+  address limits and rate limiter, the same account checks (disabled, expired,
+  interactive), the same session, and the same audit row with `passkey` as its
+  detail. Two-factor is not asked for after a passkey, which is itself the second
+  factor. The site's installed app (`app_name`) signs in through the same page.
+- **A lost phone**: an operator removes all of an account's passkeys on the Users
+  page (`users` action `passkey-wipe`, which needs `manage_users`; the shell:
+  `lazysite users --docroot /path/to/public_html passkey-wipe alice`). It also signs the account out everywhere,
+  and is audited. A manager can never add or remove a single passkey for someone.
+- **Passkey only**: a group may require its members to sign in by passkey. Set
+  `passkey_only` on the group (`lazysite users --docroot /path/to/public_html group-set phones passkey_only on`,
+  or `group-settings-set` through the `users` action); the sign-in page then
+  refuses its members' passwords, after the password matched, and says to use a
+  passkey. It is checked in the password sign-in and nowhere else. If the group
+  settings cannot be read, a password sign-in is refused (the site cannot tell).
+- **What is checked**: the answer is for this site's own address and host name,
+  answers a challenge this site issued for that purpose within five minutes (each
+  challenge works once), says the person was present, and carries a signature the
+  stored key verifies, with a counter that moves forward. Keys are ECDSA P-256,
+  RSA or Ed25519. The authenticator's make is not checked (attestation `none`).
+- **It needs CryptX** on the server (Debian `libcryptx-perl`, which the package
+  recommends). Without it the sign-in and setup pages do not offer a passkey, the
+  account page says what is missing, and `lazysite check` warns when an account
+  already holds one.
 
 ### Account expiry
 
