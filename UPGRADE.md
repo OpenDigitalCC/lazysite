@@ -105,6 +105,35 @@ refused; an unsecured site refuses every provider's session; and new session rec
 longer carry the old `odoo => 1` flag, so going back to 0.16.8 after this upgrade signs
 out the people who signed in through Odoo since.
 
+**The Odoo extension's endpoint, services, checks, page and keys are its declaration
+(SM1369, X5 and X6).** The upgrade rebuilds the extension index on every site, as it
+does on each upgrade; from it the engine finds what it used to know by Odoo's name.
+Nothing a site configures changes, and nothing needs doing; what an operator sees:
+
+- **The Unknown Odoo writes panel is a page.** It is `/manager/odoo-unknown-writes`,
+  linked as **Unknown Odoo writes** from the Odoo card on the extension-config page,
+  and shown to a manager holding `settle_odoo_writes` (403 to one who does not). It
+  lists, settles and dismisses runs as the panel did.
+- **`lazysite check`** prints Odoo's lines (its scheduled keys' expiry, the OOM it
+  loads, oomd, the Odoo sign-in's group map, old read caps) only while the extension
+  is on; with it off, one line says it is installed and off.
+- **A POST to `/cgi-bin/lazysite-odoo.pl` with no token at all** is refused `403 csrf`
+  before anything runs, a batch included; it was `401 signin-required` for a binding
+  that runs as the person signed in, and per call in a batch. The browser helper always
+  sends a token and fetches fresh ones once on a `csrf` refusal, so a page that uses it
+  is unchanged. A page that posts without the helper sends the visitor token from
+  `?csrf=1`, as the docs have always said.
+- **oomd and the endpoint's warm-fork parent** run under lazysited as before, from the
+  extension's declaration; the socket is `lazysite/run/odoo-endpoint.sock` as before.
+  An index left unbuilt (an upgrade interrupted before its index step) starts neither,
+  and the endpoint answers as a CGI until the index is built (enable or save any
+  extension, or run the upgrade again).
+- **Secrets have one store** (H-11): `lazysite/<owner>/keys/<name>.key`, `0600` in a
+  `0700` directory. The Odoo keys are where they were. A connector's secret moves from
+  `lazysite/connectors/secrets.json` to `lazysite/connectors/keys/<id>.key` when it is
+  next set; until then it is read from the old file, which goes when the last entry
+  leaves it. A backup or a copy of `lazysite/` carries both, as it carried the one.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

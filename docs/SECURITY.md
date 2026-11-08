@@ -4891,3 +4891,142 @@ verdict
   session unless a provider declares `grants`, which nothing does in this release. No
   ahead-of-schedule third-party engagement proposed beyond the one ADR 0007 already
   requires; the OIDC entry (SM1351) is where ruling 186's widening is first used.
+
+### 2026-11-08 - SM1369 X5, H-4 and H-5 (0.16.9, PENDING): an extension endpoint's request kit, and its declared services and warm endpoint
+
+Assessment drafted by the developer agent (n782) for the release manager's confirmation.
+Ruling 55; the design is the extension-hooks proposal's H-4 and H-5, G-4, and the 0.16.9
+simplicity notes (rulings 181, 184).
+
+what changed
+: H-4: `Lazysite::Endpoint`, the request kit an extension's endpoint uses. It caps a body
+  before reading it (`read_body`), parses a multipart one (moved from the Odoo upload
+  module), holds the visitor key, cookie and token (moved from `Lazysite::Odoo::Visitor`,
+  per extension: `lzs_<id>_visitor`, `lazysite/<id>/visitor.secret`, the names and
+  signatures Odoo's always had) and checks a POST (`post_guard`) for the session's CSRF
+  token of the verified account or the visitor token bound to the visitor cookie, before
+  the extension's code runs (G-4). `hooks.endpoints` goes live; the Odoo page endpoint
+  declares itself and uses the kit at its unchanged `lazysite-odoo.pl` location.
+: H-5: `hooks.services` goes live. The supervisor lists, gates (`wanted`), starts (`run`),
+  stops and reports a service an enabled extension declares, reaching each function
+  through `Hooks::call_hook`; Odoo's oomd and its endpoint's warm-fork parent are
+  declared, their code unchanged. An endpoint declares `warm` and a `preload` list: the
+  front door hands a declared warm endpoint to its parent by reading the index, the
+  parent's socket is named for its endpoint (`odoo-endpoint.sock` unchanged), and the
+  parent compiles the declared list, handed to it as arguments.
+
+threat delta
+: ADR 0007's new-external-interface trigger is assessed and does not fire: no route,
+  socket, port or wire format is added or changed (the endpoint's location and the
+  socket path are what they were; the split templates and vhosts are untouched). The
+  in-process interface through which an extension's code runs in a core process is
+  X1's, already assessed; H-5 gives it a new caller, the supervisor. No sign-in method,
+  no dependency, no restricted data. The questions:
+: Spoofing and Tampering (CSRF) at an extension endpoint: an extension that wrote its
+  own body read or token check could get either wrong. The kit is the one place both
+  are done; t/lint/351 refuses a declared endpoint that reads STDIN itself, makes an HMAC
+  or calls the session verifier itself, or runs anything of its payload between a body
+  read and the kit's guard.
+: Denial of service by a body: a body over the endpoint's cap is refused before a byte
+  is read, by the kit, whatever the endpoint decided its cap to be.
+: Elevation of privilege by a declared service or preload list: a service runs code the
+  site did not mean to run, or the warm parent compiles something that holds state into
+  every child.
+
+controls
+: `post_guard` runs on every JSON and multipart POST of the Odoo endpoint right after the
+  body is read, before the engine loads; the endpoint's own, stricter per-binding check
+  (`_csrf_ok`, now through the kit's functions) still runs after it. The visitor cookie is
+  HttpOnly and SameSite=Strict, its token an HMAC under the extension's own secret,
+  compared in constant time; another extension's secret is its own, so one extension's
+  visitor token is not another's (t/unit/extensions/90). A service's functions are the
+  extension's own, in its payload lib, found nowhere else on `@INC`, run only while the
+  extension and what it requires are on at the call (C-3, G-1); a gate that cannot be
+  asked or dies is "not wanted" (G-9); a service may not take the scheduler's name and a
+  name has one owner (t/unit/daemon/28). The warm parent requires a declared name only
+  when it is a module name; t/lint/272 holds the declared list to module names, none of
+  them lazysite's (lazysite's own code reaches the parent only through the endpoint's
+  `use` lines, which that lint classifies); t/integration/325 still reads the parent's
+  memory after signed-in requests.
+
+residual risk
+: A POST to the Odoo endpoint that carries no token at all is now refused 403 `csrf`
+  whole, before anything runs - a session binding with no Odoo session answered 401, and
+  a batch answered per call. The browser helper always sends a token, and fetches fresh
+  ones once on a `csrf` refusal; a hand-written client that sent none sees 403 where it
+  saw 401. The data extension's endpoint (`lazysite-data.pl`) is not yet declared in
+  `hooks.endpoints` and keeps its own checks. A shipped extension is trusted code (the
+  proposal's "What the model does not claim"): the kit makes the right path the only
+  one a lint accepts; it is not a sandbox.
+
+verdict
+: drafted as accepted, for the release manager's confirmation: no trigger fires;
+  recorded because the CSRF and body checks of an extension's endpoint move into core
+  and the supervisor now runs services an extension declares.
+
+### 2026-11-08 - SM1369 X6, H-6, H-8 and H-11 (0.16.9, PENDING): an extension's checks, its manager pages, and one secrets store
+
+Assessment drafted by the developer agent (n782) for the release manager's confirmation.
+Ruling 55, ruling 188 (panels are pages); the design is the extension-hooks proposal's
+H-6, H-8 and H-11, G-7, and the 0.16.9 simplicity notes.
+
+what changed
+: H-6: `lazysite check` calls the checks an enabled extension declares and prints their
+  findings with its own `report()`; Odoo's five checks move into the extension.
+: H-8: `hooks.panels` - a manager page in the extension's payload (`manager/<name>.md`),
+  served by the processor at `/manager/<id>-<name>` to a manager who holds the
+  capability it declares (one of the extension's own), and linked from its card on the
+  extension-config page. Odoo's Unknown Odoo writes panel becomes its page,
+  `/manager/odoo-unknown-writes`, under `settle_odoo_writes`.
+: H-11: `Lazysite::Secrets`, the one secrets store: one secret per file,
+  `lazysite/<owner>/keys/<name>.key`, for the connectors and for each extension by its
+  id. The Odoo keys are read where they were; a connector's secret moves from
+  `connectors/secrets.json` into the store on its next set, and is read from the map
+  until then.
+
+threat delta
+: ADR 0007's new-external-interface trigger is assessed for H-8: a new path under
+  `/manager/` serves a page an extension ships. It is judged not to fire as a new
+  interface - it is a manager page behind the existing manager gate (`ui`, the
+  manager-address rule, the sign-in redirect), with an added capability gate, and the
+  page reaches the API only through actions the API already gates - but it is the
+  release manager's to confirm. No sign-in method, no dependency. H-11 moves where
+  credentials are kept; it is not new restricted data, and is assessed here as
+  Information disclosure. The questions:
+: Information disclosure: a secret readable by group or other, or listed; a secret
+  that cannot be read reported as absent and re-entered over (SM768); an extension
+  reading another's secret.
+: Elevation of privilege: an extension page drawn for a manager who does not hold its
+  capability, or served from outside the payload, or while the extension is off.
+: Repudiation and Denial of service by a check: an extension's check that dies ends the
+  run, or invents a level the summary does not count.
+
+controls
+: A secret is written under a 077 umask to a temporary file and renamed, 0600 with its
+  group following the directory, in a 0700 directory; nothing in the store lists; has()
+  is undef for a secret that is there and cannot be opened, and a put over it is
+  refused; the owner and the name are ids, never paths; an extension passes its own id
+  (t/unit/manager/502). The connectors' listing names the store it could not read and
+  set, delete and call refuse past it, as before (t/unit/manager/159). An extension's
+  page is served only from the payload the index names, re-checked as a regular file and
+  allowed by its real path, only while the extension is on (the conf read again), only
+  inside the manager gate, and only to a holder of its declared capability, which the
+  index build requires to be the extension's own (t/unit/extensions/92). A check runs
+  only for an extension the conf has on; one that dies is a WARN naming it; a finding of
+  another level is a WARN, never printed as a finding (t/tools/351).
+
+residual risk
+: Until a connector's secret is next set, its value stays in the older map as well as
+  being read from there; the map keeps the 0600 it always had. An extension's page is
+  ordinary manager-page markup run in the manager's frame: what its script can do is what
+  the signed-in manager's API calls can do, gated by the API's rows. With the Odoo
+  extension off, its checks no longer run (two of them ran on any site that held Odoo's
+  files); `lazysite check` says "installed, off" instead. A shipped extension is trusted
+  code; G-7's "an extension reads only its own secrets" is a contract of its code, not a
+  sandbox.
+
+verdict
+: drafted as accepted, for the release manager's confirmation: H-8's new manager path is
+  assessed under new-external-interface and judged within the existing manager surface;
+  no other trigger fires; recorded because credentials move to one store and the manager
+  serves pages an extension ships.

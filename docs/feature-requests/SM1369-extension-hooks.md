@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7; X2, X3, X5's asset part and X8 (SM1396) 0.16.8. Built for 0.16.9: X4 on n781 (H-1, the identity provider; Odoo's site sign-in its first consumer; the Odoo handler type on manage_odoo, ruling 178). Next X5's endpoint and services, X6, X7's rest (0.16.9)."
+status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7; X2, X3, X5's asset part, X8 (SM1396) 0.16.8. Built for 0.16.9: X4 on n781 (H-1, the identity provider; the Odoo handler type on manage_odoo, ruling 178); X5's rest and X6 on n782 (H-4 endpoint kit, H-5 services, H-6 checks, H-8 panels as pages, H-11 one secrets store). Next: X7's rest and H-10's system pages and docs."
 ---
 
 # The ruling
@@ -477,6 +477,64 @@ Tests
   the Odoo tests build the index as the manager would
   (`TestHelper::index_extensions`).
 
+# X5's rest and X6: the endpoint kit, services, checks, panels and secrets
+
+Built on n782 for 0.16.9, to the accepted simple designs (rulings 181, 184, 188):
+the existing Odoo pieces are declared rather than rewritten, and no vhost template
+changes.
+
+H-4, the endpoint kit
+: `Lazysite::Endpoint`: `read_body` caps a body before it is read; `parse_multipart`
+  reads a multipart one (moved from Odoo's upload module); the visitor key, cookie and
+  token move from `Lazysite::Odoo::Visitor` into core, per extension
+  (`lzs_<id>_visitor`, `lazysite/<id>/visitor.secret` - Odoo's names and signatures,
+  so no visitor is lost); `post_guard` checks a POST for the session's token or the
+  visitor token before the extension's code runs (G-4). `hooks.endpoints`
+  (`{ script }`, one of `owns.endpoints`) goes live; the Odoo endpoint declares itself
+  and uses the kit at its exact location. Rate caps and the audit line stay core's
+  Egress and Audit. t/lint/351 holds every declared endpoint to the kit.
+
+H-5, declared services
+: `hooks.services` (`{ name, wanted, run, reason }`) goes live: the supervisor lists,
+  gates, starts, stops and reports each one an enabled extension declares, through
+  `call_hook`, and names none. An endpoint declares `warm` and `preload`: the front
+  door hands a warm endpoint to its parent by reading the index, the socket is named for
+  the endpoint (`odoo-endpoint.sock` unchanged), and the parent compiles the declared
+  list, which the service hands it. Odoo declares oomd and odoo-endpoint (the existing
+  gates and runs) and its endpoint warm with the OOM preload list.
+
+H-6, extension checks
+: `hooks.checks` (functions) goes live: `lazysite check` calls each for an enabled
+  extension and prints its findings with its own `report()`; a check that dies is a WARN
+  naming the extension; installed and off is one line. Odoo's five checks are
+  `Lazysite::Odoo::Check::run`, printing the same lines while it is on.
+
+H-8, panels are pages (ruling 188)
+: `hooks.panels` (`{ page, label, cap }`) goes live: a page in the payload's
+  `manager/`, served at `/manager/<id>-<name>` inside the manager gate to a holder of
+  `cap` (one of the extension's own capabilities), and linked from its card on the
+  extension-config page. No script is injected and there is no mount runtime. Odoo's
+  Unknown Odoo writes panel is its page `/manager/odoo-unknown-writes`, under
+  `settle_odoo_writes`.
+
+H-11, one secrets store
+: `Lazysite::Secrets`: one secret per file, `lazysite/<owner>/keys/<name>.key`,
+  atomic, 0600 in a 0700 directory, never listed, undef when it cannot be read. Odoo's
+  `Secret.pm` reads and writes through it, its keys where they were; the connectors read
+  through it, with their older map read until each secret is next set.
+
+Lint 321
+: 19 files: the supervisor, the warm-fork parent and its wire, the check and the
+  extension-config page leave the allow-list, and the front door falls to 7.
+
+Tests
+: `t/lint/351`; `t/unit/extensions/90` (the kit), `91` (the warm endpoint), `92` (a
+  panel's page), `70`; `t/unit/daemon/28` (a declared service under the real
+  supervisor); `t/tools/351` (an extension's checks); `t/unit/manager/502` (the store,
+  and a store from before the change); `t/lint/272` (a declared preload list); and the
+  Odoo and connector tests that follow the move (42, 53, 110, 159, 180, 214, the warm
+  tests' socket name).
+
 # Choices made
 
 Each of these is a point the proposal leaves open where the choice changes
@@ -519,6 +577,14 @@ C-28 | Odoo's sign-in with the extension off (X4) | Ruled (193): accepted as bui
 C-29 | An unsecured site (X4) | Ruled (193): accepted as built. Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
 C-30 | The record's shape (X4) | Ruled (193): accepted as built. New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
 C-31 | The handler actions' door (X4) | Ruled (192): the six handler and schedule actions (list, save, delete) also open, on every door, for any capability a declared handler type names; the type's cap decides. The mirror adds it to the gate row, the cookie gate and the MCP twins' cap_also, and to the capability's unlocks; a caller let in by such a capability alone is listed only the handlers and schedule entries of the types it governs. So manage_odoo alone manages Odoo bindings and their schedules, and no core destination's | The door kept to the four destination capabilities, so manage_odoo alone did not reach it
+C-32 | H-4: a POST that carries no token at all | Refused 403 `csrf` by the kit, whole, before the extension runs (G-4) - where a session binding with no Odoo session answered 401 and a batch answered per call; the browser helper always sends a token and refetches once on `csrf` | Run the extension's gate first for such a request (SM1168's order), which is the extension's code before CSRF
+C-33 | H-4: which endpoints the kit holds | Those declared in `hooks.endpoints`: Odoo's. The data extension's `lazysite-data.pl` keeps its own checks until it is declared | Declare and convert the data endpoint here
+C-34 | H-4: the multipart parser | The kit's, so the json part's tokens are read by core before the extension's code | The extension's parser, guarded after it runs
+C-35 | H-5: who hands the warm parent its preload list | The extension's service, as `--preload` arguments from its declaration in the index (`Hooks::warm_endpoint`); the parent reads no index (t/lint/272) | The parent reads the index itself
+C-36 | H-5: the warm socket and the split templates | `run/<name>-endpoint.sock` for `lazysite-<name>.pl`; the split templates' exact `lazysite-odoo.pl` path stays (no vhost change) | A `lazysite-x-<name>.pl` location now
+C-37 | H-6: Odoo's checks with the extension off | Not run; one "installed, off" line (H-6) | Keep running the two that ran on any site with Odoo's files
+C-38 | H-8: who sees the panel | The page is served only to a holder of `cap` (403 otherwise); the card's link is drawn for every manager who sees the card, as the listing is cached and knows no caller | Draw the link only for a holder, which needs a per-caller listing
+C-39 | H-11: the store's layout | One secret per file, `<owner>/keys/<name>.key`, because OOM's file credential reads one key from one owner-only file; the connectors' map is read until each secret is next set | The connectors' map for every secret, which OOM cannot read
 ```
 
 # ADR 0007
@@ -545,3 +611,11 @@ identity provider; core still signs every session, and the guarantees it held fo
 provider and sabotaged one by one. The register entry is drafted as contained, for the
 release manager's confirmation; ruling 186's `grants` allowance is built and unused
 until OIDC (SM1351).
+
+X5's rest and X6 (n782): the new-external-interface trigger is assessed and judged not
+to fire for H-4 and H-5 (no route, socket or wire format is added; the supervisor is a
+new caller of X1's loader) and, for the release manager's confirmation, for H-8's new
+manager path, which serves an extension's page inside the existing manager gate with a
+capability gate of its own. H-11 moves credentials into one store and adds no
+restricted data. The two register entries in `docs/SECURITY.md` are drafted as
+accepted, for the release manager's confirmation.
