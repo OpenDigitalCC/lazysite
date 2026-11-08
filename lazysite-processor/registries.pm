@@ -278,6 +278,10 @@ sub _scan_foreign_dir {
         $pub = $scan_root . substr( $dir, length $priv_root );
     }
     return 0 unless index( $pub, "$scan_root/" ) == 0;
+    # The site's own lazysite/ tree holds the site's own lazysite.conf, and the
+    # engine's docs a scan reads may sit under it: it is this site's, never
+    # another's (the walks leave it out before they ask, as scan_pages does).
+    return 0 if defined $LAZYSITE_DIR && ( $pub eq $LAZYSITE_DIR || index( $pub, "$LAZYSITE_DIR/" ) == 0 );
     return _foreign_site_folder($pub);
 }
 
