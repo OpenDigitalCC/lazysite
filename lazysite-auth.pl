@@ -1164,12 +1164,20 @@ sub handle_forgot {
     my $ip            = _request_ip();    # SM929: per visitor, not per proxy
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
 
+    my $answer = '';
     if ( check_login_rate($ip) ) {
-        eval { _forgot_dispatch( $ident, $ip ); 1 };
+        eval { $answer = _forgot_dispatch( $ident, $ip ) // ''; 1 };
     }
     else { sleep $LOGIN_DELAY }
 
-    redirect("$auth_redirect?reset=1");    # generic, always
+    # Ruling 206 (item 19): the account store cannot be told. That is a fact
+    # about the host, the same for every identifier, so saying it reveals no
+    # account; the answer SM1024 gives a sign-in the host cannot judge.
+    if ( $answer eq 'cannot-tell' ) {
+        redirect("$auth_redirect?error=unavailable");
+        return;
+    }
+    redirect("$auth_redirect?reset=1");    # generic, otherwise always
     return;
 }
 
@@ -1182,7 +1190,8 @@ sub _forgot_dispatch {
     # (bell + XMPP if configured) so a human can respond. Real accounts only -
     # an unknown identifier stays generic (no notice, no enumeration signal).
     unless ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) {
-        my ($user) = _resolve_account($ident);
+        my ( $user, undef, $fault ) = _resolve_account($ident);
+        return 'cannot-tell' if $fault;
         if ( $user && !account_disabled($user) ) {
             require Lazysite::Notify;
             Lazysite::Notify::notify( $DOCROOT, {
@@ -1198,7 +1207,8 @@ sub _forgot_dispatch {
         return;
     }
 
-    my ( $user, $email ) = _resolve_account($ident);
+    my ( $user, $email, $fault ) = _resolve_account($ident);
+    return 'cannot-tell' if $fault;
     return unless $user && $email;
     return if account_disabled($user);
     return unless ui_enabled($user);    # interactive accounts only
@@ -1331,19 +1341,32 @@ sub _unsubscribe_page {
 }
 
 # Resolve a username or email to (username, email) from user-settings.json.
+#
+# Ruling 206 (item 19 of the 0.16.9 fault survey): ( undef, undef, 1 ) when the
+# file exists and cannot be read or does not decode - cannot tell. It used to be
+# (), "no such account", so a reset request for a real account went nowhere in
+# silence. The caller refuses as unavailable; the log names the store and the
+# repair. An absent file is a site with no accounts yet: ().
 sub _resolve_account {
     my ($ident) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
-    return () unless -f $path;
     # ALL user-settings.json readers in this file open :raw - decode_json
     # takes octets, and a :utf8 handle made it die on any non-ASCII byte,
     # silently failing every gate below OPEN (2026-07-10 review, D1).
-    open my $fh, '<:raw', $path or return ();
+    my $fault = sub {
+        log_event( 'WARN', 'auth',
+            "cannot tell - lazysite/auth/user-settings.json $_[0]; a password reset cannot be "
+                . 'matched to its account until it is repaired',
+            file   => 'lazysite/auth/user-settings.json',
+            repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
+        return ( undef, undef, 1 );
+    };
+    open my $fh, '<:raw', $path or return $!{ENOENT} ? () : $fault->("cannot be read ($!)");
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) } || {};
-    return () unless ref $data eq 'HASH';
+    my $data = eval { JSON::PP::decode_json( $raw // '' ) };
+    return $fault->('does not decode as a JSON object') unless ref $data eq 'HASH';
     if ( $ident =~ /\@/ ) {
         for my $u ( sort keys %$data ) {
             my $s = $data->{$u};
