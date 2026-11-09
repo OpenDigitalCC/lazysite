@@ -97,7 +97,7 @@ sub _challenge_dir { return "$_[0]/passkey-challenges" }
 sub issue_challenge {
     my ( $auth_dir, %o ) = @_;
     my $purpose = $o{purpose} // '';
-    return ( undef, 'unknown purpose' ) unless $purpose =~ /\A(?:signin|enrol|claim)\z/;
+    return ( undef, 'unknown purpose' ) unless $purpose =~ /\A(?:signin|enrol|claim|reauth)\z/;
     my $dir = _challenge_dir($auth_dir);
     make_path( $dir, { mode => 0o2770 } ) unless -d $dir;
     my ( $pending, $now ) = ( 0, time );
@@ -164,11 +164,17 @@ sub _client_data {
 # The authenticator data's fixed head: the RP ID hash must be this host's, and
 # the user must have been present. Returns ( $flags, $count ) or ( undef, $why ).
 sub _auth_data {
-    my ( $raw, $rp ) = @_;
+    my ( $raw, $rp, $uv_why ) = @_;
     return ( undef, 'the authenticator data is missing' ) unless defined $raw && length $raw >= 37;
     return ( undef, 'the passkey belongs to another site' ) unless substr( $raw, 0, 32 ) eq sha256( $rp // '' );
     my $flags = ord substr( $raw, 32, 1 );
     return ( undef, 'the authenticator did not confirm the person was present' ) unless $flags & 0x01;
+    # Ruling 198: USER VERIFICATION IS REQUIRED - the authenticator checked the
+    # person (a fingerprint, a face, a PIN, the screen lock), which is what lets a
+    # passkey count as two factors and skip TOTP.
+    return ( undef, $uv_why // 'the authenticator did not verify the person (a fingerprint, face, PIN or '
+            . 'screen lock), which this site requires' )
+        unless $flags & 0x04;
     return ( $flags, unpack( 'N', substr( $raw, 33, 4 ) ) );
 }
 
@@ -202,7 +208,9 @@ sub verify_registration {
         auth_dir => $a{auth_dir}, origin => $a{origin}, purposes => $a{purposes} || ['enrol'],
         user     => $a{user} );
     return { ok => 0, error => $why } unless defined $cd;
-    my ( $flags, $count ) = _auth_data( b64u_decode( $a{authenticator_data} ), $a{rp} );
+    my ( $flags, $count ) = _auth_data( b64u_decode( $a{authenticator_data} ), $a{rp},
+        'this authenticator did not verify you with a fingerprint, face, PIN or screen lock, and '
+            . 'this site needs that: use a phone or computer that has a screen lock, or turn one on' );
     return { ok => 0, error => $count } unless defined $flags;
     my $id = b64u_decode( $a{id} );
     return { ok => 0, error => 'the credential id is missing or too long' }
@@ -221,19 +229,24 @@ sub verify_registration {
 }
 
 # A sign-in's answer. %a: auth_dir, origin, rp, id, client_data,
-# authenticator_data, signature (base64url). The account is the one whose record
+# authenticator_data, signature (base64url); for a re-authentication (ruling
+# 199) also purposes => ['reauth'] and user, the account that must hold it. The account is the one whose record
 # holds the credential. Returns { ok => 1, user, id, count } or { ok => 0, error }.
 sub verify_assertion {
     my (%a) = @_;
     if ( my $m = Lazysite::Crypto::cryptx_missing() ) { return { ok => 0, kind => 'unavailable', error => $m } }
     my ( $cd, $why ) = _client_data( $a{client_data}, 'webauthn.get',
-        auth_dir => $a{auth_dir}, origin => $a{origin}, purposes => ['signin'] );
+        auth_dir => $a{auth_dir}, origin => $a{origin}, purposes => $a{purposes} || ['signin'],
+        user => $a{user} );
     return { ok => 0, error => $why } unless defined $cd;
     my $ad = b64u_decode( $a{authenticator_data} );
     my ( $flags, $count ) = _auth_data( $ad, $a{rp} );
     return { ok => 0, error => $count } unless defined $flags;
     my ( $user, $pkrec ) = find_passkey( $a{id} );
     return { ok => 0, error => 'no account holds that passkey' } unless defined $user;
+    # Ruling 199: a re-authentication is by one of the asking account's own passkeys.
+    return { ok => 0, error => 'that passkey is not one of this account\'s' }
+        if defined $a{user} && $user ne $a{user};
     my ( $pk, $kwhy ) = _key_object( b64u_decode( $pkrec->{key} ), $pkrec->{alg} );
     return { ok => 0, error => $kwhy } unless $pk;
     my $sig = b64u_decode( $a{signature} );

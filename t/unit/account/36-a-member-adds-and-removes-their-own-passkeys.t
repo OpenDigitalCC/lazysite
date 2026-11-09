@@ -104,6 +104,11 @@ ok( !$bad->{ok}, 'add: an answer whose client data is not an enrolment is refuse
 $bad = api( $d, 'alice', 'me-passkey-add',
     { PasskeyFixture::created( $k, challenge => $b->{challenge}, origin => $ORIGIN, rp => $HOST, flags => 0x04 ) } );
 like( $bad->{error} // '', qr/present/, 'add: an authenticator that did not see the person is refused' );
+$b   = api( $d, 'alice', 'me-passkey-begin', { current_password => $PW } );
+$bad = api( $d, 'alice', 'me-passkey-add',
+    { PasskeyFixture::created( $k, challenge => $b->{challenge}, origin => $ORIGIN, rp => $HOST, flags => 0x01 ) } );
+like( $bad->{error} // '', qr/did not verify you.*screen lock/,
+    'ruling 198: an authenticator without user verification is refused, saying why' );
 
 my $bob_k = PasskeyFixture::key(-7);
 my $bb = api( $d, 'op', 'me-passkey-begin', { current_password => 'op-first-password' } );

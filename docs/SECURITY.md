@@ -5361,7 +5361,9 @@ controls
   and claim bound to one account), answerable for five minutes, and spent by the first
   answer that names it (a rename, so of two answers only one can have it). The client
   data's origin must be this request's own host over https, and the authenticator
-  data's RP ID hash must be that host's; the user-present flag is required; the
+  data's RP ID hash must be that host's; the user-present flag and the user-verified
+  flag are both required (ruling 198: a passkey counts as two factors, so an
+  authenticator without user verification is refused at enrolment, saying why); the
   signature is verified with the key and the algorithm stored at enrolment, over the
   bytes the engine builds; a counter that does not move forward is refused. At most
   1000 challenges wait at once; expired ones are removed as new ones are issued.
@@ -5389,13 +5391,14 @@ controls
   manager's refusals, the wipe), each sabotaged one control at a time.
 
 residual risk
-: An account with no password adds a second passkey on the strength of its session
-  alone: a stolen session of such an account can plant one (the wipe removes it). The
+: An account that signs in by passkey only adds another only after a fresh assertion
+  by a passkey it holds, answering a challenge issued to it (ruling 199); a stolen
+  session alone cannot plant one. The
   authenticator's make is not checked (attestation `none`), so a software
   authenticator is as good as a phone's. The challenge directory is per site, so a
   flood of anonymous challenge requests can hold the 1000 slots for five minutes and
-  delay passkey sign-ins (passwords are unaffected). User verification (a PIN or
-  fingerprint) is preferred, not required.
+  delay passkey sign-ins (passwords are unaffected). User verification is the
+  authenticator's own claim (its flag), as WebAuthn defines it.
 
 verdict
 : drafted for the release manager: accepted, contained. The method reuses the

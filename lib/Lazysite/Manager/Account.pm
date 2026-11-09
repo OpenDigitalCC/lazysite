@@ -376,10 +376,16 @@ sub dispatch_me_passkey_begin {
     require Lazysite::Crypto;
     if ( my $m = Lazysite::Crypto::cryptx_missing() ) { return { ok => 0, kind => 'unavailable', error => $m } }
     my $req = _json_body() || {};
-    if ( _has_password() ) {
+    my ( $rp, $origin ) = Lazysite::Auth::Passkey::rp_of();
+    # Ruling 199: an account that signs in by passkey only - no password of its own,
+    # or a passkey_only group - adds one after a FRESH ASSERTION by a passkey it
+    # already holds, never on its session alone. Others give the current password.
+    my $only = Lazysite::Auth::Passkey::passkey_only($auth_user);
+    if ( _has_password() && defined $only && !$only ) {
         if ( my $r = _reauth_refusal( $req->{current_password} ) ) { return $r }
     }
-    my ($rp) = Lazysite::Auth::Passkey::rp_of();
+    elsif ( my $r = _passkey_reauth_refusal( $req->{assertion}, $rp, $origin ) ) { return $r }
+
     return { ok => 0, error => 'This request has no host a passkey can belong to.' } unless defined $rp;
     my ( $ch, $why ) = Lazysite::Auth::Passkey::issue_challenge( "$LAZYSITE_DIR/auth",
         purpose => 'enrol', user => $auth_user );
@@ -399,6 +405,49 @@ sub dispatch_me_passkey_begin {
         exclude => [ map { $_->{id} } @{ Lazysite::Auth::Passkey::passkeys_of($auth_user) } ],
         timeout => $Lazysite::Auth::Passkey::CHALLENGE_TTL * 1000,
     };
+}
+
+# Ruling 199: undef when the assertion is a fresh one by one of the account's own
+# passkeys, answering a re-authentication challenge issued to it; otherwise the
+# refusal - which, with no assertion yet, carries that challenge. Counted
+# against the sign-in rate limiter like a password check.
+sub _passkey_reauth_refusal {
+    my ( $as, $rp, $origin ) = @_;
+    my $mine = Lazysite::Auth::Passkey::passkeys_of($auth_user);
+    return { ok => 0, kind => 'forbidden',
+        error => 'This account signs in by passkey only and has none left to confirm with. '
+            . 'Ask the site operator for a setup link to add one.' }
+        unless @$mine;
+    unless ( ref $as eq 'HASH' ) {
+        return { ok => 0, error => 'This request has no host a passkey can belong to.' } unless defined $rp;
+        my ( $ch, $why ) = Lazysite::Auth::Passkey::issue_challenge( "$LAZYSITE_DIR/auth",
+            purpose => 'reauth', user => $auth_user );
+        return { ok => 0, error => $why } unless defined $ch;
+        return { ok => 0, kind => 'reauth', challenge => $ch, rp_id => $rp,
+            allow   => [ map { $_->{id} } @$mine ],
+            timeout => $Lazysite::Auth::Passkey::CHALLENGE_TTL * 1000,
+            error => 'Confirm it is you with one of your passkeys first: this account signs in by passkey only.' };
+    }
+    if ( my $r = _rate_refusal() ) { return $r }
+    my $v = Lazysite::Auth::Passkey::verify_assertion(
+        auth_dir    => "$LAZYSITE_DIR/auth",
+        rp          => $rp,
+        origin      => $origin,
+        purposes    => ['reauth'],
+        user        => $auth_user,
+        id          => ( ref $as->{id}          ? undef : $as->{id} ),
+        client_data => ( ref $as->{client_data} ? undef : $as->{client_data} ),
+        authenticator_data => ( ref $as->{authenticator_data} ? undef : $as->{authenticator_data} ),
+        signature => ( ref $as->{signature} ? undef : $as->{signature} ),
+    );
+    unless ( $v->{ok} ) {
+        log_event( 'WARN', $auth_user, 'account page: passkey re-authentication refused', why => $v->{error} );
+        sleep 1;
+        return { ok => 0, kind => ( $v->{kind} // 'forbidden' ), field => 'assertion',
+            error => "Your passkey did not confirm it is you: $v->{error}." };
+    }
+    users_api( { action => 'passkey-used', username => $auth_user, id => $v->{id}, count => $v->{count} } );
+    return undef;
 }
 
 # Step two: the browser's answer, verified, then stored by the users tool.

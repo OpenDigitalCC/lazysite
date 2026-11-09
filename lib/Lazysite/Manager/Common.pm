@@ -2035,6 +2035,7 @@ our %REFUSAL_STATUS = (
     ( map { $_ => '403 Forbidden' } qw(forbidden not-yours permission blocked disabled served-artifact-refused form-bind-refused) ),
     'widens-enclosing-rule' => '403 Forbidden',  # SM1309: a rule its writer may not widen
     'copy-path' => '403 Forbidden',  # SM1354: the page copies folder takes no other write
+    'reauth' => '403 Forbidden', # SM1352 ruling 199: confirm with one of your passkeys first
     ( map { $_ => '404 Not Found' } qw(no-copy) ),    # SM1354: the page has no open copy
     ( map { $_ => '409 Conflict' } qw(copy-open stale-copy copy-missing) ), # SM1354: a copy against its page
     ( map { $_ => '404 Not Found' } qw(no_such_change no_such_wizard) ), # SM1355: nothing recorded or defined

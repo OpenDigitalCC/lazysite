@@ -379,15 +379,19 @@ working beside it.
   with a setup link.
 - **More passkeys** are added on `/account` (`::: account-passkeys`, actions
   `me-passkeys`, `me-passkey-begin`, `me-passkey-add`, `me-passkey-remove`): name
-  it, give the current password when the account has one, and let the phone make
-  it. Each is listed with when it was added and last used, and removed with one
+  it, confirm it is you, and let the phone make it. An account with a password
+  confirms with the current password; an account that signs in by passkey only (it
+  has no password, or is in a `passkey_only` group) confirms with one of the
+  passkeys it already holds - never with its session alone. Each is listed with when it was added and last used, and removed with one
   button. An account holds up to 20.
 - **Signing in**: the sign-in page offers "Sign in with a passkey" to a browser
   that can use one. It is an ordinary sign-in in every way that matters: the same
   address limits and rate limiter, the same account checks (disabled, expired,
   interactive), the same session, and the same audit row with `passkey` as its
-  detail. Two-factor is not asked for after a passkey, which is itself the second
-  factor. The site's installed app (`app_name`) signs in through the same page.
+  detail. Two-factor is not asked for after a passkey: the authenticator must verify
+  the person (fingerprint, face, PIN or screen lock), so a passkey counts as two
+  factors. An authenticator that cannot is refused when the passkey is added, with
+  a message saying so, and an answer without that verification never signs in. The site's installed app (`app_name`) signs in through the same page.
 - **A lost phone**: an operator removes all of an account's passkeys on the Users
   page (`users` action `passkey-wipe`, which needs `manage_users`; the shell:
   `lazysite users --docroot /path/to/public_html passkey-wipe alice`). It also signs the account out everywhere,
@@ -403,7 +407,7 @@ working beside it.
   sign in and repair it. The site log and `lazysite check` name the file.
 - **What is checked**: the answer is for this site's own address and host name,
   answers a challenge this site issued for that purpose within five minutes (each
-  challenge works once), says the person was present, and carries a signature the
+  challenge works once), says the person was present and was verified, and carries a signature the
   stored key verifies, with a counter that moves forward. Keys are ECDSA P-256,
   RSA or Ed25519. The authenticator's make is not checked (attestation `none`).
 - **It needs CryptX** on the server (Debian `libcryptx-perl`, which the package

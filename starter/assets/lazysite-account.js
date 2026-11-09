@@ -375,7 +375,7 @@
       user: { id: unb64u(c.user_id), name: c.user_name, displayName: c.user_display || c.user_name },
       pubKeyCredParams: (c.algorithms || [-7]).map(function (a) { return { type: 'public-key', alg: a }; }),
       excludeCredentials: (c.exclude || []).map(function (id) { return { type: 'public-key', id: unb64u(id) }; }),
-      authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' },
+      authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'required' },
       attestation: 'none', timeout: c.timeout || 300000
     } };
   }
@@ -405,7 +405,7 @@
       authChallenge({ purpose: 'signin' }).then(function (c) {
         if (!(c && c.ok)) { say(region, (c && c.error) || 'A passkey cannot be used here just now.', true); return null; }
         return navigator.credentials.get({ publicKey: {
-          challenge: unb64u(c.challenge), rpId: c.rp_id, timeout: c.timeout || 300000, userVerification: 'preferred' } });
+          challenge: unb64u(c.challenge), rpId: c.rp_id, timeout: c.timeout || 300000, userVerification: 'required' } });
       }).then(function (cred) {
         if (!cred) return;
         var r = cred.response;
@@ -469,7 +469,22 @@
     if (add) add.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var label = add.elements.label.value;
-      post('me-passkey-begin', { current_password: add.elements.current_password.value }).then(function (c) {
+      // Ruling 199: an account that signs in by passkey only confirms with one first.
+      function begin(body) {
+        return post('me-passkey-begin', body).then(function (c) {
+          if (!(c && c.kind === 'reauth' && c.challenge)) return c;
+          say(region, c.error || 'Confirm with one of your passkeys.');
+          return navigator.credentials.get({ publicKey: {
+            challenge: unb64u(c.challenge), rpId: c.rp_id, timeout: c.timeout || 300000, userVerification: 'required',
+            allowCredentials: (c.allow || []).map(function (id) { return { type: 'public-key', id: unb64u(id) }; }) } })
+            .then(function (a) {
+              var r = a.response;
+              return post('me-passkey-begin', { assertion: { id: b64u(a.rawId), client_data: b64u(r.clientDataJSON),
+                authenticator_data: b64u(r.authenticatorData), signature: b64u(r.signature) } });
+            });
+        });
+      }
+      begin({ current_password: add.elements.current_password.value }).then(function (c) {
         add.elements.current_password.value = '';
         if (!(c && c.ok)) { say(region, (c && c.error) || 'A passkey cannot be added just now.', true); return null; }
         return navigator.credentials.create(createOptions(c));

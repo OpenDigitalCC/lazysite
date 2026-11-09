@@ -195,7 +195,10 @@ Archive
   passkey). The first passkey is enrolled through the ordinary setup link (`/claim`:
   "Use a passkey instead"); more are added, listed and removed on `/account`
   (`::: account-passkeys`; `me-passkeys`, `me-passkey-begin` with the current password
-  when the account has one, `me-passkey-add`, `me-passkey-remove`). A manager can only
+  when the account has one, or a fresh assertion by one of its passkeys when it signs
+  in by passkey only (ruling 199), `me-passkey-add`, `me-passkey-remove`). User
+  verification is required: an authenticator without it is refused at enrolment,
+  saying why, and a UV passkey sign-in skips TOTP (ruling 198). A manager can only
   remove them all - "Remove all passkeys" on the Users page, `users` action
   `passkey-wipe` (`manage_users`), which also signs the account out and is audited.
   `passkey_only` on a group refuses its members' passwords, in the password branch;

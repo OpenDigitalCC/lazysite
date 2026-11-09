@@ -181,7 +181,7 @@ tone: medium
 `me-notices` | cookie only |  
 `me-notices-seen` | cookie only | id (body), dismiss (body)
 `me-passkey-add` | cookie only | id (body), client_data (body), authenticator_data (body), public_key (body), alg (body), label (body)
-`me-passkey-begin` | cookie only | current_password (body)
+`me-passkey-begin` | cookie only | current_password (body), assertion (body)
 `me-passkey-remove` | cookie only | id (body)
 `me-passkeys` | cookie only |  
 `me-password` | cookie only | current_password (body), new_password (body)

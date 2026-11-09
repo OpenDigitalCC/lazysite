@@ -128,6 +128,13 @@ is( session_cookie( signin( $d, PasskeyFixture::asserted( $K{-7}, challenge => $
                 origin => $ORIGIN, rp => 'evil.example', count => 3 ) ) ), '',
     'an answer for another RP ID gets no session' );
 
+# --- ruling 198: user verification is required ---------------------------------------------------
+$c = challenge($d);
+my $nouv = signin( $d, PasskeyFixture::asserted( $K{-7}, challenge => $c->{challenge}, origin => $ORIGIN,
+        rp => $HOST, count => 3, flags => 0x01 ) );
+is( session_cookie($nouv), '', 'an assertion without user verification gets no session' );
+like( location($nouv), qr/error=passkey\b/, 'and is told the passkey was not accepted' );
+
 # --- a challenge this site never issued -------------------------------------------------------
 is( session_cookie( signin( $d, PasskeyFixture::asserted( $K{-7}, challenge => PasskeyFixture::b64u( 'x' x 32 ),
                 origin => $ORIGIN, rp => $HOST, count => 3 ) ) ), '',
