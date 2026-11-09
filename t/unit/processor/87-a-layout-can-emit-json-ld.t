@@ -149,9 +149,10 @@ subtest 'the contract: a _raw value is not safe in markup, and says so' => sub {
         'and the contract is written where the invariant is stated, not only here' );
 };
 
-subtest 'both render paths offer the filter' => sub {
-    # There are two %tt_opts blocks - the page render and the component render -
-    # and a filter present in one is a filter a component cannot use. SM330's
+subtest 'every render path offers the filter' => sub {
+    # There are three - the layout render, the component render and (n785, T-114)
+    # the page-body render - and a filter present in one is a filter the others
+    # cannot use. SM330's
     # lesson, applied to FILTERS. The component render is in the processor's
     # components part (SM944 S5), so the script and every part are read.
     my $src = join "\n", map {
@@ -162,7 +163,7 @@ subtest 'both render paths offer the filter' => sub {
         sort glob("$FindBin::Bin/../../../lazysite-processor/*.pm");
     # One entry per line since SM970 added url_safe to the same maps.
     my $n = () = $src =~ /FILTERS\s+=>\s*\{[^}]*\bjson\s*=>\s*\\&_json_filter\b[^}]*\}/g;
-    is( $n, 2, 'json is registered in BOTH tt_opts blocks' );
+    is( $n, 3, 'json is registered in the layout, component and page-body renders' );
 };
 
 done_testing();
