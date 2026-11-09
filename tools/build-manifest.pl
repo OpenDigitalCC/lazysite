@@ -221,6 +221,36 @@ sub is_starter {
     return 0;
 }
 
+# SM1369 X7 (rulings 188, 202): WHICH EXTENSION A FILE BELONGS TO, carried into
+# the manifest so the installer can lay an extension out when its package is
+# present and leave it out, whole, when it is not (lazysite-odoo is its own
+# deb, and the common payload's manifest still lists its files). An
+# extension's files are its descriptor extensions/<id>.pl, its payload
+# extensions/<id>/, and the endpoints its descriptor declares in
+# owns.endpoints, read from the descriptor's text (this script loads no
+# Lazysite module).
+sub endpoint_owners {
+    my ($staged) = @_;
+    my %owner;
+    for my $d ( sort glob("$staged/extensions/*.pl") ) {
+        my ($id) = $d =~ m{/([a-z][a-z0-9-]*)\.pl\z} or next;
+        open my $fh, '<', $d or next;
+        my $text = do { local $/; <$fh> };
+        close $fh;
+        while ( $text =~ /\bendpoints\s*=>\s*\[([^\]]*)\]/g ) {
+            $owner{$_} //= $id for $1 =~ /'([^'\/]+\.pl)'/g;
+        }
+    }
+    return \%owner;
+}
+
+sub extension_of {
+    my ( $rel, $owners ) = @_;
+    return $1              if $rel =~ m{\Aextensions/([a-z][a-z0-9-]*)(?:\.pl\z|/)};
+    return $owners->{$rel} if $rel !~ m{/} && exists $owners->{$rel};
+    return undef;
+}
+
 sub apply_captures {
     my ( $template, $values ) = @_;
     return undef unless defined $template;
@@ -243,6 +273,7 @@ sub apply_install_to {
 sub generate_manifest {
     my $cfg   = load_config( $opt{config} );
     my $files = scan_files( $opt{staged} );
+    my $owners = endpoint_owners( $opt{staged} );
 
     my @manifest_files;
     my @unmatched;
@@ -287,6 +318,7 @@ sub generate_manifest {
             sha256     => sha256_of($full),
             size       => 0 + ( $st[7] // 0 ),
             ( is_starter( $rel, $cfg ) ? ( starter => JSON::PP::true ) : () ),
+            ( map { defined $_ ? ( extension => $_ ) : () } extension_of( $rel, $owners ) ),
         };
     }
 

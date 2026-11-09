@@ -60,6 +60,10 @@ our %CHANNEL_RANK = ( edge => 0, beta => 1, stable => 2, certified => 3, all => 
 # failing to recognise something cannot be told apart from a typo.
 our $CHANNEL_DEFAULT = 'stable';
 
+# SM1369 X7: the extensions this payload does not carry (absent_extensions).
+our %ABSENT_EXT;
+
+
 # ---------- arg parse ----------
 
 my %opt = (
@@ -849,6 +853,15 @@ sub cmd_install {
 
     my %subs = placeholders( $o->{docroot}, $o->{cgibin} );
 
+    # ---- extensions this payload does not carry (SM1369 X7) ----
+    %ABSENT_EXT = absent_extensions($manifest);
+    if ( defined( my $why = refuse_absent_extensions( $o->{docroot} ) ) ) {
+        print {*STDERR} $why;
+        return 2;
+    }
+    info( '  not in this payload, left out: ' . join( ', ', sort keys %ABSENT_EXT ) )
+        if %ABSENT_EXT;
+
     # ---- plan ----
     my $plan = compute_plan( $manifest, $state, \%subs );
     if ( $o->{dry_run} ) {
@@ -1394,6 +1407,77 @@ sub convert_retired_conf_keys {
 # converted a site's old list before this runs. Text in, text out: the installer
 # loads no Lazysite module (SM767). Commented lines are not a block, so the
 # shipped example's own `# extensions:` prose is untouched.
+# The `extensions:` list in lazysite.conf's lines: ( $head, $last, @entries ),
+# the index of its header and of its last entry (undef when there is no list)
+# and the entries in order. One reader for both installer steps that read the
+# list (enable_extension_in_conf, conf_lists_extension).
+sub _extensions_block {
+    my ($lines) = @_;
+    my ( $head, $last, @entries );
+    for my $i ( 0 .. $#$lines ) {
+        if ( !defined $head ) {
+            $head = $last = $i if $lines->[$i] =~ /^extensions\s*:\s*$/;
+            next;
+        }
+        if ( $lines->[$i] =~ /^\s+-\s+(.+?)\s*$/ ) {
+            push @entries, $1;
+            $last = $i;
+            next;
+        }
+        last if $lines->[$i] =~ /^\S/;
+    }
+    return ( $head, $last, @entries );
+}
+
+# Is $script (`extensions/<file>.pl`) on in this lazysite.conf?
+sub conf_lists_extension {
+    my ( $conf, $script ) = @_;
+    open my $in, '<', $conf or return 0;
+    my @lines = <$in>;
+    close $in;
+    my ( undef, undef, @entries ) = _extensions_block( \@lines );
+    return ( grep { $_ eq $script } @entries ) ? 1 : 0;
+}
+
+# SM1369 X7 (rulings 188, 202): THE EXTENSIONS THIS PAYLOAD DOES NOT CARRY.
+# The manifest marks each extension's files (`extension: <id>`): its
+# descriptor, its payload and its endpoints. The common deb's manifest lists
+# Odoo's files, and lazysite-odoo carries them, so on a host without that
+# package the descriptor is not beside this installer. Such an extension is
+# left out WHOLE - none of its entries is laid, and the plan treats the
+# site's old copies as files that left the manifest (an unedited copy is
+# removed, an edited one kept with its orphan warning). A site that has the
+# extension ON is refused before anything changes (refuse_absent_extensions).
+# %ABSENT_EXT is declared at the top, beside the channel ladder.
+
+sub absent_extensions {
+    my ($manifest) = @_;
+    my %absent;
+    for my $e ( @{ $manifest->{files} || [] } ) {
+        my $id = $e->{extension};
+        next             unless defined $id && $id =~ /\A[a-z][a-z0-9-]*\z/;
+        $absent{$id} = 1 unless -f "$STAGE_DIR/extensions/$id.pl";
+    }
+    return %absent;
+}
+
+# The refusal, or undef. Before the plan, the backup and any write: an upgrade
+# that went ahead would remove the extension's code from a site that uses it
+# (R-7), which is the one outcome this must never reach in silence.
+sub refuse_absent_extensions {
+    my ($docroot) = @_;
+    my $conf      = _conf_path($docroot);
+    my @on = grep { conf_lists_extension( $conf, "extensions/$_.pl" ) } sort keys %ABSENT_EXT;
+    return undef unless @on;
+    return "lazysite: this site has the "
+        . join( ', ', map { "'$_'" } @on )
+        . " extension on, and this payload does not carry it.\n"
+        . "  Nothing was changed. Install "
+        . join( ', ', map { "lazysite-$_" } @on )
+        . " (the package that ships it) and run this again,\n"
+        . "  or switch the extension off in the manager first.\n";
+}
+
 sub enable_extension_in_conf {
     my ( $conf, $script ) = @_;
     return ( 0, "no lazysite.conf at $conf" ) unless -f $conf;
@@ -1401,19 +1485,8 @@ sub enable_extension_in_conf {
     my @lines = <$in>;
     close $in;
 
-    my ( $head, $last );
-    for my $i ( 0 .. $#lines ) {
-        if ( !defined $head ) {
-            $head = $last = $i if $lines[$i] =~ /^extensions\s*:\s*$/;
-            next;
-        }
-        if ( $lines[$i] =~ /^\s+-\s+(.+?)\s*$/ ) {
-            return ( 0, undef ) if $1 eq $script;
-            $last = $i;
-            next;
-        }
-        last if $lines[$i] =~ /^\S/;
-    }
+    my ( $head, $last, @entries ) = _extensions_block( \@lines );
+    return ( 0, undef ) if grep { $_ eq $script } @entries;
     if ( defined $head ) {
         splice @lines, $last + 1, 0, "  - $script\n";
     }
@@ -1608,6 +1681,7 @@ sub verify_code_files {
     for my $entry ( @{ $manifest->{files} } ) {
         next unless defined $entry->{install_to};
         next unless ( $entry->{bucket} // '' ) eq 'code';
+        next if defined $entry->{extension} && $ABSENT_EXT{ $entry->{extension} };
         my $dest = resolve_placeholders( $entry->{install_to}, $subs );
         if ( !-f $dest ) { push @bad, "$dest (missing)"; next }
         my $disk = sha256_of($dest);
@@ -1625,6 +1699,7 @@ sub cmd_verify {
     my ($o)      = @_;
     my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
     my %subs     = placeholders( $o->{docroot}, $o->{cgibin} );
+    %ABSENT_EXT = absent_extensions($manifest);
     my @bad      = verify_code_files( $manifest, \%subs );
     if (@bad) {
         print STDERR "VERIFY FAILED for $manifest->{version}: "
@@ -1648,6 +1723,9 @@ sub compute_plan {
 
     for my $entry ( @{ $manifest->{files} } ) {
         next unless defined $entry->{install_to};    # null = tarball-only
+
+        # SM1369 X7: an extension this payload does not carry is left out whole.
+        next if defined $entry->{extension} && $ABSENT_EXT{ $entry->{extension} };
 
         my $dest   = resolve_placeholders( $entry->{install_to}, $subs );
         my $source = "$STAGE_DIR/$entry->{path}";
@@ -3183,6 +3261,7 @@ sub placeholders {
         DOCROOT  => $docroot,
         CGIBIN   => $cgibin,
         LAZYSITE => lazysite_dir_for($docroot),
+
 
         # SM321: the private store, so it can be DECLARED like every other
         # runtime directory instead of being created by whichever code path
