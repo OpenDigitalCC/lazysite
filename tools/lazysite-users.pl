@@ -600,8 +600,9 @@ if ($API_MODE) {
             # Groups page's read, and it seeded nothing: the adoptions (SM1241,
             # SM1371, SM1407) ran on the Users page's read alone, so on the 0.16.8
             # edge run the layer roles never arrived after the Groups page was
-            # opened, as the SM1407 filing said they would.
-            _ensure_groups_seeded();
+            # opened, as the SM1407 filing said they would. The adoptions only:
+            # the manager group's top-up grants, and this page offers it (SM496).
+            _adopt_release_groups() if -f $GROUP_SETTINGS_FILE;
             # SM906 remainder: the view is built first, because the flag it sets
             # is only true of the read that just happened.
             my $view = _group_settings_view();
@@ -4966,6 +4967,22 @@ sub _adopt_layer_roles {
     return;
 }
 
+# The groups a release adds to a site seeded before it (SM1241, SM1371, SM1407),
+# after the SM576 backfill they depend on (SM1393). Run by _ensure_groups_seeded
+# and, n785 (T-112), by the Groups page's read on its own: each adds a role or
+# bundle with no members, once, so nobody's access changes - where the manager
+# group's top-up, which grants, stays behind the seeding (t/unit/manager/134: the
+# Groups page offers that decision).
+sub _adopt_release_groups {
+    _migrate_group_assignable();
+    # SM1407: the layer roles first, so a bundle only they draw on
+    # (cap-audit) is adopted by the next call with them nested in it.
+    _adopt_layer_roles();
+    _adopt_added_bundles();
+    _adopt_agent_roles();
+    return;
+}
+
 # Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
 # from the effective lookup so the seeder never recurses through itself.
 sub _conf_manager_groups {
@@ -5007,12 +5024,7 @@ sub _ensure_groups_seeded {
         # backfill then saw the flag and stayed quiet, and every group the
         # operator had was left a backend group nobody could be assigned to
         # (t/unit/users/34). A store the flag has reached is a no-op here.
-        _migrate_group_assignable();
-        # SM1407: the layer roles first, so a bundle only they draw on
-        # (cap-audit) is adopted by the next call with them nested in it.
-        _adopt_layer_roles();
-        _adopt_added_bundles();
-        _adopt_agent_roles();
+        _adopt_release_groups();
         my $gs = Lazysite::Auth::Settings::read_group_settings();
         for my $g ( sort keys %{ $gs || {} } ) {
             next unless ref $gs->{$g} eq 'HASH' && $gs->{$g}{manager};
