@@ -20,7 +20,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Path qw(make_path);
 use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -47,11 +46,12 @@ ok( $built->{declared}{odoo}, 'and the installed extension\'s declaration' );
 unlike( $out, qr/hooks (?:indexed|refused)/, 'and the summary says nothing about hooks' );
 like( $out, qr/declarations indexed: odoo/, 'but names the declaration' );
 
-# An extension of the site's own that declares a hook X1 does not build.
-make_path("$root/extensions/hookdemo/lib/Hookdemo");
-spit( "$root/extensions/hookdemo/lib/Hookdemo/Checks.pm", "package Hookdemo::Checks;\nsub run { return [] }\n1;\n" );
+# An extension of the site's own that declares a hook this engine does not build.
+# It declared `checks` (H-6) until n782 built that hook in X6; n795 (ruling 223)
+# moved it to `system_pages` (H-10), which this engine still refuses (slice X5's
+# rest, not built).
 spit( "$root/extensions/hookdemo.pl", "#!/usr/bin/perl\n"
-        . "print '{\"id\":\"hookdemo\",\"name\":\"Hook demo\",\"owns\":{\"hooks\":{\"checks\":[\"Hookdemo::Checks::run\"]}}}'\n"
+        . "print '{\"id\":\"hookdemo\",\"name\":\"Hook demo\",\"owns\":{\"hooks\":{\"system_pages\":[\"hookdemo-about\"]}}}'\n"
         . "    if \@ARGV && \$ARGV[0] eq '--describe';\n" );
 my $conf = slurp("$docroot/lazysite/lazysite.conf");
 $conf =~ s/^extensions:\s*\n/extensions:\n  - extensions\/hookdemo.pl\n/m or $conf .= "extensions:\n  - extensions/hookdemo.pl\n";
@@ -60,7 +60,7 @@ spit( $index, '{"format":1,"extensions":{"ghost":{"key":"extensions/ghost.pl","f
 
 ( $rc, $out ) = install( $docroot, $cgibin, 'reinstall' );
 is( $rc, 0, 'the reinstall succeeds' ) or diag $out;
-like( $out, qr/hooks refused: hookdemo \(hook 'checks' \(H-6\) is not built in this engine yet - it lands in slice X6/,
+like( $out, qr/hooks refused: hookdemo \(hook 'system_pages' \(H-10\) is not built in this engine yet - it lands in slice X5/,
     'the summary names the hook it refused, and its slice' );
 $built = decode_json( slurp($index) );
 ok( !exists $built->{extensions}{ghost}, 'the old index is gone: the ghost is not indexed' );
