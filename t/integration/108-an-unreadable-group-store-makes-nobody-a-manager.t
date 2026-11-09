@@ -7,6 +7,10 @@
 # existed but could not be opened, or did not decode. So a permissions slip or a
 # truncated write turned every signed-in account into an operator on the manager
 # pages. SM906 T3 fixed the API's copy; this is the processor's.
+#
+# Ruling 206 (SM1417 item 5): a signed-in request is now refused 503 before
+# anything is judged while the store cannot be read (_store_fault_gate), so the
+# broken cases answer 503 where they answered 403 - refused either way.
 use strict;
 use warnings;
 use Test::More;
@@ -44,14 +48,14 @@ SKIP: {
         chmod 0, "$d/lazysite/auth/groups-settings.json";
         my $out = run_processor( $d, '/manager/', %botty );
         chmod 0644, "$d/lazysite/auth/groups-settings.json";
-        like( $out, qr/Status: 403/, 'still 403 - not "unsecured, so everybody is a manager"' )
+        like( $out, qr/Status: 503/, 'refused (503, ruling 206) - not "unsecured, so everybody is a manager"' )
             or diag( substr( $out, 0, 300 ) );
     };
 }
 
 subtest 'a store that does not decode keeps a non-manager out' => sub {
     my $out = run_processor( site('{"admins":{"label":"Admins","ui":1'), '/manager/', %botty );
-    like( $out, qr/Status: 403/, 'a truncated store is not an unsecured site' )
+    like( $out, qr/Status: 503/, 'a truncated store is not an unsecured site: refused (503, ruling 206)' )
         or diag( substr( $out, 0, 300 ) );
 };
 

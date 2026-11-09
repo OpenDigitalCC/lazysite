@@ -1,12 +1,17 @@
 #!/usr/bin/perl
-# ADVERSARIAL / availability (breadth pass 2026-07): the per-IP login rate limiter
-# (H-3) must FAIL OPEN. If its DB_File store is unusable, check_login_rate returns
-# "allowed" rather than "blocked" - otherwise a corrupt or unwritable rate-limit
-# file would lock every user out of the whole site (a self-inflicted denial of
-# service, and an availability regression an attacker could try to induce). This
-# test contrasts a WORKING store (which correctly rate-limits an over-limit IP)
-# with a BROKEN store (a directory where the DB file should be, so the tie fails)
-# and asserts the broken case lets the request through to credential-check.
+# ADVERSARIAL / availability (breadth pass 2026-07), REVERSED BY RULING 206
+# (2026-11-09, SM1417 item 4). The file keeps its name (other records cite it).
+#
+# This test used to hold that the per-IP login rate limiter (H-3) FAILS OPEN: an
+# unusable DB_File store answered "allowed", so a corrupt counter disabled the
+# limiter without anyone deciding to. Ruling 206 decides the other way - a broken
+# store is a fault, the engine refuses, and the sysadmin repairs it from the
+# command line (`lazysite check` names it; t/tools/70). Nothing a visitor sends
+# can make the counter a directory, so the refusal is not one an attacker can
+# induce. This test contrasts a WORKING store (which correctly rate-limits an
+# over-limit IP) with a BROKEN store (a directory where the DB file should be, so
+# the tie fails) and asserts the broken case refuses the sign-in as unavailable -
+# never as "too many attempts", and never as a credential check.
 use strict;
 use warnings;
 use Test::More;
@@ -77,13 +82,12 @@ unlink $rate_db;
 make_path($rate_db);    # $rate_db is now a directory
 ok( -d $rate_db, 'rate-limit store is now unusable (a directory)' );
 
-# --- fail-open: the login is NOT rate-limited; it reaches credential-check ------
+# --- ruling 206: the sign-in is refused as unavailable --------------------------
 {
     my $out = login_once();
-    unlike( $out, qr{error=rate},
-        'broken store FAILS OPEN: the request is not rate-limited (no lockout of all logins)' );
-    like( $out, qr{Location:[^\n]*error=1},
-        '... it falls through to a normal credential failure instead' );
+    unlike( $out, qr{error=rate}, 'broken store: not reported as too many attempts' );
+    like( $out, qr{Location:[^\n]*error=unavailable},
+        '... the sign-in is refused as unavailable (cannot tell), before any credential check' );
 }
 
 done_testing();
