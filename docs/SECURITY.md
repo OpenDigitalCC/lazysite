@@ -5380,10 +5380,10 @@ controls
   locked credential marker, never an empty one, so the localhost no-password door does
   not open for it.
 : `passkey_only` is checked after the password matched (it tells a guesser nothing),
-  and a group store that cannot be read refuses (cannot tell), except to an account
-  in the operator group, found by name from the groups file (`sysops`, the group
-  setup-sysop makes), so the store can be repaired (ruling 197); both log lines
-  and `lazysite check` name the file.
+  and a group store that cannot be read refuses every password sign-in, the
+  operator's included (cannot tell, SM1024; ruling 206 withdrew ruling 197's
+  operator exception): the log line and `lazysite check` name the file and its
+  remedy, and the sysadmin repairs it from the command line.
 : t/unit/auth/107 (ES256, RS256 and Ed25519 fixture keys made with CryptX in the test;
   a wrong signature, a replayed challenge, a wrong origin, another RP ID, a made-up
   challenge and a stale counter are refused), t/unit/auth/108 (passkey only),

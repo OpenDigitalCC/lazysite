@@ -401,10 +401,10 @@ working beside it.
   or `group-settings-set` through the `users` action); the sign-in page then
   refuses its members' passwords, after the password matched, and says to use a
   passkey. It is checked in the password sign-in and nowhere else. If the group
-  settings cannot be read, a password sign-in is refused (the site cannot tell) -
-  except for a member of the operator group `sysops` (found by name, since the
-  unreadable file is what records which group is the operator's), so the operator can
-  sign in and repair it. The site log and `lazysite check` name the file.
+  settings cannot be read, every password sign-in is refused, the operator's
+  included (the site cannot tell; SM1024). It is a fault to repair, not to work
+  around: the site log and `lazysite check` name the file, and the sysadmin repairs
+  or restores `lazysite/auth/groups-settings.json` from the command line.
 - **What is checked**: the answer is for this site's own address and host name,
   answers a challenge this site issued for that purpose within five minutes (each
   challenge works once), says the person was present and was verified, and carries a signature the

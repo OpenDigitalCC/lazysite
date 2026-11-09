@@ -196,6 +196,13 @@ engine's page (the `data-ls-account="passkey-signin"`, `"passkey-claim"` and
 `account-passkeys.tt` from the engine. To make a group sign in by passkey only:
 `lazysite users --docroot <docroot> group-set <group> passkey_only on`.
 
+**An unreadable group store now refuses password sign-in (SM1352, ruling 206).** If
+`lazysite/auth/groups-settings.json` exists and the web server cannot read or decode
+it, every password sign-in is refused, the operator's included, until it is repaired:
+the engine cannot tell whether a group says passkey only. Run `lazysite check` before
+and after the upgrade; it names the file, and the fix is at the command line (its
+ownership and mode, or a restore from a backup).
+
 **Two hourly notice bounds (SM1363, rulings 195 and 199).** `mail.per_hour` in
 `lazysite/notify.conf` counted notice mail; it now counts every route but webhook -
 mail and web push together. The webhook route has its own bound, `webhook.per_hour`,

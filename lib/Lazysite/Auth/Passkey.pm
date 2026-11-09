@@ -44,7 +44,6 @@ package Lazysite::Auth::Passkey;
 #   find_passkey               which account holds a credential id
 #   passkeys_of                an account's passkeys, as stored
 #   passkey_only               does one of the account's groups refuse its password
-#   operator_by_name           the operator group by name, when the group store cannot be read (r197)
 
 use strict;
 use warnings;
@@ -308,21 +307,6 @@ sub passkey_only {
     return 0 unless ref $gs eq 'HASH';
     for my $g ( Lazysite::Auth::Settings::effective_groups($user) ) {
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{passkey_only};
-    }
-    return 0;
-}
-
-# Ruling 197: is the account in the operator group, asked when the group settings
-# (which carry the operator flag) cannot be read? By name, from what CAN be read:
-# the groups file's membership (nesting included) of `sysops`, the operator group
-# setup-sysop makes. (The retired manager_groups conf key is not read: SM138.)
-sub operator_by_name {
-    my ($user) = @_;
-    return 0 unless defined $user && length $user;
-    require Lazysite::Auth::Settings;
-    my %op = ( sysops => 1 );
-    for my $g ( Lazysite::Auth::Settings::effective_groups($user) ) {
-        return 1 if $op{$g};
     }
     return 0;
 }
