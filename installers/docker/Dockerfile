@@ -1,5 +1,6 @@
-# lazysite in one container: nginx, the one-rule FastCGI pool and the persistent
-# runtime (lazysited) (SM1233). Built LOCALLY from the release tarball - there is
+# lazysite in one container serving many sites: nginx, and for each site its
+# one-rule FastCGI pool and its persistent runtime (lazysited) (SM1233, SM1361;
+# rulings 201, 205, 208, 210). Built LOCALLY from the release tarball - there is
 # no registry image and nothing is pushed:
 #
 #   tar xzf lazysite-X.Y.Z.tar.gz
@@ -11,16 +12,12 @@
 # release-manifest.json install.pl reads. Debian trixie is the base because it is
 # what the .debs target (debian/control Depends).
 #
-# THE SPLIT. The engine code stays in the image. The site does not: it lives in
-# three volumes (compose.yaml) that outlive the container,
-#
-#   /srv/lazysite/html                       the docroot
-#   /srv/lazysite/html/lazysite              settings, accounts, logs
-#   /srv/lazysite/html-lazysite-private      the private store
-#
-# and install.pl puts the site there at the first start (entrypoint.sh), the way
-# `lazysite provision` does on a host. Nothing is installed into the volumes at
-# build time, so an image upgrade never overwrites a site's data.
+# THE SPLIT. The engine and its extensions are the image, read-only, and every
+# site runs them (install.pl --engine shared: no engine copy in a site). The
+# sites are folders in one parent volume (compose.yaml), listed in its
+# sites.conf, and install.pl lays each one there at the first start
+# (entrypoint.sh). Nothing is installed into the volume at build time, so an
+# image upgrade never overwrites a site's data.
 FROM debian:trixie-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -28,7 +25,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # The engine's hard requirements and the modules behind the stock manager
 # features are the debian/control Depends and Recommends of lazysite-common;
 # libfcgi-perl and libfcgi-procmanager-perl are the pool. curl is the
-# healthcheck's. No Odoo, no OOM: this image does not carry them.
+# healthcheck's and `lazysite-sites status`'s.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -47,47 +44,47 @@ RUN apt-get update \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# The release, where the .debs put the engine payload. install.pl reads its
-# release-manifest.json from beside itself.
+# The release, where the .debs put the engine payload, root-owned: no process in
+# the container can change it. install.pl reads its release-manifest.json from
+# beside itself.
 COPY . /usr/share/lazysite
-RUN chmod 0755 /usr/share/lazysite/installers/docker/entrypoint.sh \
-    && ln -s /usr/share/lazysite/installers/docker/entrypoint.sh /usr/local/bin/lazysite-entrypoint
 
-# The vhost is the one-rule pool template, not a copy of it: the placeholders
-# are filled in and the logs go to the container's streams. The template is the
-# one place the rule is written, so an image always carries the rule of its
-# own release.
+# The shared engine (SM1361):
+#   - the marker that makes it one. Lazysite::Extensions reads it: only the
+#     image's own extensions run, and a site's extension file is refused by
+#     name (ruling 210); install.pl reads it: a new site holds no engine copy.
+#     t/lint/392 holds the name;
+#   - the CGIs executable, as install.pl would leave a cgi-bin;
+#   - the extension endpoints the front door relays to by name, linked beside
+#     the CGIs, as install.pl links them into a cgi-bin (endpoint_links;
+#     t/tools/210 holds the list).
+RUN printf 'this engine is shared and read-only (SM1361)\n' > /usr/share/lazysite/SHARED-ENGINE \
+    && chmod 0755 /usr/share/lazysite/lazysite-*.pl /usr/share/lazysite/extensions/*.pl \
+        /usr/share/lazysite/installers/docker/entrypoint.sh /usr/share/lazysite/installers/docker/lazysite-sites \
+    && ln -s extensions/form-handler.pl /usr/share/lazysite/form-handler.pl \
+    && ln -s extensions/payment-demo.pl /usr/share/lazysite/payment-demo.pl \
+    && ln -s /usr/share/lazysite/installers/docker/entrypoint.sh /usr/local/bin/lazysite-entrypoint \
+    && ln -s /usr/share/lazysite/installers/docker/lazysite-sites /usr/local/bin/lazysite-sites
+
 COPY installers/docker/nginx.conf /etc/nginx/nginx.conf
-RUN mkdir -p /etc/nginx/conf.d \
-    && sed \
-        -e 's#/var/log/nginx/__DOMAIN__\.access\.log#/dev/stdout#' \
-        -e 's#/var/log/nginx/__DOMAIN__\.error\.log#stderr#' \
-        -e 's#__DOMAIN__#lazysite#g' \
-        -e 's#__DOCROOT__#/srv/lazysite/html#g' \
-        -e 's#__PORT__#8080#g' \
-        /usr/share/lazysite/installers/nginx/vhost-one-rule-pool.conf.example \
-        > /etc/nginx/conf.d/lazysite.conf \
-    && ! grep -q '__[A-Z]*__' /etc/nginx/conf.d/lazysite.conf
 
-# Everything that runs is www-data (the pool's USER and the socket's group, as
-# the templates have it). The directories exist and belong to www-data HERE so
-# that a new named volume mounted over one takes that ownership and mode. The
-# docroot and lazysite/ are group-writable and setgid (2775) because the health
-# check install.pl ends with requires it, and install.pl does not change a
-# directory that already exists.
-RUN mkdir -p /srv/lazysite/html/lazysite /srv/lazysite/html-lazysite-private \
-        /srv/lazysite/cgi-bin /run/lazysite /tmp/nginx \
-    && chown -R www-data:www-data /srv/lazysite /run/lazysite /tmp/nginx \
-    && chmod 2775 /srv/lazysite/html /srv/lazysite/html/lazysite
+# Everything that runs is www-data (ruling 210). The parent volume's mount point
+# exists and belongs to www-data HERE, so that a new named volume mounted over
+# it takes that ownership; setgid, so every site folder keeps the group.
+RUN mkdir -p /srv/sites /run/lazysite /tmp/nginx \
+    && chown www-data:www-data /srv/sites /run/lazysite /tmp/nginx \
+    && chmod 2775 /srv/sites
 
 USER www-data
-WORKDIR /srv/lazysite
+WORKDIR /srv/sites
 
-# TLS is the front end's job: this listens on plain 8080.
+# TLS is the operator's proxy's job (ruling 205): this listens on plain 8080.
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -fsS -o /dev/null http://127.0.0.1:8080/ || exit 1
+# Healthy while nginx answers; a site that is not serving is named by
+# `lazysite-sites status`, never by this (ruling 208).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD curl -fsS -o /dev/null http://127.0.0.1:8080/lazysite-health || exit 1
 
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/lazysite-entrypoint"]

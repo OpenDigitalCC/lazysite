@@ -68,27 +68,43 @@ and kept only for existing deployments (runbook appendix).
 
 ## Deploying with Docker Compose (since 0.16.1)
 
-`installers/docker/` in the release tarball is a Docker Compose package: nginx,
-the one-rule FastCGI pool and the persistent runtime in one container, the
-engine in the image and the site in three volumes (the docroot, `lazysite/` with
-the settings and accounts, and the private store). It is built on your machine
-from the unpacked tarball and nothing is pushed to a registry. Odoo is not in
-it.
+`installers/docker/` in the release tarball is a Docker Compose package. Since
+0.16.9 one container serves many sites (SM1361):
+- the engine and its extensions are the image, read-only;
+- each site is a folder in one volume, listed in its `sites.conf`, with its own
+  FastCGI pool and runtime;
+- nginx in front routes each request by its host, on plain HTTP behind your own
+  TLS proxy.
+
+The container belongs to one operator: every site runs as `www-data`, and only
+the image's own extensions run. It is built on your machine from the unpacked
+tarball, and nothing is pushed to a registry.
 
 ```bash
 tar xzf lazysite-X.Y.Z.tar.gz
 cd lazysite-X.Y.Z/installers/docker
 docker compose build
 docker compose up -d
-docker compose exec lazysite perl /srv/lazysite/tools/lazysite-users.pl \
-    --docroot /srv/lazysite/html setup-sysop --user NAME
+docker compose exec lazysite lazysite-sites add example example.com www.example.com
+docker compose exec lazysite lazysite-sites sysop example NAME
 ```
 
-The first start runs `install.pl --mode provision` into the empty volumes; later
-starts leave the volumes' data alone, and a new image upgrades the site in
-place. The first account is created with `setup-sysop`, as at the end of any
-install: a fresh site has none. [installers/docker/README.md](../installers/docker/README.md)
-covers the variables, the volumes, upgrades, health and logs.
+How each start treats a site:
+- A site is provisioned at its first start.
+- An older site is upgraded to the image, with a backup first.
+- A site at the image's version has the engine's templates and manager files
+  copied in again.
+- A site whose state is newer than the image is refused, and the restore command
+  is printed.
+
+A site that is refused or keeps crashing answers 503, while the others serve.
+`lazysite-sites status` names it. Sites are added and removed without a restart.
+A one-site canary needs a second container.
+[installers/docker/README.md](../installers/docker/README.md) covers the
+variables, the volume, upgrades by tag, rollback, health and logs.
+
+A site whose end user takes it over moves to a dedicated service: Hestia, or a
+container of its own.
 
 ## First-run configuration
 

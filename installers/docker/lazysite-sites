@@ -1,0 +1,191 @@
+#!/bin/bash
+# shellcheck disable=SC2016  # the single-quoted strings are Perl programs, expanded by Perl
+# lazysite-sites - the sites of a shared lazysite container (SM1361; rulings
+# 205, 206, 208, 210). Run inside the container:
+#
+#   docker compose exec lazysite lazysite-sites <verb> ...
+#
+#   add NAME DOMAIN [ALIAS...]  list a site in sites.conf and start it - no restart
+#   remove NAME                 stop a site and drop it from sites.conf; its folder
+#                               is kept (delete it yourself when you are sure)
+#   status                      each site's state, probed through nginx; exits 1
+#                               when any site is not serving
+#   restart NAME                try a refused or crashed site again (after a fix)
+#   restore NAME BACKUP         put a site back to a backup install.pl took before
+#                               an upgrade (the rollback of an image tag, Q5)
+#   rollback-plan               each site's backups, and the restore commands
+#   check NAME                  lazysite check for one site
+#   sysop NAME USER             the site's first account (a single-use link)
+#
+# It talks to the supervisor (the entrypoint) by SIGHUP: the entrypoint re-reads
+# sites.conf and brings the running set to it. The paths are variables only so
+# that the test can run this against stubs; the defaults are the image's.
+set -u
+
+ENGINE=${LAZYSITE_ENGINE:-/usr/share/lazysite}
+SITES=${LAZYSITE_SITES:-/srv/sites}
+CONF=$SITES/sites.conf
+RUN=${LAZYSITE_RUN_DIR:-/run/lazysite}
+PERL=${LAZYSITE_PERL:-perl}
+CURL=${LAZYSITE_CURL:-curl}
+PORT=${LAZYSITE_PORT_INTERNAL:-8080}
+
+fail() { printf 'lazysite-sites: %s\n' "$*" >&2; exit 2; }
+
+usage() {
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    exit "${1:-0}"
+}
+
+valid_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; }
+valid_domain() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; }
+
+listed() { [ -f "$CONF" ] && grep -q "^$1[[:space:]]" "$CONF"; }
+
+
+# Signal the supervisor, then wait (up to 60s) until NAME reaches a state other
+# than the one it had, or any state at all when it had none.
+poke() {    # [NAME]
+    local pid before after i
+    pid=$(cat "$RUN/supervisor.pid" 2> /dev/null) || fail "no supervisor is running ($RUN/supervisor.pid)"
+    before=$(cut -f1 "$RUN/status/${1:-none}" 2> /dev/null)
+    kill -HUP "$pid" 2> /dev/null || fail "cannot signal the supervisor (pid $pid)"
+    [ -n "${1:-}" ] || return 0
+    for ((i = 0; i < 600; i++)); do
+        after=$(cut -f1 "$RUN/status/$1" 2> /dev/null)
+        if [ -n "$after" ] && [ "$after" != "$before" ]; then break; fi
+        if [ -z "$after" ] && ! listed "$1"; then break; fi
+        sleep 0.1
+    done
+    show "$1"
+}
+
+show() {    # NAME
+    local st why
+    if [ -f "$RUN/status/$1" ]; then
+        IFS=$'\t' read -r st why < "$RUN/status/$1"
+        printf '%-24s %-10s %s\n' "$1" "$st" "$why"
+    else
+        printf '%-24s %-10s %s\n' "$1" "-" "not listed"
+    fi
+}
+
+cmd_add() {
+    [ $# -ge 2 ] || fail 'add needs NAME DOMAIN [ALIAS...]'
+    local name=$1 d
+    shift
+    valid_name "$name" || fail "'$name' is not a site name (a-z, 0-9 and -, up to 63)"
+    for d in "$@"; do valid_domain "$d" || fail "'$d' is not a domain"; done
+    listed "$name" && fail "$name is already in $CONF"
+    for d in "$@"; do
+        if [ -f "$CONF" ] && awk -v d="$d" '$1 !~ /^#/ { for (i = 2; i <= NF; i++) if ($i == d) f = 1 } END { exit !f }' "$CONF"; then
+            fail "$d is already another site's domain"
+        fi
+    done
+    printf '%s %s\n' "$name" "$*" >> "$CONF"
+    poke "$name"
+}
+
+cmd_remove() {
+    [ $# -eq 1 ] || fail 'remove needs NAME'
+    listed "$1" || fail "$1 is not in $CONF"
+    local tmp=$CONF.tmp.$$
+    awk -v n="$1" '$1 != n' "$CONF" > "$tmp" && mv "$tmp" "$CONF"
+    poke "$1"
+    printf 'its folder is kept: %s\n' "$SITES/$1"
+}
+
+cmd_status() {
+    local name domains bad=0 code st why
+    [ -f "$CONF" ] || { echo "no sites listed in $CONF"; return 0; }
+    printf '%-24s %-10s %-5s %s\n' SITE STATE HTTP WHY
+    while read -r name domains; do
+        case "$name" in '' | '#'*) continue ;; esac
+        st=-
+        why='not started (see the log)'
+        if [ -f "$RUN/status/$name" ]; then IFS=$'\t' read -r st why < "$RUN/status/$name"; fi
+        code=$("$CURL" -s -o /dev/null -w '%{http_code}' -m 10 -H "Host: ${domains%% *}" "http://127.0.0.1:$PORT/" 2> /dev/null)
+        case "$code" in 2* | 3* | 401 | 403) ;; *) bad=1 ;; esac
+        [ "$st" = serving ] || bad=1
+        printf '%-24s %-10s %-5s %s\n' "$name" "$st" "${code:-000}" "$why"
+    done < "$CONF"
+    return "$bad"
+}
+
+cmd_restart() {
+    [ $# -eq 1 ] || fail 'restart needs NAME'
+    listed "$1" || fail "$1 is not in $CONF"
+    rm -f "$RUN/status/$1"
+    poke "$1"
+}
+
+cmd_restore() {
+    [ $# -eq 2 ] || fail 'restore needs NAME BACKUP'
+    local name=$1 backup=$2 rc
+    listed "$name" || fail "$name is not in $CONF"
+    [ -f "$backup" ] || fail "no backup at $backup"
+    mkdir -p "$RUN/hold"
+    : > "$RUN/hold/$name"
+    poke "$name" > /dev/null
+    "$PERL" "$ENGINE/install.pl" --restore --docroot "$SITES/$name/html" --backup "$backup"
+    rc=$?
+    rm -f "$RUN/hold/$name" "$RUN/status/$name"
+    if [ "$rc" -ne 0 ]; then
+        printf 'lazysite-sites: the restore failed (exit %s); %s stays stopped until it is fixed\n' "$rc" "$name" >&2
+        : > "$RUN/hold/$name"
+        poke "$name"
+        return 1
+    fi
+    poke "$name"
+}
+
+cmd_rollback_plan() {
+    local name domains b v image
+    image=$(cat "$ENGINE/VERSION" 2> /dev/null)
+    printf 'This image: %s. To run a site on an older image, restore the backup taken\n' "$image"
+    printf 'before the upgrade that took it past that image, then switch the tag.\n\n'
+    [ -f "$CONF" ] || return 0
+    while read -r name domains; do
+        case "$name" in '' | '#'*) continue ;; esac
+        v=$("$PERL" -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit; print eval { JSON::PP::decode_json(<$f>)->{version} } // ""' \
+            "$SITES/$name/html-lazysite/.install-state.json" 2> /dev/null)
+        printf '%s (at %s):\n' "$name" "${v:-?}"
+        local state=$SITES/$name/html-lazysite/.install-state.json bv
+        for b in "$SITES/$name/html-lazysite/backups"/lazysite-backup-*.tar.gz; do
+            [ -f "$b" ] || continue
+            # What the backup holds, read from inside it: a reinstall's backup
+            # holds the same version it was taken before.
+            bv=$(tar --absolute-names -xzOf "$b" "$state" 2> /dev/null | "$PERL" -MJSON::PP -e \
+                'local $/; my $d = eval { JSON::PP::decode_json(<STDIN>) } or exit 0; print $d->{version} // ""')
+            printf '  lazysite-sites restore %s %s   (holds %s)\n' "$name" "$b" "${bv:-?}"
+        done
+    done < "$CONF"
+}
+
+cmd_check() {
+    [ $# -eq 1 ] || fail 'check needs NAME'
+    listed "$1" || fail "$1 is not in $CONF"
+    exec "$PERL" "$ENGINE/tools/lazysite-check.pl" --docroot "$SITES/$1/html" --cgibin "$ENGINE"
+}
+
+cmd_sysop() {
+    [ $# -eq 2 ] || fail 'sysop needs NAME USER'
+    listed "$1" || fail "$1 is not in $CONF"
+    exec "$PERL" "$ENGINE/tools/lazysite-users.pl" --docroot "$SITES/$1/html" setup-sysop --user "$2"
+}
+
+verb=${1:-}
+[ -n "$verb" ] || usage 2
+shift
+case "$verb" in
+    add) cmd_add "$@" ;;
+    remove) cmd_remove "$@" ;;
+    status) cmd_status ;;
+    restart) cmd_restart "$@" ;;
+    restore) cmd_restore "$@" ;;
+    rollback-plan) cmd_rollback_plan ;;
+    check) cmd_check "$@" ;;
+    sysop) cmd_sysop "$@" ;;
+    -h | --help | help) usage 0 ;;
+    *) fail "unknown verb '$verb' (lazysite-sites help)" ;;
+esac

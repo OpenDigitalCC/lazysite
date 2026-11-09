@@ -44,6 +44,23 @@ sub make_stage {
         copy( "$root/$f", "$stage/$f" ) or die "copy $f: $!";
     }
     copy( $manifest_path, "$stage/release-manifest.json" ) or die "copy manifest: $!";
+    if ( defined $o{version} ) {
+        # A payload at another version (an older image): its manifest and VERSION.
+        $m->{version} = $o{version};
+        open my $mf, '>', "$stage/release-manifest.json" or die $!;
+        print {$mf} JSON::PP->new->canonical->encode($m);
+        close $mf;
+        open my $vf, '>', "$stage/VERSION" or die $!;
+        print {$vf} "$o{version}\n";
+        close $vf;
+    }
+    for my $rel ( sort keys %{ $o{overlay} || {} } ) {
+        # Files replaced in the payload before it is locked (stub tools).
+        make_path( dirname("$stage/$rel") );
+        open my $of, '>', "$stage/$rel" or die "$rel: $!";
+        print {$of} $o{overlay}{$rel};
+        close $of;
+    }
     if ( $o{image} ) {
         # As the image has it (installers/docker/Dockerfile): the CGIs and the
         # extension scripts executable, the endpoint links made, and the whole

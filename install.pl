@@ -2294,6 +2294,21 @@ sub install_file {
 sub mode_for {
     my ($path) = @_;
     return 0755 if $path =~ /\.(pl|sh)$/;
+
+    # SM1361: the rules below name the engine tree as `/lazysite/`, its place
+    # inside the docroot. A site whose tree is BESIDE the docroot (SM293's
+    # <docroot>-lazysite) is laid there from the start in the shared container,
+    # and its account store and SMTP secret landed 0644 - world-readable - with
+    # the health check calling the site not serviceable. The tree is asked for,
+    # as every other writer asks (lazysite_dir_for), and its path is matched as
+    # the `/lazysite/` one is.
+    if ( length $INSTALL_DOCROOT ) {
+        my $lz = lazysite_dir_for($INSTALL_DOCROOT);
+        if ( length $lz && index( $path, "$lz/" ) == 0 ) {
+            ( my $rel = substr( $path, length $lz ) ) =~ s{\A/}{};
+            $path = "/lazysite/$rel";
+        }
+    }
     return 0640 if $path =~ m{/lazysite/auth/};
 
     # SM907 AT5: A CREDENTIAL TEMPLATE STARTS WHERE THE SAVE WOULD LEAVE IT.
@@ -2347,7 +2362,7 @@ sub post_install_steps {
     # links to files that ARE tracked.
     # SM1361: on a shared-engine site the cgi-bin is the payload's, which the
     # image links once at build time (installers/docker/Dockerfile, the same
-    # list: t/lint/391).
+    # list: t/tools/210).
     for my $extension ( $SHARED_ENGINE ? () : endpoint_links() ) {
         my $src = "$extension_dir/$extension.pl";
         my $dst = "$cgibin/$extension.pl";
