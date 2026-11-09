@@ -74,7 +74,7 @@ sub describe {
                     { key => 'group_claim', label => 'Group claim', type => 'text',
                         note => 'The claim that carries the person\'s groups. Blank: groups.' },
                     { key => 'group_map', label => 'Group map', type => 'pairs', from_label => 'Provider group',
-                        to_label => 'Site group',
+                        to_label => 'Site group', validate => 'Lazysite::Ext::OIDC::validate_group_map',
                         note => 'Each provider group and the site group it gives. A person in none of them is '
                             . 'not signed in.' },
                     { key => 'label', label => 'Button label', type => 'text',

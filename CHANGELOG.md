@@ -153,6 +153,9 @@ Archive
   through a new settings type, a repeating section (`records`: named records of text,
   `pairs` rows and one `secret`, kept as `<key>: a, b` and `a.<field>: value`, the
   secret in the secrets store and never read back). t/unit/manager/582.
+  Ruling 214 (Q129): a group map entry whose target carries capabilities (operators, or
+  any group that grants one) is saved only by the operator; manage_config maps to plain
+  groups. The refusal is `forbidden` and names the group.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

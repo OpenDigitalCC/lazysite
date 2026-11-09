@@ -160,7 +160,7 @@ in the secrets store; `extensions/oidc.pl --secret <name> --docroot <docroot>` (
 standard input) sets a secret from the command line for a repair. The endpoint is reached through the existing
 `/cgi-bin/` rule, so no web server configuration changes. A provider group may map to a
 group that carries capabilities, operators included: map such a group only from a
-provider whose membership you control. A site's own copy of `login.md` that builds the
+provider whose membership you control; only the operator can save such a mapping. A site's own copy of `login.md` that builds the
 provider links as `[% o.path %]?next=` needs `[% o.sep %]` in place of the `?` for an
 OIDC provider's link to work when the page carries a `next`.
 

@@ -147,6 +147,35 @@ sub parse_group_map {
     return ( \%map );
 }
 
+# THE SETTINGS FORM'S CHECK OF A GROUP MAP (Manager::Extensions, a records
+# field's validate): '' to keep it, else why not. Ruling 214 (Q129): a target that
+# carries capabilities - operators, or any group that grants something - is
+# saved only by an operator; a manage_config holder may map to plain groups, and
+# keeps whatever capability targets the map already held. The refusal is
+# `forbidden`, naming the group and why.
+sub validate_group_map {
+    my ( $value, $lz, $ctx ) = @_;
+    my ( $map, $why ) = parse_group_map($value);
+    return $why unless $map;
+    $ctx = {}   unless ref $ctx eq 'HASH';
+    return '' if $ctx->{operator};
+    my ($had) = parse_group_map( $ctx->{old} // '' );
+    my %had = map { $_ => 1 } map { @$_ } values %{ $had || {} };
+    require Lazysite::Auth::Settings;
+    no warnings 'once';
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$lz/auth";
+    my %seen;
+    for my $g ( grep { !$seen{$_}++ } map { @$_ } values %$map ) {
+        next if $had{$g};
+        my $cap = Lazysite::Auth::Settings::group_carries_capability($g);
+        return { kind => 'forbidden',
+            error => "$cap, so mapping a provider group to it would make the provider's members "
+                . 'hold them here; only the operator may save that (ruling 214)' }
+            if length $cap;
+    }
+    return '';
+}
+
 # The operator's choice of address, as a connector's: https:// to any host, plain
 # http:// only to this host.
 sub url_ok {

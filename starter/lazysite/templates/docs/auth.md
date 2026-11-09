@@ -857,6 +857,13 @@ only from a provider you control. Every sign-in through a provider is written
 to the audit trail with the provider, the person's subject and the groups it
 granted.
 
+Only the operator may map a provider group to a group that carries
+capabilities (operators, or any group that grants something). Anyone who may
+change the site's settings may map to a plain group, and keeps a capability
+mapping the operator already made while editing the rest; adding one is refused,
+saying why. A control-API token never counts as the operator, so such a mapping
+is saved in the manager.
+
 A person signed in this way is `oidc-<provider>:<subject>`, shown by their
 email. Their session lasts as long as a local one (`session_lifetime`). The
 groups are read at each sign-in: someone removed from a group at the provider

@@ -90,6 +90,22 @@ subtest 'Q127: a provider is set on the extension page' => sub {
     is( $r->{kind}, 'invalid', 'a value with a line break is refused' );
 };
 
+subtest 'Q129: only the operator maps to a capability group' => sub {
+    my $r = save( 'ed', { %staff, group_map => [ [ 'writers', 'editors' ], [ 'admins', 'ops' ] ] } );
+    is( $r->{kind}, 'forbidden', 'an editor mapping to the operator group is refused' ) or diag explain $r;
+    like( $r->{error} // '', qr/'ops' carries capabilities.*only the operator/, '...saying why' );
+    is( $s->last_status, 403, '...as 403' );
+    unlike( slurp("$lz/oidc.conf"), qr/= ops/, '...and nothing is written' );
+    $r = save( 'ed', { %staff, group_map => [ [ 'writers', 'publishers' ] ] } );
+    is( $r->{kind}, 'forbidden', 'so is a group that carries a capability' );
+    $r = save( 'boss', { %staff, group_map => [ [ 'writers', 'editors' ], [ 'admins', 'ops' ] ] } );
+    ok( $r->{ok}, 'the operator may map to it' ) or diag explain $r;
+    like( slurp("$lz/oidc.conf"), qr/admins = ops/, '...and it is written' );
+    $r = save( 'ed', { %staff, label => 'Edited', group_map => [ [ 'writers', 'editors' ], [ 'admins', 'ops' ] ] } );
+    ok( $r->{ok}, 'an editor keeps a capability mapping the map already held while editing the rest' )
+        or diag explain $r;
+};
+
 subtest 'removing a provider removes its lines and its secret' => sub {
     my $r = save('ed');
     ok( $r->{ok}, 'a save with no providers' ) or diag explain $r;

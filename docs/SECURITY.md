@@ -5170,9 +5170,12 @@ controls
 residual risk
 : Ruling 186's widening: a provider group mapped to operators makes the provider's
   administrators managers of this site; the audit rows are the record, and the docs say
-  to map such a group only from a provider whose membership the site controls. Who may
-  configure it is who may write lazysite/oidc.conf (manage_config, or the sysadmin) and
-  set the secret (the sysadmin). Membership is read at sign-in only: someone removed
+  to map such a group only from a provider whose membership the site controls. Ruling
+  214 (Q129): a map entry whose target carries capabilities is saved only by the
+  operator; a manage_config holder maps to plain groups and keeps a capability mapping
+  already there, and adding one is refused `forbidden`, naming why (t/unit/manager/582).
+  A token is never the operator (SM991), so such a mapping is made in the manager, and
+  the settings have no MCP door. The sysadmin can still write lazysite/oidc.conf. Membership is read at sign-in only: someone removed
   from a group at the provider keeps it until their session ends (session_lifetime) or
   is revoked; removing the map entry takes it away at the next request. The ID token's
   signature is not checked (ruling 185), so the trust rests on TLS to the token
