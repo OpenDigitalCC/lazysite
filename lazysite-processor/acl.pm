@@ -108,11 +108,18 @@ our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT, $ENGI
 # processor's render path is module-free by design, so it cannot import the
 # shared helper. Recorded in docs/adr/0001-capability-resolution.md; keep this
 # in sync with the shared implementation (raw-octets read + decode_json).
+#
+# 1, 0, or undef when groups-settings.json exists and cannot be read or does not
+# decode - ruling 206 (item 18 of the 0.16.9 fault survey): that used to read as
+# {} and answer 0, so a person whose group holds `ui` was told "Manager access
+# not permitted ... ask a sysop to grant your group the ui capability" - a
+# sentence about a rule, for a fault in a file. undef is false wherever the
+# answer is only a boolean; the manager door says cannot-tell
+# (_serve_manager_cannot_tell). An absent file is a site with no groups: 0.
 sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
     my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
-    return 0 unless -f $f;
 
     # THE SLURP IS SCOPED TO THE READ. `local $/;` at this sub's top level
     # stayed in effect for everything after it - including _group_closure
@@ -129,11 +136,12 @@ sub _groups_grant_cap {
     # group that holds the capability DIRECTLY.
     my $gs;
     {
-        open my $fh, '<:raw', $f or return 0;
+        open my $fh, '<:raw', $f or return $!{ENOENT} ? 0 : undef;    # SM770: the open decides
         local $/;
-        $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
+        $gs = eval { JSON::PP::decode_json(<$fh>) };
         close $fh;
     }
+    return undef unless ref $gs eq 'HASH';
     for my $g ( _group_closure(@groups) ) {    # SM121: compound-expanded
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
     }

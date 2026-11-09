@@ -914,7 +914,12 @@ sub handle_manager_path {
     my $auth_user   = $ident->{user};
     my $auth_groups = join ',', @{ $ident->{groups} };
 
-    unless ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
+    my $is_manager = _is_manager( \%sv, $auth_user, $auth_groups );
+    if ( !defined $is_manager && $auth_user ne '' ) {    # ruling 206: cannot tell
+        _serve_manager_cannot_tell( \%sv, $auth_user );
+        return 1;
+    }
+    unless ($is_manager) {
         # An AUTHENTICATED account that lacks the `ui` capability (an MCP/API-only
         # account, or one whose groups were changed to drop manager access) must
         # NOT be redirected to /login: /login sees the still-valid session and
