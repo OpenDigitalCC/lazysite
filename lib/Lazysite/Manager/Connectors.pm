@@ -65,7 +65,7 @@ use warnings;
 use JSON::PP        ();
 use File::Path       qw(make_path);
 use Time::HiRes      ();
-use Lazysite::Util   qw(log_event secure_write_perms cannot_read);
+use Lazysite::Util   qw(log_event secure_write_perms cannot_read store_fault);
 use Lazysite::Paths  ();
 use Lazysite::Fetch  ();    # SM790: the SSRF guard, shared with the other egress path
 use Lazysite::Egress ();    # X4: who may invoke - the policy, shared with the Odoo proxy
@@ -454,8 +454,22 @@ sub _calls_in_last_hour {
     };
     my $since = time - 3600;
     my $n     = 0;
+    my $at    = 0;
     while ( my $l = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($l) } or next;
+        $at++;
+        next unless $l =~ /\S/;
+        my $r = eval { JSON::PP::decode_json($l) };
+
+        # Ruling 206 (item 12 of the 0.16.9 fault survey): a line that is not a
+        # record was skipped, so the cap undercounted; now it cannot count.
+        unless ( ref $r eq 'HASH' ) {
+            close $fh;
+            store_fault( category => 'connectors', store => 'lazysite/connectors/calls.jsonl',
+                fault  => "holds a line that is not a call record (line $at)",
+                doing  => 'count the connector calls made',
+                effect => 'Every capped connector call is refused until it is repaired.' );
+            return undef;
+        }
   # only what went out: a refusal (SM771 records every one) is not a call the cap paid for
         next if ( $r->{state}     // '' ) eq 'refused';
         $n++ if ( $r->{connector} // '' ) eq $id && ( $r->{at} // 0 ) >= $since;
@@ -656,7 +670,9 @@ sub call {
     return _refused( $id, \%ctx, $why, $why ) unless $may;
     if ( $c->{rate_per_hour} ) {
         my $n = _calls_in_last_hour($id);
-        return _refused( $id, \%ctx, 'call record unreadable', _calls_unreadable() . '; the rate cap cannot be checked' )
+        return _refused( $id, \%ctx, 'call record unreadable',
+            'the call record (connectors/calls.jsonl) cannot be read, so the rate cap cannot be '
+                . 'checked; `lazysite check --docroot <docroot>` names the fault' )
             unless defined $n;
         return _refused( $id, \%ctx, 'rate cap', "rate cap reached: $c->{rate_per_hour} calls in the last hour" )
             if $n >= $c->{rate_per_hour};

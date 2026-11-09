@@ -169,8 +169,9 @@ sub within_caps {
         if ( !defined $ax->{used} ) {
             return ( 0,
                 "this $what cannot tell how much of its $name cap is already "
-                    . "used - the record would not open, so the cap cannot be "
-                    . "honoured and nothing was sent (see the event log)" );
+                    . "used - the record cannot be read (it would not open, or holds a "
+                    . "line that is not a record), so the cap cannot be honoured and "
+                    . "nothing was sent; `lazysite check --docroot <docroot>` names the fault" );
         }
         next unless defined $ax->{limit};
 

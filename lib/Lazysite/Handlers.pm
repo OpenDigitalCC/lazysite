@@ -2274,9 +2274,23 @@ sub _submitter_counts {
     };
     my $since = time - 3600;
     my ( $dest, $site ) = ( 0, 0 );
+    my $n = 0;
     while ( my $line = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($line) } or next;
-        next unless ref $r eq 'HASH' && ( $r->{t} // 0 ) >= $since;
+        $n++;
+        next unless $line =~ /\S/;
+        my $r = eval { JSON::PP::decode_json($line) };
+
+        # Ruling 206 (item 12 of the 0.16.9 fault survey): a line that is not a
+        # record was skipped, so the cap undercounted; now it cannot count.
+        unless ( ref $r eq 'HASH' ) {
+            close $fh;
+            Lazysite::Util::store_fault( category => 'handlers', store => 'lazysite/forms/submitter-mail.jsonl',
+                fault  => "holds a line that is not a send record (line $n)",
+                doing  => 'count the acknowledgements sent',
+                effect => 'Every acknowledgement is refused by its cap until it is repaired.' );
+            return ( undef, undef );
+        }
+        next unless ( $r->{t} // 0 ) >= $since;
         $site++;
         $dest++ if ( $r->{d} // '' ) eq $key;
     }

@@ -745,8 +745,22 @@ sub _mail_sent_last_hour {
         or return $!{ENOENT} ? 0 : cannot_read( 'the notice-mail record', $f );
     my $cut = time() - 3600;
     my $n   = 0;
+    my $at  = 0;
     while ( my $l = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($l) } or next;
+        $at++;
+        next unless $l =~ /\S/;
+        my $r = eval { JSON::PP::decode_json($l) };
+
+        # Ruling 206 (item 12 of the 0.16.9 fault survey): a line that is not a
+        # record was skipped, so the cap undercounted; now it cannot count.
+        unless ( ref $r eq 'HASH' ) {
+            close $fh;
+            Lazysite::Util::store_fault( category => 'notify', store => 'lazysite/logs/notice-mail.jsonl',
+                fault  => "holds a line that is not a send record (line $at)",
+                doing  => 'count the notice mail sent',
+                effect => 'Every notice mail is refused by its cap until it is repaired.' );
+            return undef;
+        }
         if ( defined $which ) {
             my $is_hook = ( $r->{route} // 'email' ) eq 'webhook';
             next if $is_hook != ( $which eq 'webhook' ? 1 : 0 );
