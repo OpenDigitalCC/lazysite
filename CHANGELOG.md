@@ -308,6 +308,37 @@ Archive
   an undecodable groups-settings.json, a forgot-password request the host cannot match
   answers `error=unavailable`, and an undecodable install state or an unreadable notice
   template is logged. Absent stores are unchanged. See UPGRADE.
+- SM1369 (PENDING) **X7: Odoo ships in its own deb, `lazysite-odoo`, and the installer
+  lays it out when it is present (rulings 188, 205).** The deb is built from the same
+  source for the same release. It Depends on `lazysite-common` (same version) and on
+  `libodoo-oom-perl`. lazysite-common no longer carries `extensions/odoo*` or the
+  endpoint.
+  - The release manifest marks each extension's files (`extension: <id>`).
+  - `install.pl` leaves out, whole, an extension whose descriptor is not in its payload,
+    and the site's old copies take the usual left-the-manifest path.
+  - A site that has the extension on is refused before anything changes, naming the
+    package to install.
+  - There is no `--with odoo` flag. The Odoo tests stay in `t/`.
+
+- SM1361 (PENDING) **One container serves many sites, on the image's read-only engine
+  (rulings 201, 205, 206, 208, 210).**
+  - `installers/docker`: the image carries the engine and its extensions, read-only.
+    Each site is a folder in one volume, listed in `sites.conf`, with its own FastCGI
+    pool and runtime.
+  - Every process runs as www-data, and the root filesystem is read-only. The container
+    serves plain HTTP behind the operator's own TLS proxy (`front.conf.example`).
+  - `lazysite-sites` adds and removes a site without a restart. It also does status,
+    restart, restore, rollback-plan, check and sysop.
+  - Each start brings each site to the image. A site whose state is newer than the image
+    is refused, with the restore command printed.
+  - A failed or damaged site is refused, answers 503 and is named, while the others
+    serve. The container is unhealthy only when nginx or its supervisor is down.
+  - `install.pl --engine shared` (also the default where the payload carries the
+    `SHARED-ENGINE` marker) lays a site with no engine copy.
+  - On such an engine, X1's rule is the engine's own payload only. A site's extension
+    file is refused by name, and `lazysite check` names it.
+  - Fixed: `install.pl` gave an engine tree laid beside the docroot 0644 on its account
+    store and SMTP secret.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

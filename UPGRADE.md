@@ -287,6 +287,35 @@ Three only say so: the notify status (`notify/status.json`) is no longer written
 template under `notify-templates/` is logged while the built-in wording is used (make it
 readable). Nothing to do on a site whose check is clean.
 
+**Odoo is its own package, `lazysite-odoo` (SM1369 X7, rulings 188, 205).** On a deb host
+that uses Odoo, install `lazysite-odoo` with the upgrade. It brings `libodoo-oom-perl`
+with it, so the host needs the repository that carries that package. If a site has Odoo
+on and the package is missing, `lazysite upgrade` refuses that site before changing
+anything, and names the package. A site with Odoo off just has the extension's old copies
+removed; a copy you edited is kept, with its orphan warning. Tarball and Hestia installs
+still carry Odoo and lay it out as before. Nothing a site configures changes.
+
+**The Docker recipe now serves many sites from one container (SM1361, rulings 201, 205,
+208, 210).** The 0.16.1 recipe had one site in three volumes, and its volume layout has
+changed: the new recipe keeps every site as a folder in one volume, listed in
+`sites.conf`. Moving a site from the old recipe is a by-hand step. With both
+containers stopped, copy into a new folder `NAME/` in the new volume:
+- the old docroot volume (without its `lazysite/`) to `NAME/html`;
+- the old `lazysite/` volume to `NAME/html-lazysite`;
+- the old private store to `NAME/html-lazysite-private`.
+
+Then start the new container and run `lazysite-sites add NAME DOMAIN`.
+
+In the new container:
+- the engine runs from the image, and every site runs as `www-data`;
+- only the image's own extensions run. `lazysite check` names a site's own extension
+  file as refused;
+- a site whose end user takes it over moves to a dedicated service: Hestia, or a
+  container of its own.
+
+`installers/docker/README.md` covers upgrade by tag, rollback by `lazysite-sites restore`,
+and the canary as a second container.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

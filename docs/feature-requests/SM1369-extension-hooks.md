@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-06
 raised-by: "ruling 55 (release manager, 2026-11-04); design tmp/proposal-extension-hooks.md; planned as n757"
 area: extensions
-status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7; X2, X3, X5's asset part, X8 (SM1396) 0.16.8. Built for 0.16.9: X4 on n781 (H-1, the identity provider; the Odoo handler type on manage_odoo, ruling 178); X5's rest and X6 on n782 (H-4 endpoint kit, H-5 services, H-6 checks, H-8 panels as pages, H-11 one secrets store). Next: X7's rest and H-10's system pages and docs."
+status-note: "PARTIAL: X0, X1 shipped 0.16.6; X7 part one 0.16.7; X2, X3, X5's asset part, X8 (SM1396) 0.16.8. Built for 0.16.9: X4 on n781 (H-1, the identity provider; the Odoo handler type on manage_odoo, ruling 178); X5's rest and X6 on n782 (H-4, H-5, H-6, H-8, H-11); X7's rest on n788 (the lazysite-odoo deb, laid out when present; X1's rule on a shared engine). Next: H-10's system pages and docs."
 ---
 
 # The ruling
@@ -180,6 +180,38 @@ Tests
   and a scheduled binding's timer are not stood up there; their names, socket and
   paths are unchanged. Lints 262, 269 and 272 read the payload lib as they read
   `lib/`.
+
+# X7, the rest: the lazysite-odoo deb, and X1's rule on a shared engine
+
+Ruling 188 settles X7's rest as: the Odoo deb ships `extensions/odoo/`, the installer lays
+it out when present, there is no `--with odoo` flag, and the tests stay in `t/`. Ruling 205
+makes it Depend on `libodoo-oom-perl`. Built on n788 for 0.16.9.
+
+The package
+: `lazysite-odoo` is built from the same source for the same release. It carries
+  `extensions/odoo.pl`, `extensions/odoo/` and the endpoint `lazysite-odoo.pl` under
+  `/usr/share/lazysite`, and lazysite-common no longer does. It Depends on
+  `lazysite-common (= ${source:Version})` and `libodoo-oom-perl`.
+
+Laid out when present
+: The release manifest marks each extension's files (`extension: <id>`): its descriptor,
+  its payload, and the endpoints its `owns.endpoints` names.
+  - `install.pl` leaves out, whole, an extension whose descriptor is not in its payload.
+    The site's old copies are removed, or kept with the orphan warning when edited.
+  - A site with that extension on is refused before anything changes, naming the
+    package.
+
+X1's rule on a shared engine (SM1361; rulings 200, 201, 210)
+: An engine whose root carries the `SHARED-ENGINE` marker (the container's image) runs
+  only its own extensions. A site's extension file is refused by name: it is never found
+  and never registered, it is logged, and `lazysite check` names it. A module in a site
+  payload that an engine payload holds is refused at the hook check.
+: Without the marker, every host reads as before.
+
+Tests
+: `t/lint/391` (the package), `t/tools/392` (laid out when present),
+  `t/unit/extensions/130` and `t/lint/392` (the shared rule), `t/tools/391` (the shared
+  install).
 
 # X2: actions and capabilities are declared
 
