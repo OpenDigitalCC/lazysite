@@ -2689,7 +2689,18 @@ sub sign_in {
     require Lazysite::Auth::LoginRate;
     my %lim = ( auth_dir => _lz() . '/auth', docroot => $DOCROOT );
     my $by_ip = Lazysite::Auth::LoginRate::check_login_rate( 'odoo-ip=' . ( $a{ip} // '' ), %lim );
+    my $fault = $Lazysite::Auth::LoginRate::FAULT;    # each call clears it first
     my $by_login = Lazysite::Auth::LoginRate::check_login_rate( 'odoo-login=' . Lazysite::Odoo::Session::login_label($login), %lim );
+    $fault = $Lazysite::Auth::LoginRate::FAULT unless length $fault;
+
+    # Ruling 212 (the 0.16.9 restack): a limiter that cannot count is a fault on the
+    # host (ruling 206), and the sign-in says so in the limiter's own words - the
+    # cannot-tell refusal lazysite's sign-in and the account door give - never "too
+    # many sign-in attempts", which sent the person to wait for a fault to pass.
+    if ( length $fault && !( $by_ip && $by_login ) ) {
+        local $Lazysite::Auth::LoginRate::FAULT = $fault;
+        return ( _refusal( \%rec, 'cannot-tell', Lazysite::Auth::LoginRate::fault_refusal()->{error} ) )[1];
+    }
     return ( _refusal( \%rec, 'rate', 'too many sign-in attempts - wait a few minutes and try again' ) )[1]
         unless $by_ip && $by_login;
 

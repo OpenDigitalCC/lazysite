@@ -66,7 +66,8 @@ Nothing is lost on a send path
    `lazysite/auth/.consume.lock` cannot be opened or locked. Check: the lock joins
    the auth files the CGI must be able to write, saying what an unwritable one stops.
 4. **The login rate limiter fails closed.** Refuses: every sign-in
-   (`?error=unavailable`, 503 on the token doors) when DB_File is missing or
+   (`?error=unavailable`, 503 on the token doors, and the Odoo sign-in's 503
+   cannot-tell in the limiter's own words, ruling 212) when DB_File is missing or
    `lazysite/auth/.login-rate.db` will not open. Check: the two limiter lines are
    FAILs saying every sign-in is refused, and a new line tie-opens the counter
    read-only and names one that is not a database, with its removal as the repair.

@@ -288,8 +288,9 @@ Archive
   operator too, for files and table rows (ruling 197's exception withdrawn). (3) An
   auth store lock (lazysite/auth/.consume.lock) that cannot be taken refuses every
   account change and single-use link. (4) A login rate limiter that cannot count (no
-  DB_File, a counter that will not open) refuses every sign-in; switched off is
-  unchanged. (5) A groups-settings.json that will not read refuses every signed-in page
+  DB_File, a counter that will not open) refuses every sign-in, the Odoo sign-in
+  included, which says so as cannot-tell rather than "too many attempts" (ruling 212);
+  switched off is unchanged. (5) A groups-settings.json that will not read refuses every signed-in page
   (503). (6) A groups file that will not open refuses sign-in and every session. (7) A
   rejected or missing content_root refuses that host (503) instead of serving the
   docroot root. (8) An invalid session_lifetime refuses sign-in and sessions, and an
