@@ -37,7 +37,7 @@ use warnings;
 use POSIX               ();
 use Errno               ();
 use Time::HiRes         ();
-use Lazysite::Util      qw(log_event cannot_read);
+use Lazysite::Util      qw(log_event cannot_read store_fault);
 use Lazysite::Lifecycle qw(lifecycle_status);
 use Lazysite::Paths     ();
 
@@ -179,12 +179,12 @@ sub service_pid {
     my $root = _docroot($docroot);
     my $pid  = _read_pid( $root, $name );
     return undef unless defined $pid;
-    return _is_ours( $pid, _read_state( $root, $name )->{start_ticks} ) ? $pid : undef;
+    return _is_ours( $pid, ( _read_state( $root, $name ) // {} )->{start_ticks} ) ? $pid : undef;
 }
 
 sub service_state {
     my ( $docroot, $name ) = @_;
-    return _read_state( _docroot($docroot), $name );
+    return _read_state( _docroot($docroot), $name ) // {};
 }
 
 our $SERVICE_GATE_EVERY = 5;
@@ -443,7 +443,7 @@ sub status {
     if ( !$enabled && $a{settle} ) {
         my $deadline = time + $a{settle};
         while ( time < $deadline ) {
-            my $alive = grep { _is_ours( _read_pid( $root, $_->{name} ), _read_state( $root, $_->{name} )->{start_ticks} ) } @listed;
+            my $alive = grep { _is_ours( _read_pid( $root, $_->{name} ), ( _read_state( $root, $_->{name} ) // {} )->{start_ticks} ) } @listed;
             last unless $alive;
             sleep 1;
         }
@@ -463,7 +463,9 @@ sub status {
     for my $s (@listed) {
         my $pid   = _read_pid( $root, $s->{name} );
         my $st    = _read_state( $root, $s->{name} );
-        my $alive = _is_ours( $pid, $st->{start_ticks} );
+        my $fault = !defined $st;    # ruling 206: no proof either way, and run() starts nothing
+        $st //= {};
+        my $alive = $fault ? 0 : _is_ours( $pid, $st->{start_ticks} );
         $any_running ||= $alive;
 
         # SM755. The verdict comes from what the supervisor RECORDED, not from
@@ -475,7 +477,7 @@ sub status {
         my $verdict
             = !$enabled                           ? 'off'
             : $alive                              ? 'on'
-            : $st->{failed}                       ? 'failed'
+            : ( $fault || $st->{failed} )         ? 'failed'
             : ( defined $pid && $st->{next_try} ) ? 'starting'
             : ( !defined $pid && $timer_armed )   ? 'starting'
             :                                       'inconsistent';
@@ -500,7 +502,14 @@ sub status {
                 } )
                 : ()
             ),
-            ( $verdict eq 'failed'
+            ( $verdict eq 'failed' && $fault
+                ? ( message => "the state file lazysite/daemon/$s->{name}.state.json cannot be read "
+                        . 'or does not decode, so the supervisor cannot tell whether the service '
+                        . 'is already running and starts no service',
+                    remedy => 'lazysite check --docroot <docroot> names it; once no copy of the '
+                        . 'service is running, remove the file and restart the host service'
+                    )
+                : $verdict eq 'failed'
                 ? ( message => "$s->{name} kept dying and the supervisor has "
                         . "stopped restarting it ($st->{fails} consecutive "
                         . 'failures)'
@@ -740,6 +749,24 @@ sub run {
     # jobs - and starting a fresh one beside it is the duplication above. It is
     # stopped, deliberately and with a log line, before a fresh one is started
     # under this supervisor's care.
+    #
+    # Ruling 206 (item 17): a state file that cannot be told means an orphan
+    # cannot be recognised, so nothing is adopted and NOTHING IS STARTED - a
+    # second copy of a service beside its orphan is the failure this exists to
+    # prevent. Checked for every service before any is touched; exit 4.
+    my @state_faults = grep { !defined _read_state( $root, $_->{name} ) }
+        services( $root, map { $_ => 1 } keys %{ { _gated($root) } } );
+    if (@state_faults) {
+        store_fault( category => 'daemon',
+            store  => 'lazysite/daemon/' . $_->{name} . '.state.json',
+            fault  => 'cannot be read or does not decode as a JSON object',
+            doing  => "tell whether the $_->{name} service is already running",
+            effect => 'The supervisor starts no service until it is repaired; the file is left as found.' )
+            for @state_faults;
+        log_event( 'ERROR', 'daemon', 'not starting: a service state file cannot be told',
+            services => join( ',', map { $_->{name} } @state_faults ) );
+        return 4;
+    }
     for my $s ( services( $root, map { $_ => 1 } keys %{ { _gated($root) } } ) ) {
         my $old = _read_pid( $root, $s->{name} );
         my $st  = _read_state( $root, $s->{name} );
@@ -974,15 +1001,28 @@ sub _write_state {
     return;
 }
 
+# {...}, {} when the service has no state yet, or undef when the file exists and
+# cannot be read or does not decode as an object.
+#
+# Ruling 206 (item 17 of the 0.16.9 fault survey): a damaged state file read as
+# {} - no start time - so the supervisor could not recognise an orphaned service
+# of its own and started a second one beside it, the duplicate SM789 exists to
+# prevent. Now it is undef: the supervisor refuses to start any service (run()
+# below), the readers that only report treat it as "no proof", and the file is
+# left as found. `lazysite check` names it.
 sub _read_state {
     my ( $root, $name ) = @_;
     my $f = _state_file( $root, $name );
-    open my $fh, '<', $f or return ( cannot_read( 'daemon state', $f ) // {} );
+    open my $fh, '<', $f or do {
+        return {} if $!{ENOENT};
+        cannot_read( 'daemon state', $f );
+        return undef;
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
     my $d = eval { JSON::PP->new->decode($raw) };
-    return ref $d eq 'HASH' ? $d : {};
+    return ref $d eq 'HASH' ? $d : undef;
 }
 
 # TERM every child, give them $STOP_DEADLINE seconds together, then KILL what is
