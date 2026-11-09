@@ -481,14 +481,25 @@ sub _narrowed_to_address {
 # Set the per-request module context once the caller is known.
 # SM612: the installed build, from the install state the installer writes -
 # not from a rendered page, which reports whatever built that page.
+# Ruling 206 (item 20 of the 0.16.9 fault survey): an install state that will not
+# open or decode answered null with no WARN, like a site from before the file
+# existed. It is still null - whoami's answer shape is unchanged - and the log
+# now names the fault (Services::action_version says it in the answer too).
 sub _engine_version {
     my $path = "$LAZYSITE_DIR/.install-state.json";
-    return undef unless -f $path;
-    open my $fh, '<', $path or return undef;
+    open my $fh, '<', $path or do {
+        Lazysite::Util::cannot_read( '.install-state.json', $path ) unless $!{ENOENT};
+        return undef;
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
-    my $d = eval { decode_json($raw) } || {};
-    return $d->{version};
+    my $d = eval { decode_json($raw) };
+    return $d->{version} if ref $d eq 'HASH';
+    Lazysite::Util::store_fault( category => 'mcp', store => 'lazysite/.install-state.json',
+        fault  => 'does not decode as a JSON object',
+        doing  => 'tell which lazysite version is installed',
+        effect => 'The site still serves; the installer rewrites it at the next upgrade.' );
+    return undef;
 }
 
 # Q16 (ruled 2026-10-12): Domains' own log copy names the account, so an MCP

@@ -265,7 +265,18 @@ sub action_version {
     };
     my $raw = do { local $/; <$fh> };
     close $fh;
-    my $d = eval { decode_json($raw) } || {};
+    my $d = eval { decode_json($raw) };
+
+    # Ruling 206 (item 20 of the 0.16.9 fault survey): an undecodable install
+    # state answered version: null with no WARN - the same as a site installed
+    # before the file existed. Now the log names it, and so does the answer.
+    unless ( ref $d eq 'HASH' ) {
+        my $f = Lazysite::Util::store_fault( category => 'manager', store => 'lazysite/.install-state.json',
+            fault  => 'does not decode as a JSON object',
+            doing  => 'tell which lazysite version is installed',
+            effect => 'The site still serves; the installer rewrites it at the next upgrade.' );
+        return { ok => 1, version => undef, error => $f->{error} };
+    }
     return { ok => 1, version => $d->{version}, installed_at => $d->{installed_at} };
 }
 
