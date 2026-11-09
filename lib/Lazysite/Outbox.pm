@@ -58,7 +58,7 @@ use JSON::PP        ();
 use File::Path      qw(make_path);
 use File::Basename  qw(dirname);
 use Fcntl           qw(:flock);
-use Lazysite::Util  qw(log_event cannot_read);
+use Lazysite::Util  qw(log_event cannot_read store_fault);
 use Lazysite::Paths ();
 
 our $VERSION = '1.0';
@@ -297,15 +297,33 @@ sub _lz_of      { return Lazysite::Paths::lazysite_dir( $_[0] ) }
 sub ledger_file { return _lz_of( $_[0] ) . '/notify/ledger.jsonl' }
 sub failed_dir  { return _lz_of( $_[0] ) . '/notify/failed' }
 
-# ( \@lines ) or undef when the ledger exists and will not open.
+# ( \@lines ) or undef when the ledger exists and will not open, or holds a line
+# that is not a record.
+#
+# Ruling 206 (item 11 of the 0.16.9 fault survey): A LINE THAT IS NOT A RECORD
+# IS A FAULT, NOT A SKIP. A dropped line lost its "sent", so the run sent that
+# notice again; and the prune rewrote the ledger without it. The run now sends
+# nothing and the queue keeps every entry until the ledger is repaired. A blank
+# line records nothing and is passed over.
 sub _read_ledger {
     my ($docroot) = @_;
     my $f = ledger_file($docroot);
     open my $fh, '<:raw', $f or return $!{ENOENT} ? [] : cannot_read( 'the notification ledger', $f );
     my @l;
+    my $n = 0;
     while ( my $line = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($line) } or next;
-        push @l, $r if ref $r eq 'HASH';
+        $n++;
+        next unless $line =~ /\S/;
+        my $r = eval { JSON::PP::decode_json($line) };
+        unless ( ref $r eq 'HASH' ) {
+            close $fh;
+            store_fault( category => 'notify', store => 'lazysite/notify/ledger.jsonl',
+                fault  => "holds a line that is not a ledger record (line $n)",
+                doing  => 'tell what has been sent',
+                effect => 'No notification is sent until it is repaired; the queue keeps every entry.' );
+            return undef;
+        }
+        push @l, $r;
     }
     close $fh;
     return \@l;
@@ -1080,8 +1098,9 @@ sub run {
     return { ok => 1, detail => { busy => 1 } } unless flock $lk, LOCK_EX | LOCK_NB;
 
     my $ledger = _read_ledger($docroot);
-    return { ok => 0, error => 'the notification ledger exists and could not be read, so nothing '
-            . 'was sent - sending without it could send twice; see the log' }
+    return { ok => 0, error => 'the notification ledger (lazysite/notify/ledger.jsonl) cannot be read, '
+            . 'so nothing was sent - sending without it could send twice; the queue is kept. '
+            . '`lazysite check --docroot <docroot>` names the fault' }
         unless defined $ledger;
     _prune_ledger( $docroot, $ledger, $ctx{now} );
 
@@ -1090,8 +1109,9 @@ sub run {
     # tell who unsubscribed" is not "nobody did".
     require Lazysite::Unsubscribe;
     $ctx{suppressed} = Lazysite::Unsubscribe::suppressed($docroot);
-    return { ok => 0, error => 'the unsubscribe store exists and could not be read, so nothing '
-            . 'was sent - sending without it could write to someone who said stop; see the log' }
+    return { ok => 0, error => 'the unsubscribe store (lazysite/notify/suppressed.jsonl) cannot be '
+            . 'read, so nothing was sent - sending without it could write to someone who said stop; '
+            . 'the queue is kept. `lazysite check --docroot <docroot>` names the fault' }
         unless defined $ctx{suppressed};
 
     require Lazysite::Handlers;
@@ -1213,7 +1233,13 @@ sub run {
 
 sub status_file { return _lz_of( $_[0] ) . '/notify/status.json' }
 
-# { rule => {...} }, {} when there is none, or undef when it will not open.
+# { rule => {...} }, {} when there is none, or undef when it will not open or
+# does not decode as an object.
+#
+# Ruling 206 (item 14 of the 0.16.9 fault survey): an undecodable status read as
+# {}, and _write_status then wrote that {} over it, so the damage was erased
+# along with every rule's last run and problem. Now it is undef: the job's write
+# is skipped (SM785) and the damaged file stays as found for the sysadmin.
 sub _read_status {
     my ($docroot) = @_;
     my $f = status_file($docroot);
@@ -1222,7 +1248,12 @@ sub _read_status {
     my $raw = <$fh>;
     close $fh;
     my $s = eval { JSON::PP::decode_json( $raw // '' ) };
-    return ref $s eq 'HASH' ? $s : {};
+    return $s if ref $s eq 'HASH';
+    store_fault( category => 'notify', store => 'lazysite/notify/status.json',
+        fault  => 'does not decode as a JSON object',
+        doing  => "record each rule's last run",
+        effect => 'It is not written over; the notifications themselves still go.' );
+    return undef;
 }
 
 sub _write_status {
@@ -1606,10 +1637,17 @@ sub _recipients_view {
     my ( $list, $why ) = resolve( $docroot, $sources, $e, $accounts );
     return { error => $why } unless $list;
     $list = _without_actor( $h, $e, $accounts, $list );
-    my $ledger = _read_ledger($docroot) // [];
-    my %state  = map { ( $_->{k} // '' ) => ( $_->{s} // '' ) } @$ledger;
+    # Ruling 206: what cannot be read is said, not shown as "pending".
+    my $ledger = _read_ledger($docroot);
+    return { error => 'the notification ledger cannot be read; `lazysite check --docroot <docroot>` '
+            . 'names the fault' }
+        unless defined $ledger;
+    my %state = map { ( $_->{k} // '' ) => ( $_->{s} // '' ) } @$ledger;
     require Lazysite::Unsubscribe;
-    my $stopped = Lazysite::Unsubscribe::suppressed($docroot) // {};
+    my $stopped = Lazysite::Unsubscribe::suppressed($docroot);
+    return { error => 'the unsubscribe store cannot be read; `lazysite check --docroot <docroot>` '
+            . 'names the fault' }
+        unless defined $stopped;
     my @ch      = grep { length } split /\s*,\s*/, ( $h->{channels} // 'email' );
     my @out;
     for my $r (@$list) {

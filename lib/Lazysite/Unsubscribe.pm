@@ -38,7 +38,7 @@ use Fcntl           qw(:flock O_WRONLY O_CREAT O_EXCL);
 use File::Path      qw(make_path);
 use File::Basename  qw(dirname);
 use JSON::PP        ();
-use Lazysite::Util  qw(cannot_read const_eq secure_write_perms);
+use Lazysite::Util  qw(cannot_read const_eq secure_write_perms store_fault);
 use Lazysite::Paths ();
 
 our $VERSION = '1.0';
@@ -112,15 +112,33 @@ sub verify {
 }
 
 # { "rule\0p" => 1 } for every stopped pair, {} when nothing was ever stopped,
-# undef when the store exists and will not open.
+# undef when the store exists and will not open - or holds a line that is not a
+# stop.
+#
+# Ruling 206 (item 10 of the 0.16.9 fault survey): A LINE THAT IS NOT A STOP IS
+# A FAULT, NOT A SKIP. An undecodable line was passed over, so the person whose
+# stop it recorded was mailed again - "could not read who said stop" is not
+# "nobody did". The outbox job sends nothing on undef and its queue waits for the
+# repair. A blank line records nothing and is passed over.
 sub suppressed {
     my ($docroot) = @_;
     my $f = store_file($docroot);
     open my $fh, '<:raw', $f or return $!{ENOENT} ? {} : cannot_read( 'the unsubscribe store', $f );
     my %s;
+    my $n = 0;
     while ( my $line = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($line) } or next;
-        $s{"$r->{r}\0$r->{p}"} = 1 if ref $r eq 'HASH' && defined $r->{r} && defined $r->{p};
+        $n++;
+        next unless $line =~ /\S/;
+        my $r = eval { JSON::PP::decode_json($line) };
+        unless ( ref $r eq 'HASH' && defined $r->{r} && defined $r->{p} ) {
+            close $fh;
+            store_fault( category => 'notify', store => 'lazysite/notify/suppressed.jsonl',
+                fault  => "holds a line that is not an unsubscribe record (line $n)",
+                doing  => 'tell who has unsubscribed',
+                effect => 'No notification is sent until it is repaired; the queue keeps every entry.' );
+            return undef;
+        }
+        $s{"$r->{r}\0$r->{p}"} = 1;
     }
     close $fh;
     return \%s;
