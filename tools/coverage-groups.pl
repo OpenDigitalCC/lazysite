@@ -37,7 +37,7 @@ my $ROOT = $0 =~ m{^(.*)/tools/[^/]+$} ? $1 : '.';
 our @GROUPS = (
     [ processor => qw(lazysite-processor.pl lazysite-processor/) ],
     [ manager => qw(lazysite-manager-api.pl lib/Lazysite/Manager/ lib/Lazysite/ControlApi/) ],
-    [ auth => qw(lazysite-auth.pl lib/Lazysite/Auth/ lazysite-oauth.pl tools/lazysite-users.pl) ],
+    [ auth => qw(lazysite-auth.pl lib/Lazysite/Auth/ lazysite-oauth.pl tools/lazysite-users.pl lazysite-oidc.pl extensions/oidc/lib/) ],
     [ data   => qw(lazysite-data.pl lib/Lazysite/Data/) ],
     [ front  => qw(lazysite-dav.pl lazysite-mcp.pl lazysite-front.pl) ],
     [ daemon => qw(lib/Lazysite/Daemon/) ],

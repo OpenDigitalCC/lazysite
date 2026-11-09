@@ -197,7 +197,7 @@ subtest 'Odoo off, its declaration indexed: the action is known and answers off'
 subtest 'the check reads the capabilities from the index, and the grids are served the labels' => sub {
     my $d = site();
     my $out = run_child( [ $^X, "-I$root/lib", "$root/tools/lazysite-check.pl", '--docroot', $d ], stderr => 'merge' )->{out};
-    like( $out, qr/the extension index is built \(1 extension declares capabilities or actions, 1 with hooks indexed\)/,
+    like( $out, qr/the extension index is built \(\d+ extensions? declares? capabilities or actions, 1 with hooks indexed\)/,
         'the check reports the index' );
     # The failure note: the check says the previous index stands, and why.
     spit( "$d/lazysite/extensions.index.failed", "Sat Nov  7 12:00:00 2026 UTC: the hook index was not written, and the previous one stands: disk full\n" );

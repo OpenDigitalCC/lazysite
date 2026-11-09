@@ -61,8 +61,9 @@ is( $built2->{extensions}{odoo}{key}, 'extensions/odoo.pl', 'by its conf key' );
 like( $out, qr/hooks indexed: odoo/, 'and the install says so' );
 
 # X1's rule: nothing installed declares, nothing is written. The same call the
-# install makes, against the first site with Odoo taken away.
-unlink "$root/extensions/odoo.pl" or die "remove odoo.pl: $!";
+# install makes, against the first site with Odoo taken away - and the OIDC
+# extension (SM1351), whose checks are a declaration too.
+unlink "$root/extensions/$_.pl" or die "remove $_.pl: $!" for qw(odoo oidc);
 unlink $index if -e $index;
 my $cmd = join ' ', map { quotemeta } ( $^X, "-I$root/lib", '-MLazysite::Manager::Extensions', '-e',
     'exit Lazysite::Manager::Extensions::rebuild_hook_index_main(@ARGV)', $docroot );
