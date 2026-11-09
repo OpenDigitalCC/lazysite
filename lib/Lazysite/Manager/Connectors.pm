@@ -1082,8 +1082,26 @@ sub sweep {
     };
     my $cutoff = time - $KEEP_CALLS_DAYS * 86400;
     my ( $expired, $unanswered, @keep ) = ( 0, 0 );
+    my $at = 0;
     while ( my $l = <$fh> ) {
-        my $r = eval { JSON::PP::decode_json($l) } or next;
+        $at++;
+        next unless $l =~ /\S/;    # a blank line records nothing
+        my $r = eval { JSON::PP::decode_json($l) };
+
+        # Ruling 206 (item 15 of the 0.16.9 fault survey): A REWRITE NEVER HEALS
+        # WHAT IT CANNOT READ. A line that would not decode was skipped here and
+        # so left out of @keep, and the rewrite below deleted it - a self-healing
+        # rewrite that erased the evidence of the damage along with a row of the
+        # record. The sweep now leaves the file exactly as found and reports it;
+        # the sysadmin repairs the line. (_prune_calls already keeps such a line.)
+        unless ( ref $r eq 'HASH' ) {
+            close $fh;
+            my $f = store_fault( category => 'connectors', store => 'lazysite/connectors/calls.jsonl',
+                fault  => "holds a line that is not a call record (line $at)",
+                doing  => 'sweep the connector call record',
+                effect => 'Nothing was swept; the record is left as found.' );
+            return { ok => 0, error => $f->{error} };
+        }
         if ( ( $r->{at} // 0 ) < $cutoff ) { $expired++; next }
         $unanswered++ if ( $r->{state} // '' ) eq 'unanswered';
         push @keep, $l;
