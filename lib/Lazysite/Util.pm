@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read store_fault backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
 
 our $COMPONENT = 'lazysite';
 
@@ -181,6 +181,38 @@ sub cannot_read {
     log_event( 'WARN', 'store', "cannot read $what - it exists and this process cannot open it",
         file => $path, error => $err, unix_user => ( $who // $> ) );
     return undef;
+}
+
+# Ruling 206 (the 0.16.9 fault survey, items 9-21): A STORE THAT EXISTS AND
+# CANNOT BE TOLD IS A FAULT, and every place that meets one says so in the same
+# words. Logs one WARN naming the store, the fault and the remedy, and returns
+# the cannot-tell refusal (503 through Manager::Common's %REFUSAL_STATUS):
+#
+#   store_fault( category => 'notify', store => 'lazysite/notify/ledger.jsonl',
+#       fault => 'holds a line that is not a record (line 4)',
+#       doing => 'send notifications', effect => 'Nothing was sent.' )
+#
+# `store` is docroot-relative (SM494: a host path is not a caller's to see).
+# The caller decides what refusing means; this only says it. An ABSENT store is
+# never passed here - absence is a site with nothing recorded yet.
+sub store_fault {
+    my (%a)    = @_;
+    my $store  = $a{store} // 'a store';
+    my $fault  = $a{fault} // 'cannot be read';
+    my $effect = length( $a{effect} // '' ) ? " $a{effect}" : '';
+    my $doing  = $a{doing} // 'answer this';
+    log_event( 'WARN', $a{category} // 'store', "cannot tell - $store $fault.$effect",
+        file   => $store,
+        repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => $store,
+        repair => 'lazysite check --docroot <docroot>',
+        error  => "Cannot $doing right now: $store $fault. This is a fault on the host, not a "
+            . "decision about this request.$effect `lazysite check --docroot <docroot>` names the "
+            . 'fault; repair it from the command line.',
+    };
 }
 
 # SM1183: write a secret file so it is NEVER more permissive than its final mode,

@@ -12,7 +12,7 @@ use POSIX          qw(strftime);
 use File::Basename qw(basename);
 use File::Path     qw(make_path);
 use Cwd            qw(realpath);
-use Lazysite::Util qw(log_event);
+use Lazysite::Util qw(log_event store_fault);
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl qw(_acl_denied);
@@ -87,14 +87,22 @@ sub check_upload_rate {
     make_path($rate_dir) unless -d $rate_dir;
 
     my %db;
+    # Ruling 206 (item 9 of the 0.16.9 fault survey): A BUDGET THAT CANNOT
+    # COUNT REFUSES. Both returns below answered { ok => 1 } - every upload
+    # allowed, the hourly limit off - for a host without DB_File or a counter
+    # that will not open. Now each is the cannot-tell refusal (503), naming
+    # the store; `lazysite check` names it too. An absent counter is made on
+    # first use (O_CREAT), so a fresh site is no fault; a limit of 0 on both
+    # axes (above) is the operator switching the budget off, and still allows.
     # Note: no assignment of the tie return value - holding a
     # reference to the tied object would trigger "untie attempted
     # while inner references still exist" on the untie below.
-    eval { require DB_File; 1 } or do {
-        log_event( 'WARN', 'file-upload', 'rate DB tie failed',
-            path => $rate_path, error => "DB_File unavailable: $@" );
-        return { ok => 1 };
-    };
+    eval { require DB_File; 1 } or return store_fault(
+        category => 'file-upload',
+        store    => 'lazysite/manager/.upload-rate.db',
+        fault    => 'cannot be counted: DB_File is not installed (Debian: libdb-file-perl)',
+        doing    => 'accept this upload',
+        effect   => 'Every upload is refused until it is repaired.' );
     eval {
         no warnings 'once';
         tie %db, 'DB_File', $rate_path, O_RDWR | O_CREAT, 0o600,
@@ -102,8 +110,13 @@ sub check_upload_rate {
     };
     unless ( tied %db ) {
         log_event( 'WARN', 'file-upload', 'rate DB tie failed',
-            path => $rate_path, error => ( $@ || 'tie returned empty' ) );
-        return { ok => 1 };    # fail open
+            path => $rate_path, error => ( $@ || "$!" || 'tie returned empty' ) );
+        return store_fault(
+            category => 'file-upload',
+            store    => 'lazysite/manager/.upload-rate.db',
+            fault    => 'does not open as the hourly upload counter',
+            doing    => 'accept this upload',
+            effect   => 'Every upload is refused until it is repaired.' );
     }
 
     my $hour      = int( time() / 3600 );

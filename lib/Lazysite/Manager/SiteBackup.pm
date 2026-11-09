@@ -337,7 +337,8 @@ sub action_site_backup_upload {
     # instance shared one package-upload budget and the byte limit compared
     # against nothing.
     my $rate = check_upload_rate( $auth_user, length( $raw // '' ) );
-    return { ok => 0, kind => 'rate', error => $rate->{error} }
+    # Ruling 206: a counter that cannot count answers cannot-tell, as itself.
+    return ( $rate->{kind} ? $rate : { ok => 0, kind => 'rate', error => $rate->{error} } )
         if ref $rate eq 'HASH' && !$rate->{ok};
 
     my ($file) = grep { defined $_->{filename} && length $_->{filename} }

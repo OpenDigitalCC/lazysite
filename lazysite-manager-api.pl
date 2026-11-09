@@ -2921,7 +2921,9 @@ elsif ( $action eq 'file-upload' ) {
     # upload of an hour still answers 429 and is not audited); the body is now
     # read before it, at most the size gate's max_bytes.
     my $rate = check_upload_rate( $auth_user, $ENV{CONTENT_LENGTH} // 0 );
-    _bail( { ok => 0, kind => 'rate', error => $rate->{error} } ) unless $rate->{ok};
+    # Ruling 206: a counter that cannot count answers cannot-tell (503), as itself.
+    _bail( $rate->{kind} ? $rate : { ok => 0, kind => 'rate', error => $rate->{error} } )
+        unless $rate->{ok};
     $result = action_file_upload( $path, $body );
 }
 elsif ( $action eq 'file-download' ) {
