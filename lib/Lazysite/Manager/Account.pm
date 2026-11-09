@@ -102,7 +102,10 @@ sub me_refusal {
 # guesses is stopped whichever of the two it spreads across.
 sub _rate_refusal {
     my %ctx     = ( auth_dir => "$LAZYSITE_DIR/auth", docroot => $DOCROOT );
-    my $ip_ok   = Lazysite::Auth::LoginRate::check_login_rate( _request_ip(), %ctx );
+    my $ip_ok = Lazysite::Auth::LoginRate::check_login_rate( _request_ip(), %ctx );
+    # Ruling 206: a limiter that cannot count refuses as cannot-tell.
+    return Lazysite::Auth::LoginRate::fault_refusal()
+        if length $Lazysite::Auth::LoginRate::FAULT;
     my $acct_ok = Lazysite::Auth::LoginRate::check_login_rate( "account=$auth_user", %ctx );
     return undef if $ip_ok && $acct_ok;
     log_event( 'WARN', $auth_user, 'account page: re-authentication rate limit exceeded',

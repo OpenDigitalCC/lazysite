@@ -37,11 +37,32 @@ sub _rate_limit_switched_on {
     return Lazysite::Manager::Extensions::extension_enabled('extensions/login-rate-limit.pl');
 }
 
-# H-3: per-key login rate limit. Fails open if DB_File tie fails so a
-# broken rate-limit store cannot lock out all logins.
+# Ruling 206 (item 4 of the 0.16.9 fault survey): A LIMITER THAT CANNOT COUNT
+# REFUSES. Set by check_login_rate when it answered 0 because the limiter could
+# not run (no DB_File, a counter that will not open), '' otherwise - so a caller
+# says "sign-in is unavailable" (cannot-tell) rather than "too many attempts".
+our $FAULT = '';
+
+# The cannot-tell refusal for a check refused because the limiter is broken.
+sub fault_refusal {
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => 'lazysite/auth/.login-rate.db',
+        repair => 'lazysite check --docroot <docroot>',
+        error => 'Cannot check this sign-in right now: the sign-in rate limiter cannot count '
+            . "($FAULT). This is a fault on the host, not a decision about the credential. "
+            . 'Every sign-in is refused until it is repaired from the command line; '
+            . '`lazysite check --docroot <docroot>` names the fault.',
+    };
+}
+
+# H-3: per-key login rate limit.
 #   check_login_rate( $key, auth_dir => DIR, docroot => DOCROOT ) -> 1 under the cap
+# 0 over the cap - or, with $FAULT set, because the limiter could not run.
 sub check_login_rate {
     my ( $ip, %o ) = @_;
+    $FAULT = '';
     return 1 unless $ip;
     my $AUTH_DIR      = $o{auth_dir};
     my $LOGIN_RATE_DB = "$AUTH_DIR/.login-rate.db";
@@ -64,32 +85,26 @@ sub check_login_rate {
     # SM022: do not capture the tie return value. A lexical holding
     # a reference to the tied object triggers "untie attempted
     # while inner references still exist" on the untie below.
-    # SM798: IT STILL FAILS OPEN, AND IT NO LONGER DOES SO IN SILENCE.
+    # SM798 made the two cases below loud; ruling 206 (2026-11-09) turns them
+    # round. Both answered "this login is under the cap" for a limiter that
+    # could not run at all - the four-states collapse (SM784): "I could not
+    # check" rendered as "yes". SM798 kept that direction so that a host missing
+    # a module would not lock its operator out. Ruling 206 decides the other
+    # way: a broken install is a fault, the engine refuses, and the sysadmin
+    # repairs it from the command line, where `lazysite check` names it. So both
+    # now answer 0 with $FAULT set, and the callers refuse as cannot-tell.
+    # Switched off on purpose (above) is an operator's choice and still allows.
     #
-    # Both returns below answer "this login is under the cap" for a limiter
-    # that could not run at all - which is the four-states collapse (SM784):
-    # "I could not check" rendered as "yes". A site whose DB_File is missing or
-    # whose counter cannot be opened has NO login rate limiting, and until now
-    # nothing anywhere said so; the surface that reports on the site's health
-    # reported nothing, because nothing had been told.
-    #
-    # THE DIRECTION IS DELIBERATELY UNCHANGED. Failing closed here would refuse
-    # every login on a host missing an optional module - locking an operator
-    # out of their own site to enforce a rate limit is a worse failure than not
-    # enforcing it. So the answer stays "allow", and the LOG carries what was
-    # actually established, which is the release manager's own formulation of
-    # the rule: reveal less if you must, record the real state.
-    #
-    # Logged per attempt rather than once, because these are CGI processes with
-    # nothing to remember between them - and a run of these lines is itself the
-    # signal that the limiter has been inert for a while.
+    # Logged per attempt, because these are CGI processes with nothing to
+    # remember between them.
     my %db;
     unless ( eval { require DB_File; 1 } ) {
+        $FAULT = 'DB_File is not installed';
         log_event( 'WARN', 'auth',
-            'the login rate limiter is NOT in force: DB_File is not installed, '
-                . 'so attempts cannot be counted and every login is allowed '
-                . '(Debian: libdb-file-perl)' );
-        return 1;    # fail open, loudly
+            'sign-in refused: the login rate limiter cannot count - DB_File is not '
+                . 'installed (Debian: libdb-file-perl); every sign-in is refused until it is '
+                . 'repaired (lazysite check --docroot names it)' );
+        return 0;
     }
     # SM1240: THE COUNTER IS CREATED 0660, IN THE AUTH DIRECTORY'S GROUP.
     #
@@ -128,11 +143,13 @@ sub check_login_rate {
     if ( $@ || !tied %db ) {
         my $why = $@ || "$!";
         $why =~ s/\s+\z//;
+        $FAULT = 'its counter lazysite/auth/.login-rate.db cannot be opened';
         log_event( 'WARN', 'auth',
-            'the login rate limiter is NOT in force: its counter could not be '
-                . 'opened, so attempts cannot be counted and every login is allowed',
+            'sign-in refused: the login rate limiter cannot count - its counter cannot be '
+                . 'opened; every sign-in is refused until it is repaired (lazysite check '
+                . '--docroot names it)',
             file => $LOGIN_RATE_DB, error => $why );
-        return 1;    # fail open, loudly
+        return 0;
     }
 
     my $window = int( time() / $LOGIN_WINDOW );

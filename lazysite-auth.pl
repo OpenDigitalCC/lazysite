@@ -335,6 +335,14 @@ sub handle_login {
 
     # H-3: per-IP rate limit before checking credentials (fail-closed on ok).
     unless ( check_login_rate($ip) ) {
+        # Ruling 206: a limiter that cannot count refuses as cannot-tell, the
+        # answer a broken session store gives (SM1024), not as "too many".
+        if ( length $Lazysite::Auth::LoginRate::FAULT ) {
+            _audit_auth( $username, 'login', 'fail',
+                "cannot-tell: login rate limiter ($Lazysite::Auth::LoginRate::FAULT)" );
+            redirect("$auth_redirect?error=unavailable");
+            return;
+        }
         log_event( 'WARN', $username, 'login rate limit exceeded', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'rate-limited' );
         sleep $LOGIN_DELAY;
@@ -1016,6 +1024,14 @@ sub _require_token_exchange {
 }
 
 # Emit a JSON body with an HTTP status (the control token-lifecycle paths).
+# A credential door's answer when check_login_rate said no: 429 over the cap,
+# or (ruling 206) the cannot-tell 503 when the limiter cannot count.
+sub _rate_refused_json {
+    return json_response( Lazysite::Auth::LoginRate::fault_refusal(), 503 )
+        if length $Lazysite::Auth::LoginRate::FAULT;
+    return json_response( { ok => 0, error => 'Too many attempts' }, 429 );
+}
+
 sub json_response {
     my ( $data, $code ) = @_;
     $code ||= 200;
@@ -1045,7 +1061,7 @@ sub handle_exchange {
     }
     unless ( check_login_rate($ip) ) {
         sleep $LOGIN_DELAY;
-        json_response( { ok => 0, error => 'Too many attempts' }, 429 );
+        _rate_refused_json();
         return;
     }
 
@@ -1087,7 +1103,7 @@ sub handle_rotate {
     $u =~ s/[^a-zA-Z0-9_.-]//g;
     unless ( check_login_rate($ip) ) {
         sleep $LOGIN_DELAY;
-        json_response( { ok => 0, error => 'Too many attempts' }, 429 );
+        _rate_refused_json();
         return;
     }
     # SM685: verified IN THIS PROCESS. Every authenticated request used to

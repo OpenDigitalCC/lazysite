@@ -135,7 +135,7 @@ use Lazysite::Mail         ();              # SM1017: what one mail address is
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token
     password_min_length password_policy_refusal);
-use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
+use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock consume_lock_refusal
     caps_for write_group_settings resolve_user_scopes resolve_home_domain
     resolve_token_ttl @CAP_KEYS group_settings_unreadable @OFF_BY_DEFAULT);
 # SM1354: the capabilities a seed or top-up never gives (Settings says why).
@@ -522,8 +522,16 @@ if ($API_MODE) {
     # is held for the whole command below, so its read-modify-write can't lose an
     # update or double-spend a single-use secret; a fresh process = a fresh flock,
     # so nested sub-calls never re-lock (no self-deadlock). Reads skip it.
+    # Ruling 206: a lock that cannot be taken refuses the mutation (cannot-tell);
+    # it never runs unlocked.
     my $store_lk;
-    $store_lk = _consume_lock() unless $STORE_READONLY{$action};
+    unless ( $STORE_READONLY{$action} ) {
+        $store_lk = _consume_lock();
+        unless ($store_lk) {
+            print encode_json( consume_lock_refusal() );
+            exit 0;
+        }
+    }
 
     eval {
         if ( $action eq 'add' ) {
@@ -919,7 +927,10 @@ my $cmd = shift @args // '';
 # Same store-mutation lock as the API path: a mutating CLI command holds it for
 # its duration (released at process exit); read-only commands skip it.
 my $cli_store_lk;
-$cli_store_lk = _consume_lock() unless $STORE_READONLY{$cmd};
+unless ( $STORE_READONLY{$cmd} ) {
+    $cli_store_lk = _consume_lock()
+        or die 'lazysite-users: ' . consume_lock_refusal()->{error} . "\n";
+}
 
 if    ( $cmd eq 'add' )          { cmd_add(@args) }
 elsif ( $cmd eq 'passwd' )       { cmd_passwd(@args) }

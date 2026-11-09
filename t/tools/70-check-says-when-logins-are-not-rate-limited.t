@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 # SM798: the health check says when the login rate limiter is not in force.
 #
-# The limiter fails open - a missing DB_File, or a counter the sign-in CGI
+# Ruling 206: the limiter now REFUSES every sign-in when it cannot count (it
+# used to fail open). Before that, a missing DB_File, or a counter the sign-in CGI
 # cannot open, lets every attempt through - and since 0.13.10 it says so in the
 # log on each attempt. The filing recorded what that left: `lazysite check` is
 # where an operator looks for this kind of fact, and it said nothing, so a site
@@ -66,7 +67,7 @@ subtest 'without DB_File it says the limiter is NOT in force, and what to instal
     print {$h} "die \"Can't locate DB_File.pm in \\\@INC (hidden by the test)\\n\";\n";
     close $h;
     my $out = check( $doc, PERL5LIB => "$base/hide" . ( length( $ENV{PERL5LIB} // '' ) ? ":$ENV{PERL5LIB}" : '' ) );
-    like( $out, qr/login rate limiter is NOT in force/, 'reported' ) or diag $out;
+    like( $out, qr/FAIL.*login rate limiter cannot count.*every\s+sign-in is refused/s, 'reported as a FAIL: every sign-in is refused' ) or diag $out;
     like( $out, qr/libdb-file-perl/, 'naming the package that supplies it' );
 };
 
@@ -77,9 +78,24 @@ subtest 'a counter the sign-in CGI cannot open says the same' => sub {
     close $fh;
     chmod 0000, $db or die $!;
     my $out = check($doc);
-    like( $out, qr/login rate limiter is NOT in force/, 'reported' ) or diag $out;
+    like( $out, qr/FAIL.*login rate limiter cannot count.*every\s+sign-in is refused/s, 'reported as a FAIL: every sign-in is refused' ) or diag $out;
     like( $out, qr/\.login-rate\.db/,                   'naming the file' );
     chmod 0600, $db;
+};
+
+# Ruling 206 (item 4): the modes can be right and the file still not a counter.
+subtest 'a counter that does not open as a database is a FAIL, with the repair' => sub {
+    my ( undef, $doc ) = site();
+    my $db = "$doc/lazysite/auth/.login-rate.db";
+    open my $fh, '>', $db or die $!;
+    print {$fh} "this is not a DB_File database\n" x 64;
+    close $fh;
+    chmod 0666, $db;    # the CGI may open it whatever group this test runs in
+    my $out = check($doc);
+    like( $out, qr/FAIL.*counter \S*\.login-rate\.db does not open as a\s+DB_File database/s,
+        'named as a FAIL' ) or diag $out;
+    like( $out, qr/remove '\S*\.login-rate\.db'/, 'with the repair' );
+    unlike( $out, qr/login rate limiter is in force/, 'and never as in force' );
 };
 
 done_testing();

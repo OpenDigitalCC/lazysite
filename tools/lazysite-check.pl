@@ -320,6 +320,9 @@ my %UNWRITABLE_MEANS = (
     'lazysite/auth/groups-settings.json' =>
         'the manager cannot save a capability change, and a group whose record '
         . 'cannot be written cannot be given to a person',
+    'lazysite/auth/.consume.lock' =>
+        'every account change and single-use link (a reset, an invitation) is refused, '
+        . 'since none may run unlocked',
     'lazysite/auth/users'     => 'no account can be created, changed or removed',
     'lazysite/auth/groups'    => 'no membership change can be saved',
     'lazysite/auth/acls.json' =>
@@ -729,6 +732,7 @@ sub run_checks {
         lazysite/nav.conf lazysite/lazysite.conf
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
         lazysite/auth/groups-settings.json
+        lazysite/auth/.consume.lock
         lazysite/logs/audit.log
         lazysite/logs/audit-reads.log
         ) ) {
@@ -4252,13 +4256,10 @@ sub report_hook_index {
     return;
 }
 
-# SM798: THE LOGIN RATE LIMITER FAILS OPEN, SO THIS IS WHERE IT SAYS SO.
-#
-# Without DB_File, or with a counter the sign-in CGI cannot open, every attempt
-# is allowed - deliberately, since refusing every login on a host missing an
-# optional module is the worse failure. The auth CGI logs that on each attempt;
-# this is the surface an operator reads, and it said nothing, so a site with no
-# rate limiting looked healthy here. The same words as the log: NOT in force.
+# SM798: IS THE LOGIN RATE LIMITER COUNTING? Ruling 206: without DB_File, or
+# with a counter the sign-in CGI cannot open, every sign-in is REFUSED (it used
+# to be allowed), so this is a FAIL naming the fault and the repair. Switched
+# off on purpose is the operator's choice and stays a WARN: NOT in force.
 sub report_login_rate_limit {
     # Switched off is the first answer (SM798's ruling: an extension, on by
     # default). Said in the same words, so a limiter an operator turned off and
@@ -4277,22 +4278,39 @@ sub report_login_rate_limit {
         }
     }
     unless ( eval { require DB_File; 1 } ) {
-        report( 'WARN',
-            'the login rate limiter is NOT in force: DB_File is not installed, so '
-                . 'sign-in attempts cannot be counted and every one is allowed',
+        report( 'FAIL',
+            'the login rate limiter cannot count: DB_File is not installed, so every '
+                . 'sign-in is refused',
             'install DB_File (Debian: libdb-file-perl)' );
         return;
     }
     my $db = "$LZ/auth/.login-rate.db";
     if ( my @s = stat $db ) {
         unless ( cgi_can( 4, @s ) && cgi_can( 2, @s ) ) {
-            report( 'WARN',
-                sprintf( 'the login rate limiter is NOT in force: its counter %s (%04o, %s:%s) '
-                        . 'cannot be opened by the CGI (%s), so every attempt is allowed',
+            report( 'FAIL',
+                sprintf( 'the login rate limiter cannot count: its counter %s (%04o, %s:%s) '
+                        . 'cannot be opened by the CGI (%s), so every sign-in is refused',
                     $db, $s[2] & 07777, owner_name($db), group_name($db), $exp_grp ),
                 sprintf( "chown %s:%s '%s' && chmod 0660 '%s'", $exp_user, $exp_grp, $db, $db ) );
             push @chmod_fixes, [ 0660, $db, 'add' ];
             $chown_needed = 1;
+            return;
+        }
+
+        # Ruling 206: the modes can be right and the file still not a counter.
+        # Opened read-only, so a check run as root changes nothing about it.
+        my %t;
+        my $tied = eval {
+            require Fcntl;
+            tie %t, 'DB_File', $db, Fcntl::O_RDONLY(), 0;
+        };
+        if ($tied) { untie %t }
+        else {
+            report( 'FAIL',
+                "the login rate limiter cannot count: its counter $db does not open as a "
+                    . 'DB_File database, so every sign-in is refused',
+                "remove '$db' (it holds only recent attempt counts and is made again at the "
+                    . 'next sign-in)' );
             return;
         }
     }

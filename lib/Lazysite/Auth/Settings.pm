@@ -12,7 +12,7 @@ use Lazysite::Util  qw(log_event secure_write_perms cannot_read);
 use Lazysite::Paths ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(read_settings write_settings _consume_lock
+our @EXPORT_OK = qw(read_settings write_settings _consume_lock consume_lock_refusal
     caps_for display_name_for display_names_for display_names_block settings_readable
     groups_grant_cap site_grants_manager
     groups_are_operator account_is_operator operator_groups
@@ -1281,12 +1281,45 @@ sub write_settings {
 
 # Exclusive lock held until the returned handle goes out of scope (the caller's
 # function returns) or the process exits - serialises single-use redemption so
-# the same secret cannot be consumed twice. Fail-open (undef) if unlockable.
+# the same secret cannot be consumed twice. Undef if it cannot be taken.
+#
+# Ruling 206 (item 3 of the 0.16.9 fault survey): undef is a REFUSAL. The lock
+# used to fail open - its callers ran the mutation unlocked - so a single-use
+# secret (a reset link, an invitation) could be redeemed twice and two writers
+# could lose each other's update. The caller refuses with consume_lock_refusal.
+# The lock file itself is created on first use, so its absence is no fault; one
+# that cannot be opened for writing, or locked, is.
 sub _consume_lock {
     my $path = "$AUTH_DIR/.consume.lock";
-    open my $lk, '>', $path or return undef;
-    flock( $lk, LOCK_EX ) or do { close $lk; return undef };
+    open my $lk, '>', $path or do {
+        log_event( 'WARN', 'auth',
+            "cannot open the auth store lock ($!) - every account change and single-use "
+                . 'secret is refused until it is repaired (lazysite check --docroot names it)',
+            file => 'lazysite/auth/.consume.lock' );
+        return undef;
+    };
+    flock( $lk, LOCK_EX ) or do {
+        log_event( 'WARN', 'auth', "cannot lock the auth store lock ($!)",
+            file => 'lazysite/auth/.consume.lock' );
+        close $lk;
+        return undef;
+    };
     return $lk;
+}
+
+# The cannot-tell refusal for a mutation whose store lock could not be taken.
+sub consume_lock_refusal {
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => 'lazysite/auth/.consume.lock',
+        repair => 'lazysite check --docroot <docroot> --fix',
+        error  => 'Cannot change the account store safely: lazysite/auth/.consume.lock '
+            . 'cannot be opened or locked, so this change could race another or redeem a '
+            . 'single-use link twice. This is a fault on the host, not a decision about this '
+            . 'request. Nothing was changed. `lazysite check --docroot <docroot>` names the '
+            . 'fault; repair it from the command line.',
+    };
 }
 
 # SM163: record that an account's machine credential was USED - so the Sessions &

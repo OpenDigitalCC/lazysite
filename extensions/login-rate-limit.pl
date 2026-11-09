@@ -13,10 +13,10 @@
 # site upgrading from before 0.13.13. Nobody loses rate limiting by upgrading.
 #
 # A CONTRACT extension: off means off. Switched off, nothing counts and no
-# counter is kept - and it is visibly off, in the same words as a limiter that
-# cannot run: the sign-in CGI logs "the login rate limiter is NOT in force" on
-# each attempt, and `lazysite check` says it too, so a site switched off on
-# purpose and a site whose limiter broke both say so, each with its reason.
+# counter is kept - and it is visibly off: the sign-in CGI logs "the login rate
+# limiter is NOT in force" on each attempt, and `lazysite check` says it too.
+# Switched ON and unable to count (no DB_File, a counter that will not open) is
+# a fault, not a choice: every sign-in is refused (ruling 206).
 use strict;
 use warnings;
 use JSON::PP qw(encode_json);
