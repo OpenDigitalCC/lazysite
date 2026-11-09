@@ -30,11 +30,10 @@ use File::Path qw(make_path);
 use File::Copy qw(copy);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root run_child);
-use File::Temp qw(tempdir);
+use TestHelper qw(repo_root run_child site_tempdir);
 
 my $repo   = repo_root();
-my $t      = tempdir( 'lazysite-shared-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+my $t      = site_tempdir() =~ s{/site/public_html\z}{}r;    # the base: engine/ and srv/ below it
 my $engine = "$t/engine";
 my $site   = "$t/srv";
 make_path( "$engine/lib", "$site/html/lazysite" );

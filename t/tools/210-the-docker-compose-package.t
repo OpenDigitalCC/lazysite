@@ -14,10 +14,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 use JSON::PP   ();
 
 my $root = repo_root();
@@ -118,7 +117,7 @@ unlike( ( $compose . $docker . $entry ) =~ s/^\s*#[^\n]*\n//mgr, qr/front\.conf/
 
 # --- shipped with the release --------------------------------------------------
 {
-    my $t   = tempdir( 'lazysite-docker-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+    my $t   = site_tempdir() =~ s{/site/public_html\z}{}r;    # a scratch base; no docroot is used
     my $cfg = JSON::PP->new->decode( slurp("$root/dist/config/classification.json") );
     opendir my $dh, $pkg or die; my @files = map { "installers/docker/$_" } sort grep { -f "$pkg/$_" } readdir $dh; closedir $dh;
     ok( scalar(@files) >= 8, 'the package has its files' );

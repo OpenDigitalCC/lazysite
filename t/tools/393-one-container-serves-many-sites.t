@@ -22,18 +22,17 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use JSON::PP   qw(decode_json);
 use POSIX      ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper    qw(repo_root repo_manifest_guard);
+use TestHelper    qw(repo_root repo_manifest_guard site_tempdir);
 use PreRenameSite qw(slurp spit);
 use PayloadStage  qw(make_stage make_writable);
 
 my $root = repo_root();
 my $pkg  = "$root/installers/docker";
-my $t    = tempdir( 'lazysite-sites-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+my $t    = site_tempdir() =~ s{/site/public_html\z}{}r;    # the base; the sites are built below it
 
 my $POOL = <<"STUB";
 use strict; use warnings;

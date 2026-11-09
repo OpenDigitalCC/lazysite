@@ -110,7 +110,7 @@ subtest 'the installer runs it on an upgrade, from the installed tree' => sub {
     my $inst = slurp("$root/install.pl");
     like( $inst, qr/if \( \$mode ne 'fresh' \) \{\s*my \( \$ok, \$why \) = run_handler_conversion\(/,
         'on every upgrade or reinstall' );
-    like( $inst, qr/\{DOCROOT\}\/\.\.\/tools\/lazysite-handlers\.pl/, 'the INSTALLED tool' );
+    like( $inst, qr/\{ENGINE\}\/tools\/lazysite-handlers\.pl/, 'the INSTALLED tool ({ENGINE}: the site\'s own copy, or a shared engine\'s payload)' );
     like( $inst, qr/exec\( \$\^X, \$tool, 'convert'/, 'as its own process' );
     unlike( $inst, qr/^\s*(?:use|require)\s+Lazysite::/m,
         'and the installer itself still loads no Lazysite module (SM767)' );

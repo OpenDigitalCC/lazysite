@@ -56,7 +56,8 @@ like( slurp("$root/tools/$_"), qr{dirname\(\$docroot\) \. '/cgi-bin'},
     for qw(lazysite-nginx-vhost.pl lazysite-apache-vhost.pl);
 like( slurp("$root/tools/lazysite-cli.pl"), qr{\$o->\{docroot\} = "\$dir/public_html";\n\s+\$o->\{cgibin\}  = "\$dir/cgi-bin";},
     'lazysite provision --installdir: the same pair' );
-my ($linked) = slurp("$root/install.pl") =~ m{for my \$extension \(qw\(([^)]+)\)\) \{};
+# SM1361: the list is endpoint_links(), which the link loop reads.
+my ($linked) = slurp("$root/install.pl") =~ m{^sub endpoint_links \{ return qw\(([^)]+)\) \}$}m;
 ok( defined $linked, 'install.pl names the extensions it links into the cgi-bin' );
 my @linked = split ' ', $linked // '';
 
