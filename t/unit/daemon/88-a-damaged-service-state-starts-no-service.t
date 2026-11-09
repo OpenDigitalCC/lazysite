@@ -90,7 +90,13 @@ subtest 'a state file that does not decode: nothing starts, and it is left as fo
     my ( $p, $log ) = start_supervisor( $t, $d );
     my $rc = wait_exit($p);
     is( $rc, 4, 'the supervisor refuses with exit 4' );
-    ok( !-e "$d/lazysite/daemon/lives.pid", 'and started no service' );
+    ok( !-e "$d/lazysite/daemon/lives.pid", 'and started no service' ) or do {
+        # Against the old code a service was started; stop it, or it holds
+        # prove's pipe open and the run hangs instead of failing.
+        my $child = slurp("$d/lazysite/daemon/lives.pid");
+        chomp $child;
+        kill 'KILL', $child if $child =~ /\A\d+\z/;
+    };
     is( slurp($state), '{"fails":0,"start_ticks":', 'the state file is byte-identical' );
     like( slurp($log), qr/cannot tell - lazysite\/daemon\/lives\.state\.json cannot be read or does not decode/,
         'the log names the file' );
