@@ -77,15 +77,17 @@ subtest 'A CLAIMED IDENTITY IS NOT AN IDENTITY' => sub {
         local $/;
         <$fh>;
     };
-    like( $src, qr/delete \$ENV\{\$_\} for grep \{ \/\\AHTTP_X_REMOTE_\/ \}/,
-        'the endpoint CLEARS any identity the client sent' )
+    # SM297: the endpoint no longer clears and re-sets the headers; it holds the
+    # identity it verified as a value, and its readers are answered that value
+    # (t/integration/478 forges the environment mid-request and is not believed).
+    like( $src, qr/verify_session_cookie|request_session/,
+        'the endpoint verifies a session cookie of its own' );
+    like( $src, qr/local \$Lazysite::Auth::Identity::HELD = \$session/,
+        'and holds the VERIFIED identity as the value its readers are answered' )
         or diag( 'The front door routes this script but does not wrap it, so '
             . 'X-Remote-User arrives exactly as the client wrote it.' );
-    like( $src, qr/verify_session_cookie/,
-        'and verifies a session cookie of its own' );
-    my ($set) = $src =~ /(\$ENV\{HTTP_X_REMOTE_USER\} = [^\n]*)/;
-    like( $set, qr/\$user/,
-        'setting the identity from the VERIFIED user, not the request' );
+    unlike( $src, qr/\$ENV\{HTTP_X_REMOTE_\w+\}\s*=(?!=)/,
+        'and writes no identity header into its own environment' );
 };
 
 subtest 'a disabled account is anonymous, not its former self' => sub {

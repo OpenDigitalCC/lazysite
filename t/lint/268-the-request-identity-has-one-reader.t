@@ -13,8 +13,10 @@
 # arrangement: no code outside it names HTTP_X_REMOTE_USER/_NAME/_EMAIL/_GROUPS or
 # reads a configured auth_header_* name, except
 #
-#   - the PRODUCERS: lazysite-auth.pl (sets them from a verified cookie) and
-#     lazysite-data.pl (the same, for its own verified session);
+#   - the PRODUCER: lazysite-auth.pl (sets them from a verified cookie, for the
+#     surface it execs). SM297: lazysite-data.pl was a second producer, writing
+#     them into its own environment to read back; it holds its identity as a value
+#     now, so it names none of them and is swept like any other file;
 #   - the TRUST GATES, which strip them: apply_trust_gate in the processor and the
 #     gate block at the top of the manager API.
 #
@@ -69,7 +71,6 @@ my $CONFIG = qr/\bauth_header_(?:user|name|email|groups)\b/;
 my %ALLOW = (
     'lib/Lazysite/Auth/Identity.pm' => 'the accessor',
     'lazysite-auth.pl'              => 'producer: sets them from the verified cookie',
-    'lazysite-data.pl'              => 'producer: sets them from its own verified session',
 );
 
 # A region of a file that is a trust gate: [ start marker, end marker ].

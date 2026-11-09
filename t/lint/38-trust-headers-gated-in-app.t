@@ -34,10 +34,11 @@ my $root = repo_root();
 
 # lazysite-auth.pl is the wrapper: it SETS these headers after validating the
 # session cookie, and sets LAZYSITE_AUTH_TRUSTED to say so. It is the source of
-# the trust, so it must not gate itself. lazysite-data.pl is the same for what it
-# calls: it deletes every HTTP_X_REMOTE_* and sets them from its own verified
-# session (t/lint/268 names both as the producers).
-my %SETS_TRUST = map { $_ => 1 } qw(lazysite-auth.pl lazysite-data.pl);
+# the trust, so it must not gate itself. SM297: lazysite-data.pl was the same for
+# what it calls, until it came to hold its identity as a value - it reads and
+# writes no trust header now, so it is no exemption (and is asserted below to be
+# no reader).
+my %SETS_TRUST = map { $_ => 1 } qw(lazysite-auth.pl);
 
 # The accessor (Lazysite::Auth::Identity, t/lint/268) reads the headers and hands
 # nothing on in the environment, so it has nothing to delete: the gates strip. It
@@ -97,7 +98,11 @@ for my $rel (@cgis) {
 ok( @reads, 'at least one surface reads a trust header (the check is live)' )
     or diag('no surface matched - the header names may have been renamed');
 ok( ( grep { $_ eq 'lib/Lazysite/Auth/Identity.pm' } @reads ), 'the glob reaches the modules: the identity reader is read' );
-ok( ( grep { $_ eq 'lazysite-data.pl' } @reads ), 'and the root scripts past the old six: the data endpoint is read' );
+ok( ( grep { $_ eq 'lazysite-manager-api.pl' } @reads ), 'and the root scripts: the manager API is read' );
+# SM297: the data endpoint is converted - identity is a value it holds, so it names
+# no trust header at all. A return to writing them into its own environment is a
+# producer this lint no longer exempts, and fails here first.
+ok( !( grep { $_ eq 'lazysite-data.pl' } @reads ), 'and the data endpoint, which holds its identity as a value, names no trust header' );
 
 is_deeply( \@unguarded, [],
     'every surface that reads a trust header also gates it on the auth '

@@ -209,10 +209,28 @@ sub _dedupe {
 #                        it), and the fixed names are not read either - in a
 #                        worker nothing produces them but a client. A listed proxy
 #                        peer is read as before (SM1130, T4).
+#
+# SM297: A VALUE HELD FOR THE PROCESS. A surface converted to identity-as-a-value
+# decides who is calling once (Lazysite::Auth::Session::request_session) and holds
+# the answer here for the rest of its request:
+#
+#   local $Lazysite::Auth::Identity::HELD = $value;
+#
+# `local`, so it ends with the scope that holds it. While a value is held, every
+# call of this reader that does not name an `identity` of its own answers it - the
+# surface's own code and every module it calls (the ACL's operator check, the
+# capability gates) alike - and NOTHING is read from %ENV: a header, the sentinel or
+# a configured proxy name that arrived with the request, or that anything in the
+# process wrote after the value was decided, has no effect. A caller that passes
+# `identity` (the processor's $REQUEST_IDENT, or undef to ask the request itself,
+# as request_session does) is answered from that, not from the held value.
+our $HELD;
+
 sub request_identity {
     my (%opt) = @_;
 
-    return _identity_of_value( $opt{identity} ) if ref $opt{identity} eq 'HASH';
+    my $value = exists $opt{identity} ? $opt{identity} : $HELD;
+    return _identity_of_value($value) if ref $value eq 'HASH';
 
     my $conf = _conf( \%opt );
 

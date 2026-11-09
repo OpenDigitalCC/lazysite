@@ -178,9 +178,31 @@ sub main {
     # differently (T10, t/integration/290). The proxy answer is asked here, once, and
     # passed in, because the write path below asks the same question of it.
     my $pid = Lazysite::Util::proxy_identity($lz);
-    my ($session) = Lazysite::Auth::Session::request_session(
+    my ( $session, $why, %detail ) = Lazysite::Auth::Session::request_session(
         lazysite_dir => $lz, proxy => $pid, cookie => $ENV{HTTP_COOKIE} // '' );
+
+    # SM297 (ruling 206): A SESSION WHOSE STORE CANNOT BE READ IS REFUSED, not served
+    # as anonymous. The cookie's signature held and the account's record could not
+    # be read, so who this is cannot be told: the endpoint answers 503 naming the
+    # store, and the log line (the wrapper's, from the same function) names it too,
+    # so the sysop repairs it from the command line (lazysite check).
+    if ( !$session && ( $why // '' ) eq 'cannot-tell' ) {
+        require Lazysite::Util;
+        require Lazysite::Auth::Settings;
+        my @line = Lazysite::Auth::Session::session_log_line( undef, $why, \%detail, cookie_sent => 1 );
+        Lazysite::Util::log_event( $line[0], $ENV{REQUEST_URI} // '-', @line[ 1 .. $#line ] ) if @line;
+        return reply( 503, Lazysite::Auth::Settings::cannot_tell_refusal( $detail{store} ) );
+    }
     my $user = $session ? $session->{user} : '';
+
+    # SM297: THE IDENTITY IS A VALUE, held for the rest of this request. Every reader
+    # this endpoint reaches - its own below, the ACL's operator check, the capability
+    # gates - asks Lazysite::Auth::Identity::request_identity, which answers the held
+    # value and reads nothing from %ENV. Nothing is written to the environment for
+    # them to read back, so there is no header to forge and none to strip. An
+    # anonymous caller holds an anonymous value, so nothing in %ENV makes it someone.
+    my %anonymous = ( user => '', groups => [], name => '', email => '', sid => '', source => 'anonymous' );
+    local $Lazysite::Auth::Identity::HELD = $session || \%anonymous;
 
     # A proxy identity is presented as one, never as a cookie session (see the
     # sentinel below).
@@ -226,51 +248,15 @@ sub main {
     # implementation of a decision already made cannot agree with the first;
     # it can only disagree eventually.
 
-    # The requester goes in the environment, where the rest of the stack reads
-    # it from. Set from the VERIFIED identity, never from what arrived:
-    # anything the client could have sent is cleared first.
-    #
-    # THIS DOES NOT GATE THE READ. Nothing consults a table ACL, because tables
-    # have none - see the header. It is set so that anything downstream which
-    # does read an identity sees the true one rather than a forged header.
-    delete $ENV{$_} for grep { /\AHTTP_X_REMOTE_/ } keys %ENV;
-    # SM1131: and the identity reader is told these fixed names are the verified
-    # ones - without the flag a trusted-proxy site would read the CONFIGURED
-    # header names, which this script never cleared and the client can send.
-    #
-    # Not for a proxy identity (SM1137): it is read under its configured names
-    # with `source` proxy, which is how the capability gates know a directory
-    # group may grant nothing unless the operator marked it (SM1135). Setting the
-    # sentinel would present it as a cookie session and lift that.
-    $ENV{LAZYSITE_AUTH_TRUSTED} = '1' unless $via_proxy;
-    if ( length $user && !$via_proxy ) {
-        $ENV{HTTP_X_REMOTE_USER} = $user;
-
-        # The groups the session already resolved, rather than resolving them
-        # again: two answers to "which groups is this account in" is the
-        # disagreement SM288 exists to remove.
-        my $groups = $session->{groups};
-        $groups = join( ',', @{$groups} ) if ref $groups eq 'ARRAY';
-        $ENV{HTTP_X_REMOTE_GROUPS} = $groups
-            if defined $groups && length $groups;
-    }
-
-    # Split once, from the value the block above just set - the writable_by
-    # narrowing and the read binding both asked the environment the same
-    # question and got the same answer.
-    # SM1131: the one identity reader, not a re-read of the header.
-    require Lazysite::Auth::Identity;
-    #
-    # SM1188: a trusted proxy's groups come from the identity read BEFORE the strip
-    # above (the proxy session request_session returned, source `proxy`, groups as
-    # the one reader gave them). Read now, under the DEFAULT names (X-Remote-Groups),
-    # they were deleted a few lines up and a proxy user's groups never reached the
-    # checks (SM1181 S1). The strip stays for every other request; this only keeps
-    # what the one decision already returned for the request the proxy vouched for.
-    my @groups = $via_proxy
-        ? @{ $session->{groups} }
-        : @{ Lazysite::Auth::Identity::request_identity(
-            lazysite_dir => Lazysite::Paths::lazysite_dir($docroot) )->{groups} };
+    # SM297: the requester's groups, from the one reader - which answers the value
+    # held above (a cookie session's groups as request_session resolved them, fresh
+    # and less those this address is refused for; a trusted proxy's as the reader
+    # gave them, SM1188). The writable_by narrowing and the read binding both use
+    # this one answer. Before SM297 the endpoint wrote the identity into its own
+    # environment (the fixed names and the sentinel) and read it back here: a
+    # channel inside its own address space, which anything in the process could
+    # have written over.
+    my @groups = @{ Lazysite::Auth::Identity::request_identity( lazysite_dir => $lz )->{groups} };
 
     # A token for this session, so a page's JavaScript can write. Minted only
     # for a verified account: an anonymous caller has nothing to protect and

@@ -556,8 +556,10 @@ sub request_session {
 
     my $pid = ref $opt{proxy} eq 'HASH' ? $opt{proxy} : Lazysite::Util::proxy_identity($dir);
     if ( $pid->{trusted} ) {
+        # SM297: `identity => undef` - this decides the value, so it reads the
+        # request, never a value a converted surface already holds.
         my $pi = Lazysite::Auth::Identity::request_identity( lazysite_dir => $dir, proxy => $pid,
-            pool => $opt{pool} ? 1 : 0 );
+            pool => $opt{pool} ? 1 : 0, identity => undef );
         if ( $pi->{source} eq 'proxy' && length $pi->{user} ) {
             return (
                 { user => $pi->{user}, groups => [ @{ $pi->{groups} } ],

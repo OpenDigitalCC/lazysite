@@ -122,9 +122,12 @@ if ( defined &Lazysite::Auth::Session::request_session ) {
 PERL
 
 # The data endpoint, run in a process of its own the way a CGI runs: its main()
-# with the request's environment, then the identity read from what it leaves - the
-# environment it says "the rest of the stack reads it from". generate_csrf_token is
-# watched too: the ?csrf=1 answer is minted for the user the endpoint decided.
+# with the request's environment, and the identity its own readers are answered
+# while it runs. SM297: the endpoint holds the identity as a value and writes
+# nothing to the environment, so what it hands what it calls is the identity
+# reader's last answer inside main() (the endpoint's own read of the requester's
+# groups), not anything left in %ENV after it. generate_csrf_token is watched too:
+# the ?csrf=1 answer is minted for the user the endpoint decided.
 my $driver = "$t/data-driver.pl";
 spit( $driver, <<"PERL" );
 use strict;
@@ -139,6 +142,12 @@ my \$csrf_user = '';
     my \$orig = \\&Lazysite::Auth::Session::generate_csrf_token;
     *Lazysite::Auth::Session::generate_csrf_token = sub { \$csrf_user = \$_[0]; return \$orig->(\@_) };
 }
+my \$id;
+{
+    no warnings 'redefine';
+    my \$orig = \\&Lazysite::Auth::Identity::request_identity;
+    *Lazysite::Auth::Identity::request_identity = sub { my \$r = \$orig->(\@_); \$id = \$r; return \$r };
+}
 do '$root/lazysite-data.pl';
 die \$@ if \$@;
 open my \$save, '>&', \\*STDOUT or die \$!;
@@ -149,7 +158,6 @@ main::main();
 close STDOUT;
 open STDOUT, '>&', \$save or die \$!;
 my (\$st) = \$buf =~ /Status:\\s*(\\d+)/;
-my \$id = Lazysite::Auth::Identity::request_identity( lazysite_dir => "\$ENV{DOCUMENT_ROOT}/lazysite" );
 print JSON::PP->new->canonical->encode( { id => \$id, status => \$st // 0, csrf_user => \$csrf_user } );
 PERL
 
@@ -274,7 +282,9 @@ for my $row (@ROWS) {
             or diag( explain { now => $w->{decision}, base => $BASE{ $row->{name} } } );
         is( $data->{csrf_user}, $data->{decision}{user},
             'the data endpoint\'s CSRF token is minted for the user it decided (none for nobody)' );
-        is( $data->{status}, ( length $data->{decision}{user} ? 200 : 403 ), 'and it answered ?csrf=1 accordingly' );
+        # SM297 (ruling 206): a store that cannot be read is refused, not anonymous.
+        is( $data->{status}, ( $row->{broken} ? 503 : length $data->{decision}{user} ? 200 : 403 ),
+            'and it answered ?csrf=1 accordingly' );
 
         for my $s ( [ wrapper => $w ], [ 'data endpoint' => $data ] ) {
             my ( $who, $r ) = @$s;
