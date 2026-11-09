@@ -1469,6 +1469,9 @@ sub run_checks {
     # --- 8g2. is the login rate limiter actually counting? (SM798) --------------
     report_login_rate_limit();
 
+    # --- 8g2b. can every store the engine refuses on be told? (SM1417, ruling 206) ---
+    report_store_faults();
+
     # --- 8g3. what each enabled extension checks of itself (SM1369 X6, H-6) ----
     # (the Odoo extension's: its scheduled keys' expiry SM1161, the OOM it loads
     # SM1244, oomd SM1164 D4, the Odoo sign-in SM1160, old read caps SM1173)
@@ -4346,6 +4349,106 @@ sub report_hook_index {
         report( 'OK', "the extension index is built ($n " . ( $n == 1 ? 'extension declares' : 'extensions declare' )
                 . ' capabilities or actions' . ( keys %$hooks ? ', ' . scalar( keys %$hooks ) . ' with hooks indexed' : '' ) . ')' );
     }
+    return;
+}
+
+# Ruling 206 (SM1417, the 0.16.9 fault survey, items 9-21): A STORE THAT EXISTS
+# AND CANNOT BE TOLD IS A FAULT THE ENGINE REFUSES ON, so this is where it is
+# named with its repair. One table, one reader per shape:
+#   db      opens as a DB_File database (read-only, so a root run changes nothing)
+#   jsonl   every non-blank line decodes as a JSON object
+#   json    the file decodes as a JSON object; `objects` also needs every value
+#           to be an object (the scheduler's run record)
+#   read    the file opens (a notice template)
+# An absent store is a site with nothing recorded yet, and says nothing here.
+# Each line says what the engine does about it, in the words of its log.
+sub _store_fault_table {
+    return (
+    [ 'manager/.upload-rate.db', 'db', 'every upload is refused',
+        "remove '%s' (it holds only this hour's upload counts and is made again at the next upload)" ],
+    [ 'db/data.sqlite', 'sqlite', 'a data migration, rebuild or import that cannot query it is refused',
+        "restore '%s' from a backup" ],
+    [ 'notify/suppressed.jsonl', 'jsonl', 'no notification is sent (the queue is kept)',
+        "repair the named line of '%s' - it records who unsubscribed, so do not remove the file" ],
+    [ 'notify/ledger.jsonl', 'jsonl', 'no notification is sent (the queue is kept)',
+        "repair or remove the named line of '%s' (a removed line may let that notice go again)" ],
+    [ 'notify/status.json', 'json', "each rule's last-run status is not recorded",
+        "remove '%s' (a convenience the next run writes again)" ],
+    [ 'forms/submitter-mail.jsonl', 'jsonl', "every form's acknowledgement to the submitter is refused by its cap",
+        "repair or remove the named line of '%s'" ],
+    [ 'logs/notice-mail.jsonl', 'jsonl', 'every notice mail is refused by its cap',
+        "repair or remove the named line of '%s'" ],
+    [ 'connectors/calls.jsonl', 'jsonl', 'every capped connector call is refused and the sweep does nothing',
+        "repair or remove the named line of '%s'" ],
+    [ 'daemon/scheduler-runs.json', 'objects', 'no scheduled job runs',
+        "remove '%s' (every job then runs once at the next tick)" ],
+    [ 'daemon/*.state.json', 'json', 'the daemon supervisor starts no service',
+        "make sure no copy of the service runs, then remove '%s' and restart the host service" ],
+    [ '.install-state.json', 'json', 'the installed version reads as unknown',
+        "run the upgrade again, which rewrites '%s'" ],
+    [ 'notify-templates/*.tt', 'read', "the built-in notice wording is used instead of the site's",
+        "make '%s' readable by the site user" ],
+    );
+}
+
+# Why the file cannot be told, or undef (absent, or fine).
+sub _store_shape_fault {
+    my ( $f, $shape ) = @_;
+    if ( $shape eq 'sqlite' ) {
+        return undef unless -e $f;
+        return undef unless eval { require DBI; require DBD::SQLite; 1 };    # the data checks say so
+        my $ok = eval {
+            my $dbh = DBI->connect( "dbi:SQLite:dbname=$f", '', '',
+                { RaiseError => 1, PrintError => 0, sqlite_open_flags => DBD::SQLite::OPEN_READONLY() } );
+            my ($r) = $dbh->selectrow_array('PRAGMA quick_check');
+            $dbh->disconnect;
+            ( $r // '' ) eq 'ok';
+        };
+        return $ok ? undef : 'does not pass SQLite\'s quick_check';
+    }
+    if ( $shape eq 'db' ) {
+        return undef unless -e $f;
+        return 'cannot be checked: DB_File is not installed' unless eval { require DB_File; 1 };
+        my %t;
+        my $tied = eval { require Fcntl; tie %t, 'DB_File', $f, Fcntl::O_RDONLY(), 0 };
+        return 'does not open as a DB_File database' unless $tied;
+        untie %t;
+        return undef;
+    }
+    open my $fh, '<:raw', $f or return $!{ENOENT} ? undef : "cannot be read ($!)";
+    return undef if $shape eq 'read';
+    if ( $shape eq 'jsonl' ) {
+        my $n = 0;
+        while ( my $l = <$fh> ) {
+            $n++;
+            next unless $l =~ /\S/;
+            my $r = eval { JSON::PP::decode_json($l) };
+            return "holds a line that is not a record (line $n)" unless ref $r eq 'HASH';
+        }
+        return undef;
+    }
+    local $/;
+    my $d = eval { JSON::PP::decode_json( <$fh> // '' ) };
+    return 'does not decode as a JSON object' unless ref $d eq 'HASH';
+    if ( $shape eq 'objects' ) {
+        my @bad = grep { ref $d->{$_} ne 'HASH' } sort keys %$d;
+        return 'has entries that are not job records (' . join( ', ', @bad ) . ')' if @bad;
+    }
+    return undef;
+}
+
+sub report_store_faults {
+    my $bad = 0;
+    for my $c ( _store_fault_table() ) {
+        my ( $rel, $shape, $means, $repair ) = @$c;
+        for my $f ( $rel =~ /\*/ ? sort( glob("$LZ/$rel") ) : ("$LZ/$rel") ) {
+            my $why = _store_shape_fault( $f, $shape ) // next;
+            ( my $show = $f ) =~ s{\A\Q$LZ\E/}{lazysite/};
+            report( 'FAIL', "$show $why, so $means", sprintf( $repair, $f ) );
+            $bad++;
+        }
+    }
+    report( 'OK', 'the send records, counters and run records this site has can all be read' ) unless $bad;
     return;
 }
 
