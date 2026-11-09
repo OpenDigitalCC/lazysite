@@ -1054,6 +1054,9 @@ sub store_lock {
     my ($path) = @_;
     my ( $dir, $base ) = $path =~ m{\A(.*)/([^/]+)\z} ? ( $1, $2 ) : ( '.', $path );
     open my $lk, '>>', "$dir/.$base.lock" or return undef;
+    # T-115 (ruling 215): a lock beside a store in forms/ or auth/ takes the
+    # store's mode, set rather than left to the umask (best effort).
+    chmod 0660, "$dir/.$base.lock" if ( ( stat $lk )[2] & 07777 ) != 0660;
     flock( $lk, Fcntl::LOCK_EX() ) or return undef;
     return $lk;
 }

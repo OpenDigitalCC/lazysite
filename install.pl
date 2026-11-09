@@ -2347,6 +2347,42 @@ sub mode_for {
 # ---------- imperative post-install steps ----------
 # =========================================================
 
+# T-115 (ruling 215): THE MODES THE CHECK HOLDS, SET BY THE INSTALL ITSELF.
+#
+# `lazysite check` (check 5c) fails a world bit on the user store, the group
+# list, the ACLs, the auth and forms examples and the two directories. Earlier
+# installs laid some of those wrong themselves (the beside layout, T-115), and
+# an operator's edit keeps a file's mode through the plan - so without this an
+# upgrade would leave a site the check calls not serviceable over a mode
+# lazysite set. Every mode, every layout: modes only, never content, an edited
+# file included; never through a link; a file this run cannot chmod (another
+# account's) is left for `lazysite repair` and the check names it. Drift after
+# the install stays the check's to name and repair's to fix.
+sub align_store_modes {
+    my ($docroot) = @_;
+    my $lz = lazysite_dir_for($docroot);
+    return 0 unless length $lz && -d $lz;
+    my @want;
+    push @want, map { [ "$lz/auth/$_", 0660 ] } qw(users groups acls.json);
+    for my $dir (qw(auth forms)) {
+        my $d = "$lz/$dir";
+        next if -l $d || !-d $d;
+        push @want, [ $d, 02770 ];
+        opendir my $dh, $d or next;
+        push @want, map { [ "$d/$_", 0640 ] } sort grep { /\.example\z/ } readdir $dh;
+        closedir $dh;
+    }
+    my $n = 0;
+    for my $w (@want) {
+        my ( $p, $mode ) = @$w;
+        next if -l $p || !-e $p;
+        next if ( ( lstat $p )[2] & 07777 ) == $mode;
+        $n++ if chmod $mode, $p;
+    }
+    info("  modes:     set the declared mode on $n path(s) in the account and form stores") if $n;
+    return $n;
+}
+
 # The extensions whose script is linked into cgi-bin as an endpoint.
 sub endpoint_links { return qw(form-handler payment-demo) }
 
@@ -2535,6 +2571,9 @@ sub post_install_steps {
         my $m = ( stat _ )[2] & 07777;
         chmod( $m | 0020, $p ) unless $m & 0020;
     }
+
+    # --- T-115 (ruling 215): the account and form stores' declared modes ---
+    align_store_modes($docroot);
 
     # --- SGID on the lazysite/ subtree (not whole docroot) ---
     my $laz = lazysite_dir_for($docroot);

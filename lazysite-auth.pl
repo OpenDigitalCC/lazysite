@@ -1690,6 +1690,8 @@ sub update_user_hash {
     # (temp + rename) so a login reading the store never sees it truncated; mode
     # 0660 in the setgid auth dir keeps CLI + www-data both able to write.
     open my $lk, '>', "$AUTH_DIR/.consume.lock" or return 0;
+    # T-115 (ruling 215): the store's mode, set rather than left to the umask.
+    chmod 0660, "$AUTH_DIR/.consume.lock" if ( ( stat $lk )[2] & 07777 ) != 0660;
     flock( $lk, LOCK_EX ) or do { close $lk; return 0 };
 
     open my $fh, '<:utf8', $path or do { close $lk; return 0 };

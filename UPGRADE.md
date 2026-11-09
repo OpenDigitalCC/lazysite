@@ -298,6 +298,26 @@ world-readable user store, group list or ACL file. Run `lazysite repair --domain
 DOMAIN` (or `lazysite check --docroot DOCROOT --fix`) once, and it sets each to its
 declared mode. A site whose engine tree is inside its docroot is not affected.
 
+**A site whose engine tree sits beside its docroot gets its store's modes put right
+by the upgrade itself (T-115).** This covers a site moved with
+`lazysite migrate-engine-tree`, or any site with `<docroot>-lazysite`. On such a site,
+earlier upgrades left these world-readable:
+- the auth and forms example files;
+- `forms/smtp.conf` and the form configs.
+
+The `auth/` and `forms/` directories kept others out, except where `forms/` had world
+access.
+
+This upgrade sets the declared mode on each of these, edited or not, and changes no
+content:
+- the user store, the group list and the ACLs: 0660;
+- the auth and forms examples: 0640;
+- the two directories: 2770.
+
+The auth code's lock files are created 0660. `lazysite check` names any of these
+modes that drifts later; `lazysite repair --domain DOMAIN` (or
+`lazysite check --docroot DOCROOT --fix`) fixes it.
+
 **Odoo is its own package, `lazysite-odoo` (SM1369 X7, rulings 188, 205).** On a deb host
 that uses Odoo, install `lazysite-odoo` with the upgrade. It brings `libodoo-oom-perl`
 with it, so the host needs the repository that carries that package. If a site has Odoo

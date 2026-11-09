@@ -346,7 +346,12 @@ Archive
     - `forms/` is applied 2770 by the install as well as the check;
     - `lazysite check` fails a world bit on the user store, the group list, the ACLs,
       the auth and forms examples and either directory, and `lazysite repair` sets the
-      declared mode.
+      declared mode;
+    - every install also sets those declared modes itself, edited files included (modes
+      only), so an upgrade never leaves a site unserviceable over a mode lazysite set
+      (ruling 215);
+    - the auth consume lock and a store's sidecar lock are created 0660, whatever the
+      umask.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

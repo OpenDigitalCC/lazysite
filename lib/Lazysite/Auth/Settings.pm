@@ -1298,6 +1298,9 @@ sub _consume_lock {
             file => 'lazysite/auth/.consume.lock' );
         return undef;
     };
+    # T-115 (ruling 215): the store's own mode, set rather than left to the
+    # umask. Best effort: a lock another account made is that account's to set.
+    chmod 0660, $path if ( ( stat $lk )[2] & 07777 ) != 0660;
     flock( $lk, LOCK_EX ) or do {
         log_event( 'WARN', 'auth', "cannot lock the auth store lock ($!)",
             file => 'lazysite/auth/.consume.lock' );

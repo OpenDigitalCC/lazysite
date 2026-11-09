@@ -5812,11 +5812,18 @@ controls
   real check then names a world-readable user store and a world-readable `forms/`, and
   `--fix` sets each to its declared mode. It fails on the previous commit.
 
+: Ruling 215: every install (`align_store_modes`) also sets the declared mode on each of
+  those paths, whether or not it was edited. It changes modes only, never content, and
+  never acts through a link, so an upgrade never leaves a site unserviceable over a mode
+  lazysite set wrongly itself. The auth code's lock (`auth/.consume.lock`) and the
+  sidecar lock beside a store (`Lazysite::Util::store_lock`) are set to 0660, not left
+  to the umask. t/tools/394 covers an edited 0644 example passing the check after the
+  upgrade with no repair, and both locks at 0660 under umask 022.
+
 residual risk
-: A file the operator edited keeps its mode through the upgrade (as every edited file
-  does) until `lazysite repair` runs; UPGRADE.md says to run it once. The auth code's
-  empty lock file (`auth/.consume.lock`) is made at the process umask inside the 2770
-  directory and holds nothing.
+: A mode that drifts after an install is named by the check, and `lazysite repair`
+  fixes it. A path owned by another account, which the install cannot chmod, is left
+  for the same repair.
 
 verdict
 : drafted; for the release manager's confirmation.
