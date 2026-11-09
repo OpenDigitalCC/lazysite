@@ -68,7 +68,7 @@ our $ENDPOINT    = '/cgi-bin/lazysite-oidc.pl';
 
 my $NAME  = qr/\A[a-z][a-z0-9]{0,15}\z/;
 my $GROUP = qr/\A[A-Za-z0-9_-]{1,64}\z/;    # the session verifier's rule for a site group
-my @KEYS  = qw(issuer client_id scopes group_claim group_map label);
+my @KEYS  = qw(issuer client_id scopes group_claim group_map label ca_file);
 
 # ---- the config ----
 
@@ -115,6 +115,7 @@ sub providers {
         $bad->("$name.issuer is not set") unless length $p{issuer};
         $bad->("$name.issuer must be https:// (http:// only to 127.0.0.1 or localhost)")
             if length $p{issuer} && !url_ok( $p{issuer} );
+        $bad->("$name.ca_file must be a full path to a PEM file") if length $p{ca_file} && $p{ca_file} !~ m{\A/[^\x00-\x1f\x7f]+\z};
         $bad->("$name.client_id is not set") unless length $p{client_id};
         $bad->("$name.client_id must be printable, with no space") if $p{client_id} =~ /[\s\x00-\x1f\x7f]/;
         $bad->("$name.scopes must include openid") unless grep { $_ eq 'openid' } split /\s+/, $p{scopes};
@@ -194,6 +195,7 @@ sub remedy {
         unreadable => 'give lazysite/oidc.conf back to the site\'s user: lazysite-fix-perms, or chmod/chown it',
         secret => "set the client secret: extensions/oidc.pl --secret $name --docroot $d (it reads the secret from standard input)",
         secret_read => "lazysite/oidc/keys/$name.key cannot be read: lazysite-fix-perms, or give it back to the site's user",
+        ca_file => "make $name.ca_file name a PEM file the site's user (and the web server's) can read, or remove the line to use the system store",
         discovery => "run the OIDC extension's Refresh (Extensions page, or extensions/oidc.pl --action refresh --docroot $d) once the issuer answers",
     }->{$kind} // '';
 }
@@ -210,6 +212,12 @@ sub usable {
     my ( $secret, $st ) = Lazysite::Secrets::get( $lz, $ID, $name );
     return ( undef, "the client secret of '$name' is not set", 'secret' ) if $st eq 'absent';
     return ( undef, "the client secret of '$name' cannot be read", 'secret_read' ) unless $st eq 'ok';
+    # Ruling 213: a CA bundle that is named and cannot be read refuses the provider,
+    # never falls back to the system store.
+    if ( length $p->{ca_file} ) {
+        return ( undef, "$name.ca_file '$p->{ca_file}' is not a file", 'ca_file' ) unless -f $p->{ca_file};
+        return ( undef, "$name.ca_file '$p->{ca_file}' cannot be read by this process", 'ca_file' ) unless -r _;
+    }
     my ( $disc, $dst ) = _read_json( discovery_path( $lz, $name ) );
     return ( undef, "the discovery of '$name' has not been fetched", 'discovery' ) if $dst eq 'absent';
     return ( undef, "the discovery of '$name' cannot be read ($dst)", 'discovery' ) unless $dst eq 'ok';
@@ -231,11 +239,16 @@ sub log_refused {
 # ---- the outside calls ----
 
 sub _ua {
+    my ($p) = @_;
     require LWP::UserAgent;
     # As a connector's agent (SM790): no redirect is followed, the answer is
-    # capped, and TLS is verified (LWP's default, kept).
+    # capped, and TLS is verified (LWP's default, kept). Ruling 213: a provider
+    # behind a private authority names its CA bundle (`<name>.ca_file`), used for
+    # that provider's calls alone; verification stays on.
+    my $ca = ref $p eq 'HASH' && length( $p->{ca_file} // '' ) ? $p->{ca_file} : undef;
     return LWP::UserAgent->new( timeout => $TIMEOUT, agent => 'lazysite-oidc/1', max_redirect => 0,
-        max_size => $ANSWER_CAP );
+        max_size => $ANSWER_CAP,
+        ( defined $ca ? ( ssl_opts => { verify_hostname => 1, SSL_ca_file => $ca } ) : () ) );
 }
 
 # ( $json, '' ) or ( undef, why ). The answer must be JSON, whole and under the cap.
@@ -260,7 +273,7 @@ sub _well_known {
 sub discover {
     my ($p) = @_;
     my $at  = time;
-    my $res = _ua()->get( _well_known( $p->{issuer} ), Accept => 'application/json' );
+    my $res = _ua($p)->get( _well_known( $p->{issuer} ), Accept => 'application/json' );
     my ( $d, $why ) = _json_answer( $res, 'the discovery document' );
     return { ok => 0, at => $at, error => $why } unless $d;
     return { ok => 0, at => $at, error => "it names the issuer '" . ( $d->{issuer} // '' ) . "', not the configured one" }
@@ -302,7 +315,10 @@ sub refresh {
             unlink discovery_path( $lz, $name ) if $name =~ $NAME;
             next;
         }
-        my $rec = discover($p);
+        my $rec
+            = ( length $p->{ca_file} && !( -f $p->{ca_file} && -r _ ) )
+            ? { ok => 0, at => time, error => "$name.ca_file '$p->{ca_file}' cannot be read" }
+            : discover($p);
         my ( $wok, $werr ) = _write_json( discovery_path( $lz, $name ), $rec );
         $rec = { ok => 0, error => "the discovery could not be kept: $werr" } unless $wok;
         $out{$name} = $rec->{ok} ? { ok => 1 } : { ok => 0, error => $rec->{error}, fix => remedy( 'discovery', $name, $docroot ) };
@@ -362,11 +378,24 @@ sub _sweep {
     return;
 }
 
-# start( docroot, lz, name, next, base, secure ) -> { ok => 1, location, cookie }
+# start( docroot, lz, name, next, base, secure, ip ) -> { ok => 1, location, cookie }
 # or { ok => 0, status, error }. `base` is this site's address (scheme and host),
 # from which the redirect URI is made.
+#
+# Ruling 213: A START IS A SIGN-IN ATTEMPT, counted per address by the sign-in
+# limiter (Lazysite::Auth::LoginRate: its switch, five in five minutes), before
+# anything is written, so unsigned GETs cannot fill the pending store.
 sub start {
     my (%a) = @_;
+    require Lazysite::Auth::LoginRate;
+    unless ( Lazysite::Auth::LoginRate::check_login_rate( "$ID-ip=" . ( $a{ip} // '' ),
+            auth_dir => "$a{lz}/auth", docroot => $a{docroot} ) )
+    {
+        log_event( 'WARN', 'auth', 'an OIDC sign-in start is refused: too many from this address',
+            ip => $a{ip} // '' );
+        return { ok => 0, status => '429 Too Many Requests',
+            error => 'Too many sign-in attempts. Wait a few minutes and try again.' };
+    }
     my ( $p, $why, $kind ) = usable( $a{docroot}, $a{lz}, $a{name} );
     unless ($p) {
         log_refused( $a{name}, $why, $kind, $a{docroot} );
@@ -496,7 +525,7 @@ sub callback {
     else {
         push @hdr, Authorization => 'Basic ' . encode_base64( _enc( $p->{client_id} ) . ':' . _enc( $p->{secret} ), '' );
     }
-    my $res = _ua()->post( $d->{token_endpoint}, \%form, @hdr );
+    my $res = _ua($p)->post( $d->{token_endpoint}, \%form, @hdr );
     my ( $tok, $twhy ) = _json_answer( $res, 'the token endpoint' );
     return _refused( $prov, $twhy ) unless $tok;
     my $claims = id_token_claims( $tok->{id_token} ) // return _refused( $prov, 'the token answer carries no ID token' );
@@ -508,7 +537,7 @@ sub callback {
     if ( ( !exists $c{ $p->{group_claim} } || !defined $c{email} ) && defined $d->{userinfo_endpoint}
         && defined $tok->{access_token} && !ref $tok->{access_token} )
     {
-        my $ur = _ua()->get( $d->{userinfo_endpoint}, Authorization => "Bearer $tok->{access_token}",
+        my $ur = _ua($p)->get( $d->{userinfo_endpoint}, Authorization => "Bearer $tok->{access_token}",
             Accept => 'application/json' );
         my ( $u, $uwhy ) = _json_answer( $ur, 'the userinfo endpoint' );
         return _refused( $prov, $uwhy )                                       unless $u;

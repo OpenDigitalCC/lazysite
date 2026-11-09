@@ -5171,10 +5171,13 @@ residual risk
   from a group at the provider keeps it until their session ends (session_lifetime) or
   is revoked; removing the map entry takes it away at the next request. The ID token's
   signature is not checked (ruling 185), so the trust rests on TLS to the token
-  endpoint; plain http:// is accepted only to this host. TLS verification uses the
-  system's certificate store (no per-provider CA bundle). A start writes one small
-  pending record and is not rate-limited: records older than ten minutes are swept at
-  each start, so what a flood can leave is bounded by ten minutes of requests.
+  endpoint; plain http:// is accepted only to this host. TLS is verified against the
+  system's certificate store, or the provider's own `<name>.ca_file` (ruling 213); a
+  bundle that is named and cannot be read refuses that provider, never falls back. A
+  start is a sign-in attempt for the sign-in limiter (ruling 213: its switch, five per
+  address in five minutes), counted before anything is written, so unsigned GETs
+  cannot fill the pending store while the limiter is on; with it switched off, records
+  older than ten minutes are swept at each start.
 
 verdict
 : drafted as contained, for the release manager's confirmation. The sign-in-method and

@@ -141,7 +141,7 @@ sub main {
         my $port = ( $ENV{HTTP_HOST} // '' ) =~ /:(\d+)\z/ ? ":$1" : '';
         my $r = Lazysite::Ext::OIDC::start( docroot => $docroot, lz => $lz, name => $q->{provider},
             next => Lazysite::Util::sanitise_next( $q->{next} ), base => ( $secure ? 'https' : 'http' ) . "://$host$port",
-            secure => $secure );
+            secure => $secure,                                   ip => _ip($lz) );
         return reply( $r->{status}, $r->{error} ) unless $r->{ok};
         push @EXTRA, $r->{cookie};
         return redirect( $r->{location} );

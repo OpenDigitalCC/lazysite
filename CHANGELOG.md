@@ -144,7 +144,9 @@ Archive
   granted (ruling 186); a person in no mapped group is not signed in. A provider whose
   config, secret or discovery is broken is refused, its sessions end, and the log and
   `lazysite check` name the fault and the remedy (ruling 206); the others are untouched.
-  Discovery is fetched on save and by Refresh. H-1 gains `instances` (SM1369): one
+  Discovery is fetched on save and by Refresh. A provider may name its own CA bundle
+  (`<name>.ca_file`), and starts count against the sign-in limiter per address
+  (ruling 213). H-1 gains `instances` (SM1369): one
   extension may be several providers, `<id>-<name>`, each its own session prefix, and
   /login's options carry `sep` for a path with a query. t/unit/extensions/170.
 

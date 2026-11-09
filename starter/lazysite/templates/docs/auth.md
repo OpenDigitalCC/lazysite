@@ -836,6 +836,9 @@ not signed in.
    defaults to `openid email profile`, `group_claim` to `groups` and `label` to
    "Sign in with <name>". `group_map` is `<provider group> = <site group>`,
    comma separated; name a provider group twice to give it two site groups.
+   A provider behind a private certificate authority names its CA bundle with
+   `<name>.ca_file: /full/path/ca.pem` (readable by the site and the web
+   server), used for that provider alone; verification stays on.
 4. Set each provider's client secret from the command line, as the site's user.
    It is read from standard input and kept in the site's secrets store
    (`lazysite/oidc/keys/<name>.key`), never in the config file:

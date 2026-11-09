@@ -23,12 +23,19 @@
 #     the remedy, while the other provider still signs people in; a discovery that
 #     fails at refresh refuses that provider only;
 #   * groups the ID token does not carry are read from userinfo;
-#   * core: a provider id inside an instances provider's family is refused.
+#   * core: a provider id inside an instances provider's family is refused;
+#   * ruling 213: a provider's CA bundle (`<name>.ca_file`) that cannot be read
+#     refuses it, named with its remedy by the log and the check; a readable one
+#     is that provider's client's SSL_ca_file and no other's; starts are
+#     throttled per address by the sign-in limiter, and one over the limit writes
+#     no pending record.
 #
 # Sabotage (each run by hand, each fails here): drop the iss, aud or nonce check
 # from check_claims; drop the const_eq of the state cookie in callback; drop
 # `grants => 1` from the descriptor (the operators group is then dropped); drop
-# the `instances` resolution from Hooks::identity_provider (no session verifies).
+# the `instances` resolution from Hooks::identity_provider (no session verifies);
+# drop the ca_file check from usable, or the SSL_ca_file from _ua; drop the
+# limiter from start.
 use strict;
 use warnings;
 use Test::More;
@@ -341,6 +348,45 @@ subtest 'a discovery that fails refuses that provider only' => sub {
     my ( undef, $c ) = sign_in('p2');
     is( $c->{status}, 302, 'p2 still signs people in' );
     set_mode( 'p1', 'good' );
+    run_child( [ $^X, "$root/extensions/oidc.pl", '--action', 'refresh', '--docroot', $D ], stderr => 'discard' );
+    is( cgi( QUERY_STRING => 'provider=p1' )->{status}, 302, 'a refresh that succeeds lets p1 sign people in again' );
+};
+
+subtest 'ruling 213: a provider\'s own CA bundle' => sub {
+    my $conf = slurp("$LZ/oidc.conf");
+    spit( "$LZ/oidc.conf", $conf . "p2.ca_file: $D/no-such-ca.pem\n" );
+    my $s = cgi( QUERY_STRING => 'provider=p2' );
+    is( $s->{status}, 503, 'a CA bundle that cannot be read refuses that provider' );
+    like( $s->{log}, qr/why=p2\.ca_file '[^']+' is not a file/, '...naming the fault' );
+    like( $s->{log}, qr/fix=make p2\.ca_file name a PEM file/,  '...and the remedy' );
+    my $st = run_child( [ $^X, "$root/extensions/oidc.pl", '--action', 'status', '--docroot', $D ], stderr => 'discard' );
+    my $f    = eval { decode_json( $st->{out} ) } || {};
+    my ($p2) = grep { $_->{text} =~ /provider p2/ } @{ $f->{findings} || [] };
+    is( $p2->{level}, 'FAIL', 'lazysite check fails p2' );
+    like( $p2->{fix} // '', qr/p2\.ca_file/, '...naming the remedy' );
+    is( cgi( QUERY_STRING => 'provider=p1' )->{status}, 302, 'p1 is untouched' );
+    spit( "$D/ca.pem",     "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n" );
+    spit( "$LZ/oidc.conf", $conf . "p2.ca_file: $D/ca.pem\n" );
+    is( cgi( QUERY_STRING => 'provider=p2' )->{status}, 302, 'a readable bundle: p2 starts again' );
+    my $ua = run_child( [ $^X, "-I$root/lib", "-I$root/extensions/oidc/lib", '-MLazysite::Ext::OIDC', '-e',
+            'print Lazysite::Ext::OIDC::_ua( { ca_file => $ARGV[0] } )->ssl_opts("SSL_ca_file") // "", "|",'
+                . ' Lazysite::Ext::OIDC::_ua( {} )->ssl_opts("SSL_ca_file") // ""', "$D/ca.pem" ], stderr => 'discard' );
+    is( $ua->{out}, "$D/ca.pem|", 'the bundle is the client\'s SSL_ca_file for that provider, and for no other' );
+    spit( "$LZ/oidc.conf", $conf );
+};
+
+subtest 'ruling 213: starts are throttled per address, and write nothing over the limit' => sub {
+    my $rl = action_extension_enable('extensions/login-rate-limit.pl');
+    ok( $rl->{ok}, 'the sign-in limiter is on' ) or diag explain $rl;
+    my $pending = sub { opendir my $dh, "$LZ/oidc/pending" or return 0; my $n = grep { /\.json\z/ } readdir $dh; return $n };
+    my @st = map { cgi( QUERY_STRING => 'provider=p1', REMOTE_ADDR => '198.51.100.7' )->{status} } 1 .. 5;
+    is_deeply( \@st, [ (302) x 5 ], 'five starts from one address are let through' );
+    my $before = $pending->();
+    my $over   = cgi( QUERY_STRING => 'provider=p1', REMOTE_ADDR => '198.51.100.7' );
+    is( $over->{status}, 429,     'the sixth is refused' );
+    is( $pending->(),    $before, '...and writes no pending record' );
+    is( cgi( QUERY_STRING => 'provider=p1', REMOTE_ADDR => '198.51.100.8' )->{status}, 302,
+        'another address is not held back' );
 };
 
 subtest 'core: no provider id inside an instances provider\'s family' => sub {

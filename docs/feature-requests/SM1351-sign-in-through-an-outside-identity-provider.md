@@ -99,3 +99,11 @@ Tests
   providers side by side and on /login; userinfo groups; a broken secret refused, its
   sessions ended and named by check; a failed discovery refusing one provider; the
   family clash in core. Each sabotaged by hand.
+
+Ruling 213 (n792)
+: Plain http stays to this host only, and the identity stays `oidc-<name>:<sub>`. A
+  provider may name its CA bundle (`<name>.ca_file`), the LWP client's SSL_ca_file for
+  its calls alone; one that cannot be read refuses it, named by the log and the check.
+  A start counts against the sign-in limiter per address before anything is written.
+  The provider stays in the query, with `sep`: the web server rules (nginx's
+  `/cgi-bin/<one segment>`) and the front door take no path after a script name.
