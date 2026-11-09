@@ -40,6 +40,14 @@ usage() {
 valid_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; }
 valid_domain() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; }
 
+# nginx inside the container (the port may be ADDRESS:PORT).
+probe_url() {
+    case "$PORT" in
+        *:*) printf 'http://%s/' "$PORT" ;;
+        *) printf 'http://127.0.0.1:%s/' "$PORT" ;;
+    esac
+}
+
 listed() { [ -f "$CONF" ] && grep -q "^$1[[:space:]]" "$CONF"; }
 
 
@@ -51,8 +59,11 @@ poke() {    # [NAME]
     before=$(cut -f1 "$RUN/status/${1:-none}" 2> /dev/null)
     kill -HUP "$pid" 2> /dev/null || fail "cannot signal the supervisor (pid $pid)"
     [ -n "${1:-}" ] || return 0
-    for ((i = 0; i < 600; i++)); do
+    for ((i = 0; i < 1200; i++)); do
         after=$(cut -f1 "$RUN/status/$1" 2> /dev/null)
+        # A final state: `starting` and `restarting` are on the way to one
+        # (ruling 208 Q-E: `serving` is written only once the site is live).
+        case "$after" in starting | restarting) sleep 0.1; continue ;; esac
         if [ -n "$after" ] && [ "$after" != "$before" ]; then break; fi
         if [ -z "$after" ] && ! listed "$1"; then break; fi
         sleep 0.1
@@ -112,7 +123,7 @@ cmd_status() {
         st=-
         why='not started (see the log)'
         if [ -f "$RUN/status/$name" ]; then IFS=$'\t' read -r st why < "$RUN/status/$name"; fi
-        code=$("$CURL" -s -o /dev/null -w '%{http_code}' -m 10 -H "Host: ${domains%% *}" "http://127.0.0.1:$PORT/" 2> /dev/null)
+        code=$("$CURL" -s -o /dev/null -w '%{http_code}' -m 10 -H "Host: ${domains%% *}" "$(probe_url)" 2> /dev/null)
         case "$code" in 2* | 3* | 401 | 403) ;; *) bad=1 ;; esac
         [ "$st" = serving ] || bad=1
         # Ruling 218: a runtime refused for a damaged state file is named too.

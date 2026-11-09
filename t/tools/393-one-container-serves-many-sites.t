@@ -41,8 +41,13 @@ open my \$o, '>', "$t/pool-\$i.out" or die;
 print {\$o} join( ' ', \$\$, map { "\$_=" . ( \$ENV{\$_} // '' ) } qw(DOCROOT USER FRONT_DOOR CGIBIN WORKERS) ), "\\n";
 close \$o;
 exit 3 if -e "$t/crash-\$i";
+# Listen on the socket the supervisor waits on before it calls the site serving.
+use IO::Socket::UNIX ();
+my \$sock = "\$a{'--run-dir'}/\$i.sock"; unlink \$sock;
+my \$l = IO::Socket::UNIX->new( Local => \$sock, Listen => 5 ) or die "listen \$sock: \$!";
 \$SIG{TERM} = sub { exit 0 };
-sleep 1 while 1;
+# Accept and close, so the backlog never fills and no connect waits for ever.
+while (1) { my \$c = \$l->accept or next; close \$c }
 STUB
 my $DAEMON = "use strict; use warnings; \$SIG{TERM} = sub { exit 0 }; sleep 1 while 1;\n";
 
@@ -68,6 +73,20 @@ my %ENVS = (
     LAZYSITE_DAEMON_RETRY => 60,     LAZYSITE_BACKOFF => 1, LAZYSITE_CRASH_LIMIT => 2,
 );
 
+# Every entrypoint this test starts is stopped at the end, however the test
+# ends, and the test has a deadline.
+my @STARTED;
+$SIG{ALRM} = sub { die "over the test's 600 s deadline\n" };
+alarm 600;
+END {
+    for my $p (@STARTED) {
+        next unless $p && kill 0, $p;
+        kill 'TERM', $p;
+        for ( 1 .. 100 ) { last if waitpid( $p, POSIX::WNOHANG() ) == $p; select undef, undef, undef, 0.1 }
+        kill 'KILL', $p if kill 0, $p;
+    }
+}
+
 sub start {
     my ($engine) = @_;
     unlink "$t/run.log";
@@ -81,6 +100,7 @@ sub start {
         exec 'bash', "$pkg/entrypoint.sh", 'run';
         exit 127;
     }
+    push @STARTED, $pid;
     return $pid;
 }
 

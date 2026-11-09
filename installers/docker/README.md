@@ -102,6 +102,11 @@ sites serve. `lazysite-sites status` and the log name the fault and the command
 to look further (`lazysite-sites check NAME`). Repair it, then run
 `lazysite-sites restart NAME`.
 
+A site reads `starting` until its pool accepts connections and nginx serves its
+block, and only then reads `serving`. `add`, `restart` and `restore` wait for
+that, or for `refused` with the reason: a pool that does not accept within 60
+seconds is refused. Each such wait has a limit, so none can hang.
+
 A site's pool that dies is restarted for that site alone, with a backoff. After
 five crashes in ten minutes the site is left `crashed` (503) until
 `restart NAME`.

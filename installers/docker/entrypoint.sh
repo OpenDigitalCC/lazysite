@@ -60,6 +60,9 @@ DAEMON_RETRY=${LAZYSITE_DAEMON_RETRY:-300}
 BACKOFF=${LAZYSITE_BACKOFF:-5}
 CRASH_LIMIT=${LAZYSITE_CRASH_LIMIT:-5}
 CRASH_WINDOW=${LAZYSITE_CRASH_WINDOW:-600}
+POOL_WAIT=${LAZYSITE_POOL_WAIT:-60}
+CURL=${LAZYSITE_CURL:-curl}
+TIMEOUT=${LAZYSITE_TIMEOUT:-timeout}
 TEMPLATE=$ENGINE/installers/nginx/vhost-one-rule-pool.conf.example
 
 log() { printf 'lazysite: %s\n' "$*" >&2; }
@@ -240,12 +243,12 @@ vhost_refuse() {    # NAME DOMAIN [ALIAS...]
     # inherits nginx's compiled-in /var/log/nginx/access.log, which the
     # read-only root cannot open - the reload was refused, the old
     # configuration kept, and the site answered the default server's 404.
-    printf 'server {\n    listen %s;\n    server_name %s;\n    default_type text/plain;\n    access_log /dev/stdout;\n    error_log stderr;\n    return 503 "This site is not serving. Its operator: lazysite-sites status\\n";\n}\n' \
+    printf 'server {\n    listen %s;\n    server_name %s;\n    default_type text/plain;\n    access_log /dev/stdout;\n    error_log stderr;\n    add_header X-Lazysite-Site-State refused always;\n    return 503 "This site is not serving. Its operator: lazysite-sites status\\n";\n}\n' \
         "$PORT" "$*" > "$NGINX_DIR/$name.conf"
 }
 
 vhost_default() {
-    printf 'server {\n    listen %s default_server;\n    server_name _;\n    location = /lazysite-health { return 204; }\n    location / { return 404; }\n    access_log /dev/stdout;\n    error_log stderr;\n}\n' \
+    printf 'server {\n    listen %s default_server;\n    server_name _;\n    add_header X-Lazysite-Site-State none always;\n    location = /lazysite-health { return 204; }\n    location / { return 404; }\n    access_log /dev/stdout;\n    error_log stderr;\n}\n' \
         "$PORT" > "$NGINX_DIR/00-default.conf"
 }
 
@@ -258,7 +261,7 @@ vhost_default() {
 nginx_reload() {
     local pid out
     pid=$(cat "$RUN/nginx.pid" 2> /dev/null) || return 0
-    if ! out=$("$NGINX" -t -q 2>&1); then
+    if ! out=$("$TIMEOUT" 30 "$NGINX" -t -q 2>&1); then
         out=$(printf '%s' "$out" | tr '\n' ' ')
         printf 'refused\t%s\n' "$out" > "$RUN/nginx-config"
         log "nginx refused the new configuration and still serves the last one it loaded: $out"
@@ -266,6 +269,53 @@ nginx_reload() {
     fi
     rm -f "$RUN/nginx-config"
     kill -HUP "$pid" 2> /dev/null || true
+}
+
+# nginx's own address, for probing it from inside the container.
+probe_url() {
+    case "$PORT" in
+        *:*) printf 'http://%s/' "$PORT" ;;
+        *) printf 'http://127.0.0.1:%s/' "$PORT" ;;
+    esac
+}
+
+# Is a starting site live? 0: its pool accepts on its socket and nginx serves
+# its own block for its host (no X-Lazysite-Site-State header, which only the
+# 503 and the default blocks send). 1: the pool exited. 2: the pool did not
+# accept within POOL_WAIT seconds. 3: nginx refused the configuration, or did
+# not serve the block in time. For 2 and 3 the reason is left in
+# run/live-NAME.
+site_live() {    # NAME POOLPID HOST
+    local name=$1 pid=$2 host=$3 i hdr limit=$((POOL_WAIT * 10))
+    for ((i = 0; i < limit; i++)); do
+        kill -0 "$pid" 2> /dev/null || return 1
+        # Bounded: a pool that listens and never accepts fills its backlog, and
+        # a bare connect then waits for ever.
+        if "$TIMEOUT" 3 "$PERL" -MIO::Socket::UNIX \
+            -e 'exit( IO::Socket::UNIX->new( Peer => $ARGV[0], Timeout => 2 ) ? 0 : 1 )' \
+            "$RUN/$name.sock" 2> /dev/null; then
+            break
+        fi
+        sleep 0.1
+    done
+    if [ "$i" -ge "$limit" ]; then
+        printf 'its pool did not accept connections on %s within %ss' "$RUN/$name.sock" "$POOL_WAIT" > "$RUN/live-$name"
+        return 2
+    fi
+    if ! nginx_reload; then
+        printf 'nginx refused the configuration that serves it (lazysite-sites status names why)' > "$RUN/live-$name"
+        return 3
+    fi
+    for ((i = 0; i < 300; i++)); do
+        kill -0 "$pid" 2> /dev/null || return 1
+        hdr=$("$CURL" -s -m 5 -o /dev/null -D - -H "Host: $host" "$(probe_url)" 2> /dev/null)
+        if [ -n "$hdr" ] && ! printf '%s\n' "$hdr" | grep -qi '^X-Lazysite-Site-State:'; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    printf 'nginx did not serve its block for %s within 30s' "$host" > "$RUN/live-$name"
+    return 3
 }
 
 # One site's pool and runtime, supervised. Runs in its own background process
@@ -311,7 +361,29 @@ site_supervisor() {    # NAME DOMAIN [ALIAS...]
               CGIBIN="$ENGINE" WORKERS="$WORKERS"
           exec "$PERL" "$ENGINE/tools/lazysite-pool.pl" --instance "$name" --run-dir "$RUN" ) &
         pool=$!
-        status_set "$name" serving
+        # Ruling 208 Q-E: `serving` is the truth or it is not written. The
+        # site is `starting` until its pool accepts on its socket AND nginx has
+        # loaded the block that serves it; a pool that never accepts, or a
+        # block nginx never serves, refuses the site with the reason.
+        status_set "$name" starting
+        site_live "$name" "$pool" "$2"
+        case $? in
+            0) status_set "$name" serving ;;
+            1) ;;    # the pool exited while starting: the crash handling below
+            *)
+                local why
+                why=$(cat "$RUN/live-$name" 2> /dev/null)
+                rm -f "$RUN/live-$name"
+                status_set "$name" refused "$why - run: lazysite-sites check $name, then lazysite-sites restart $name"
+                kill -TERM "$pool" 2> /dev/null
+                wait "$pool" 2> /dev/null
+                pool=0
+                shift
+                vhost_refuse "$name" "$@"
+                nginx_reload
+                break
+                ;;
+        esac
         wait "$pool"
         rc=$?
         pool=0

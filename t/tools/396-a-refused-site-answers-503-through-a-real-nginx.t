@@ -21,6 +21,7 @@ use Test::More;
 use File::Copy qw(copy);
 use File::Path qw(make_path);
 use IO::Socket::INET ();
+use IO::Socket::UNIX ();
 use POSIX      ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -30,6 +31,11 @@ use PreRenameSite qw(slurp spit);
 my $NGINX_BIN = '/usr/sbin/nginx';
 plan skip_all => "no nginx at $NGINX_BIN" unless -x $NGINX_BIN;
 plan skip_all => 'running as root, where the default log path may be writable' if $> == 0;
+
+# Every wait here is bounded: the whole test has a deadline, and END stops the
+# entrypoint (and with it nginx and the pools) however it ends.
+$SIG{ALRM} = sub { die "t/tools/396: over its 600 s deadline\n" };
+alarm 600;
 
 my $root = repo_root();
 my $pkg  = "$root/installers/docker";
@@ -48,6 +54,8 @@ my $port = do {
 # The recipe's nginx.conf, its /tmp/nginx paths moved here.
 ( my $conf = slurp("$pkg/nginx.conf") ) =~ s{/tmp/nginx}{$ngx}g;
 spit( "$t/nginx.conf", $conf );
+# The served blocks include fastcgi_params, which nginx finds beside its conf.
+copy( '/etc/nginx/fastcgi_params', "$t/fastcgi_params" ) or plan skip_all => "no /etc/nginx/fastcgi_params";
 spit( "$t/nginx", "#!/bin/bash\nexec '$NGINX_BIN' -c '$t/nginx.conf' -p '$ngx/' \"\$\@\"\n" );
 spit( "$t/curl",  "#!/bin/bash\nprintf 200\n" );
 chmod 0755, "$t/nginx", "$t/curl";
@@ -58,19 +66,32 @@ copy( "$root/installers/nginx/vhost-one-rule-pool.conf.example", "$eng/installer
 spit( "$eng/VERSION",               "9.9.9\n" );
 spit( "$eng/release-manifest.json", qq({"version":"9.9.9"}) );
 spit( "$eng/install.pl",            "exit 0;\n" );
-spit( "$eng/tools/lazysite-pool.pl", "\$SIG{TERM} = sub { exit 0 }; sleep 1 while 1;\n" );
+# beta's pool takes 2 s to listen; gamma's never does; the others listen at once.
+spit( "$eng/tools/lazysite-pool.pl", <<"STUB" );
+use IO::Socket::UNIX ();
+\$SIG{TERM} = sub { exit 0 };
+my %a = \@ARGV; my \$i = \$a{'--instance'}; my \$sock = "\$a{'--run-dir'}/\$i.sock";
+sleep 2 if \$i eq 'beta';
+my \$l;
+if ( \$i ne 'gamma' ) {
+    unlink \$sock;
+    \$l = IO::Socket::UNIX->new( Local => \$sock, Listen => 5 ) or die "listen \$sock: \$!";
+}
+if (\$l) { while (1) { my \$c = \$l->accept or next; close \$c } }
+sleep 1 while 1;
+STUB
 spit( "$eng/tools/lazysited.pl",     "\$SIG{TERM} = sub { exit 0 }; sleep 1 while 1;\n" );
 
 my $sites = "$t/sites";
 make_path("$sites/alpha/html-lazysite");
 spit( "$sites/alpha/html-lazysite/.install-state.json", qq({"version":"10.0.0"}) );    # newer than the image
-spit( "$sites/sites.conf", "alpha alpha.example.test www.alpha.example.test\n" );
+spit( "$sites/sites.conf", "alpha alpha.example.test www.alpha.example.test\nbeta beta.example.test\ngamma gamma.example.test\n" );
 
 my $run  = "$t/run";
 my %ENVS = (
     LAZYSITE_ENGINE => $eng, LAZYSITE_SITES => $sites, LAZYSITE_RUN_DIR => $run,
     LAZYSITE_NGINX_DIR => "$ngx/sites", LAZYSITE_PERL => $^X, LAZYSITE_NGINX => "$t/nginx",
-    LAZYSITE_CURL => "$t/curl", LAZYSITE_PORT_INTERNAL => "127.0.0.1:$port", LAZYSITE_DAEMON_RETRY => 60,
+    LAZYSITE_CURL => 'curl', LAZYSITE_POOL_WAIT => 5, LAZYSITE_PORT_INTERNAL => "127.0.0.1:$port", LAZYSITE_DAEMON_RETRY => 60,
 );
 
 my $ep = fork() // die;
@@ -122,6 +143,38 @@ is( get('www.alpha.example.test'),     503, 'and so does its alias' );
 is( get('nobody.example.test'),        404, 'an unknown host answers 404' );
 is( get( '127.0.0.1', '/lazysite-health' ), 204, 'the health location answers 204' );
 ok( !-e "$run/nginx-config", 'nginx loaded every block: nothing is named' );
+
+# ---- ruling 208 Q-E: `serving` only once the site is live ----------------------------
+sub state_of { my $s = slurp("$run/status/$_[0]") // ''; return ( split /\t/, $s )[0] // '' }
+sub headers {
+    my ($host) = @_;
+    my $cmd = join ' ', map {quotemeta} 'curl', '-s', '-m', 5, '-o', '/dev/null', '-D', '-', '-H', "Host: $host",
+        "http://127.0.0.1:$port/";
+    return `$cmd` // '';
+}
+{
+    my ( $early, $seen_starting, $state ) = ( 0, 0 );
+    for ( 1 .. 300 ) {
+        $state = state_of('beta');
+        $seen_starting = 1 if $state eq 'starting';
+        $early = 1 if $state eq 'serving' && !IO::Socket::UNIX->new( Peer => "$run/beta.sock", Timeout => 2 );
+        last if $state eq 'serving';
+        select undef, undef, undef, 0.1;
+    }
+    ok( $seen_starting, 'a slow pool: the site reads `starting` while its pool comes up' );
+    is( $state, 'serving', 'and `serving` once it is up' );
+    ok( !$early, 'never `serving` while the pool\'s socket refuses connections' );
+    my $h = headers('beta.example.test');
+    unlike( $h, qr/^X-Lazysite-Site-State:/mi, 'when it reads `serving`, its own block answers (not the 503, not the default)' );
+    like( $h, qr{\AHTTP/\S+ 502}, 'nginx passes the request to its pool (a stub that speaks no FastCGI: 502)' );
+}
+{
+    my $state = '';
+    for ( 1 .. 300 ) { $state = state_of('gamma'); last if $state eq 'refused'; select undef, undef, undef, 0.1 }
+    is( $state, 'refused', 'a pool that never accepts: the site is refused, never `serving`' );
+    like( slurp("$run/status/gamma") // '', qr/its pool did not accept connections on \S+gamma\.sock within 5s/, 'with the reason' );
+    is( until_status( 'gamma.example.test', 503 ), 503, 'and it answers 503' );
+}
 
 # ---- a configuration nginx will not load ---------------------------------------------
 spit( "$ngx/sites/zz-broken.conf", "this is not nginx;\n" );

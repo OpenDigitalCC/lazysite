@@ -39,7 +39,14 @@ my (\$d) = grep { \$ARGV[\$_] eq '--docroot' } 0 .. \$#ARGV;
 my \$state = \$ARGV[ \$d + 1 ] . '-lazysite/.install-state.json';
 open my \$s, '>', \$state or die "\$state: \$!"; print {\$s} qq({"version":"9.9.9"}); close \$s;
 STUB
-spit( "$eng/tools/lazysite-pool.pl", "\$SIG{TERM} = sub { exit 0 }; open my \$o, '>>', '$t/pool.starts'; print {\$o} \"\$\$\\n\"; close \$o; sleep 1 while 1;\n" );
+spit( "$eng/tools/lazysite-pool.pl", <<"STUB" );
+\$SIG{TERM} = sub { exit 0 };
+open my \$o, '>>', '$t/pool.starts'; print {\$o} "\$\$\\n"; close \$o;
+use IO::Socket::UNIX ();
+my %a = \@ARGV; my \$sock = "\$a{'--run-dir'}/\$a{'--instance'}.sock"; unlink \$sock;
+my \$l = IO::Socket::UNIX->new( Local => \$sock, Listen => 5 ) or die "listen \$sock: \$!";
+while (1) { my \$c = \$l->accept or next; close \$c }
+STUB
 spit( "$eng/tools/lazysited.pl",
     "open my \$o, '>>', '$t/daemon.starts'; print {\$o} \"\$\$\\n\"; close \$o; exit 4 if -e '$t/state-damaged'; \$SIG{TERM} = sub { exit 0 }; sleep 1 while 1;\n" );
 spit( "$t/nginx", "#!/bin/bash\n[ \"\${1:-}\" = -t ] && exit 0\necho \$\$ >> '$t/nginx.starts'\ntrap 'exit 0' TERM\ntrap '' HUP\nwhile :; do sleep 0.2; done\n" );
@@ -56,6 +63,20 @@ my %ENVS = (
     LAZYSITE_DAEMON_RETRY => 60, LAZYSITE_BACKOFF => 1,
 );
 
+# Every entrypoint this test starts is stopped at the end, however the test
+# ends, and the test has a deadline.
+my @STARTED;
+$SIG{ALRM} = sub { die "over the test's 600 s deadline\n" };
+alarm 600;
+END {
+    for my $p (@STARTED) {
+        next unless $p && kill 0, $p;
+        kill 'TERM', $p;
+        for ( 1 .. 100 ) { last if waitpid( $p, POSIX::WNOHANG() ) == $p; select undef, undef, undef, 0.1 }
+        kill 'KILL', $p if kill 0, $p;
+    }
+}
+
 sub start {
     my ($run) = @_;
     my $pid = fork() // die;
@@ -68,6 +89,7 @@ sub start {
         exec 'bash', "$pkg/entrypoint.sh", 'run';
         exit 127;
     }
+    push @STARTED, $pid;
     return $pid;
 }
 sub reap {
