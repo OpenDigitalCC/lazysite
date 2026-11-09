@@ -1014,7 +1014,8 @@ sub run_checks {
             report( 'WARN',
                 "cannot read groups-settings.json as " . _running_as() . " ($GS_ERR) - "
                     . 'which groups grant manager access is unknown, so the manager '
-                    . 'state is not reported',
+                    . 'state is not reported; if the web server cannot read it either, a password '
+                    . 'sign-in is refused to every account outside the operator group (SM1352, ruling 197)',
                 'run the check as root (sudo lazysite check ...) or as the site user, '
                     . "who can read '$gs_file'" );
         }
@@ -1023,7 +1024,8 @@ sub run_checks {
                 "groups-settings.json does not decode as a JSON object ($gs_file) - "
                     . 'no group\'s capabilities can be read from it; pages render as a '
                     . 'secured site and the manager refuses every signed-in request '
-                    . '(cannot tell) until it is repaired (SM1024)',
+                    . '(cannot tell) until it is repaired (SM1024), and a password sign-in is refused '
+                    . 'to every account outside the operator group (SM1352, ruling 197)',
                 "repair the JSON in '$gs_file', or restore it from a backup" );
         }
         elsif ( !@groups ) {

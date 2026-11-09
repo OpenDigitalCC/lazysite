@@ -198,7 +198,9 @@ Archive
   when the account has one, `me-passkey-add`, `me-passkey-remove`). A manager can only
   remove them all - "Remove all passkeys" on the Users page, `users` action
   `passkey-wipe` (`manage_users`), which also signs the account out and is audited.
-  `passkey_only` on a group refuses its members' passwords, in the password branch.
+  `passkey_only` on a group refuses its members' passwords, in the password branch;
+  with the group settings unreadable a password fails closed except for an
+  operator-group account, and the log and `lazysite check` name the file (ruling 197).
   Attestation `none`, the key from `getPublicKey()` (SPKI DER), ES256, RS256 and
   Ed25519; only public keys are stored, in the account's record. ADR 0007
   new-authentication-method entry in docs/SECURITY.md (t/unit/auth/107-109,

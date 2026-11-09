@@ -22,7 +22,7 @@ my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
 my $utl  = "$root/tools/lazysite-users.pl";
 my $HOST = 'site.example';
-my %PW   = ( alice => 'alice-first-password', bob => 'bob-first-password-x' );
+my %PW   = ( alice => 'alice-first-password', bob => 'bob-first-password-x', opal => 'opal-first-password' );
 
 sub uapi {
     my ( $d, $p ) = @_;
@@ -51,7 +51,9 @@ make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
     print $cf "site_name: T\nauth_redirect: /login\n";
     close $cf;
 }
-uapi( $d, { action => 'add', username => $_, password => $PW{$_} } ) for qw(alice bob);
+uapi( $d, { action => 'add', username => $_, password => $PW{$_} } ) for qw(alice bob opal);
+uapi( $d, { action => 'group-create', group => 'sysops' } );
+uapi( $d, { action => 'group-add', username => 'opal', group => 'sysops' } );
 uapi( $d, { action => 'group-create', group => 'phones' } );
 uapi( $d, { action => 'group-add', username => 'alice', group => 'phones' } );
 my $k = PasskeyFixture::key(-7);
@@ -88,14 +90,28 @@ uapi( $d, { action => 'group-settings-set', group => 'phones', key => 'passkey_o
 like( cookie( password( $d, 'alice' ) ), qr/\Aalice/, 'the key off: the password works again' );
 
 SKIP: {
-    skip 'running as root: a mode cannot hide a file', 2 if $> == 0;
+    skip 'running as root: a mode cannot hide a file', 5 if $> == 0;
     uapi( $d, { action => 'group-settings-set', group => 'phones', key => 'passkey_only', value => 'on' } );
     my $gs = "$d/lazysite/auth/groups-settings.json";
+    my $log = "$d/stderr.log";
     chmod 0000, $gs;
-    my $o = password( $d, 'bob' );
+    my ( $o, $op );
+    {
+        open my $save, '>&', \*STDERR or die $!;
+        open STDERR, '>', $log or die $!;
+        $o  = password( $d, 'bob' );
+        $op = password( $d, 'opal' );
+        open STDERR, '>&', $save or die $!;
+    }
     chmod 0660, $gs;
     is( cookie($o), '', 'a group store that cannot be read: no password session (cannot tell)' );
     like( location($o), qr/error=unavailable/, 'and the page says sign-in is unavailable' );
+    like( cookie($op), qr/\Aopal/, 'ruling 197: an operator-group account still signs in by password, to repair it' );
+    open my $lf, '<', $log or die $!;
+    my $l = do { local $/; <$lf> };
+    close $lf;
+    like( $l, qr/\[bob\].*refused.*groups-settings\.json cannot be read/, 'the refusal\'s log line names the file' );
+    like( $l, qr/\[opal\].*allowed to an operator-group account.*groups-settings\.json/, 'and so does the operator\'s' );
 }
 
 done_testing();

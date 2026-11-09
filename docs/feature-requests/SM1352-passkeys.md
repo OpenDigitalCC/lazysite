@@ -30,6 +30,6 @@ status-note: "SHIPPED (PENDING, 0.16.9) on n784 with ruling 187: enrol through t
 - **Sign-in:** "Sign in with a passkey" on the sign-in page, for a browser that can use one. The same address limits, rate limiter and account gates as a password, then the same local session; no TOTP step after a passkey. The installed app signs in through the same page.
 - **Managing:** list and remove on `/account`; the operator's `passkey-wipe` (Users, `manage_users`) removes them all, signs the account out everywhere, and is audited. A manager cannot add or remove a single passkey.
 - **Storage:** `passkeys` in the account's record (id, public key, algorithm, label, dates, counter).
-- **Passkey only:** the group key `passkey_only`, checked in the password branch of sign-in.
+- **Passkey only:** the group key `passkey_only`, checked in the password branch of sign-in. With the group settings unreadable, a password sign-in fails closed except for an operator-group account, and the log and `lazysite check` name the file (ruling 197).
 - **Checked:** origin, RP ID, a one-use challenge for the purpose, user presence, the signature with the stored key and algorithm (ES256, RS256, Ed25519), and a counter that moves forward. Attestation `none`; no CBOR (ruling 187).
 - **Question 1:** answered by the design (simplicity-0169): the emailed one-time link is the route when every passkey is lost - it enrols a new one, or sets a password.

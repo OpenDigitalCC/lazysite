@@ -583,16 +583,31 @@ sub _verify_credential {
         # branch, and nowhere else. After the password has matched, so it tells a
         # guesser nothing about the account's groups. A group store that cannot be
         # read cannot say the password is allowed, so it refuses (cannot tell),
-        # as a broken session store does.
+        # as a broken session store does - EXCEPT for an operator-group account
+        # (ruling 197), so the operator can sign in and repair the store. With the
+        # store unreadable the operator group is found by name: the groups file's
+        # membership of `sysops`, the operator group setup-sysop makes.
+        # The log names the fault either way.
         {
             require Lazysite::Auth::Passkey;
             my $only = Lazysite::Auth::Passkey::passkey_only($username);
+            if ( !defined $only
+                && Lazysite::Auth::Passkey::operator_by_name($username) )
+            {
+                log_event( 'WARN', $username,
+                    'password sign-in allowed to an operator-group account although lazysite/auth/groups-settings.json '
+                        . 'cannot be read (passkey-only cannot be ruled out); repair the file - lazysite check names it',
+                    ip => $ip, file => 'lazysite/auth/groups-settings.json' );
+                _audit_auth( $username, 'login', 'ok', 'operator: groups-settings.json unreadable' );
+                $only = 0;
+            }
             if ( !defined $only || $only ) {
                 my $why = defined $only ? 'passkey-only' : 'cannot-tell: groups-settings.json';
                 log_event( 'WARN', $username, 'password sign-in refused: '
                         . ( defined $only ? 'a group of the account signs in by passkey only'
-                        : 'the group settings cannot be read, so passkey-only cannot be ruled out' ),
-                    ip => $ip );
+                        : 'lazysite/auth/groups-settings.json cannot be read, so passkey-only cannot be '
+                            . 'ruled out; only an operator-group account signs in by password until it is repaired' ),
+                    ip => $ip, ( defined $only ? () : ( file => 'lazysite/auth/groups-settings.json' ) ) );
                 _audit_auth( $username, 'login', 'fail', $why );
                 redirect( "$auth_redirect?error=" . ( defined $only ? 'passkey-only' : 'unavailable' ) );
                 return 0;

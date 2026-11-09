@@ -397,7 +397,10 @@ working beside it.
   or `group-settings-set` through the `users` action); the sign-in page then
   refuses its members' passwords, after the password matched, and says to use a
   passkey. It is checked in the password sign-in and nowhere else. If the group
-  settings cannot be read, a password sign-in is refused (the site cannot tell).
+  settings cannot be read, a password sign-in is refused (the site cannot tell) -
+  except for a member of the operator group `sysops` (found by name, since the
+  unreadable file is what records which group is the operator's), so the operator can
+  sign in and repair it. The site log and `lazysite check` name the file.
 - **What is checked**: the answer is for this site's own address and host name,
   answers a challenge this site issued for that purpose within five minutes (each
   challenge works once), says the person was present, and carries a signature the
