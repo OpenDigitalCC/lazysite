@@ -244,6 +244,27 @@ package's engine; `lazysite check` names it (`pool engine: ...`) and the remedy:
 `lazysite reinstall` (or `upgrade`), then `systemctl restart lazysite@<site>`. A pool
 conf whose `CGIBIN=` points somewhere other than the site's cgi-bin must be corrected.
 
+**A broken store or setting now refuses (ruling 206).** Until 0.16.8 a site with a
+damaged access store or an invalid setting carried on, guessing an answer. From 0.16.9
+it refuses until the fault is repaired. Run `lazysite check --docroot <docroot>` after
+the upgrade: every case below is a FAIL line there, naming the file and the repair. A
+site where the check shows none of them sees no change.
+
+| Fault | What people see | Repair |
+| --- | --- | --- |
+| `lazysite/auth/acls.json` does not decode, or cannot be read | Every file and table-row check is refused (503, "cannot tell"), the operator's included; every rule change and file copy is refused, and the file is left untouched | Repair the JSON, or restore it from a backup |
+| `lazysite/auth/.consume.lock` cannot be opened or locked | Every account change, password reset and invitation is refused ("cannot change the account store safely"); the CLI exits non-zero with the same sentence | `chown`/`chmod` as the check line says (`--fix` applies it) |
+| The login rate limiter cannot count: DB_File missing, or `lazysite/auth/.login-rate.db` not openable or not a database | Every sign-in is refused: the sign-in page says sign-in is unavailable; token doors answer 503 | Install DB_File (`perl-DB_File` on RHEL); fix the counter's ownership as the check says; or remove a counter that is not a database (it holds only recent attempt counts). Switching the extension off is still a choice |
+| `lazysite/auth/groups-settings.json` does not decode, or cannot be read | Every signed-in page is refused (503: "the site cannot read part of its configuration"); anonymous pages are unchanged | Repair the JSON, or restore it from a backup |
+| `lazysite/auth/groups` cannot be read by the web server | Every sign-in is refused (unavailable) and every signed-in visitor is treated as signed out | `chown`/`chmod` as the check line says (`--fix` applies it) |
+| A `content_root:` or `alias.<host>.content_root:` the engine rejects (missing folder, unsafe path, outside the docroot, inside the engine tree) | Every request to that host is refused (503); it used to serve the docroot root's pages under that host's name. Other hosts are unaffected | Correct the line in `lazysite.conf`, or create the folder |
+| `session_lifetime:` not a whole number from 300 to 31536000 (e.g. `0`, `1h`) | Every sign-in is refused (unavailable) and every existing session is signed out | Set a value in range, or remove the line for the 24-hour default |
+| `password_min_length:` not a whole number from 8 to 128 | Every password set or reset is refused ("the site's password policy setting is invalid"); signing in with an existing password still works | Set a value in range, or remove the line for the default of 12 |
+
+The log carries a WARN for each refusal naming the file and the check, so a site that
+starts refusing after the upgrade says why in the site log. An absent file is not a
+fault: a fresh site with no rules, groups or counter yet behaves as before.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

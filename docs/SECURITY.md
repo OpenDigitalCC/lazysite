@@ -130,7 +130,7 @@ Spoofing | Forged `X-Remote-User` / `X-Remote-Groups` headers from the client, i
 Tampering | Hostile `layout.tt` / page executing arbitrary Perl through Template Toolkit | TT runs with `EVAL_PERL=0`; layout authoring gated by manage_layouts + webdav; content vs layout capability split (SM082) | ASVS V5: a layouts-capable partner is inside the trust boundary by design - scoped by capability, not sandboxed
 Repudiation | An action taken with no attributable record | Append-only audit trail (who/what/target/origin/outcome), incl. denied attempts; login/logout audited; shell user management audited too (origin `cli`, invoking OS identity), installs/upgrades as origin `install`; the writer is failure-loud (0664 umask-proof create, self-heal, WARN naming any lost entry) | Audit read gated by the `audit` capability; ASVS V7 logging met; time is server clock
 Information disclosure | Protected content served by a front end that never consults the engine (SM248, SM268 H17, SM283 - three incidents, one cause); auth secrets or raw logs readable off the docroot; visitor PII in stats | **Protecting content MOVES it out of the document root** (SM286), so this is structural rather than configurational; the front door makes the routing decisions inside the engine (SM293); secrets under `lazysite/auth/` (Apache-denied, 0660); stats export is aggregated + IP-anonymised; raw-log download removed (0.5.29); error surface synthesised | Sections protected BEFORE 0.10.8 stay in the document root until re-applied - an operator action no upgrade performs. TOTP seeds are stored recoverable (documented at-rest note, security.md) - accepted at L1, an L2 gap to close with an at-rest key
-Denial of service | A flood of CGI forks, or an unbounded upload / render, exhausting the host; vulnerability-scanner probe floods | Login rate limiting (per-IP window; an extension, on by default - switched off or unable to run it says NOT in force in the log and in lazysite check, SM798); upload size gate; PUT streamed in bounded chunks; checked writes fail closed on ENOSPC (review D5). SM128: the bad-URL auto-blocker (on by default) refuses an IP after it hits too many scanner-probe paths in a window, enforced in the auth wrapper | No global concurrency cap (relies on the web server / MPM); capacity test is a held pre-launch item; the auto-blocker covers auth-wrapped sites
+Denial of service | A flood of CGI forks, or an unbounded upload / render, exhausting the host; vulnerability-scanner probe floods | Login rate limiting (per-IP window; an extension, on by default - switched off it says NOT in force in the log and in lazysite check, SM798; unable to count it refuses every sign-in, ruling 206); upload size gate; PUT streamed in bounded chunks; checked writes fail closed on ENOSPC (review D5). SM128: the bad-URL auto-blocker (on by default) refuses an IP after it hits too many scanner-probe paths in a window, enforced in the auth wrapper | No global concurrency cap (relies on the web server / MPM); capacity test is a held pre-launch item; the auto-blocker covers auth-wrapped sites
 Elevation of privilege | A token/WebDAV partner reaching manager-only actions or another account's files; a manager account driven remotely | Token clients are confined to the control-API subset + `%need` capability map; never operators; per-file ACLs bind them (SM074); manager bypass is cookie-only. SM127: an account with group-granted manager access (`ui`) is refused outright on the api/mcp transports, and a group may not combine `ui` with `api`/`mcp` - manager access is interactive-only, so a leaked/misissued token on a manager account cannot drive the site | ASVS V4 met; the capability model is groups-only + explicit (ADR 0003), removing implicit manager status
 Spoofing | A request's identity decided in a long-lived pool worker: a client's own `X-Remote-User`, or `LAZYSITE_AUTH_TRUSTED` sent as a FastCGI parameter, read as a verified identity; one visitor's identity served to the next (SM1181) | `request_session` is the one function behind the wrapper and the pool; in the pool the sentinel is never believed and a held value makes `apply_trust_gate` strip every identity and payment header; the value is cleared at the start and the end of each request (t/lint/269); `auth/.secret` is read per call and never cached | The split FastCGI templates keep the CGI wrapper for signed-in requests by decision; the security review in the SM1181 filing lists fourteen threats with the test that holds each
 Spoofing | A client naming its own address or account through a proxy: identity headers from an unlisted peer; `X-Forwarded-For` passed through by an old front end (SM1129-SM1131, SM1189, SM1194, SM1196) | Identity headers are believed only from `auth_proxy_trusted_from`, which fails closed; one reader honours the configured header names; the proxy's user wins over a cookie; the Hestia rollout compares and replaces an old template and reports a pass-through vhost as a failure; `lazysite check` warns while the trust set is not empty | The private-range default for `trusted_proxies` is believed behind a front end that passes the header through until the vhost is rebuilt; verified by the rollout and by a probe request
@@ -5596,3 +5596,67 @@ residual risk
 
 verdict
 : drafted; for the release manager's confirmation.
+
+### 2026-11-09 - Ruling 206, items 1-8 (0.16.9, PENDING): a broken store or setting refuses access
+
+Assessment drafted by the developer agent (n789) for the release manager's confirmation.
+A hardening: eight places that worked around a damaged access store or setting now
+refuse (cannot-tell, 503 or the sign-in page's "unavailable"), and `lazysite check` and
+the log name each fault and its remedy, repaired from the command line (rulings 206,
+207). An absent store is still "nothing configured" in every case.
+
+what changed
+: 1, data loss. A rule set or removal, a file copy, a `.url` migration or a table rule
+  over an acls.json that would not read or decode replaced it with the one rule written,
+  dropping every other; each writer, and save_acls itself, now refuses and leaves the
+  file byte-identical (t/integration/438).
+: 2. A broken acls.json still let the operator (file_rule_bypass) read and write every
+  file, and every table's rows; the operator is refused with everyone (t/integration/188).
+: 3. The auth store lock failed open, so an account change or a single-use secret's
+  redemption ran unlocked and a reset link could be redeemed twice; both doors of the
+  users tool refuse (t/unit/users/136).
+: 4. The login rate limiter allowed every sign-in without DB_File or with a counter it
+  could not open; it refuses every sign-in, the extension switched off excepted
+  (t/unit/auth/24, t/tools/70).
+: 5. On the render path an undecodable groups-settings.json read as {}, losing SM1140's
+  address-refused groups so their members still matched `@group`; a signed-in request
+  is refused 503 (t/integration/439).
+: 6. An unreadable groups file minted a session with no groups, lifting deny-by-group
+  rules; sign-in and every session are refused (t/integration/440).
+: 7. A rejected or missing content_root served the docroot root under the host's name;
+  that host is refused 503 (t/integration/17).
+: 8. An out-of-range session_lifetime or password_min_length became the default; sign-in
+  and sessions, or every password set, are refused (t/integration/441).
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (existing doors refuse more),
+  no new sign-in method, no new dependency, no new restricted data.
+: Tampering, closed (1): an ordinary write could destroy the whole rule set. Elevation of
+  privilege, closed (2, 5, 6): rules the engine could not read were passed, or deny rules
+  silently lifted. Spoofing, closed (3, 4): a single-use secret could be spent twice, and
+  guessing went unthrottled. Information disclosure, closed (7): another site's pages
+  were served under a host's name. Repudiation, unchanged.
+: Denial of service, by design: each fault now stops sign-in, a host, or rule changes
+  until it is repaired. That is ruling 206's choice over a guessed answer; the
+  sysadmin repairs it from the command line, and nothing a visitor sends can cause any of
+  these states.
+
+controls
+: One wording family: the existing cannot-tell refusals (_acl_denied's SM1024 refusal,
+  now acls_fault_refusal; session_store_fault; the sign-in page's error=unavailable),
+  each naming the store and `lazysite check --docroot`. `lazysite check` lines: the
+  acls.json and groups-settings.json FAILs (existing, item 1's restated); new FAILs for
+  .consume.lock, the rate counter (unopenable, missing DB_File, not a database), the
+  groups file the CGI cannot read, every rejected content_root and both settings. The
+  tests named above, each failing with its change reverted.
+
+residual risk
+: A refusal is loud only where it is looked at: the visitor sees "unavailable" and the
+  operator must read the log or run the check. The Odoo sign-in (extensions/odoo) refuses
+  on a broken rate limiter with its own 'rate' wording, left for the Odoo slice. A host on
+  which DB_File is genuinely absent (it is core Perl on Debian; perl-DB_File on RHEL) now
+  refuses sign-in until it is installed or the extension is switched off.
+
+verdict
+: drafted as accepted, for the release manager's confirmation. No trigger fired;
+  recorded because it changes what eight access decisions answer on a damaged host.

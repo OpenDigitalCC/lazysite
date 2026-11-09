@@ -275,6 +275,24 @@ Archive
   lib. A site whose engine copy is missing or unreadable gets 503 and a log line, never
   the package's engine, and `lazysite check` names the fault and its remedy (ruling 206).
   A shared read-only engine keeps running the image's. t/integration/458.
+- SM1024 (PENDING) **A broken access store or setting refuses; it is never worked
+  around (rulings 206 and 207, items 1-8).** A site that was silently carrying on now
+  refuses until the fault is repaired from the command line; `lazysite check` and the
+  log name each fault and its remedy, and an absent store is still "nothing
+  configured". (1) A rule set or removal, a file copy, a `.url` migration or a table
+  rule over a damaged acls.json is refused and the file left as it was - it used to be
+  replaced by that one rule, losing every other. (2) A damaged acls.json refuses the
+  operator too, for files and table rows (ruling 197's exception withdrawn). (3) An
+  auth store lock (lazysite/auth/.consume.lock) that cannot be taken refuses every
+  account change and single-use link. (4) A login rate limiter that cannot count (no
+  DB_File, a counter that will not open) refuses every sign-in; switched off is
+  unchanged. (5) A groups-settings.json that will not read refuses every signed-in page
+  (503). (6) A groups file that will not open refuses sign-in and every session. (7) A
+  rejected or missing content_root refuses that host (503) instead of serving the
+  docroot root. (8) An invalid session_lifetime refuses sign-in and sessions, and an
+  invalid password_min_length every password set, instead of the default. New check
+  lines for 3, 4, 6, 7 and 8. UPGRADE.md says what an operator sees and how to fix it.
+  Register entry drafted for the release manager.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
