@@ -287,9 +287,12 @@ sub _front_body_cap {
     return $mb * 1024 * 1024;
 }
 
+# The access record's status is the numeric code (the record writes it as a
+# number); the whole status line, "503 Service Unavailable", made a non-numeric
+# warning in the worker's log for every answer given here (n795, the restack).
 sub _front_fail {
     my ( $status, $text ) = @_;
-    $ACCESS_REC{s}  = $status;
+    $ACCESS_REC{s}  = ( $status =~ /\A(\d{3})\b/ )[0] // 500;
     $ACCESS_REC{ch} = 'front';
     print "Status: $status\r\n";
     print "$_\r\n" for _security_headers();    # SM381
