@@ -769,6 +769,25 @@ sub run_checks {
         }
     }
 
+    # --- 5b. the group store must be readable by the CGI (ruling 206) -----------
+    # One the sign-in CGI cannot open is cannot-tell, never "no groups": every
+    # sign-in and every session is refused until it reads.
+    {
+        my $rel  = 'lazysite/auth/groups';
+        my $path = model_path($rel);
+        my @s    = stat $path;
+        if ( @s && -f _ && !cgi_can( 4, @s ) ) {
+            report( 'FAIL',
+                sprintf( "%s (%04o, %s:%s) is not readable by the CGI (%s) - every sign-in "
+                        . 'and every session is refused (cannot tell which groups an account '
+                        . 'is in)',
+                    $rel, $s[2] & 07777, owner_name($path), group_name($path), $exp_grp ),
+                sprintf( "chown %s:%s '%s' && chmod 0660 '%s'", $exp_user, $exp_grp, $path, $path ) );
+            push @chmod_fixes, [ 0660, $path ];
+            $chown_needed = 1;
+        }
+    }
+
     # --- 6. config present + readable BY THE CGI; cgi-bin scripts executable -----
     # (-r/-x here would answer for the invoking user - run as root they pass on
     #  files the www-data CGI cannot read or exec; use the arithmetic instead)

@@ -325,19 +325,37 @@ sub _account_state {
 # docroot-relative, or '' - asked by the sign-in gate before a cookie issues,
 # so a sign-in is refused as cannot-tell rather than reported as a bad password
 # or a disabled account. Opens each store itself (SM770: the open decides).
+#
+# Ruling 206 (item 6 of the 0.16.9 fault survey): and the `groups` file. One
+# that exists and will not open read as "no groups", so a session was minted
+# carrying none - which lifts every rule that DENIES by group (a locked group,
+# an address-limited one) - and every request on an existing session lost its
+# groups the same way. Absent is a site with no groups: no fault.
 sub session_store_fault {
     for my $name (qw(user-settings.json revoked.json)) {
         my ( undef, $state ) = _json_store_state( _auth_dir() . "/$name" );
         return "lazysite/auth/$name" if $state eq 'broken';
     }
+    return 'lazysite/auth/groups' if _groups_unreadable();
     return '';
+}
+
+# 1 when lazysite/auth/groups exists and cannot be opened (SM770: the open
+# decides; ENOENT is an answer). Errno is read before cannot_read clobbers it.
+sub _groups_unreadable {
+    my $path = _auth_dir() . '/groups';
+    if ( open( my $fh, '<:utf8', $path ) ) { close $fh; return 0 }
+    return 0 if $!{ENOENT};
+    cannot_read( 'groups', $path );
+    return 1;
 }
 
 sub load_user_groups {
     local $_;    # SM420: while(<>) assigns the GLOBAL $_
     my ($username) = @_;
     my $path = _auth_dir() . '/groups';
-    # SM770: the open decides.
+    # SM770: the open decides. A caller that must not mint or honour a session
+    # on a broken store asks session_store_fault (or _groups_unreadable) first.
     open( my $fh, '<:utf8', $path ) or return ( cannot_read( 'groups', $path ) // '' );
     my @groups;
     while (<$fh>) {
@@ -495,6 +513,10 @@ sub verify_session_cookie {
     my $revoked = session_revoked( $user, $ts, $sid );
     return ( undef, 'cannot-tell', user => $user, store => $STORE_FAULT ) if length $STORE_FAULT;
     return ( undef, 'revoked', user => $user ) if $revoked;
+
+    # Ruling 206: a groups file that will not open is cannot-tell, never "no groups".
+    return ( undef, 'cannot-tell', user => $user, store => 'lazysite/auth/groups' )
+        if _groups_unreadable();
 
     return (
         { user => $user, sid => $sid, groups => load_user_groups($user),
