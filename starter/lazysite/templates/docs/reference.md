@@ -231,7 +231,10 @@ See [Configuration](/docs/configuration) for full details.
 
 `page_url_raw`
 : The same address, unescaped, for JSON-LD through `| json` and nowhere else
-  (SM1398): `"url": [% page_url_raw | json %]`.
+  (SM1398): `"url": [% page_url_raw | json %]`. `| json` works in a page body, a
+  layout and a component. A page body has Template Toolkit's filters, `json` and
+  `url_safe`; a page naming any other filter is refused on save and by
+  `validate_page`, since the engine would show its whole body as written.
 
 `page_source`
 : Docroot-relative path of the source `.md` file, e.g. `/about.md`.

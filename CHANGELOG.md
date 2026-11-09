@@ -228,6 +228,14 @@ Archive
   body (ruling 196); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
   (t/unit/notify/41, t/unit/account/38).
+- SM1398 (PENDING) **A page body has `| json`, and a filter it lacks is refused on save.**
+  `[% page_url_raw | json %]` in a page body left the whole body as written: `json` was a
+  layout's and a component's filter only. The page-body render now has it. A filter a
+  page body does not have (anything beyond Template Toolkit's own, `json` and
+  `url_safe`) fails the whole body at render, so it is now refused on save - the editor,
+  the control API, MCP's write_file - and named by validate_page with its line, whether
+  or not its branch runs.
+
 - SM1357 (PENDING) **check: a title is shared within one domain, not across two.**
   `lazysite check`'s shared-title and missing-description checks read each domain's own
   public page set - the one its sitemap and `llms.txt` list (ruling 174), from the

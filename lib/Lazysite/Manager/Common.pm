@@ -2679,10 +2679,10 @@ sub page_parse_issues {
 
     my $tt  = eval { Template->new( {} ) } or return;
     my $out = '';
-    return () if $tt->process( \$text, {}, \$out );
+    return _page_filter_issues( $text, \@orig, $offset ) if $tt->process( \$text, {}, \$out );
 
     my $err = $tt->error // '';
-    return () unless $err =~ /parse error/;
+    return _page_filter_issues( $text, \@orig, $offset ) unless $err =~ /parse error/;
 
     my $line = ( $err =~ /line (\d+)/ ) ? $1 + 0 : undef;
     if ( defined $line ) {
@@ -2707,6 +2707,44 @@ sub page_parse_issues {
             . "literal. Parser said: $detail",
     };
     return @$issues;
+}
+
+# n785 (T-114): THE FILTERS A PAGE BODY HAS - Template Toolkit's own, and the
+# engine's for a body: lazysite-processor/render.pm _tt_engine's FILTERS, which
+# t/unit/processor/228 holds this list to. A layout and a component have more
+# (`markdown`); a body does not.
+our @PAGE_BODY_FILTERS = qw(json url_safe);
+
+# A filter the body render does not have fails the WHOLE body at render - the
+# engine shows it as written - and, unlike a parse error, only when the directive
+# runs, so a parse alone never sees it. Every filter the body names is read from
+# the compiled template (Template::Parser), taken branch or not, and one it does
+# not have is an issue: refused on save as a parse error is, and named by
+# validate_page. Lines are the parser's, mapped back as above.
+sub _page_filter_issues {
+    my ( $text, $orig, $offset ) = @_;
+    my $parsed = eval { require Template::Parser; Template::Parser->new( {} )->parse($text) };
+    return () unless ref $parsed eq 'HASH' && defined $parsed->{BLOCK};
+    require Template::Filters;
+    my %have = map { ( $_ => 1 ) } keys %{$Template::Filters::FILTERS}, @PAGE_BODY_FILTERS;
+    my ( @issues, %said, $line );
+    for my $l ( split /\n/, $parsed->{BLOCK} ) {
+        $line = $1 + 0 if $l =~ /^#line (\d+) /;
+        next unless $l =~ /\$context->filter\('(\w+)'/;
+        my $name = $1;
+        next if $have{$name} || $said{$name}++;
+        my $at = defined $line && $line >= 1 && $line <= @{$orig} ? $orig->[ $line - 1 ] + $offset : undef;
+        push @issues, {
+            kind => 'template-parse',
+            ( defined $at ? ( line => $at ) : () ),
+            message => "the page uses the filter `$name`, which a page body does not have, so the "
+                . "engine would show the WHOLE body as written, every [% %] on it dead. A page body "
+                . 'has Template Toolkit\'s filters and ' . join( ', ', map { "`$_`" } @PAGE_BODY_FILTERS )
+                . '; a layout or a component has more. Parser said: filter error - '
+                . "$name: filter not found",
+        };
+    }
+    return @issues;
 }
 
 # The write-path refusal, shared by both stacks. Returns a message or undef.

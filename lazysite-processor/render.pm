@@ -23,7 +23,7 @@ package main;
 #         _esc_html, _esc_query_stash, _front_matter_reserved,
 #         _front_matter_private, _content_rel,
 #         _request_address, _trusted_proxy_spec, _lazysite_version,
-#         _manager_style, _enabled_extensions, _placeholder_key, _url_safe_filter,
+#         _manager_style, _enabled_extensions, _placeholder_key, _url_safe_filter, _json_filter,
 #         _extension_template_vars, _lazy_lib (the address test, on first ask),
 #         log_event (the script and its parts); Template->new and make_path
 #         (loaded by the script's `use`, before its parts load).
@@ -147,12 +147,15 @@ sub _tt_engine {
     # SM1030: a draft render compiles in memory and leaves the compile cache as it was.
     my @compile = _draft_requested() ? () : ( COMPILE_DIR => $TT_COMPILE_DIR, COMPILE_EXT => '.ttc' ); # P-4
     eval { make_path($TT_COMPILE_DIR) } if @compile && !-d $TT_COMPILE_DIR;
+    # SM970 url_safe; n785 (T-114): json, as a layout and a component have it, so a
+    # body can write [% page_url_raw | json %]. Lazysite::Manager::Common
+    # @PAGE_BODY_FILTERS names these two, for the save-time check.
     my $tt = eval {
         Template->new(
             ABSOLUTE  => 0,
             ENCODING  => 'utf8',
-            EVAL_PERL => 0,                                     # L-2
-            FILTERS   => { url_safe => \&_url_safe_filter },    # SM970
+            EVAL_PERL => 0,                                                          # L-2
+            FILTERS   => { url_safe => \&_url_safe_filter, json => \&_json_filter },
             @compile,
         );
     };
