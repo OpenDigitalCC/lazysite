@@ -176,7 +176,9 @@ subtest 'a torn run record is logged, and an idle tick leaves the record alone' 
     is( scalar @$done,    0,         'nothing due on the second tick' );
     is( ( stat $rec )[9], $mt - 100, 'and the record was not rewritten' );
 
-    # corrupt it
+    # corrupt it. Ruling 206 (item 13 of the 0.16.9 fault survey): a torn
+    # record used to make every job due again ("the safe direction"); now the
+    # tick cannot tell which are due, runs none, and leaves the record as found.
     open my $g, '>', $rec or die $!;
     print {$g} "\x00\xffnot json";
     close $g;
@@ -184,11 +186,14 @@ subtest 'a torn run record is logged, and an idle tick leaves the record alone' 
         open my $save, '>&', \*STDERR or die $!;
         open STDERR,   '>>', $log     or die $!;
         $done = Lazysite::Daemon::Service::Scheduler::tick( docroot => $d );
+        Lazysite::Daemon::Service::Scheduler::tick( docroot => $d );
         open STDERR, '>&', $save or die $!;
     }
-    ok( scalar @$done >= 1, 'a torn record makes jobs due again (the safe direction)' );
-    like( slurp($log), qr/run record is unreadable/, 'and the WARN says so, once' );
-    is( scalar( () = slurp($log) =~ /run record is unreadable/g ), 1, 'exactly once' );
+    is( scalar @$done, 0, 'a torn record runs no job' );
+    is( slurp($rec), "\x00\xffnot json", 'and is left as found' );
+    like( slurp($log), qr/cannot tell - lazysite\/daemon\/scheduler-runs\.json does not decode/,
+        'the WARN names the store' );
+    is( scalar( () = slurp($log) =~ /scheduler-runs\.json does not decode/g ), 1, 'once, over two ticks' );
 };
 
 done_testing();

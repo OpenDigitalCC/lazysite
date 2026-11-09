@@ -22,7 +22,11 @@ use Lazysite::Daemon::Supervisor         ();
 # guard and then died in tick, every tick, forever - because _write_runs only
 # runs when a job completed, so nothing ever repaired the file, and no remote
 # surface can read the system tree to say why.
-subtest 'structural corruption is fail-open, like the total kind' => sub {
+#
+# Ruling 206 (item 13 of the 0.16.9 fault survey) reverses the direction: both
+# shapes are now "cannot tell" (undef), and tick runs no job and writes nothing,
+# so neither dies nor heals the file by dropping the bad entry.
+subtest 'structural corruption is cannot-tell, like the total kind' => sub {
     my $d = site_tempdir();
     make_path("$d/lazysite/daemon");
     my $f = "$d/lazysite/daemon/scheduler-runs.json";
@@ -32,23 +36,35 @@ subtest 'structural corruption is fail-open, like the total kind' => sub {
         print {$fh} $_[0];
         close $fh;
     };
+    my $quiet = sub {
+        my $err = '';
+        local *STDERR;
+        open STDERR, '>', \$err or die $!;
+        my $r = $_[0]->();
+        close STDERR;
+        return ( $r, $err );
+    };
 
     $write->('["not","a","hash"]');
-    my $r = Lazysite::Daemon::Service::Scheduler::_read_runs($d);
-    is_deeply( $r, {}, 'the DOCUMENTED case still reads as empty' );
+    my ( $r, $err ) = $quiet->( sub { Lazysite::Daemon::Service::Scheduler::_read_runs($d) } );
+    is( $r, undef, 'a record that is not an object cannot be told' );
+    like( $err, qr/scheduler-runs\.json does not decode as a JSON object/, 'and says so' );
 
-    # The case that killed the tick.
-    $write->('{"stats-rollup":"boom","sessions-sweep":{"last_run":100}}');
-    $r = Lazysite::Daemon::Service::Scheduler::_read_runs($d);
-    ok( !exists $r->{'stats-rollup'},
-        'a job entry that is not a job record is dropped, so it reads as never run' );
-    is( $r->{'sessions-sweep'}{last_run}, 100,
-        'and the entries that ARE records are untouched - one bad line does not '
-            . 'discard the record' );
+    # The case that killed the tick, then was healed by dropping the entry.
+    my $bad = '{"stats-rollup":"boom","sessions-sweep":{"last_run":100}}';
+    $write->($bad);
+    ( $r, $err ) = $quiet->( sub { Lazysite::Daemon::Service::Scheduler::_read_runs($d) } );
+    is( $r, undef, 'a job entry that is not a job record: cannot tell' );
+    like( $err, qr/has entries that are not job records \(stats-rollup\)/, 'naming the entry' );
 
-    # The proof that it no longer dies: the read is what tick dereferences.
-    my $last = eval { ( ref $r->{'stats-rollup'} eq 'HASH' ? $r->{'stats-rollup'}{last_run} : 0 ) // 0 };
-    is( $last, 0, 'and tick can read it without dying' ) or diag $@;
+    my ($done) = $quiet->( sub { Lazysite::Daemon::Service::Scheduler::tick( docroot => $d ) } );
+    is_deeply( $done, [], 'tick runs nothing, and does not die' );
+    my $now = do { open my $fh, '<', $f or die $!; local $/; <$fh> };
+    is( $now, $bad, 'and the record is left exactly as found' );
+
+    unlink $f;
+    ( $r, $err ) = $quiet->( sub { Lazysite::Daemon::Service::Scheduler::_read_runs($d) } );
+    is_deeply( $r, {}, 'an absent record is a site whose jobs have never run' );
 };
 
 subtest 'a last_run in the future does not silently suppress a job' => sub {

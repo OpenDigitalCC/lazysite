@@ -29,7 +29,7 @@ package Lazysite::Daemon::Service::Scheduler;
 # whoever configured it. It records a refusal naming what was missing.
 use strict;
 use warnings;
-use Lazysite::Util               qw(log_event cannot_read);
+use Lazysite::Util               qw(log_event cannot_read store_fault);
 use Lazysite::Daemon::Supervisor ();
 use Lazysite::Daemon::Jobs       ();
 use Lazysite::Paths              ();
@@ -250,11 +250,10 @@ sub _state_file {
     return Lazysite::Paths::lazysite_dir($root) . "/daemon/scheduler-runs.json";
 }
 
-# A record that exists and does not parse is reported, not swallowed. It reads
-# as empty - every job due at once - which is the safe direction (better a
-# rollup twice than never), but the review's experiment 10 found that happened
-# in silence, and a file somebody corrupted is a fact an operator should be
-# told once.
+# A record that exists and does not parse is reported, not swallowed. It used to
+# read as empty - every job due at once - which was taken as the safe direction
+# (better a rollup twice than never); the review's experiment 10 found that
+# happened in silence. Ruling 206 stops the tick instead (see _read_runs).
 # SM759: the run record, for Status. The field could not read
 # lazysite/daemon/ on any grant it held (the system tree is closed to the
 # remote surfaces by design), so the only way to learn what a job did was to
@@ -265,10 +264,23 @@ sub run_record {
     return _read_runs($root);
 }
 
+# Ruling 206 (item 13 of the 0.16.9 fault survey): A RUN RECORD THAT CANNOT BE
+# TOLD STOPS THE TICK. Everything below that read a damaged record as empty -
+# an unreadable file, one that does not decode, an entry that is not a job
+# record - made every job due at once, and the bad entries were deleted on the
+# next write: a self-healing rewrite of the evidence. The comments that follow
+# record why that direction was chosen (SM787); ruling 206 reverses it. Now each
+# is undef - cannot tell - and tick runs no job and writes nothing, so the file
+# stays as found for the sysadmin; `lazysite check` names it. An absent record
+# is a site whose jobs have never run, and every job is due, as before.
 sub _read_runs {
     my ($root) = @_;
     my $f = _state_file($root);
-    open my $fh, '<:utf8', $f or return ( cannot_read( 'run record', $f ) // {} );
+    open my $fh, '<:utf8', $f or do {
+        return {} if $!{ENOENT};
+        cannot_read( 'run record', $f );
+        return undef;
+    };
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
@@ -290,20 +302,27 @@ sub _read_runs {
         # already designed and documented - that job is due now, logged once -
         # instead of a permanent stop of all maintenance.
         my @bad = grep { ref $d->{$_} ne 'HASH' } sort keys %$d;
-        if (@bad) {
-            delete $d->{$_} for @bad;
-            log_event( 'WARN', 'scheduler',
-                'the run record has entries that are not job records; they are '
-                    . 'treated as never having run',
-                file    => 'lazysite/daemon/scheduler-runs.json',
-                entries => join( ',', @bad ) );
-        }
-        return $d;
+        return $d unless @bad;
+        _runs_fault( 'has entries that are not job records (' . join( ', ', @bad ) . ')' );
+        return undef;
     }
-    log_event( 'WARN', 'scheduler',
-        'the run record is unreadable and is treated as empty - every job '
-            . 'is due now', file => 'lazysite/daemon/scheduler-runs.json' );
-    return {};
+    _runs_fault('does not decode as a JSON object');
+    return undef;
+}
+
+# Once per fault, not once a tick: the daemon is one long process, and a line a
+# minute saying the same thing buries everything else in the log.
+my $LAST_RUNS_FAULT = '';
+
+sub _runs_fault {
+    my ($fault) = @_;
+    return if $fault eq $LAST_RUNS_FAULT;
+    $LAST_RUNS_FAULT = $fault;
+    store_fault( category => 'scheduler', store => 'lazysite/daemon/scheduler-runs.json',
+        fault  => $fault,
+        doing  => 'tell which jobs are due',
+        effect => 'No scheduled job runs until it is repaired; the record is left as found.' );
+    return;
 }
 
 # Temp and rename, with the close checked. The first version truncated the
@@ -359,6 +378,8 @@ sub tick {
     my $now  = $a{now} // time;
 
     my $runs = _read_runs($root);
+    return [] unless defined $runs;    # ruling 206: cannot tell which are due - none runs
+    $LAST_RUNS_FAULT = '';
     my @done;
 
     my ( $user, $why ) = resolve_job_user( docroot => $root );
