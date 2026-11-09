@@ -5268,11 +5268,13 @@ residual risk
 : Ruling 217 (pages refuse too): a request carrying a session cookie whose session
   store cannot be read is refused 503 by the auth wrapper before it execs (CGI) and by
   the pool's front door in the worker, from request_session's fault value
-  (`cannot-tell`, with the store); the response and the log line name the store and
-  the repair. No cookie, an expired cookie or a removed account stay an ordinary
-  signed-out visitor. t/integration/479 holds both paths and the controls; each fails
-  with its change reverted, and a widening to every signed-out request fails the
-  controls.
+  (`cannot-tell`, with the store); the log line names the store and the repair. At the
+  restack (rulings 216, 217; n795) the response became the engine's one refusal for a
+  store it cannot tell, the same words as n789's gate and n790's manager door, and it
+  names no file to the visitor (SM494); t/integration/498 holds every path to it.
+  No cookie, an expired cookie or a removed account stay an ordinary signed-out
+  visitor. t/integration/479 holds both paths and the controls; each fails with its
+  change reverted, and a widening to every signed-out request fails the controls.
 
 verdict
 : drafted as accepted, for the release manager's confirmation. No trigger fires; the

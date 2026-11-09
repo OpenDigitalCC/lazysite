@@ -72,9 +72,10 @@ Sections below are per-release notes, newest first. Where an older section says
 
 **A signed-in page refuses a session it cannot check (SM297, ruling 217).** A page
 request carrying a session cookie, while `lazysite/auth/user-settings.json`,
-`revoked.json` or `users` cannot be read or decoded, now answers 503 naming the store,
-on the CGI path and in the pool, where it was rendered as if signed out. The log line
-names the store and the repair (`lazysite check` names it). Visitors with no session
+`revoked.json` or `users` cannot be read or decoded, now answers 503, on the CGI
+path and in the pool, where it was rendered as if signed out. The answer is the one
+every page refused for a damaged store gets, and names no file; the log line names
+the store and the repair (`lazysite check` names it). Visitors with no session
 cookie are served as before.
 
 **The data endpoint refuses a session it cannot check (SM297).** A page's data
@@ -278,7 +279,7 @@ names the file and the repair. A store that does not exist yet is not a fault.
 | No scheduled job runs | `lazysite/daemon/scheduler-runs.json` | remove it; every job runs once at the next tick |
 | The daemon starts no service and stays down until the file is repaired (exit 4, which `lazysited@.service` no longer restarts; the timer's five-minute run refuses again); Status says `failed` | `lazysite/daemon/<service>.state.json` | make sure no copy of the service runs, remove the file, restart `lazysited@<domain>` |
 | A data migration, rebuild or import refused ("could not be queried") | `lazysite/db/data.sqlite` | the check runs SQLite's quick_check; restore from a backup if it fails |
-| The manager says "Cannot tell right now" (503) to a signed-in person | `lazysite/auth/groups-settings.json` | repair the JSON (the check already names it) |
+| The manager says "This page cannot be served right now" (503) to a signed-in person | `lazysite/auth/groups-settings.json` | repair the JSON (the check already names it) |
 | Forgot-password answers `?error=unavailable` | `lazysite/auth/user-settings.json` | repair the JSON (the check already names it) |
 
 Three only say so: the notify status (`notify/status.json`) is no longer written over

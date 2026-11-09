@@ -1467,12 +1467,14 @@ sub handle_request {
 
     # SM297 (ruling 206, ruling 217): a cookie whose session store cannot be read is
     # refused here, before the surface runs, so it is never served as anonymous. The
-    # log line above names the store and the repair.
+    # log line above names the store and the repair. Rulings 216, 217: the words are
+    # the engine's one refusal for a store it cannot tell (store_fault_text), which
+    # the processor's _serve_store_fault says on every other path.
     if ( !$ident && ( $why // '' ) eq 'cannot-tell' ) {
         print "Status: 503 Service Unavailable\r\n";
-        print "Cache-Control: no-store\r\n";
+        print "Cache-Control: no-store, private\r\n";
         print "Content-Type: text/plain; charset=utf-8\r\n\r\n";
-        print Lazysite::Auth::Session::session_fault_text( $detail{store} );
+        print Lazysite::Auth::Session::store_fault_text();
         exit 0;
     }
 

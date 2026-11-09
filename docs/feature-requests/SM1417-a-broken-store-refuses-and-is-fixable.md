@@ -132,8 +132,8 @@ for items 9-17, 20 and 21; items 18 and 19 use the SM1024 lines that already exi
     RestartPreventExitStatus (ruling 216), and the timer's five-minute run refuses
     again. Status says `failed` with the remedy. Check: FAIL per file; make sure no copy runs, remove it,
     restart the host service.
-18. **The manager door says cannot-tell.** Refuses: `/manager/` with a 503 "Cannot
-    tell right now" page, not the 403 "ask for the ui grant", when
+18. **The manager door says cannot-tell.** Refuses: `/manager/` with the 503 every page
+    refused for a damaged store gets (one wording, at the restack: rulings 216, 217), not the 403 "ask for the ui grant", when
     `lazysite/auth/groups-settings.json` will not open or decode. Check: the SM1024
     line for the undecodable file.
 19. **A reset the host cannot match says unavailable.** Refuses: a forgot-password

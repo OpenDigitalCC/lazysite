@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # SM297 (ruling 206, ruling 217): A PAGE REQUEST CARRYING A SESSION COOKIE WHOSE
-# SESSION STORE CANNOT BE READ IS REFUSED - 503, NAMING THE STORE AND THE REPAIR -
+# SESSION STORE CANNOT BE READ IS REFUSED - 503, THE LOG NAMING THE STORE AND THE REPAIR -
 # AND NEVER RENDERED AS ANONYMOUS, ON BOTH PATHS.
 #
 #   the pool    the front door decides the identity in the worker (SM1181 S3);
@@ -62,7 +62,9 @@ my $EXPIRED = cookie_for( 'alice', ts => time() - 30 * 86400 );
 sub refused_ok {
     my ( $out, $log, $what ) = @_;
     like( $out, qr/\AStatus: 503/, "$what: a 503" ) or diag($out);
-    like( $out, qr{lazysite/auth/user-settings\.json}, "$what: the response names the store" );
+    # Rulings 216, 217 (the restack): the engine's one refusal, which names no file to
+    # the visitor (t/integration/498); the log names it.
+    unlike( $out, qr{lazysite/auth/user-settings\.json}, "$what: the response names no file" );
     like( $out, qr/lazysite check/, "$what: and the remedy" );
     unlike( $out, qr/HOME BODY/, "$what: the page is never rendered as anonymous" );
     like( $log, qr/cannot tell - session refused[^\n]*store=lazysite\/auth\/user-settings\.json/,

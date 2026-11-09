@@ -10,9 +10,9 @@ package main;
 #         with its per-request memo and _reset_peek_cache; _is_manager and
 #         _site_grants_manager, the local copy of Auth::Settings'
 #         site_grants_manager (ADR 0001); _serve_manager_forbidden, the
-#         terminal 403 at /manager/ for an account without `ui`, and
-#         _serve_manager_cannot_tell, its 503 when groups-settings.json cannot
-#         be told (ruling 206); serve_403,
+#         terminal 403 at /manager/ for an account without `ui` (when
+#         groups-settings.json cannot be told, _is_manager answers undef and
+#         the door answers gates.pm's _serve_store_fault, ruling 206); serve_403,
 #         the access refusal rendered from the domain's 403.md.
 # OWNS    the page-level auth decision (auth_default, auth_redirect, groups);
 #         the unsecured-site rule - no group grants manager access, so every
@@ -542,38 +542,6 @@ permitted to use the manager interface.</p>
 HTML
     return output_page( $body, 'text/html; charset=utf-8', undef, 1,
         '403 Forbidden' );
-}
-
-# Ruling 206 (item 18 of the 0.16.9 fault survey): the manager refused because
-# groups-settings.json cannot be read or decoded - cannot-tell (503), not the
-# 403 above, whose sentence sends the person to ask for a grant they may hold.
-# The visitor is told it is a fault on the host; the log names the store and the
-# repair (SM494: a file name is not a stranger's to see). The same words as the
-# engine's other cannot-tell refusals.
-sub _serve_manager_cannot_tell {
-    my ( $sv, $auth_user ) = @_;
-    log_event( 'WARN', $sv->{manager_path} || '/manager',
-        'manager refused: cannot tell - lazysite/auth/groups-settings.json cannot be read or '
-            . 'does not decode as a JSON object',
-        user  => $auth_user,
-        store => 'lazysite/auth/groups-settings.json',
-        repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
-    $ACCESS_REC{s} //= 503;
-    my $body = <<"HTML";
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Cannot tell right now</title></head>
-<body style="font-family:system-ui,sans-serif;max-width:520px;margin:3em auto;padding:0 1em;line-height:1.5;">
-<h1 style="font-size:1.3rem;">Cannot tell right now</h1>
-<p>The site cannot read the record of what each group may do, so it cannot tell
-whether this account may use the manager. This is a fault on the host, not a
-decision about this account - its grants may be entirely correct, so do not ask
-for one.</p>
-<p>The site operator can see the cause in the site log, and
-<code>lazysite check</code> names it. You can <a href="/logout">sign out</a> in
-the meantime.</p>
-</body></html>
-HTML
-    return output_page( $body, 'text/html; charset=utf-8', undef, 1, '503 Service Unavailable' );
 }
 
 # SM1140: the manager refused by the visitor's address (manager_addresses). Stands

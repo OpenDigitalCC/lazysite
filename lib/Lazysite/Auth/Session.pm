@@ -645,20 +645,25 @@ sub request_session {
 # SM297 (ruling 206, ruling 217): A SIGNED-IN REQUEST WHOSE SESSION STORE CANNOT BE
 # READ IS REFUSED, never rendered as anonymous. request_session's `cannot-tell`
 # (with `store`) is the fault value; the auth wrapper (CGI) and the pool's front
-# door both answer it with this sentence and a 503, and the log line above names
-# the store and this repair. Only an unreadable or undecodable store is a fault: no
-# cookie, an expired cookie or a missing record is an ordinary signed-out visitor.
+# door both answer it with a 503, and the log line above names the store and this
+# repair. Only an unreadable or undecodable store is a fault: no cookie, an expired
+# cookie or a missing record is an ordinary signed-out visitor.
 sub SESSION_FAULT_REPAIR {
     return 'lazysite check --docroot <docroot> names it; repair it from the command line';
 }
 
-sub session_fault_text {
-    my ($store) = @_;
-    $store = 'its session store' unless defined $store && length $store && $store ne '-';
-    return "This page cannot be served right now: the site cannot read $store, so it "
-        . "cannot tell who is signed in. This is a fault on the host, not a decision about "
-        . "this request; the site operator can repair it from the command line "
-        . "(lazysite check names it).\n";
+# Rulings 206, 216, 217 (the 0.16.9 restack): THE ONE WORDING of a page request
+# refused because a store cannot be told - this session fault, and the processor's
+# _serve_store_fault for a rejected content_root, an unreadable group store and the
+# manager door. It names no file (SM494: a file name is not a stranger's to see);
+# the log names the store and the repair. The processor's render path loads no
+# Lazysite module (ADR 0001), so gates.pm holds a copy, _store_fault_text, and
+# t/integration/498 holds the two to the same words.
+sub store_fault_text {
+    return "This page cannot be served right now: the site cannot read part of its "
+        . "configuration, so it cannot tell how to answer. This is a fault on the host, "
+        . "not a decision about this request; the site operator can see the cause in the "
+        . "site log, and lazysite check names it.\n";
 }
 
 # SM1181 S3 (T11): THE LOG LINE FOR WHAT request_session DECIDED, one for each

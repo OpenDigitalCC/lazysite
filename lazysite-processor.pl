@@ -915,8 +915,14 @@ sub handle_manager_path {
     my $auth_groups = join ',', @{ $ident->{groups} };
 
     my $is_manager = _is_manager( \%sv, $auth_user, $auth_groups );
-    if ( !defined $is_manager && $auth_user ne '' ) {    # ruling 206: cannot tell
-        _serve_manager_cannot_tell( \%sv, $auth_user );
+    # Ruling 206 (item 18), rulings 216 and 217: cannot tell - the engine's one
+    # refusal for a store it cannot tell, never the 403 below, whose sentence sends
+    # the person to ask for a grant they may hold. _store_fault_gate answers the
+    # same fault earlier in the request; this stands should the store break between.
+    if ( !defined $is_manager && $auth_user ne '' ) {
+        _serve_store_fault( $sv{manager_path} || '/manager', 'lazysite/auth/groups-settings.json',
+            'lazysite/auth/groups-settings.json cannot be read or does not decode as a JSON object',
+            user => $auth_user );
         return 1;
     }
     unless ($is_manager) {

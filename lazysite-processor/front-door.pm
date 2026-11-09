@@ -631,14 +631,15 @@ sub _front_session {
 # SM297 (ruling 206, ruling 217): the fault value request_session returned - a
 # session cookie whose store cannot be read - is refused with a 503, as the auth
 # wrapper refuses it on the CGI path, and never rendered as anonymous. The log line
-# _front_session wrote names the store and the repair. Returns 1 when answered.
+# _front_session wrote names the store and the repair. Rulings 216, 217: the answer
+# is the engine's one refusal for a store it cannot tell (_serve_store_fault, in
+# gates.pm). Returns 1 when answered.
 sub _front_session_fault {
     return 0 unless ref $REQUEST_IDENT eq 'HASH' && ( $REQUEST_IDENT->{why} // '' ) eq 'cannot-tell';
     my $store = $REQUEST_IDENT->{store};
     undef $REQUEST_IDENT;
-    _front_fail( '503 Service Unavailable', Lazysite::Auth::Session::session_fault_text($store) =~ s/\n\z//r );
-    $ACCESS_REC{s} = 503;    # the access log's status is a number
-    return 1;
+    $ACCESS_REC{ch} = 'front';
+    return _serve_store_fault( $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '/', $store, '', logged => 1 );
 }
 
 # Consult the front door. Returns true when the request has been answered here,

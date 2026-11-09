@@ -95,10 +95,12 @@ for my $store (qw(user-settings.json revoked.json)) {
         my $out = login();
         unlike( $out, qr/Set-Cookie:\s*lazysite_auth=[^;\s]/, 'no session cookie issues' );
         like( $out, qr/Location:[^\n]*error=unavailable/, 'sign-in answers error=unavailable' );
-        # SM297, ruling 217: refused with a 503 naming the store, never run as no identity.
+        # SM297, ruling 217: refused with a 503, never run as no identity. Rulings 216 and
+        # 217 (the restack): the engine's one refusal, which names no file to the visitor;
+        # lazysite check names it below.
         my $page = page_as_human();
         like( $page, qr/\AStatus: 503/, 'an existing session is refused (503), not run as no identity' );
-        like( $page, qr/\Q$store\E/, 'and the response names the store' );
+        unlike( $page, qr/\Q$store\E/, 'and the response names no file' );
 
         my $check = run_cmd( $^X, "$root/tools/lazysite-check.pl", '--docroot', $d );
         like( $check, qr/\Q$store\E does not decode as a JSON object/, 'lazysite check names the file' )

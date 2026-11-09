@@ -223,10 +223,11 @@ my ( $sid1, $cookie1 );
     like( $r->{out}, qr/error=unavailable/, 'corrupt revoked.json: sign-in refused as unavailable' );
 
     my $a = auth_get( $d, $cookie );
-    # SM297, ruling 217: refused with a 503 naming the store, never run as anonymous.
+    # SM297, ruling 217: refused with a 503, never run as anonymous. Rulings 216, 217 (the
+    # restack): the engine's one refusal names no file to the visitor; the WARN names it.
     like( $a->{out}, qr/\AStatus: 503/, 'corrupt revoked.json: a valid cookie is refused (503)' );
     unlike( $a->{out}, qr/^USER=/m, 'and the surface is never run as anonymous' );
-    like( $a->{out}, qr{lazysite/auth/revoked\.json}, 'and the response names the store' );
+    unlike( $a->{out}, qr{lazysite/auth/revoked\.json}, 'and the response names no file' );
     like( $a->{err}, qr/revoked\.json cannot be read or does not decode/,
         'corrupt revoked.json: WARN on stderr naming the file' );
 }

@@ -115,7 +115,7 @@ our ( $DOCROOT, $LAZYSITE_DIR, $ACL_MAP_CACHE, %ACCESS_REC, %AUTH_CONTEXT, $ENGI
 # not permitted ... ask a sysop to grant your group the ui capability" - a
 # sentence about a rule, for a fault in a file. undef is false wherever the
 # answer is only a boolean; the manager door says cannot-tell
-# (_serve_manager_cannot_tell). An absent file is a site with no groups: 0.
+# (_serve_store_fault, the one refusal). An absent file is a site with no groups: 0.
 sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;

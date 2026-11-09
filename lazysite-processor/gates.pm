@@ -13,6 +13,9 @@ package main;
 #         _store_fault_gate($uri) (ruling 206): a host whose content_root is
 #         rejected, or a signed-in request while groups-settings.json cannot be
 #         read, is answered 503 (_serve_store_fault), never served on a guess.
+#         _serve_store_fault is the processor's one refusal for a store it
+#         cannot tell (rulings 216, 217): the manager door and the front door
+#         answer through it too.
 #         peek_payment($path), check_payment($uri, $meta, $auth, $vars) and
 #         serve_402($result): a page whose front matter says `payment: required`
 #         is served 402 with an x402 X-Payment-Response unless the caller is in
@@ -137,19 +140,37 @@ sub _store_fault_gate {
     return 1;
 }
 
-# The 503 for _store_fault_gate. The visitor is told nothing of the host's
-# layout (SM494: a file name is not a stranger's to see); the log carries it.
+# Rulings 206, 216, 217 (the 0.16.9 restack): THE ONE REFUSAL of a request
+# refused because a store cannot be told. Every page path answers through here:
+# _store_fault_gate (a rejected content_root; the group store, for a signed-in
+# request), the content-root check in main(), the manager door when its grant
+# cannot be told (handle_manager_path, item 18) and the pool's front door for a
+# session cookie whose store cannot be read (_front_session_fault, SM297). The
+# auth wrapper, its own program, says the same words from
+# Lazysite::Auth::Session::store_fault_text. 503, no-store, one wording; the
+# visitor is told nothing of the host's layout (SM494: a file name is not a
+# stranger's to see) and the log names the store and the repair. `logged => 1`
+# when the caller has already written that line (the session's, SM1181 T11).
 sub _serve_store_fault {
     my ( $uri, $store, $why, %log ) = @_;
+    my $logged = delete $log{logged};
     log_event( 'WARN', $uri // '-', "request refused: cannot tell - $why",
         store => $store, %log,
-        repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
+        repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' )
+        unless $logged;
     $ACCESS_REC{s} = 503;
-    output_page( "This page cannot be served right now: the site cannot read part of its "
-            . "configuration. This is a fault on the host, not a decision about this request; "
-            . "the site operator can see the cause in the site log.\n",
-        'text/plain; charset=utf-8', undef, 1, '503 Service Unavailable' );
+    output_page( _store_fault_text(), 'text/plain; charset=utf-8', undef, 1, '503 Service Unavailable' );
     return 1;
+}
+
+# The render path's copy of Lazysite::Auth::Session::store_fault_text (ADR 0001:
+# this file loads no Lazysite module). t/integration/498 holds the two to one
+# wording.
+sub _store_fault_text {
+    return "This page cannot be served right now: the site cannot read part of its "
+        . "configuration, so it cannot tell how to answer. This is a fault on the host, "
+        . "not a decision about this request; the site operator can see the cause in the "
+        . "site log, and lazysite check names it.\n";
 }
 
 # Why groups-settings.json cannot be told, or '' (absent, or it reads as an

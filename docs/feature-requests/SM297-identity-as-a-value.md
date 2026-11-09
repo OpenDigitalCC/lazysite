@@ -92,7 +92,7 @@ The data endpoint, converted
 
 Pages refuse too (ruling 217)
 : A page request carrying a session cookie whose store cannot be read is refused 503,
-  naming the store and the repair, by the auth wrapper (CGI) and by the pool's front
+  the log naming the store and the repair, by the auth wrapper (CGI) and by the pool's front
   door in the worker, from request_session's fault value. No cookie, an expired cookie
   or a removed account is an ordinary signed-out visitor.
 
