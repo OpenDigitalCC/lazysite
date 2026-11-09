@@ -24,7 +24,12 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
 1. **The public web request** -> the processor / auth wrapper (anonymous
    internet).
 2. **The `X-Remote-*` header contract** -> everything downstream trusts it;
-   the edge must strip client-supplied copies (the two-signal trust gate).
+   the edge must strip client-supplied copies (the two-signal trust gate). From
+   0.16.9 (SM297) it is the contract across an exec only: the auth wrapper is its one
+   producer, for the surface it execs (the CGI path, and the pool's relay to the
+   manager API). A surface converted to identity-as-a-value (the data endpoint first)
+   holds the verified identity in `Lazysite::Auth::Identity::$HELD` and its readers are
+   answered that; it writes no header and none is read.
 3. **The WebDAV / control-API / MCP partner** -> a token holder with a bounded
    capability set and per-file ACLs.
 4. **Authored content + layouts** -> Template Toolkit evaluates them server
@@ -5202,3 +5207,68 @@ verdict
   declaration that is audited at every sign-in. No ahead-of-schedule third-party
   engagement proposed beyond the one ADR 0007 already requires; whether ruling 186's
   first use warrants one is the release manager's call.
+
+### 2026-11-09 - SM297 (0.16.9, PENDING): identity is a value - the data endpoint stops writing its own trust headers
+
+Assessment drafted by the developer agent (n793), for the release manager's
+confirmation. The filing is SM297; the brief converts one surface at a time, on X4
+(SM1369). Ruling 206 (a fault refuses). The trust boundary changes (boundary 2).
+
+what changed
+: One accessor. `Lazysite::Auth::Identity::request_identity` answers a value held in
+  `$Lazysite::Auth::Identity::HELD` (set with `local`, so it ends with its scope) to any
+  caller that names no `identity` of its own, and reads nothing from `%ENV` while it
+  is held. `request_session`, which decides the value, says `identity => undef` and so
+  reads the request. The processor's own reader is unchanged (it names
+  `$REQUEST_IDENT`).
+: One surface converted. `lazysite-data.pl` verified its caller and then deleted every
+  `X-Remote-*`, wrote the verified user and groups back under the fixed names, set the
+  wrapper's sentinel `LAZYSITE_AUTH_TRUSTED`, and let every reader it called (its own,
+  the ACL's operator check, the capability gates) read them out of its environment. It
+  now holds the value (an anonymous value for nobody) and writes nothing; its readers
+  are answered the value.
+: Ruling 206: a session whose store cannot be read (`cannot-tell`) is refused by the
+  endpoint with a 503 naming the store, and the auth line names it in the log; it was
+  served as anonymous.
+
+threat delta
+: No ADR 0007 trigger fires: no new interface, method, dependency or data. Spoofing is
+  the question, and it narrows: an identity in the endpoint's environment - sent by the
+  client, passed by the web server as a parameter, or written by anything in the process
+  after the identity was decided - was believed by the endpoint's readers because the
+  endpoint itself set the sentinel; with a value held it has no effect. The new
+  element is the held value: a reader in the same process that does not name an
+  identity is answered it, so a value left held past its request would answer the next.
+
+controls
+: The hold is `local`, so it ends with the endpoint's `main()` (and a die), and a CGI
+  is one request per process. A caller naming its own identity is answered that, and
+  the deciding function never reads a held value. t/unit/auth/177 pins the accessor
+  (forged fixed names, sentinel and configured proxy names have no effect while a value
+  is held; the hold ends with its scope; the CGI path reads as before). t/integration/478
+  runs the endpoint: an identity forged in the request, and one written into `%ENV`
+  mid-request, have no effect on a member or on nobody; a sabotaged copy with the hold
+  removed is fooled by the same write (the bypass is caught); a store that cannot be
+  read is a 503 naming it. t/lint/268 no longer allows the data endpoint to name a
+  fixed header and t/lint/38 asserts it reads none, so a return to the old channel fails
+  both. t/integration/290 (the wrapper and the endpoint decide one identity, against the
+  recorded base) passes with the endpoint's identity read where its readers read it.
+  Each fails with its change reverted.
+
+residual risk
+: The manager API in the pool is not converted: its relay still forks, clears and writes
+  the wrapper's contract from the value (SM1181 S4) and execs the API, because the API
+  is a top-level script that answers by `exit` in eighteen places and keeps its
+  crash-audit row and registry rebuild in END blocks, so it cannot be called in a
+  long-lived worker as it stands. Its readers of the session id (`LAZYSITE_AUTH_SID`
+  in Account, Sessions, Users) stay on the contract with it. The CGI wrapper and its
+  contract are unchanged by design. The Odoo endpoint and the form handler already
+  verify their own caller as a value and write nothing. A public page in the pool
+  whose session store cannot be read is still rendered as anonymous (the in-worker
+  path is SM1181's, unchanged here): a question for the release manager under ruling
+  206.
+
+verdict
+: drafted as accepted, for the release manager's confirmation. No trigger fires; the
+  change removes a channel and adds a held value whose scope is the request. No
+  ahead-of-schedule third-party engagement proposed.

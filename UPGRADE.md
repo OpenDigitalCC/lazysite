@@ -70,6 +70,13 @@ Sections below are per-release notes, newest first. Where an older section says
 
 ## Unreleased (0.16.9)
 
+**The data endpoint refuses a session it cannot check (SM297).** A page's data
+(`/cgi-bin/lazysite-data.pl`) answered a signed-in visitor as anonymous when a session
+store (`lazysite/auth/user-settings.json`, `revoked.json` or `users`) could not be read.
+It now answers 503 with `kind: cannot-tell`, naming the store, and logs it; `lazysite
+check` names the same fault. Repair the store from the command line and the same session
+is served again. Nothing changes for an anonymous visitor or a store that reads.
+
 **The Odoo site sign-in is an identity provider (SM1369, X4).** A site whose sign-in is
 the Odoo login (`odoo_site_signin: on`) keeps working as it did: the same `lazysite_auth`
 cookie, the same `odoo:<login>` identity, the same groups from `odoo_group_map`, the same

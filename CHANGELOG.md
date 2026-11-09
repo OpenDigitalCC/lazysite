@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM297 (PENDING) **Identity is a value: the data endpoint holds who is calling and
+  writes no trust header (the first surface converted).** One accessor:
+  `Lazysite::Auth::Identity::request_identity` answers a value held for the request
+  (`$Lazysite::Auth::Identity::HELD`, set with `local`) and reads nothing from `%ENV`
+  while it is held. `lazysite-data.pl` used to write the verified identity back into
+  its own environment under the fixed `X-Remote-*` names with the wrapper's sentinel
+  and read it from there; it holds the value now, so an identity forged in the request
+  or written in the process has no effect. A session whose store cannot be read is
+  refused there with a 503 naming the store (ruling 206), where it was served as
+  anonymous. The manager API in the pool keeps its relay (fork, the contract written
+  from the value, exec) and the CGI wrapper its header contract.
 - SM1369 (PENDING) **X4: an extension declares an identity provider, and the Odoo site
   sign-in is the first (H-1; rulings 178, 186).** `owns.hooks.identity_provider` gives
   core a provider's `on`, `still_valid`, `groups`, `login_option` and `banner`, its

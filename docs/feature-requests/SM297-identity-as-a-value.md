@@ -2,8 +2,8 @@
 title: "SM297 - Identity as a value, not a header"
 subtitle: "The auth wrapper hands identity across an exec() as X-Remote-* headers. In one process there is no boundary to cross, and a dispatcher that sets those headers for itself has invented a forgeable channel inside its own address space."
 brand: plain
-status: candidate
-status-note: "BLOCKS SM614's sliding half (recorded 2026-08-27): sliding session expiry needs the auth wrapper to put a re-signed cookie on a response the PROCESSOR emits, and the wrapper execs it - so there is no way to add the header without a channel across that boundary. Building one for that purpose alone would be inventing what this filing exists to remove, so SM614 shipped its settable-lifetime half and waits here. FILED 2026-08-14 as the item SM294 deliberately did not take. Nothing started. This is the change that makes the pooled front door fully in-process, and it is a rewrite of the auth spine on the surface where being wrong is an authentication bypass - so it wants its own security review and its own release, not a corner of a performance filing."
+status: partial
+status-note: "0.16.9 (PENDING): one accessor (a value held in Lazysite::Auth::Identity) and the first surface converted - the data endpoint no longer writes its own trust headers, and a damaged session store refuses there (ruling 206). The manager API in the pool still forks and execs with the contract; still BLOCKS SM614's sliding half. See the 0.16.9 section."
 ---
 
 # SM297 - the last exec in the request path
@@ -71,6 +71,40 @@ Three reasons, and the first is sufficient on its own.
   sharing a pool between sites.
 - **Measure it.** `tmp/sm294-bench.pl` already produces the comparison this
   would have to move.
+
+## 0.16.9: one accessor, and the first surface
+
+Built on X4 (SM1369), one surface at a time.
+
+The accessor
+: `Lazysite::Auth::Identity::request_identity` answers a value held in
+  `$Lazysite::Auth::Identity::HELD` - set with `local`, so it ends with its scope -
+  to any caller that names no `identity` of its own, and reads nothing from `%ENV`
+  while it is held. `request_session`, which decides the value, reads the request
+  (`identity => undef`). Every converted surface goes through it.
+
+The data endpoint, converted
+: `lazysite-data.pl` deleted every `X-Remote-*`, wrote the verified identity back under
+  the fixed names, set the wrapper's sentinel and let its readers read them from its
+  own environment - the forgeable channel inside one address space that this filing
+  is about. It holds the value now and writes nothing. A session whose store cannot be
+  read is refused with a 503 naming the store (ruling 206), where it was anonymous.
+
+What remains, and why
+: The manager API in the pool. Its relay forks, clears the identity variables, writes
+  the wrapper's contract from the value and execs the API (SM1181 S4). A direct call
+  needs the API to be callable in a worker, and as it stands it is a top-level script
+  that answers by `exit` in eighteen places and keeps its crash-audit row and registry
+  rebuild in END blocks; its session-id readers (Account, Sessions, Users) read
+  `LAZYSITE_AUTH_SID`. Making it a callable is its own change, and the release
+  manager's to schedule. Until then SM614's sliding half stays blocked here: the
+  processor still cannot put a re-signed cookie on a response the wrapper execs.
+: The CGI wrapper and its header contract stay, by design (point 3 above).
+: The Odoo endpoint and the form handler already verify their own caller and hold it
+  as a value; they write nothing.
+: SM614 recorded (2026-08-27): sliding session expiry needs the auth wrapper to put a
+  re-signed cookie on a response the processor emits, and the wrapper execs it, so
+  SM614 shipped its settable-lifetime half and waits here.
 
 ## Related
 
