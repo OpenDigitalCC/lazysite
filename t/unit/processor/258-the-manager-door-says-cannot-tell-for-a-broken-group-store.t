@@ -66,12 +66,14 @@ subtest 'an undecodable store: 503 cannot-tell, never "ask for a grant"' => sub 
     my $d = site('{"editors": {"label": "Editors", "ui": 1');
     my ( $out, $err ) = as_user( $d, 'rita', 'editors' );
     is( status($out), 503, '503, not 403' ) or diag( substr $out, 0, 400 );
-    like( $out, qr/Cannot tell right now/, 'the cannot-tell page' );
-    like( $out, qr/fault on the host, not a\s+decision about this account/, 'saying it is a fault' );
+    # n789's _store_fault_gate, earlier on this line, refuses every signed-in request
+    # on this fault before the manager door is reached, so the answer is its
+    # cannot-tell; the door's own (below the gate) stands for a store that breaks
+    # between the two reads.
+    like( $out, qr/fault on the host, not a\s+decision/, 'a cannot-tell answer, saying it is a fault' );
     unlike( $out, qr/Manager access not permitted|grant your group/, 'and not the sentence about a rule' );
     unlike( $out, qr/groups-settings\.json/, 'naming no file to the visitor' );
-    like( $err, qr/cannot tell - lazysite\/auth\/groups-settings\.json cannot be read or does not decode/,
-        'the log names the store' );
+    like( $err, qr/cannot tell - [^\n]*store=lazysite\/auth\/groups-settings\.json/, 'the log names the store' );
     like( $err, qr/lazysite check --docroot <docroot> names it/, 'and the repair' );
 };
 
