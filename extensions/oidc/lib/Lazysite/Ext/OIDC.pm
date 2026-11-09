@@ -420,6 +420,15 @@ sub start {
     unless ( Lazysite::Auth::LoginRate::check_login_rate( "$ID-ip=" . ( $a{ip} // '' ),
             auth_dir => "$a{lz}/auth", docroot => $a{docroot} ) )
     {
+        # Ruling 223 (the 0.16.9 restack, as ruling 212 for the Odoo sign-in): a limiter
+        # that cannot count is a fault on the host (ruling 206), said in the limiter's
+        # own words as cannot-tell - never "too many sign-in attempts".
+        if ( length $Lazysite::Auth::LoginRate::FAULT ) {
+            log_event( 'WARN', 'auth', 'an OIDC sign-in start is refused: the sign-in rate limiter cannot count',
+                ip => $a{ip} // '', fault => $Lazysite::Auth::LoginRate::FAULT );
+            return { ok => 0, status => '503 Service Unavailable', kind => 'cannot-tell',
+                error => Lazysite::Auth::LoginRate::fault_refusal()->{error} };
+        }
         log_event( 'WARN', 'auth', 'an OIDC sign-in start is refused: too many from this address',
             ip => $a{ip} // '' );
         return { ok => 0, status => '429 Too Many Requests',

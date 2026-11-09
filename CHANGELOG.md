@@ -289,7 +289,8 @@ Archive
   auth store lock (lazysite/auth/.consume.lock) that cannot be taken refuses every
   account change and single-use link. (4) A login rate limiter that cannot count (no
   DB_File, a counter that will not open) refuses every sign-in, the Odoo sign-in
-  included, which says so as cannot-tell rather than "too many attempts" (ruling 212);
+  and an OIDC sign-in start included, which say so as cannot-tell rather than "too many
+  attempts" (rulings 212, 223);
   switched off is unchanged. (5) A groups-settings.json that will not read refuses every signed-in page
   (503). (6) A groups file that will not open refuses sign-in and every session. (7) A
   rejected or missing content_root refuses that host (503) instead of serving the
