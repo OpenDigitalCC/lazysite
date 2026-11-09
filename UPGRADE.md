@@ -265,6 +265,28 @@ The log carries a WARN for each refusal naming the file and the check, so a site
 starts refusing after the upgrade says why in the site log. An absent file is not a
 fault: a fresh site with no rules, groups or counter yet behaves as before.
 
+**A damaged store now stops what it guards (SM1417, ruling 206).** Before 0.16.9 these
+were carried past in silence; now each refuses and leaves the file as it was found.
+Run `lazysite check --docroot <docroot>` after the upgrade: each one is a FAIL that
+names the file and the repair. A store that does not exist yet is not a fault.
+
+| What an operator sees | The file | The repair |
+|---|---|---|
+| Every upload refused (503, "cannot accept this upload") | `lazysite/manager/.upload-rate.db` | remove it; it holds only this hour's counts |
+| The notify-outbox job reports "nothing was sent"; queued notices wait | `lazysite/notify/ledger.jsonl` or `notify/suppressed.jsonl` | repair the line the check names; never remove `suppressed.jsonl`, it records who unsubscribed |
+| A form's acknowledgement, a notice mail, or a capped connector call refused by its cap | `lazysite/forms/submitter-mail.jsonl`, `logs/notice-mail.jsonl`, `connectors/calls.jsonl` | repair or remove the line the check names |
+| No scheduled job runs | `lazysite/daemon/scheduler-runs.json` | remove it; every job runs once at the next tick |
+| The daemon starts no service (exit 4); Status says `failed` | `lazysite/daemon/<service>.state.json` | make sure no copy of the service runs, remove the file, restart `lazysited@<domain>` |
+| A data migration, rebuild or import refused ("could not be queried") | `lazysite/db/data.sqlite` | the check runs SQLite's quick_check; restore from a backup if it fails |
+| The manager says "Cannot tell right now" (503) to a signed-in person | `lazysite/auth/groups-settings.json` | repair the JSON (the check already names it) |
+| Forgot-password answers `?error=unavailable` | `lazysite/auth/user-settings.json` | repair the JSON (the check already names it) |
+
+Three only say so: the notify status (`notify/status.json`) is no longer written over
+(remove it), the installed version reads unknown with a WARN when
+`.install-state.json` does not decode (run the upgrade again), and an unreadable notice
+template under `notify-templates/` is logged while the built-in wording is used (make it
+readable). Nothing to do on a site whose check is clean.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

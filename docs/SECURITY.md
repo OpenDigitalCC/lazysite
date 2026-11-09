@@ -5660,3 +5660,61 @@ residual risk
 verdict
 : drafted as accepted, for the release manager's confirmation. No trigger fired;
   recorded because it changes what eight access decisions answer on a damaged host.
+
+### 2026-11-09 - SM1417 (0.16.9, PENDING): a damaged store refuses writes and sends, and says so (ruling 206, survey items 9-21), a hardening
+
+Assessment drafted by the developer agent (n790) for the release manager's confirmation.
+Items 1-8 of the same survey (access) are n789's, under the same number.
+
+what changed
+: Ruling 206: a store that exists and cannot be told is a fault; the engine refuses
+  (cannot-tell, 503 where it answers a request) and never works around it, and
+  `lazysite check` and the log name the store and the remedy. One wording,
+  Lazysite::Util::store_fault. Absent stores stay legitimate throughout.
+: Item 9: an upload counter (`manager/.upload-rate.db`) that will not open, or no
+  DB_File, refused nothing - the hourly budget was off. Every upload is now refused.
+: Items 10 and 11: a line of `notify/suppressed.jsonl` or `notify/ledger.jsonl` that is
+  not a record was skipped, so a person who unsubscribed was mailed again, or a notice
+  went twice. The outbox run now sends nothing and keeps its queue.
+: Item 12: the submitter-mail, notice-mail and connector-call records skipped a bad
+  line, so their caps undercounted. Each cap now refuses.
+: Items 13, 14 and 15: the scheduler's run record, the notify status and the connector
+  call sweep healed a damaged file by rewriting it without the damage. Each now leaves
+  the file as found; the scheduler runs no job, the sweep sweeps nothing.
+: Item 16: a failed query in a migration, rebuild or import pre-flight read as "no
+  rows". Each now refuses.
+: Item 17: a damaged daemon service state file hid an orphaned service, so the
+  supervisor started a second copy. It now starts no service (exit 4).
+: Items 18-21 (display): the manager door answers cannot-tell, not "ask for a grant",
+  for an undecodable groups-settings.json; a forgot-password request the host cannot
+  match answers `error=unavailable`, not the generic reset page; an undecodable
+  install state and an unreadable notice template are logged and said.
+
+threat delta
+: None of ADR 0007's four triggers fires: no new interface (existing doors refuse more
+  or say more), no new sign-in method, no new dependency, no new restricted data.
+: Tampering and repudiation, narrowed: a person able to damage one of these files (the
+  site user, or a fault on the host) could switch a cap off, re-send to someone who
+  unsubscribed, or erase the record of the damage through a self-healing rewrite. Each
+  of those now stops the action and leaves the file for the sysadmin.
+: Denial of service, by design: a damaged store stops the action it guards for every
+  caller until it is repaired - uploads, notification sends, scheduled jobs, the
+  daemon's services. That is ruling 206's trade (a damaged site, the sysadmin
+  resolves); no fault is reachable from a request.
+: Information disclosure: unchanged. Refusals to a caller name docroot-relative stores
+  (SM494); the forgot-password answer says only that the host is unavailable, the same
+  for every identifier; the manager page names no file.
+
+controls
+: t/unit/manager/562, 563, 564; t/unit/notify/81, 82; t/unit/forms/149;
+  t/unit/daemon/07, 11, 88; t/unit/data/160; t/unit/processor/258; t/unit/auth/147;
+  t/tools/411. Each fails with its change reverted.
+
+residual risk
+: A damaged store refuses until a person repairs it; nothing repairs it for them, by
+  ruling. The ruling's other side is that the check must name every such store:
+  t/tools/411 holds the list for this branch. The unsubscribe store's `record` still
+  appends past a bad line (an append loses nothing and the read refuses).
+
+verdict
+: drafted, for the release manager's confirmation. A hardening; no trigger fires.

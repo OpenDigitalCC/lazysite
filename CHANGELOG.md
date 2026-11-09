@@ -294,6 +294,20 @@ Archive
   invalid password_min_length every password set, instead of the default. New check
   lines for 3, 4, 6, 7 and 8. UPGRADE.md says what an operator sees and how to fix it.
   Register entry drafted for the release manager.
+- SM1417 (PENDING) **a damaged store refuses writes and sends, and lazysite check names
+  it (ruling 206, survey items 9-21).** A store that exists and cannot be told is a
+  fault: the engine refuses and leaves the file as found, and `lazysite check` and the
+  log name the store and the repair (one wording, `Lazysite::Util::store_fault`).
+  Uploads are refused when the upload counter will not open; the notification outbox
+  sends nothing, and keeps its queue, when its ledger or unsubscribe store holds a bad
+  line; the submitter-mail, notice-mail and connector-call caps refuse on a bad line;
+  the scheduler runs no job on a damaged run record, the daemon supervisor starts no
+  service on a damaged state file, and neither they nor the notify status or the
+  connector sweep rewrite a damaged file any more; a data migration, rebuild or import
+  refuses when its pre-flight query fails. The manager door says cannot-tell (503) for
+  an undecodable groups-settings.json, a forgot-password request the host cannot match
+  answers `error=unavailable`, and an undecodable install state or an unreadable notice
+  template is logged. Absent stores are unchanged. See UPGRADE.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
