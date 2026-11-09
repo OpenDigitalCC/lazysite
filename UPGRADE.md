@@ -244,7 +244,7 @@ package's engine; `lazysite check` names it (`pool engine: ...`) and the remedy:
 `lazysite reinstall` (or `upgrade`), then `systemctl restart lazysite@<site>`. A pool
 conf whose `CGIBIN=` points somewhere other than the site's cgi-bin must be corrected.
 
-**A broken store or setting now refuses (ruling 206).** Until 0.16.8 a site with a
+**A broken store or setting now refuses (SM1417, ruling 206).** Until 0.16.8 a site with a
 damaged access store or an invalid setting carried on, guessing an answer. From 0.16.9
 it refuses until the fault is repaired. Run `lazysite check --docroot <docroot>` after
 the upgrade: every case below is a FAIL line there, naming the file and the repair. A

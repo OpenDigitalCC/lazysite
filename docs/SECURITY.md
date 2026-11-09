@@ -5597,7 +5597,7 @@ residual risk
 verdict
 : drafted; for the release manager's confirmation.
 
-### 2026-11-09 - Ruling 206, items 1-8 (0.16.9, PENDING): a broken store or setting refuses access
+### 2026-11-09 - SM1417, ruling 206 items 1-8 (0.16.9, PENDING): a broken store or setting refuses access
 
 Assessment drafted by the developer agent (n789) for the release manager's confirmation.
 A hardening: eight places that worked around a damaged access store or setting now

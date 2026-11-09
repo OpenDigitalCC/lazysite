@@ -276,6 +276,7 @@ Archive
   the package's engine, and `lazysite check` names the fault and its remedy (ruling 206).
   A shared read-only engine keeps running the image's. t/integration/458.
 - SM1024 (PENDING) **A broken access store or setting refuses; it is never worked
+- SM1417 (PENDING) **A broken access store or setting refuses; it is never worked
   around (rulings 206 and 207, items 1-8).** A site that was silently carrying on now
   refuses until the fault is repaired from the command line; `lazysite check` and the
   log name each fault and its remedy, and an absent store is still "nothing
