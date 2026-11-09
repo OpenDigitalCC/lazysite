@@ -494,14 +494,15 @@ sub action_list {
         path => $dir_path, hidden => $hidden, user => $auth_user )
         if $hidden;
 
-    # SM1404 (triage T-93): the permissions editor's profile choices (SM1139) ride
-    # on the Files page's listing ONLY, asked for by the manager API's list
-    # branch (pickers). On every other door - MCP list_files, a token's list - a
-    # list of `{ name }` beside `entries` read as an entry named after the rule's
-    # address profile, with no type, next to the page.
+    # SM1404 (triage T-93), n785 (T-113): A LISTING IS ITS ENTRIES, ON EVERY DOOR.
+    # The permissions editor's profile choices (SM1139) beside `entries` - a list
+    # of `{ name }` with no type - read as an entry named after the rule's address
+    # profile. SM1404 kept them on the manager API's listing alone, and the
+    # operator's own `list` then showed what MCP list_files did not (0.16.8 edge,
+    # zz81-allow). The Files page reads them with the other picker lists
+    # (action_principals, address_profile_choices), so no listing carries them.
     return { ok => 1, path => $dir_path, entries => \@entries,
-        $served_copy->($canon),    # SM1339: the folder listed, when it is one
-        ( $opt{pickers} ? ( address_profiles => _address_profile_choices() ) : () ) };
+        $served_copy->($canon) };    # SM1339: the folder listed, when it is one
 }
 
 # SM1414 (ruling 173): A LISTING ON THE MEMBER CONTENT DOOR. action_list's answer
@@ -2403,6 +2404,10 @@ sub _address_profile_choices {
     my $profiles = Lazysite::Auth::AddressProfiles::profiles();
     return [ map { { name => $_ } } sort keys %$profiles ];
 }
+
+# n785 (T-113): the same choices for the Files page's pickers, which it reads with
+# the principals (Manager::Users::action_principals).
+sub address_profile_choices { return _address_profile_choices() }
 
 # SM287: which spellings mean "the whole site", and which are refused.
 #

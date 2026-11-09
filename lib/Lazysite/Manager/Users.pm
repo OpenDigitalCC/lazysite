@@ -251,7 +251,12 @@ sub action_principals {
     # SM778: the permissions pickers are the surface the report was about -
     # they offered a list of logins to grant to and no way to tell two people
     # apart.
-    return { ok => 1, users => \@users, groups => \@groups, _display_names(@users) };
+    # n785 (T-113): and the address profiles a rule may name (SM1139, names only),
+    # the third picker list of the Files page's permissions editor - here, with the
+    # other two, rather than beside a listing's entries (SM1404).
+    require Lazysite::Manager::Files;
+    return { ok => 1, users => \@users, groups => \@groups, _display_names(@users),
+        address_profiles => Lazysite::Manager::Files::address_profile_choices() };
 }
 
 # SM991: the users-tool verbs that only READ. Everything else the Users API

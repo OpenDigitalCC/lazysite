@@ -5,8 +5,9 @@
 # type. What wrote it: SM1139's `address_profiles => [ { name } ]`, the
 # permissions editor's picker choices, returned on EVERY listing answer by
 # Manager::Files::action_list - so over MCP a list of nameless `{ name }` rows
-# sat next to `entries`. The choices now ride on the manager API's listing only
-# (the Files page is their one reader, `pickers`); MCP list_files asks without.
+# sat next to `entries`. SM1404 kept them on the manager API's listing alone; n785
+# (T-113) takes them off every listing - the operator's door showed the same row -
+# and the Files page reads them with the principals (t/unit/manager/532).
 #
 # Reverted, the first subtest fails: the bare listing carries the profile.
 use strict;
@@ -49,17 +50,16 @@ subtest 'the listing as MCP list_files asks for it: the page, and nothing named 
     is( $r->{entries}[0]{governed_by}, 'zz78-addr', 'the entry still says which rule governs it' );
 };
 
-subtest 'the Files page\'s listing carries the picker choices, asked for by name' => sub {
-    my $r = Lazysite::Manager::Files::action_list( '/zz78-addr', pickers => 1 );
+subtest 'the choices come with the principals, for the permissions editor' => sub {
+    my $r = Lazysite::Manager::Users::action_principals();
     is_deeply( $r->{address_profiles}, [ { name => 'zz78-allow' } ], 'the choices, for the permissions editor' );
-    is_deeply( [ map { $_->{name} } @{ $r->{entries} } ], ['page.md'], 'and the same one entry' );
 };
 
-subtest 'the manager API asks for the pickers; MCP list_files does not' => sub {
+subtest 'neither the manager API nor MCP list_files asks a listing for pickers' => sub {
     open my $ah, '<', "$root/lazysite-manager-api.pl" or die $!;
     my $api = do { local $/; <$ah> };
     close $ah;
-    like( $api, qr/action_list\( \$path, pickers => 1 \)/, 'the API\'s list branch passes pickers' );
+    unlike( $api, qr/action_list\([^)]*pickers/, 'the API\'s list branch passes no pickers' );
     open my $mh, '<', "$root/lazysite-mcp.pl" or die $!;
     my $mcp = do { local $/; <$mh> };
     close $mh;
@@ -69,7 +69,7 @@ subtest 'the manager API asks for the pickers; MCP list_files does not' => sub {
     open my $fh, '<', "$root/starter/manager/files.md" or die $!;
     my $page = do { local $/; <$fh> };
     close $fh;
-    like( $page, qr/ADDRESS_PROFILES = data\.address_profiles/, 'the Files page is the reader of the choices' );
+    like( $page, qr/ADDRESS_PROFILES = d\.address_profiles/, 'the Files page reads the choices with the principals' );
 };
 
 done_testing;

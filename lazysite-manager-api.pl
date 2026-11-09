@@ -1623,11 +1623,11 @@ if ( $action eq 'list' ) {
     # SM1308 (ruling 47): a confined caller naming no folder is shown its scope
     # roots, as MCP list_files is - one function for both doors.
     # SM1332: one granted the primary's row is shown the docroot, as an unbound one is.
-    # SM1404: `pickers` carries the permissions editor's profile choices for the
-    # Files page; MCP list_files asks without it.
+    # SM1404, n785 (T-113): the same listing MCP list_files gives; the Files page's
+    # profile choices come with the principals.
     $result = ( !Lazysite::Manager::Common::scopes_reach_docroot( \@REQUEST_SCOPES ) && !_list_names_a_folder() )
         ? Lazysite::Manager::Files::action_list_scope_roots( \@REQUEST_SCOPES )
-        : action_list( $path, pickers => 1 );
+        : action_list($path);
     # SM1414 (ruling 173): a member sees the entries a rule lets them read, in
     # their own domain, by the paths they send, and no picker lists.
     $result = Lazysite::Manager::Files::member_listing( $result, user => $auth_user, root => $MEMBER_ROOT )

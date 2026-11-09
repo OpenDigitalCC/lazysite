@@ -228,6 +228,13 @@ Archive
   body (ruling 196); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
   (t/unit/notify/41, t/unit/account/38).
+- SM1404 (PENDING) **The operator's Files listing is MCP's listing.** The manager API's
+  `list` still carried the permissions editor's address-profile choices beside the
+  entries (SM1404 kept them there for the Files page), so an operator's listing of a
+  folder under a rule naming a profile showed an entry named after it, where MCP
+  `list_files` did not. No listing carries them now; the Files page reads them with the
+  other picker lists, from `principals`, and `acl-get` carries them as before.
+
 - SM1398 (PENDING) **A page body has `| json`, and a filter it lacks is refused on save.**
   `[% page_url_raw | json %]` in a page body left the whole body as written: `json` was a
   layout's and a component's filter only. The page-body render now has it. A filter a

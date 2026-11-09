@@ -114,6 +114,9 @@ function loadPrincipals() {
     .then(function(d) {
       if (!d || !d.ok) return;
       PRINCIPALS = { users: d.users || [], groups: d.groups || [] };
+      // n785 (T-113): the address profiles a rule may name, with the other pickers
+      // rather than beside a listing's entries (SM1404).
+      ADDRESS_PROFILES = d.address_profiles || [];
       // SM305: hand the same lists to the shared picker, so every control on
       // this page that names a principal is built from one source.
       if (window.mgSetPrincipals) mgSetPrincipals(PRINCIPALS.users, PRINCIPALS.groups);
@@ -159,7 +162,6 @@ function loadDir(dir) {
             }
             return;
           }
-          ADDRESS_PROFILES = data.address_profiles || [];
           renderFiles(data.entries || []);
           updateSelection();
         });
