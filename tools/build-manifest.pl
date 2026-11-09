@@ -230,11 +230,11 @@ sub is_starter {
 # owns.endpoints, read from the descriptor's text (this script loads no
 # Lazysite module).
 sub endpoint_owners {
-    my ($staged) = @_;
+    my ( $staged, $files ) = @_;
     my %owner;
-    for my $d ( sort glob("$staged/extensions/*.pl") ) {
-        my ($id) = $d =~ m{/([a-z][a-z0-9-]*)\.pl\z} or next;
-        open my $fh, '<', $d or next;
+    for my $rel ( sort grep { m{\Aextensions/[a-z][a-z0-9-]*\.pl\z} } @$files ) {
+        my ($id) = $rel =~ m{/([a-z][a-z0-9-]*)\.pl\z} or next;
+        open my $fh, '<', "$staged/$rel" or next;
         my $text = do { local $/; <$fh> };
         close $fh;
         while ( $text =~ /\bendpoints\s*=>\s*\[([^\]]*)\]/g ) {
@@ -273,7 +273,7 @@ sub apply_install_to {
 sub generate_manifest {
     my $cfg   = load_config( $opt{config} );
     my $files = scan_files( $opt{staged} );
-    my $owners = endpoint_owners( $opt{staged} );
+    my $owners = endpoint_owners( $opt{staged}, $files );
 
     my @manifest_files;
     my @unmatched;

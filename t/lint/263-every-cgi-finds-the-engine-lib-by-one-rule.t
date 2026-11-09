@@ -41,7 +41,11 @@ closedir $dh;
 ok( $has_proc, 'the processor is among them' );
 cmp_ok( scalar @scripts, '>=', 8, 'the root CGIs are found (' . scalar(@scripts) . ')' );
 
-my ($linked) = slurp("$root/install.pl") =~ m{for my \$extension \(qw\(([^)]+)\)\) \{\n\s+my \$src = "\$extension_dir/\$extension\.pl";\n\s+my \$dst = "\$cgibin/\$extension\.pl";};
+# SM1361: the list is endpoint_links(), which the link loop reads.
+my $inst = slurp("$root/install.pl");
+my ($linked) = $inst =~ m{^sub endpoint_links \{ return qw\(([^)]+)\) \}$}m;
+undef $linked
+    unless $inst =~ m{for my \$extension \( \$SHARED_ENGINE \? \(\) : endpoint_links\(\) \) \{\n\s+my \$src = "\$extension_dir/\$extension\.pl";\n\s+my \$dst = "\$cgibin/\$extension\.pl";};
 ok( defined $linked, 'install.pl names the extensions it puts in the cgi-bin' );
 push @scripts, map { "extensions/$_.pl" } split ' ', $linked // '';
 
