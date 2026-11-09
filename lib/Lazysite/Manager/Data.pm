@@ -32,7 +32,7 @@ use Lazysite::Data::Connect    ();
 use Lazysite::Data::Access     ();
 use Lazysite::Data::Owned      ();
 use Lazysite::Data::Value      ();                    # SM1355: a switch's value
-use Lazysite::Auth::Acl        qw(load_acls save_acls _acl_norm _to_list
+use Lazysite::Auth::Acl qw(load_acls save_acls acls_write_refusal _acl_norm _to_list
     _acl_allows _is_operator);
 use Lazysite::Paths ();
 use File::Path ();
@@ -173,6 +173,9 @@ sub action_table_acl_set {
     # SM976 R4: a table's rule is that table's, reached as the table is.
     if ( my $no = _outside_scope($table) ) { return $no }
 
+    # Ruling 206: never a rule written over a broken store - the {} it reads as
+    # would also make every table look ruleless, so anyone could create one.
+    if ( my $no = acls_write_refusal() ) { return $no }
     my $acls     = load_acls();
     my $norm     = _acl_norm($key);
     my $existing = $acls->{$norm};
@@ -215,6 +218,8 @@ sub action_table_acl_remove {
     # SM976 R4: a table's rule is that table's, reached as the table is.
     if ( my $no = _outside_scope($table) ) { return $no }
 
+    # Ruling 206: a broken store reads as {}, which is not "no rule to remove".
+    if ( my $no = acls_write_refusal() ) { return $no }
     my $acls     = load_acls();
     my $norm     = _acl_norm($key);
     my $existing = $acls->{$norm};

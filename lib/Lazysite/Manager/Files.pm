@@ -24,7 +24,8 @@ use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_save_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
     %params _json_body); # SM944 S33: acl-set's handler reads the request's parameters and body
 use Lazysite::Auth::Acl
-    qw(load_acls save_acls _acl_norm _to_list _acl_allows file_rule_bypass _acl_denied may_read_any_rule);
+    qw(load_acls save_acls acls_write_refusal _acl_norm _to_list _acl_allows file_rule_bypass
+    _acl_denied may_read_any_rule);
 use Lazysite::Manager::Upload qw(is_editable_text);
 use Lazysite::Private         ();                    # SM286: where content actually lives
 use Lazysite::Auth::Settings  ();                    # SM778: logins -> display names
@@ -1665,6 +1666,12 @@ sub action_copy {
     # SM976 Q15e: a copy of a binding page is a new binding where it lands.
     if ( my $g = form_bind_tree_guard( $d->{rel}, $src_full ) ) { return $g }
 
+    # Ruling 206: the copy writes its owner rule, so a broken store refuses it
+    # before a byte is copied (acls_write_refusal).
+    if ( defined $username && length $username ) {
+        if ( my $no = acls_write_refusal() ) { return $no }
+    }
+
     my $dst_dir = dirname($dst_full);
     my ( $mok, $merr ) = _mkpath_checked($dst_dir);
     return { ok => 0, error => "$merr (target folder)" } unless $mok;
@@ -1717,6 +1724,9 @@ sub action_migrate_to_local {
 
     # Per-file ACL: write access on the target page (operators bypass).
     if ( my $deny = _acl_denied( $s->{rel}, 'write', $username ) ) { return $deny }
+
+    # Ruling 206: the migration re-keys the page's rule (acls_write_refusal).
+    if ( my $no = acls_write_refusal() ) { return $no }
 
     open my $uf, '<', $url_full or return { ok => 0, error => 'Cannot read the .url file' };
     my $url = do { local $/; <$uf> };
@@ -2997,6 +3007,8 @@ sub action_acl_set {
         if ( my $why = is_blocked_config($rel) ) { return _blocked( $rel, $why, 'blocked-config' ) }
     }
 
+    # Ruling 206: never a rule written over a broken store (acls_write_refusal).
+    if ( my $no = acls_write_refusal() ) { return $no }
     my $acls     = load_acls();
     my $existing = $acls->{$rel};
 
@@ -3740,6 +3752,8 @@ sub action_acl_remove {
             error => "Wildcards are not a path here. To remove the rule that "
                 . "governs the whole site, use \"/\" as the path." };
     }
+    # Ruling 206: never a rule removed by rewriting a broken store.
+    if ( my $no = acls_write_refusal() ) { return $no }
     if ( $rootish eq 'root' ) {
         my $acls    = load_acls();
         my $present = _present_root_key($acls);

@@ -20,7 +20,7 @@ use Lazysite::PageCopy ();    # SM1354: a page's copy answers to the page's writ
 # Settings depends only on Lazysite::Util, so there is no cycle back here.
 use Lazysite::Auth::Settings ();
 
-our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
+our @EXPORT_OK = qw(load_acls save_acls acls_write_refusal _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user may_read_any_rule file_rule_bypass
     account_is_operator group_confers_operator
     gating_for root_gating placement_for relocating_key address_denial address_chain);
@@ -196,9 +196,42 @@ our $ACLS_FAULT = 0;
     }
 }
 
+# Ruling 206 (item 1 of the 0.16.9 fault survey): A RULE IS NEVER WRITTEN OVER A
+# BROKEN STORE.
+#
+# load_acls answers {} for a store that exists and will not read or decode, so a
+# writer that loaded, changed one key and saved REPLACED the damaged file with
+# that one rule - every other rule on the site was lost, by the operator's own
+# rule set or file copy. Every writer asks acls_write_refusal before it changes
+# anything, and save_acls asks the store itself as the last line, so no path,
+# present or future, can write over a damaged file. An absent store is not a
+# fault: nothing is configured yet, and the first rule creates it.
+sub acls_write_refusal {
+    load_acls();
+    return undef unless $ACLS_FAULT;
+    return {
+        ok     => 0,
+        kind   => 'cannot-tell',
+        store  => 'lazysite/auth/acls.json',
+        repair => 'lazysite check --docroot <docroot>',
+        error => 'Cannot change access rules: lazysite/auth/acls.json exists and cannot be '
+            . 'read or does not decode, so saving a rule would replace every rule in it. This '
+            . 'is a fault on the host, not a rule about this file. Nothing was changed. '
+            . '`lazysite check --docroot <docroot>` names the fault; repair the file from the '
+            . 'command line, or restore it from a backup.',
+    };
+}
+
 sub save_acls {
     my ($map) = @_;
     my $path  = _acls_path();
+    if ( acls_write_refusal() ) {
+        Lazysite::Util::log_event( 'WARN', 'acl',
+            'refused to write acls.json over a store that cannot be read or does not decode - '
+                . 'the write would have replaced every rule in it (lazysite check --docroot names it)',
+            file => 'lazysite/auth/acls.json' );
+        return 0;
+    }
     my $dir   = dirname($path);
     make_path($dir) unless -d $dir;
     my $tmp = "$path.tmp.$$";

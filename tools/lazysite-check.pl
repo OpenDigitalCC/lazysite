@@ -2778,8 +2778,8 @@ sub report_group_acl_reach {
     if ( $state eq 'undecodable' ) {
         report( 'FAIL',
             "acls.json does not decode as a JSON object ($f) - the renderer refuses "
-                . 'every page it checks against the ACL until it is repaired, and the '
-                . 'manager shows no rules',
+                . 'every page it checks against the ACL until it is repaired, and every '
+                . 'rule change and file copy is refused so the damaged file is not replaced',
             "repair the JSON in '$f', or restore it from a backup" );
         return;
     }
