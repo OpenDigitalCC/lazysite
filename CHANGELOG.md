@@ -64,6 +64,11 @@ Archive
   refused there with a 503 naming the store (ruling 206), where it was served as
   anonymous. The manager API in the pool keeps its relay (fork, the contract written
   from the value, exec) and the CGI wrapper its header contract.
+- SM297 (PENDING) **A signed-in page on a session store that cannot be read is refused,
+  not rendered as anonymous (ruling 217).** The auth wrapper and the pool's front door
+  answer a session cookie whose store (`user-settings.json`, `revoked.json`, `users`)
+  cannot be read or decoded with a 503 naming the store and the repair, in the response
+  and the log. No cookie, an expired cookie or a removed account is served as before.
 - SM1369 (PENDING) **X4: an extension declares an identity provider, and the Odoo site
   sign-in is the first (H-1; rulings 178, 186).** `owns.hooks.identity_provider` gives
   core a provider's `on`, `still_valid`, `groups`, `login_option` and `banner`, its

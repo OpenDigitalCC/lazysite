@@ -95,7 +95,10 @@ for my $store (qw(user-settings.json revoked.json)) {
         my $out = login();
         unlike( $out, qr/Set-Cookie:\s*lazysite_auth=[^;\s]/, 'no session cookie issues' );
         like( $out, qr/Location:[^\n]*error=unavailable/, 'sign-in answers error=unavailable' );
-        like( page_as_human(), qr/USER=\n/, 'an existing session reaches the page as no identity' );
+        # SM297, ruling 217: refused with a 503 naming the store, never run as no identity.
+        my $page = page_as_human();
+        like( $page, qr/\AStatus: 503/, 'an existing session is refused (503), not run as no identity' );
+        like( $page, qr/\Q$store\E/, 'and the response names the store' );
 
         my $check = run_cmd( $^X, "$root/tools/lazysite-check.pl", '--docroot', $d );
         like( $check, qr/\Q$store\E does not decode as a JSON object/, 'lazysite check names the file' )

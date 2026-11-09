@@ -3,7 +3,7 @@ title: "SM297 - Identity as a value, not a header"
 subtitle: "The auth wrapper hands identity across an exec() as X-Remote-* headers. In one process there is no boundary to cross, and a dispatcher that sets those headers for itself has invented a forgeable channel inside its own address space."
 brand: plain
 status: partial
-status-note: "0.16.9 (PENDING): one accessor (a value held in Lazysite::Auth::Identity) and the first surface converted - the data endpoint no longer writes its own trust headers, and a damaged session store refuses there (ruling 206). The manager API in the pool still forks and execs with the contract; still BLOCKS SM614's sliding half. See the 0.16.9 section."
+status-note: "0.16.9 (PENDING): one accessor (a value held in Lazysite::Auth::Identity) and the first surface converted - the data endpoint no longer writes its own trust headers, and a damaged session store refuses there and on every signed-in page (rulings 206, 217). The manager API in the pool still forks and execs (0.17.0, ruling 217); still BLOCKS SM614's sliding half. See the 0.16.9 section."
 ---
 
 # SM297 - the last exec in the request path
@@ -90,14 +90,20 @@ The data endpoint, converted
   is about. It holds the value now and writes nothing. A session whose store cannot be
   read is refused with a 503 naming the store (ruling 206), where it was anonymous.
 
+Pages refuse too (ruling 217)
+: A page request carrying a session cookie whose store cannot be read is refused 503,
+  naming the store and the repair, by the auth wrapper (CGI) and by the pool's front
+  door in the worker, from request_session's fault value. No cookie, an expired cookie
+  or a removed account is an ordinary signed-out visitor.
+
 What remains, and why
 : The manager API in the pool. Its relay forks, clears the identity variables, writes
   the wrapper's contract from the value and execs the API (SM1181 S4). A direct call
   needs the API to be callable in a worker, and as it stands it is a top-level script
   that answers by `exit` in eighteen places and keeps its crash-audit row and registry
   rebuild in END blocks; its session-id readers (Account, Sessions, Users) read
-  `LAZYSITE_AUTH_SID`. Making it a callable is its own change, and the release
-  manager's to schedule. Until then SM614's sliding half stays blocked here: the
+  `LAZYSITE_AUTH_SID`. Making it a callable is its own change: ruling 217 schedules it for
+  0.17.0. Until then SM614's sliding half stays blocked here: the
   processor still cannot put a re-signed cookie on a response the wrapper execs.
 : The CGI wrapper and its header contract stay, by design (point 3 above).
 : The Odoo endpoint and the form handler already verify their own caller and hold it

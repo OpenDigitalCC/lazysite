@@ -243,7 +243,9 @@ subtest 'T5: every check the verifier makes stops the next pooled request' => su
 
     spit( "$LZ/auth/revoked.json", "{ not json" );
     my ( $ct, $clog ) = as( 'alice', '/members' );
-    ok( to_login($ct), 'a session store that cannot be read: refused (cannot tell)' );
+    # SM297, ruling 217: a 503 naming the store, never the anonymous sign-in redirect.
+    like( $ct, qr/\AStatus: 503/, 'a session store that cannot be read: refused (cannot tell, 503)' );
+    unlike( $ct, qr/MEMBERS WHO=/, 'and the page is not rendered' );
     like( $clog, qr/auth: cannot tell/, 'logged' );
     unlink "$LZ/auth/revoked.json";
     like( as( 'alice', '/members' ), qr/MEMBERS WHO=alice\b/, 'and served again once it is repaired' );

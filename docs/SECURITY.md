@@ -5261,12 +5261,18 @@ residual risk
   is a top-level script that answers by `exit` in eighteen places and keeps its
   crash-audit row and registry rebuild in END blocks, so it cannot be called in a
   long-lived worker as it stands. Its readers of the session id (`LAZYSITE_AUTH_SID`
-  in Account, Sessions, Users) stay on the contract with it. The CGI wrapper and its
-  contract are unchanged by design. The Odoo endpoint and the form handler already
-  verify their own caller as a value and write nothing. A public page in the pool
-  whose session store cannot be read is still rendered as anonymous (the in-worker
-  path is SM1181's, unchanged here): a question for the release manager under ruling
-  206.
+  in Account, Sessions, Users) stay on the contract with it; ruling 217 moves its
+  conversion to 0.17.0 as its own change. The CGI wrapper and its contract are
+  unchanged by design. The Odoo endpoint and the form handler already verify their own
+  caller as a value and write nothing.
+: Ruling 217 (pages refuse too): a request carrying a session cookie whose session
+  store cannot be read is refused 503 by the auth wrapper before it execs (CGI) and by
+  the pool's front door in the worker, from request_session's fault value
+  (`cannot-tell`, with the store); the response and the log line name the store and
+  the repair. No cookie, an expired cookie or a removed account stay an ordinary
+  signed-out visitor. t/integration/479 holds both paths and the controls; each fails
+  with its change reverted, and a widening to every signed-out request fails the
+  controls.
 
 verdict
 : drafted as accepted, for the release manager's confirmation. No trigger fires; the

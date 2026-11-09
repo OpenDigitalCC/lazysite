@@ -1247,6 +1247,17 @@ sub handle_request {
         cookie_sent => length( $ENV{HTTP_COOKIE} // '' ) ? 1 : 0 );
     log_event( $line[0], $uri, @line[ 1 .. $#line ] ) if @line;
 
+    # SM297 (ruling 206, ruling 217): a cookie whose session store cannot be read is
+    # refused here, before the surface runs, so it is never served as anonymous. The
+    # log line above names the store and the repair.
+    if ( !$ident && ( $why // '' ) eq 'cannot-tell' ) {
+        print "Status: 503 Service Unavailable\r\n";
+        print "Cache-Control: no-store\r\n";
+        print "Content-Type: text/plain; charset=utf-8\r\n\r\n";
+        print Lazysite::Auth::Session::session_fault_text( $detail{store} );
+        exit 0;
+    }
+
     # Exec processor. LAZYSITE_PROCESSOR names the real CGI target (the
     # dev server and the Apache cgi-bin->auth rewrite thread it through so
     # the manager-api etc. run behind the wrapper). Apache may surface a

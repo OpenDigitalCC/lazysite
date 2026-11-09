@@ -70,6 +70,13 @@ Sections below are per-release notes, newest first. Where an older section says
 
 ## Unreleased (0.16.9)
 
+**A signed-in page refuses a session it cannot check (SM297, ruling 217).** A page
+request carrying a session cookie, while `lazysite/auth/user-settings.json`,
+`revoked.json` or `users` cannot be read or decoded, now answers 503 naming the store,
+on the CGI path and in the pool, where it was rendered as if signed out. The log line
+names the store and the repair (`lazysite check` names it). Visitors with no session
+cookie are served as before.
+
 **The data endpoint refuses a session it cannot check (SM297).** A page's data
 (`/cgi-bin/lazysite-data.pl`) answered a signed-in visitor as anonymous when a session
 store (`lazysite/auth/user-settings.json`, `revoked.json` or `users`) could not be read.

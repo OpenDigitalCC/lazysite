@@ -35,7 +35,8 @@ my %WHY = (
     'expired'        => [ 'WARN',  'auth: cookie expired or malformed ts', ts => 12 ],
     'no-account'     => [ 'WARN',  'auth: account does not exist', user => 'erin' ],
     'disabled'       => [ 'WARN',  'auth: account disabled', user => 'erin' ],
-    'cannot-tell'    => [ 'WARN',  'auth: cannot tell - session refused until the store is repaired', user => 'erin', store => 'lazysite/auth/revoked.json' ],
+    'cannot-tell'    => [ 'WARN',  'auth: cannot tell - session refused until the store is repaired', user => 'erin', store => 'lazysite/auth/revoked.json',
+        repair => Lazysite::Auth::Session::SESSION_FAULT_REPAIR() ],    # SM297, ruling 217
     'odoo-off'       => [ 'DEBUG', 'auth: odoo session not accepted (odoo-off)', user => 'erin' ],
     'odoo-unsecured' => [ 'DEBUG', 'auth: odoo session not accepted (odoo-unsecured)', user => 'erin' ],
     'odoo-stale'     => [ 'DEBUG', 'auth: odoo session not accepted (odoo-stale)', user => 'erin' ],

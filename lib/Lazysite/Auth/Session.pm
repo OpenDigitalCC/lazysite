@@ -582,6 +582,25 @@ sub request_session {
         undef );
 }
 
+# SM297 (ruling 206, ruling 217): A SIGNED-IN REQUEST WHOSE SESSION STORE CANNOT BE
+# READ IS REFUSED, never rendered as anonymous. request_session's `cannot-tell`
+# (with `store`) is the fault value; the auth wrapper (CGI) and the pool's front
+# door both answer it with this sentence and a 503, and the log line above names
+# the store and this repair. Only an unreadable or undecodable store is a fault: no
+# cookie, an expired cookie or a missing record is an ordinary signed-out visitor.
+sub SESSION_FAULT_REPAIR {
+    return 'lazysite check --docroot <docroot> names it; repair it from the command line';
+}
+
+sub session_fault_text {
+    my ($store) = @_;
+    $store = 'its session store' unless defined $store && length $store && $store ne '-';
+    return "This page cannot be served right now: the site cannot read $store, so it "
+        . "cannot tell who is signed in. This is a fault on the host, not a decision about "
+        . "this request; the site operator can repair it from the command line "
+        . "(lazysite check names it).\n";
+}
+
 # SM1181 S3 (T11): THE LOG LINE FOR WHAT request_session DECIDED, one for each
 # outcome, at the level each has always had. The auth wrapper wrote these in its
 # handle_request; the pool's front door now decides a signed-in page in the worker
@@ -618,7 +637,7 @@ sub session_log_line {
     # SM1024: a session store cannot be read or decoded, so whether this session is
     # disabled or signed out is unknown - refused, as no identity.
     return ( 'WARN', 'auth: cannot tell - session refused until the store is repaired',
-        user => $d{user}, store => $d{store} )
+        user => $d{user}, store => $d{store}, repair => SESSION_FAULT_REPAIR() )
         if $why eq 'cannot-tell';
     # SM1160, X4: a provider-minted session that is not an identity: the provider is
     # off (its extension, or its own sign-in), the site is unsecured, the provider has
