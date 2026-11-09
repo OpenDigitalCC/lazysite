@@ -353,8 +353,14 @@ my %T = (
     'lib/Lazysite/Auth/Identity.pm' => { '%conf_cache' => [ exempt => $KEYED ],
         # SM297: a converted surface holds its value with `local`; nothing pooled assigns it
         '$HELD' => [ unset => '' ] },
+    # Ruling 206 (n789): the answer of the last check_login_rate call, cleared at
+    # the top of every call, so it never outlives the attempt it describes.
+    'lib/Lazysite/Auth/LoginRate.pm' => {
+        '$FAULT' => [ exempt => 'why the last check_login_rate could not count; cleared first by every call' ],
+    },
     'lib/Lazysite/Auth/Session.pm' => {
         '%LIFETIME_CACHE' => [ exempt => 'the session lifetime setting, keyed on the site directory' ],
+        '%LIFETIME_FAULT_CACHE' => [ exempt => 'whether that setting is invalid (ruling 206), keyed the same way' ],
         # SM1181 S2: cleared per request by the processor too, not only by the
         # verifier's own stages.
         '$STORE_FAULT'    => [ reset  => 'reset_request_state' ],

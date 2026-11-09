@@ -9,13 +9,13 @@ package Lazysite::Auth::Credential;
 use strict;
 use warnings;
 use Digest::SHA    qw(sha256_hex);
-use Lazysite::Util qw(const_eq);
+use Lazysite::Util qw(const_eq log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
     generate_random_hex hash_password verify_password
     hash_token verify_secret generate_token
-    password_min_length password_policy_refusal
+    password_min_length password_policy_refusal password_min_length_fault
 );
 
 # CSPRNG: $bytes of /dev/urandom as a hex string. Dies (fail-closed) if the
@@ -113,28 +113,57 @@ sub generate_token {
 # with its bytes.
 our $PASSWORD_MIN_DEFAULT = 12;
 
+#
+# Ruling 206 (item 8 of the 0.16.9 fault survey): an invalid value is no longer
+# the default in silence. password_policy_refusal refuses every password SET
+# while it stands, naming the key; the number returned here for a page to show
+# is the default.
 sub password_min_length {
     my ($lazysite_dir) = @_;
-    my $v;
-    if ( defined $lazysite_dir && length $lazysite_dir
-        && open my $fh, '<', "$lazysite_dir/lazysite.conf" )
-    {
-        while ( my $l = <$fh> ) {
-            next unless $l =~ /^\s*password_min_length\s*:\s*(\d+)\s*$/;
-            $v = $1 + 0;
-            last;
-        }
-        close $fh;
+    my ( $v, $bad ) = _password_min_read($lazysite_dir);
+    return defined $bad ? $PASSWORD_MIN_DEFAULT : ( $v // $PASSWORD_MIN_DEFAULT );
+}
+
+# ( $n, undef ) valid, ( undef, undef ) unset (or empty), ( undef, $raw ) invalid.
+sub _password_min_read {
+    my ($lazysite_dir) = @_;
+    return ( undef, undef ) unless defined $lazysite_dir && length $lazysite_dir;
+    open my $fh, '<', "$lazysite_dir/lazysite.conf" or return ( undef, undef );
+    my $raw;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*password_min_length\s*:\s*(.*?)\s*$/;
+        $raw = $1;
+        last;
     }
-    $v = undef unless defined $v && $v >= 8 && $v <= 128;
-    return $v // $PASSWORD_MIN_DEFAULT;
+    close $fh;
+    return ( undef,    undef ) unless defined $raw  && length $raw;
+    return ( $raw + 0, undef ) if $raw =~ /\A\d+\z/ && $raw >= 8 && $raw <= 128;
+    return ( undef,    $raw );
+}
+
+# '' or the sentence naming an invalid password_min_length.
+sub password_min_length_fault {
+    my ($lazysite_dir) = @_;
+    my ( undef, $bad ) = _password_min_read($lazysite_dir);
+    return '' unless defined $bad;
+    return "password_min_length in lazysite.conf is '$bad', which is not a whole number from "
+        . '8 to 128';
 }
 
 # The refusal for a password the policy does not accept, or undef. One sentence,
 # naming the length and nothing about any account, so it is safe to show on a
-# page nobody has signed in to.
+# page nobody has signed in to. Ruling 206: while password_min_length is
+# invalid the policy cannot be told, and every password set is refused.
 sub password_policy_refusal {
     my ( $password, $lazysite_dir ) = @_;
+    if ( my $why = password_min_length_fault($lazysite_dir) ) {
+        log_event( 'WARN', 'auth', "password refused: cannot tell - $why "
+                . '(lazysite check --docroot names it)' );
+        return 'Cannot set a password right now: the site\'s password policy setting is '
+            . 'invalid. This is a fault on the host, not a judgement of this password; the '
+            . 'site operator can see the cause in the site log, and `lazysite check '
+            . '--docroot <docroot>` names it.';
+    }
     my $min   = password_min_length($lazysite_dir);
     my $chars = defined $password ? $password : '';
     utf8::decode($chars) unless utf8::is_utf8($chars);

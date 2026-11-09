@@ -80,28 +80,53 @@ sub session_lifetime {
     local $LAZYSITE_DIR = $dir if defined $dir && length $dir;
     my $key = $LAZYSITE_DIR // '';
     return $LIFETIME_CACHE{$key} if defined $LIFETIME_CACHE{$key};
-    my $v;
-
     # $LAZYSITE_DIR is what this module already has - the scripts set it - so
     # this needs no argument threaded through verify_session_cookie, which takes
     # none by design.
-    if ( defined $LAZYSITE_DIR && length $LAZYSITE_DIR
-        && open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" )
-    {
-        while ( my $l = <$fh> ) {
-            next unless $l =~ /^\s*session_lifetime\s*:\s*(\d+)\s*$/;
-            $v = $1 + 0;
-            last;
-        }
-        close $fh;
-    }
+    my ( $v, $bad ) = _session_lifetime_read();
 
     # A zero or a nonsense value is not "never expires": it is a typo, and a
     # session store that honoured it would hand an operator an immortal cookie
-    # for a missing digit. Out-of-range falls back to the default and says
-    # nothing - this is the request path, not a config linter.
-    $v = undef unless defined $v && $v >= 300 && $v <= 31_536_000;
-    return $LIFETIME_CACHE{$key} = ( $v // 86400 );
+    # for a missing digit. Ruling 206: nor is it the default - an invalid value
+    # is refused (session_lifetime_fault, asked by the sign-in gate and the
+    # verifier). The default here is only what a caller that displays the
+    # lifetime is shown; no session is minted or honoured on it.
+    return $LIFETIME_CACHE{$key} = ( defined $bad ? 86400 : ( $v // 86400 ) );
+}
+
+# ( $seconds, undef ) for a valid session_lifetime, ( undef, undef ) for none,
+# or ( undef, $raw ) for a value that is not a whole number of seconds from 300
+# to 31536000 - the raw text, for the refusal to name.
+sub _session_lifetime_read {
+    return ( undef, undef ) unless defined $LAZYSITE_DIR && length $LAZYSITE_DIR;
+    open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" or return ( undef, undef );
+    my $raw;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*session_lifetime\s*:\s*(.*?)\s*$/;
+        $raw = $1;
+        last;
+    }
+    close $fh;
+    return ( undef,    undef ) unless defined $raw && length $raw; # an empty key is unset
+    return ( $raw + 0, undef ) if $raw =~ /\A\d+\z/ && $raw >= 300 && $raw <= 31_536_000;
+    return ( undef,    $raw );
+}
+
+# Ruling 206 (item 8 of the 0.16.9 fault survey): '' or the sentence naming an
+# invalid session_lifetime. Out of range used to become the default in silence.
+# Read once per process per site, as session_lifetime is (%LIFETIME_CACHE).
+our %LIFETIME_FAULT_CACHE;
+
+sub session_lifetime_fault {
+    my ($dir) = @_;
+    local $LAZYSITE_DIR = $dir if defined $dir && length $dir;
+    my $key = $LAZYSITE_DIR // '';
+    return $LIFETIME_FAULT_CACHE{$key} if defined $LIFETIME_FAULT_CACHE{$key};
+    my ( undef, $bad ) = _session_lifetime_read();
+    return $LIFETIME_FAULT_CACHE{$key} = defined $bad
+        ? "session_lifetime in lazysite.conf is '$bad', which is not a whole number of "
+        . 'seconds from 300 to 31536000'
+        : '';
 }
 
 # Kept for callers that have no docroot to hand, and as the default. NOT the
@@ -337,6 +362,8 @@ sub session_store_fault {
         return "lazysite/auth/$name" if $state eq 'broken';
     }
     return 'lazysite/auth/groups' if _groups_unreadable();
+    # Ruling 206 (item 8): and the setting that says how long a session lasts.
+    return 'lazysite/lazysite.conf (session_lifetime)' if session_lifetime_fault();
     return '';
 }
 
@@ -408,6 +435,14 @@ sub verify_session_cookie {
     return ( undef, 'signature' )
         unless length($secret)
         && const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
+
+    # Ruling 206 (item 8): with session_lifetime invalid, when this session
+    # expires cannot be told - cannot-tell, never the default.
+    if ( my $why = session_lifetime_fault() ) {
+        log_event( 'WARN', '-', "session refused: cannot tell - $why "
+                . '(lazysite check --docroot names it)' );
+        return ( undef, 'cannot-tell', store => 'lazysite/lazysite.conf' );
+    }
 
     # SM1390 (ruling 147): A VALUE SIGNED FOR ANOTHER PURPOSE IS NOT A SESSION.
     # The preview cookie is signed with the same key over

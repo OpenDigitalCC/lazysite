@@ -651,7 +651,7 @@ sub _account_gates {
     # for an account the broken store may have disabled). The page says sign-in
     # is unavailable; the log names the file, and so does `lazysite check`.
     if ( my $store = session_store_fault() ) {
-        log_event( 'WARN', $username, 'login refused: cannot tell - a session store cannot be read',
+        log_event( 'WARN', $username, 'login refused: cannot tell - a session store or setting cannot be read',
             store => $store, ip => $ip,
             repair => 'lazysite check --docroot <docroot> names it; repair or restore the file' );
         _audit_auth( $username, 'login', 'fail', "cannot-tell: $store" );

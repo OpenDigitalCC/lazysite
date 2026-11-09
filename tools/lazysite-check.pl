@@ -1491,6 +1491,7 @@ sub run_checks {
     report_structured_data();           # SM1357
     report_foreign_site_folders();      # SM1357, ruling 171
     report_content_roots();             # ruling 206
+    report_auth_numbers();              # ruling 206
     report_retired_conf_keys();
     report_retired_notify_keys();       # SM1412
     report_app_settings();              # SM1155
@@ -3561,6 +3562,35 @@ sub report_content_roots {
             "the content_root for $host ($v) $why - every request to that host is refused (503)",
             "correct it in '$LZ/lazysite.conf'"
                 . ( $why eq 'is not a folder in the docroot' ? ", or create the folder '$d/$rel'" : '' ) );
+    }
+    return;
+}
+
+# Ruling 206 (item 8): session_lifetime and password_min_length, read as the
+# engine reads them (Auth::Session, Auth::Credential). An invalid value used to
+# become the default in silence; it is refused now, so each is a FAIL naming the
+# key, the range and what it stops. Unset (or empty) is the default, and silent.
+sub report_auth_numbers {
+    open my $fh, '<', "$LZ/lazysite.conf" or return;
+    my %raw;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*(session_lifetime|password_min_length)\s*:\s*(.*?)\s*$/;
+        $raw{$1} //= $2;
+    }
+    close $fh;
+    my %rule = (
+        session_lifetime => [ 300, 31_536_000, 'a whole number of seconds',
+            'every sign-in and every session is refused' ],
+        password_min_length => [ 8, 128, 'a whole number', 'every password set or reset is refused' ],
+    );
+    for my $k ( sort keys %rule ) {
+        my $v = $raw{$k};
+        next unless defined $v && length $v;
+        my ( $lo, $hi, $what, $stops ) = @{ $rule{$k} };
+        next if $v =~ /\A\d+\z/ && $v >= $lo && $v <= $hi;
+        report( 'FAIL', "$k in lazysite.conf is '$v', which is not $what from $lo to $hi - $stops",
+            "set $k to a value from $lo to $hi in '$LZ/lazysite.conf', or remove the line for "
+                . 'the default' );
     }
     return;
 }
