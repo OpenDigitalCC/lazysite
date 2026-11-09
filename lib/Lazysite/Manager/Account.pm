@@ -50,6 +50,7 @@ package Lazysite::Manager::Account;
 #   action_me_push             me-push: may this site push, its key, my devices (SM1363)
 #   dispatch_me_push_subscribe   me-push-subscribe: notices on for this device
 #   dispatch_me_push_unsubscribe me-push-unsubscribe: notices off for this device
+#   dispatch_me_phone          me-phone: my phone, for text notices (ruling 196)
 
 use strict;
 use warnings;
@@ -68,7 +69,7 @@ our @EXPORT_OK = qw(account_page_enabled action_me dispatch_me_password action_m
     action_me_notices dispatch_me_notices_seen
     dispatch_me_2fa_enrol dispatch_me_2fa_confirm dispatch_me_2fa_disable dispatch_me_recovery_codes
     action_me_passkeys dispatch_me_passkey_begin dispatch_me_passkey_add dispatch_me_passkey_remove
-    action_me_push dispatch_me_push_subscribe dispatch_me_push_unsubscribe);
+    action_me_push dispatch_me_push_subscribe dispatch_me_push_unsubscribe dispatch_me_phone);
 
 our $DOCROOT;                          # set by the script
 our $LAZYSITE_DIR;                     # set by the script
@@ -138,6 +139,7 @@ sub action_me {
         user         => $auth_user,
         display_name => $s->{display_name},
         email        => $s->{email},
+        phone        => $s->{phone},          # SM1363 (ruling 196)
         has_password => ( _has_password() ? JSON::PP::true() : JSON::PP::false() ), # SM1352: not the passkey marker
         mfa_enrolled => ( $s->{mfa_enrolled} ? JSON::PP::true() : JSON::PP::false() ),
         mfa_pending  => ( $s->{mfa_pending}  ? JSON::PP::true() : JSON::PP::false() ),
@@ -504,6 +506,22 @@ sub dispatch_me_push_unsubscribe {
     return { ok => 0, error => ( ref $r eq 'HASH' && $r->{error} ) || 'Notices were not turned off.' }
         unless ref $r eq 'HASH' && $r->{ok};
     return { ok => 1, devices => $r->{devices}, message => 'Notices are off for this device.' };
+}
+
+# SM1363 (ruling 196): my phone, for text notices - the webhook route, which the
+# operator turns on for an account. An empty value clears it. The users tool
+# checks the form and lets the account set its own (a self-service key).
+sub dispatch_me_phone {
+    if ( my $r = me_refusal() ) { return $r }
+    my $req   = _json_body() || {};
+    my $phone = $req->{phone};
+    $phone = '' unless defined $phone && !ref $phone;
+    my $r = users_api( { action => 'settings-set', username => $auth_user, actor => $auth_user,
+            key => 'phone', value => $phone } );
+    return { ok => 0, kind => 'invalid', field => 'phone',
+        error => ( ref $r eq 'HASH' && $r->{error} ) || 'The phone number was not saved.' }
+        unless ref $r eq 'HASH' && $r->{ok};
+    return { ok => 1, message => ( length $phone ? 'Phone number saved.' : 'Phone number removed.' ) };
 }
 
 # SM1034 phase 1b (SM1010 R2): the member's own bell - the notices addressed to

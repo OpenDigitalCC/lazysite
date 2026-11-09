@@ -18,6 +18,11 @@ search: false
 ::: account-push
 :::
 
+## Phone for text notices
+
+::: account-phone
+:::
+
 ## Password
 
 ::: account-password

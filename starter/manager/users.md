@@ -610,6 +610,12 @@ function accountSettingsHtml(row) {
     '" placeholder="for emailed setup / reset links">' +
     '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save email</button>' +
     '<span class="mg-status" id="emailmsg-' + ue + '"></span></div>';
+  // SM1363 (ruling 196): the phone text notices go to, by the webhook route.
+  gen += '<div class="mg-line"><span class="mg-line-lbl">Phone</span>' +
+    '<input type="tel" class="mg-inp" id="phone-' + ue + '" value="' + escHtml(s.phone || '') +
+    '" placeholder="+44 20 7946 0000, for text notices">' +
+    '<button class="mg-btn mg-btn-sm" onclick="savePhone(\'' + ue + '\')">Save phone</button>' +
+    '<span class="mg-status" id="phonemsg-' + ue + '"></span></div>';
   h += sec('General', gen);
 
   // --- Credentials (interactive login - human accounts only) ---
@@ -1434,6 +1440,16 @@ function saveEmail(user) {
   var msg = document.getElementById('emailmsg-' + user);
   function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
   apiCall({ action: 'settings-set', username: user, key: 'email', value: (inp && inp.value) || '' })
+    .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// SM1363 (ruling 196): the phone text notices go to (the webhook route).
+function savePhone(user) {
+  var inp = document.getElementById('phone-' + user);
+  var msg = document.getElementById('phonemsg-' + user);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-status ' + (ok ? 'mg-status-success' : 'mg-status-error'); } }
+  apiCall({ action: 'settings-set', username: user, key: 'phone', value: (inp && inp.value) || '' })
     .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
     .catch(function(e) { say('Error: ' + e.message, false); });
 }

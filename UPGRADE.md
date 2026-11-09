@@ -204,7 +204,8 @@ mail and web push together. The webhook route has its own bound, `webhook.per_ho
 sends text messages by webhook sets `webhook.per_hour` to what it will pay for. Nothing else changes for a site
 that does not use the new routes; to use them, see "Notices to the app, and by text
 message" in `/docs/forms`. A site whose own `account.md` should offer app notices adds
-`::: account-push`.
+`::: account-push`, and `::: account-phone` for the phone text notices go to (ruling
+196); an operator can also set an account's phone on the Users page.
 
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 

@@ -244,6 +244,9 @@ sign out everywhere.
   `me-push-unsubscribe`): turn the installed app's notices on or off for the phone the
   page is open on. A notice pushed this way says only that something is waiting. See
   [forms: notices to the app](/docs/forms).
+- **Phone for text notices** (`::: account-phone`, action `me-phone`): the number the
+  site's text messages go to, in international form; empty removes it. Only the
+  webhook route carries it, and an operator decides who gets texts.
 - `account_page: disabled` in `lazysite.conf` turns it off: `/account` answers
   404 (unless the site wrote its own page) and the `me-*` actions refuse, naming
   the setting.

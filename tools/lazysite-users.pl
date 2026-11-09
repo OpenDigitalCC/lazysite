@@ -459,7 +459,12 @@ if ($API_MODE) {
         # ALREADY holds - they cannot set the address here, so nothing they do
         # can point the site at an address of their choosing. A third key added
         # to this list should have to argue the same three things.
-        my %SELF_SERVICE    = map { $_ => 1 } qw(start_page notify_email);
+        #
+        # SM1363 (ruling 196) `phone` is the third, and argues them: it grants,
+        # confines and audits nothing, and it reaches only the webhook route, which
+        # an OPERATOR turns on for the account (notify_routes is not self-service),
+        # under its own low hourly bound. The person sets where their own texts go.
+        my %SELF_SERVICE    = map { $_ => 1 } qw(start_page notify_email phone);
         my $self_preference = $action eq 'settings-set'
             && $SELF_SERVICE{ $req->{key} // '' }
             && defined $actor && defined $req->{username} && $actor eq $req->{username};
@@ -2202,6 +2207,22 @@ sub cmd_set {
         }
         else { delete $all->{$user}{email} }
     }
+    elsif ( $key eq 'phone' ) {
+        # SM1363 (ruling 196): an optional phone number, for the webhook route alone -
+        # the one route that can be a text message. International form, E.164-ish:
+        # a +, a country code that does not start with 0, then digits, 8 to 15 in all.
+        # Spaces, dots, dashes and brackets are dropped first, so a number typed the way
+        # people write them is accepted. Empty clears.
+        my $v = defined $value ? "$value" : '';
+        $v =~ s/[\s.()-]+//g;
+        if ( !length $v ) { delete $all->{$user}{phone} }
+        else {
+            die "A phone number is written in international form: a + and the country "
+                . "code, then the number (for example +44 20 7946 0000)\n"
+                unless $v =~ /\A\+[1-9][0-9]{7,14}\z/;
+            $all->{$user}{phone} = $v;
+        }
+    }
     elsif ( $key eq 'notify_routes' ) {
         # SM1363: the account's notice routes beyond mail, beside notify_email:
         # `webpush` (the installed app, on the devices it turned notices on for)
@@ -2240,7 +2261,7 @@ sub cmd_set {
     }
     else {
         die "Unknown setting '$key' (expected ui, display_name, comment, "
-            . "start_page, notify_email, notify_routes, email, expires_at, or token_ttl; "
+            . "start_page, notify_email, notify_routes, phone, email, expires_at, or token_ttl; "
             . "dav_scope/home_domain were "
             . "retired in 0.7.26 - confinement lives on the domain)\n";
     }

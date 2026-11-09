@@ -571,7 +571,7 @@ sub _route_notice {
     return $why unless $acct;
     return $r eq 'webpush'
         ? _webpush_notice( $docroot, $conf, $rec, $vars, $acct )
-        : _webhook_notice( $docroot, $conf, $rec, $vars );
+        : _webhook_notice( $docroot, $conf, $rec, $vars, $acct );
 }
 
 # The account's record when it chose route $r, or ( undef, why ). From its own
@@ -649,7 +649,7 @@ sub _forget_device {
 }
 
 sub _webhook_notice {
-    my ( $docroot, $conf, $rec, $vars ) = @_;
+    my ( $docroot, $conf, $rec, $vars, $acct ) = @_;
     my $id = $conf->{'webhook.connector'} // '';
     return 'notify.conf names no webhook.connector, so the webhook route has nowhere to go'
         unless length $id;
@@ -668,6 +668,9 @@ sub _webhook_notice {
             account => $rec->{to},
             url     => _absolute_url($vars),
             site    => ( $vars->{site} // '' ),
+            # Ruling 196: the account's phone, when it has one - carried by this route
+            # and no other, so the operator's gateway knows where a text goes.
+            ( length( $acct->{phone} // '' ) ? ( phone => $acct->{phone} ) : () ),
         },
         mode => 'scheduled', trigger => "notice:$rec->{type}" );
     _record_mail_sent( $docroot, 'webhook' ) unless ( $r->{state} // '' ) eq 'refused';

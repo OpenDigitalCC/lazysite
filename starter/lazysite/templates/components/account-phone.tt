@@ -1,0 +1,18 @@
+[%# SM1363 (ruling 196): built-in account component - your phone, for text notices.
+    Use on /account:
+      ::: account-phone
+      :::
+    Sets or clears the number the site's text notices go to, through the me-phone
+    action and /assets/lazysite-account.js. It is used by the webhook route alone,
+    which the site's operator turns on for an account; no other notice carries it.
+    A layout may override this file, keeping the data-ls-* attributes and the
+    field name. -%]
+<section class="lz-account lz-account-phone" data-ls-account="phone">
+  <p>If this site sends you text messages, they go to this number. Leave it empty to remove it.</p>
+  <form class="lz-account-form" data-ls-phone>
+    <label for="lz-phone">Phone, in international form</label>
+    <input type="tel" id="lz-phone" name="phone" autocomplete="tel" placeholder="+44 20 7946 0000">
+    <div class="lz-account-actions"><button type="submit">Save phone number</button></div>
+  </form>
+  <p class="lz-account-status" data-ls-status role="status" aria-live="polite"></p>
+</section>

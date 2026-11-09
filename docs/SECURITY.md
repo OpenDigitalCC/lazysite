@@ -5469,3 +5469,44 @@ verdict
   no content, is held to the SSRF guard's rules and a shared bound, and its other half is
   the existing connector path. No ahead-of-schedule third-party engagement beyond the one
   ADR 0007 already requires.
+
+### 2026-11-09 - SM1363 (0.16.9, PENDING, ruling 196): an account's phone number
+
+Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+
+what changed
+: Accounts gain an optional `phone` (international form, `+` and 8 to 15 digits), kept
+  in the account's record in `user-settings.json`. The person sets or clears their own on
+  `/account` (`::: account-phone`, the `self`, cookie-only action `me-phone`, a
+  self-service `settings-set` key); an operator sets it on the Users page. It is carried
+  in exactly one place: the body of the webhook route's connector call, so the
+  operator's SMS gateway knows where a text goes.
+
+threat delta
+: ADR 0007's new-processing-of-restricted-data trigger fires: a phone number is personal
+  data the engine did not hold before, and it now leaves the site to the gateway the
+  operator configured. No interface beyond `me-phone`, no sign-in method, no dependency.
+  The questions:
+  - Information disclosure: where does the number go, and who reads it?
+  - Tampering / abuse: could a member point the site's texts at a stranger's number?
+
+controls
+: The number appears in the webhook body only - not in web push (no payload), not in
+  mail, not in the bell record, not in the log (t/unit/notify/41 asserts the bell). The
+  webhook route reaches an account only when an operator set `notify_routes: webhook` on
+  it, under its own low bound (`webhook.per_hour`, 20), through a connector the operator
+  configured, whose call record carries no payload. The Users page and `settings-get`
+  show it to managers, as they show the address. `me` shows it to the account. The form
+  is checked in the users tool, the store's one writer (t/unit/account/39).
+
+residual risk
+: A member whose account an operator gave the webhook route can set any number in the
+  right form, so texts can be sent to a person who did not ask; the bound caps how many,
+  and the operator chose to give the route. The number is at rest with the rest of the
+  account record (no at-rest encryption, as for the address). Retention follows the
+  account: it goes when the account or the field is removed.
+
+verdict
+: drafted for the release manager: accepted, contained - one optional field, one
+  destination the operator chose, bounded. To be listed in the site's personal-data
+  records with the address.

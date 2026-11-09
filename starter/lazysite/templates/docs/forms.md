@@ -680,12 +680,14 @@ webhook.connector: sms-gateway
 - **`webhook`** calls the connector `webhook.connector` names, which must permit
   scheduled calls. This is how a site sends text messages: point the connector at your
   SMS provider's gateway, or a small relay in front of it - the engine names no
-  provider. The body is `{"notice", "title", "account", "url", "site"}` - the kind of
-  notice, its title, the login it is for, and the link - never the message or anything
-  submitted. The connector's secret header, rate cap and call record apply, as for any
+  provider. The body is `{"notice", "title", "account", "url", "site", "phone"}` -
+  the kind of notice, its title, the login it is for, the link, and the account's phone
+  when it has one - never the message or anything submitted. The phone is set by the
+  person on `/account` ("Phone for text notices") or by an operator on the Users page,
+  in international form (`+44 20 7946 0000`); no other route carries it. The connector's secret header, rate cap and call record apply, as for any
   connector call. An operator chooses who gets them: `notify_routes` on the account
   (`lazysite users --docroot <docroot> set alice notify_routes webhook`, or with
-  `webpush` too, comma-separated). Your gateway maps the account to a number.
+  `webpush` too, comma-separated).
 
 A notice to nobody in particular (a broadcast) goes to neither, as it goes to nobody by
 mail. **Two hourly bounds**, in `notify.conf`: `mail.per_hour` (default 60) counts

@@ -185,6 +185,7 @@ tone: medium
 `me-passkey-remove` | cookie only | id (body)
 `me-passkeys` | cookie only |  
 `me-password` | cookie only | current_password (body), new_password (body)
+`me-phone` | cookie only | phone (body)
 `me-push` | cookie only |  
 `me-push-subscribe` | cookie only | endpoint (body)
 `me-push-unsubscribe` | cookie only | endpoint (body)

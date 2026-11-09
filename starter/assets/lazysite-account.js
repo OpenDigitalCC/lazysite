@@ -546,8 +546,21 @@
     refresh();
   }
 
+  // --- my phone, for text notices (SM1363, ruling 196) ---------------------------
+  function phone(region) {
+    var form = q(region, 'form[data-ls-phone]');
+    if (!form) return;
+    loadMe().then(function (r) { if (r && r.ok) form.elements.phone.value = r.phone || ''; });
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      post('me-phone', { phone: form.elements.phone.value }).then(function (res) {
+        say(region, (res && (res.message || res.error)) || '', !(res && res.ok));
+      });
+    });
+  }
+
   var BIND = { summary: summary, password: password, sessions: sessions, bell: bell, '2fa': twofa,
-    passkeys: passkeys, 'passkey-signin': passkeySignin, 'passkey-claim': passkeyClaim, push: push };
+    passkeys: passkeys, 'passkey-signin': passkeySignin, 'passkey-claim': passkeyClaim, push: push, phone: phone };
   window.lzAccountBind = BIND;    // phase 1b and 1c add their regions here
 
   function start() {

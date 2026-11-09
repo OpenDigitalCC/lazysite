@@ -960,6 +960,8 @@ our %ACTION = (
     # outside the site can choose), and is a read in every other way.
     'me-push' => { self => 1, cookie_only_reason => 'it describes the signed-in person\'s own devices and the key their browser subscribes with', params => [] },
     'me-push-subscribe' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns app notices on for their own device', params => [ { name => 'endpoint', in => 'body', required => 1, note => 'the browser\'s push subscription endpoint (https)' } ] },
+    # SM1363 (ruling 196): the member's own phone, for text notices by webhook.
+    'me-phone' => { self => 1, mutates => 1, cookie_only_reason => 'a person sets the phone number their own text notices go to', params => [ { name => 'phone', in => 'body', note => 'international form, e.g. +44 20 7946 0000; empty clears' } ] },
     'me-push-unsubscribe' => { self => 1, mutates => 1, cookie_only_reason => 'a person turns app notices off for their own device', params => [ { name => 'endpoint', in => 'body', required => 1 } ] },
     # SM1369 X2 (H-9): an extension's rows are declared by it and mirrored in
     # from the index (declare_action), never written here.

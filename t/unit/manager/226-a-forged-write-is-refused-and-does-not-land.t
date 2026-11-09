@@ -346,6 +346,7 @@ my %REQ = (
     'me-session-revoke' => { body => { sid => 'fedcba9876543210' } },
     'me-2fa-enrol'      => { body => { current_password => 'pw-admin-0123456789' } },    # SM1042
     'me-push-subscribe' => { body => { endpoint => 'https://push.example.net/sub/1' } },    # SM1363
+    'me-phone'          => { body => { phone => '+442079460000' } },                      # SM1363, ruling 196
     'migrate-to-local' => { query => 'path=page.md' },
     'mkdir'            => { query => 'path=newdir' },
     'move'             => { query => 'path=gone.md&to=moved.md' },

@@ -179,6 +179,7 @@ sub effective_settings {
      # SM1352: how many passkeys the account holds - a count; the keys stay in the record.
         passkeys => ( ref $s->{passkeys} eq 'ARRAY' ? scalar @{ $s->{passkeys} } : 0 ),
         email        => $s->{email},
+        phone    => $s->{phone},    # SM1363 (ruling 196): for the webhook route only
     };
 }
 

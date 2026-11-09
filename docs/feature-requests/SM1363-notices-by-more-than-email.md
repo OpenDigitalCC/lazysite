@@ -33,5 +33,6 @@ status-note: "SHIPPED (PENDING, 0.16.9) on n784 with rulings 187 and 188: webpus
 - **Per account:** `notify_routes` (webpush, webhook) beside `notify_email`. A device turning notices on or off on `/account` adds or removes `webpush`; `webhook` is the operator's to set, since it may cost money. Per kind of notice is the site's `route.<type>`; the account chooses the route, not the kind.
 - **Content:** none on any route. A push has no payload (so no RFC 8291 encryption, only VAPID signing, ruling 187); the worker says something is waiting and opens `/account`. A webhook carries the kind, title, account and link.
 - **Limits:** `mail.per_hour` (default 60) counts every route's sends but webhook's (ruling 199); `webhook.per_hour` (default 20) bounds the webhook route alone (ruling 195); every attempt is a log line with its outcome. A device whose push service answers 404 or 410 is removed (ruling 199).
+- **Phone (ruling 196):** an optional `phone` on the account, international form, set on `/account` (`me-phone`) or the Users page; carried only in the webhook body.
 - **Keys:** the VAPID key at `lazysite/auth/webpush-vapid.pem`, made on first use.
 - **Question 1:** answered by ruling 188: chosen per deployment, through a webhook connector, with none shipped.

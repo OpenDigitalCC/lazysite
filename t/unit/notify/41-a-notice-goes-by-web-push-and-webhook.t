@@ -68,7 +68,7 @@ sub notify_conf { spit( "$d/lazysite/notify.conf", "route.submission: bell,webpu
 notify_conf();
 spit( "$d/lazysite/auth/users", "alice:x\nbob:x\n" );
 spit( "$d/lazysite/auth/user-settings.json", encode_json( {
-            alice => { notify_routes => 'webpush,webhook',
+            alice => { notify_routes => 'webpush,webhook', phone => '+447700900123',
                 push => [ { endpoint => "http://127.0.0.1:$port/push/alice-phone", t => time } ] },
             bob => { push => [ { endpoint => "http://127.0.0.1:$port/push/bob-phone", t => time } ] },
 } ) );
@@ -123,6 +123,8 @@ is( $hook[0]{headers}{authorization}, 'Bearer gw-secret', 'carrying the connecto
 my $body = decode_json( $hook[0]{body} );
 is( $body->{account}, 'alice', 'naming the account' );
 is( $body->{notice},  'submission', 'and the kind of notice' );
+is( $body->{phone}, '+447700900123', 'ruling 196: and the account\'s phone, so the gateway knows where a text goes' );
+unlike( slurp("$d/lazysite/logs/notices.jsonl"), qr/447700900123/, 'and no bell record carries it' );
 is( $body->{url}, 'https://site.example/manager/forms?form=contact', 'with the link, made absolute' );
 unlike( $hook[0]{body}, qr/SECRET-CONTENT/, 'and never the notice\'s message' );
 like( slurp("$d/lazysite/connectors/calls.jsonl"), qr/"connector":"sms".*"trigger":"notice:submission"/,

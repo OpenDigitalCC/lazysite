@@ -217,7 +217,9 @@ Archive
   gateway (ruling 188). `notify_routes: webhook` is an operator's setting. One hourly
   bound, `mail.per_hour`, now counts every route's sends but webhook's, which has its own
   `webhook.per_hour` (default 20, ruling 195); a device whose push service answers 404
-  or 410 is removed (ruling 199); and every attempt is a log line
+  or 410 is removed (ruling 199); an account may carry a `phone` (international form,
+  set on `/account` with `me-phone` or on the Users page), carried only in the webhook
+  body (ruling 196); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
   (t/unit/notify/41, t/unit/account/38).
 

@@ -296,6 +296,7 @@ my %NOT_INSTANCE_WIDE = (
     'me-passkey-remove'      => "one of the caller's own passkeys (a self action, lint 246)",
     'me-push-subscribe'      => "the caller's own device (a self action, lint 246)",
     'me-push-unsubscribe'    => "the caller's own device (a self action, lint 246)",
+    'me-phone'               => "the caller's own phone (a self action, lint 246)",
     'regenerate-registries' => 'derived output, rebuilt from the content on the next request: '
         . 'the result is the same whoever asks, and no setting changes',
     'site-backup-upload' => 'stores a package; it changes a site only through site-backup-apply, '
