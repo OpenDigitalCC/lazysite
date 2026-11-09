@@ -177,11 +177,8 @@ sub _template {
         # WARNs, naming the file, and `lazysite check` names it. An absent one
         # is the site not overriding, and the fallback is right.
         open my $fh, '<:utf8', $path or do {
-            log_event( 'WARN', 'notify',
-                "notice template lazysite/notify-templates/$key.tt cannot be read ($!) - the "
-                    . 'built-in is used until it is repaired (lazysite check --docroot names it)',
-                file => "lazysite/notify-templates/$key.tt" )
-                unless $!{ENOENT};
+            cannot_read( "the notice template lazysite/notify-templates/$key.tt (the built-in is used "
+                    . 'until it is repaired; lazysite check --docroot names it)', $path ); # quiet on ENOENT
             next;
         };
         local $/;

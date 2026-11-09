@@ -48,7 +48,7 @@ subtest 'unreadable: the built-in, and a WARN naming the file' => sub {
     my ( $err, $body, $from_file ) = template();
     chmod 0644, $t;
     ok( !$from_file, 'the built-in carries the notice' );
-    like( $err, qr/notice template lazysite\/notify-templates\/default\.xmpp\.tt cannot be read/,
+    like( $err, qr/cannot read the notice template lazysite\/notify-templates\/default\.xmpp\.tt/,
         'the log names the file' );
     like( $err, qr/lazysite check --docroot names it/, 'and the check' );
 
