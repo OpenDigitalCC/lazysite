@@ -4859,7 +4859,7 @@ controls
   t/unit/processor/171 where they reach). t/tools/335: a person signed in as 0.16.8 did,
   byte for byte, stays signed in across the real upgrade, with /odoo-signin and the /login
   option served by the installed code. Ruling 178: t/unit/odoo/140 (the upgrade's
-$1 Ruling 192:
+  top-up keeps a manage_connectors group's reach; a declined manage_odoo stays declined). Ruling 192:
   the six handler and schedule actions open, on every door, for a capability a declared
   handler type names (the gate row, the cookie gate, the MCP twins and the capability's
   unlocks, from the index's `declared` view, put back by the unmirror); the type's

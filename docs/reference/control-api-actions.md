@@ -155,9 +155,9 @@ tone: medium
 `group-delete` | manage_users | group (body)
 `group-set` | manage_users | group (body), caps (body)
 `groups-list` | manage_users |  
-`handler-delete` | manage_forms / manage_data / manage_connectors / manage_notifications | id (body)
-`handler-list` | manage_forms / manage_data / manage_connectors / manage_notifications |  
-`handler-save` | manage_forms / manage_data / manage_connectors / manage_notifications | id (body), type (body), name (body), enabled (body), domain (body)
+`handler-delete` | manage_forms / manage_data / manage_connectors / manage_notifications / manage_odoo | id (body)
+`handler-list` | manage_forms / manage_data / manage_connectors / manage_notifications / manage_odoo |  
+`handler-save` | manage_forms / manage_data / manage_connectors / manage_notifications / manage_odoo | id (body), type (body), name (body), enabled (body), domain (body)
 `key-revoke` | cookie only |  
 `keys-list` | cookie only |  
 `lang-status` | manage_content | group (query)
@@ -223,9 +223,9 @@ tone: medium
 `renew-lock` | cookie only | path (query)
 `rotate-auth-secret` | cookie only |  
 `save` | cookie only | path (query), content (body), mtime (body)
-`schedule-delete` | manage_forms / manage_data / manage_connectors | id (body)
-`schedule-list` | manage_forms / manage_data / manage_connectors |  
-`schedule-save` | manage_forms / manage_data / manage_connectors | id (body), handler (body), every (body), payload (body), enabled (body)
+`schedule-delete` | manage_forms / manage_data / manage_connectors / manage_odoo | id (body)
+`schedule-list` | manage_forms / manage_data / manage_connectors / manage_odoo |  
+`schedule-save` | manage_forms / manage_data / manage_connectors / manage_odoo | id (body), handler (body), every (body), payload (body), enabled (body)
 `session-revoke` | cookie only |  
 `sessions-list` | cookie only |  
 `site-backup-apply` | manage_domains |  

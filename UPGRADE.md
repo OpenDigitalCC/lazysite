@@ -96,7 +96,7 @@ group, its people, its tokens or a scheduled binding's job account. A group whos
 operator set `manage_odoo` off keeps it off, and now cannot configure Odoo bindings, and a
 scheduled binding whose job account holds only `manage_connectors` with `manage_odoo` off
 is refused at its next run, naming `manage_odoo`: grant it, or move the entry to another
-$1 A group given
+account. Saved bindings and their rows in `handlers.conf` are unchanged. A group given
 `manage_odoo` alone now reaches the Handlers page, the handler and schedule actions and
 their MCP tools for Odoo bindings and nothing else (ruling 192).
 

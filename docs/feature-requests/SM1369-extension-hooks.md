@@ -403,7 +403,9 @@ Odoo
   (`Auth::Settings::group_carries_capability`). The endpoint and the engine call the
   generic names. Lint 321's allow-list falls from 24 files to 18.
 
-$1 The handler and schedule actions open for it on every door (ruling 192):
+The handler type's capability (ruling 178)
+: Odoo's handler type is `manage_odoo`'s (C-14). A type may name a capability its own
+  declaration describes. The handler and schedule actions open for it on every door (ruling 192):
   the index's `declared` view carries each extension's `handler_caps`, and the mirror
   widens the six actions' gate, cookie gate and MCP twins with them; the type decides
   past the door, and a caller let in by such a capability alone is listed only its
@@ -513,9 +515,9 @@ C-24 | The injected tag's path (X5) | The alias when one is declared (`/assets/l
 C-25 | A declared asset with the extension off (X5) | Not served and not injected: off means off (G-1); before, the docroot carried the helper whatever the conf said | Keep serving a file whose extension is off
 C-26 | What the index build sees on `@INC` (X5) | The test helper builds a fixture's index with the in-tree payload libs off `@INC`, as a site's processes have it; the rule C-3 stands unchanged | Relax C-3's "found nowhere else" for a copy under the engine's own tree
 C-27 | The provider's id (X4) | The extension's id, so no second name to validate or keep apart | A separate `id` field, as the proposal sketched
-${1}Ruled (193): accepted as built. Refused (`odoo-off`): the provider is the extension's, and off means off (G-1) | Honoured as before, which read odoo.conf whatever the toggle said
-${1}Ruled (193): accepted as built. Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
-${1}Ruled (193): accepted as built. New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
+C-28 | Odoo's sign-in with the extension off (X4) | Ruled (193): accepted as built. Refused (`odoo-off`): the provider is the extension's, and off means off (G-1) | Honoured as before, which read odoo.conf whatever the toggle said
+C-29 | An unsecured site (X4) | Ruled (193): accepted as built. Refuses every provider's session, a granting one's too | Let a `grants` provider sign in on a site where every signed-in user is a manager
+C-30 | The record's shape (X4) | Ruled (193): accepted as built. New records carry `provider`; the pre-X4 flag (`odoo => 1`) is read, not written, so a downgrade signs out sessions minted after the upgrade | Write both, keyed by the provider's id
 C-31 | The handler actions' door (X4) | Ruled (192): the six handler and schedule actions (list, save, delete) also open, on every door, for any capability a declared handler type names; the type's cap decides. The mirror adds it to the gate row, the cookie gate and the MCP twins' cap_also, and to the capability's unlocks; a caller let in by such a capability alone is listed only the handlers and schedule entries of the types it governs. So manage_odoo alone manages Odoo bindings and their schedules, and no core destination's | The door kept to the four destination capabilities, so manage_odoo alone did not reach it
 ```
 
