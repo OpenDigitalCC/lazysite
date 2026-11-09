@@ -555,8 +555,8 @@ sub _serve_manager_cannot_tell {
     log_event( 'WARN', $sv->{manager_path} || '/manager',
         'manager refused: cannot tell - lazysite/auth/groups-settings.json cannot be read or '
             . 'does not decode as a JSON object',
-        user   => $auth_user,
-        store  => 'lazysite/auth/groups-settings.json',
+        user  => $auth_user,
+        store => 'lazysite/auth/groups-settings.json',
         repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
     $ACCESS_REC{s} //= 503;
     my $body = <<"HTML";

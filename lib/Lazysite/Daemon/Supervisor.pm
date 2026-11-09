@@ -463,7 +463,7 @@ sub status {
     for my $s (@listed) {
         my $pid   = _read_pid( $root, $s->{name} );
         my $st    = _read_state( $root, $s->{name} );
-        my $fault = !defined $st;    # ruling 206: no proof either way, and run() starts nothing
+        my $fault = !defined $st; # ruling 206: no proof either way, and run() starts nothing
         $st //= {};
         my $alive = $fault ? 0 : _is_ours( $pid, $st->{start_ticks} );
         $any_running ||= $alive;
@@ -754,20 +754,20 @@ sub run {
     # cannot be recognised, so nothing is adopted and NOTHING IS STARTED - a
     # second copy of a service beside its orphan is the failure this exists to
     # prevent. Checked for every service before any is touched; exit 4.
-    my @state_faults = grep { !defined _read_state( $root, $_->{name} ) }
-        services( $root, map { $_ => 1 } keys %{ { _gated($root) } } );
+    my @services     = services( $root, map { $_ => 1 } keys %{ { _gated($root) } } );
+    my @state_faults = grep { !defined _read_state( $root, $_->{name} ) } @services;
     if (@state_faults) {
         store_fault( category => 'daemon',
-            store  => 'lazysite/daemon/' . $_->{name} . '.state.json',
-            fault  => 'cannot be read or does not decode as a JSON object',
-            doing  => "tell whether the $_->{name} service is already running",
+            store => 'lazysite/daemon/' . $_->{name} . '.state.json',
+            fault => 'cannot be read or does not decode as a JSON object',
+            doing => "tell whether the $_->{name} service is already running",
             effect => 'The supervisor starts no service until it is repaired; the file is left as found.' )
             for @state_faults;
         log_event( 'ERROR', 'daemon', 'not starting: a service state file cannot be told',
             services => join( ',', map { $_->{name} } @state_faults ) );
         return 4;
     }
-    for my $s ( services( $root, map { $_ => 1 } keys %{ { _gated($root) } } ) ) {
+    for my $s (@services) {
         my $old = _read_pid( $root, $s->{name} );
         my $st  = _read_state( $root, $s->{name} );
 

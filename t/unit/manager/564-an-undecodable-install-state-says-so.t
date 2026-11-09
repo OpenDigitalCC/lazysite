@@ -10,12 +10,12 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
+use TestHelper qw(site_tempdir);
 use Lazysite::Manager::Services ();
 
-my $d = tempdir( CLEANUP => 1 );
+my $d = site_tempdir();
 mkdir "$d/lazysite";
 $Lazysite::Manager::Services::DOCROOT      = $d;
 $Lazysite::Manager::Services::LAZYSITE_DIR = "$d/lazysite";

@@ -319,8 +319,8 @@ sub _runs_fault {
     return if $fault eq $LAST_RUNS_FAULT;
     $LAST_RUNS_FAULT = $fault;
     store_fault( category => 'scheduler', store => 'lazysite/daemon/scheduler-runs.json',
-        fault  => $fault,
-        doing  => 'tell which jobs are due',
+        fault => $fault,
+        doing => 'tell which jobs are due',
         effect => 'No scheduled job runs until it is repaired; the record is left as found.' );
     return;
 }

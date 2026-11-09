@@ -496,8 +496,8 @@ sub _engine_version {
     my $d = eval { decode_json($raw) };
     return $d->{version} if ref $d eq 'HASH';
     Lazysite::Util::store_fault( category => 'mcp', store => 'lazysite/.install-state.json',
-        fault  => 'does not decode as a JSON object',
-        doing  => 'tell which lazysite version is installed',
+        fault => 'does not decode as a JSON object',
+        doing => 'tell which lazysite version is installed',
         effect => 'The site still serves; the installer rewrites it at the next upgrade.' );
     return undef;
 }

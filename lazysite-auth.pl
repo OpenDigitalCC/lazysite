@@ -1357,7 +1357,7 @@ sub _resolve_account {
         log_event( 'WARN', 'auth',
             "cannot tell - lazysite/auth/user-settings.json $_[0]; a password reset cannot be "
                 . 'matched to its account until it is repaired',
-            file   => 'lazysite/auth/user-settings.json',
+            file => 'lazysite/auth/user-settings.json',
             repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
         return ( undef, undef, 1 );
     };

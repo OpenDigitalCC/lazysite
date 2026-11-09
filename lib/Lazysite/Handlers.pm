@@ -2285,8 +2285,8 @@ sub _submitter_counts {
         unless ( ref $r eq 'HASH' ) {
             close $fh;
             Lazysite::Util::store_fault( category => 'handlers', store => 'lazysite/forms/submitter-mail.jsonl',
-                fault  => "holds a line that is not a send record (line $n)",
-                doing  => 'count the acknowledgements sent',
+                fault => "holds a line that is not a send record (line $n)",
+                doing => 'count the acknowledgements sent',
                 effect => 'Every acknowledgement is refused by its cap until it is repaired.' );
             return ( undef, undef );
         }

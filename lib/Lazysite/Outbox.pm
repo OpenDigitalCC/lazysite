@@ -318,8 +318,8 @@ sub _read_ledger {
         unless ( ref $r eq 'HASH' ) {
             close $fh;
             store_fault( category => 'notify', store => 'lazysite/notify/ledger.jsonl',
-                fault  => "holds a line that is not a ledger record (line $n)",
-                doing  => 'tell what has been sent',
+                fault => "holds a line that is not a ledger record (line $n)",
+                doing => 'tell what has been sent',
                 effect => 'No notification is sent until it is repaired; the queue keeps every entry.' );
             return undef;
         }

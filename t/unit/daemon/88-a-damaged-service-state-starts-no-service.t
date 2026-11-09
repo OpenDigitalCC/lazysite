@@ -12,18 +12,18 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use POSIX ();
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(site_tempdir);
 use Lazysite::Daemon::Supervisor ();
 
 sub spit  { my ( $p, $t ) = @_; open my $fh, '>:raw', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub slurp { open my $fh, '<:raw', $_[0] or return ''; local $/; my $s = <$fh>; close $fh; return $s }
 
 sub site {
-    my $t = tempdir( CLEANUP => 1 );
+    my $t = site_tempdir();
     my $d = "$t/public_html";
     mkdir $d;
     mkdir "$d/lazysite";

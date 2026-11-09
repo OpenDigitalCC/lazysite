@@ -136,7 +136,7 @@ sub _groups_grant_cap {
     # group that holds the capability DIRECTLY.
     my $gs;
     {
-        open my $fh, '<:raw', $f or return $!{ENOENT} ? 0 : undef;    # SM770: the open decides
+        open my $fh, '<:raw', $f or return $!{ENOENT} ? 0 : undef; # SM770: the open decides
         local $/;
         $gs = eval { JSON::PP::decode_json(<$fh>) };
         close $fh;

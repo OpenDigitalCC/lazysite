@@ -100,9 +100,9 @@ sub check_upload_rate {
     eval { require DB_File; 1 } or return store_fault(
         category => 'file-upload',
         store    => 'lazysite/manager/.upload-rate.db',
-        fault    => 'cannot be counted: DB_File is not installed (Debian: libdb-file-perl)',
-        doing    => 'accept this upload',
-        effect   => 'Every upload is refused until it is repaired.' );
+        fault  => 'cannot be counted: DB_File is not installed (Debian: libdb-file-perl)',
+        doing  => 'accept this upload',
+        effect => 'Every upload is refused until it is repaired.' );
     eval {
         no warnings 'once';
         tie %db, 'DB_File', $rate_path, O_RDWR | O_CREAT, 0o600,

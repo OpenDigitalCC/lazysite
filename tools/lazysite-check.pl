@@ -4364,30 +4364,30 @@ sub report_hook_index {
 # Each line says what the engine does about it, in the words of its log.
 sub _store_fault_table {
     return (
-    [ 'manager/.upload-rate.db', 'db', 'every upload is refused',
-        "remove '%s' (it holds only this hour's upload counts and is made again at the next upload)" ],
-    [ 'db/data.sqlite', 'sqlite', 'a data migration, rebuild or import that cannot query it is refused',
-        "restore '%s' from a backup" ],
-    [ 'notify/suppressed.jsonl', 'jsonl', 'no notification is sent (the queue is kept)',
-        "repair the named line of '%s' - it records who unsubscribed, so do not remove the file" ],
-    [ 'notify/ledger.jsonl', 'jsonl', 'no notification is sent (the queue is kept)',
-        "repair or remove the named line of '%s' (a removed line may let that notice go again)" ],
-    [ 'notify/status.json', 'json', "each rule's last-run status is not recorded",
-        "remove '%s' (a convenience the next run writes again)" ],
-    [ 'forms/submitter-mail.jsonl', 'jsonl', "every form's acknowledgement to the submitter is refused by its cap",
-        "repair or remove the named line of '%s'" ],
-    [ 'logs/notice-mail.jsonl', 'jsonl', 'every notice mail is refused by its cap',
-        "repair or remove the named line of '%s'" ],
-    [ 'connectors/calls.jsonl', 'jsonl', 'every capped connector call is refused and the sweep does nothing',
-        "repair or remove the named line of '%s'" ],
-    [ 'daemon/scheduler-runs.json', 'objects', 'no scheduled job runs',
-        "remove '%s' (every job then runs once at the next tick)" ],
-    [ 'daemon/*.state.json', 'json', 'the daemon supervisor starts no service',
-        "make sure no copy of the service runs, then remove '%s' and restart the host service" ],
-    [ '.install-state.json', 'json', 'the installed version reads as unknown',
-        "run the upgrade again, which rewrites '%s'" ],
-    [ 'notify-templates/*.tt', 'read', "the built-in notice wording is used instead of the site's",
-        "make '%s' readable by the site user" ],
+        [ 'manager/.upload-rate.db', 'db', 'every upload is refused',
+            "remove '%s' (it holds only this hour's upload counts and is made again at the next upload)" ],
+        [ 'db/data.sqlite', 'sqlite', 'a data migration, rebuild or import that cannot query it is refused',
+            "restore '%s' from a backup" ],
+        [ 'notify/suppressed.jsonl', 'jsonl', 'no notification is sent (the queue is kept)',
+            "repair the named line of '%s' - it records who unsubscribed, so do not remove the file" ],
+        [ 'notify/ledger.jsonl', 'jsonl', 'no notification is sent (the queue is kept)',
+            "repair or remove the named line of '%s' (a removed line may let that notice go again)" ],
+        [ 'notify/status.json', 'json', "each rule's last-run status is not recorded",
+            "remove '%s' (a convenience the next run writes again)" ],
+        [ 'forms/submitter-mail.jsonl', 'jsonl', "every form's acknowledgement to the submitter is refused by its cap",
+            "repair or remove the named line of '%s'" ],
+        [ 'logs/notice-mail.jsonl', 'jsonl', 'every notice mail is refused by its cap',
+            "repair or remove the named line of '%s'" ],
+        [ 'connectors/calls.jsonl', 'jsonl', 'every capped connector call is refused and the sweep does nothing',
+            "repair or remove the named line of '%s'" ],
+        [ 'daemon/scheduler-runs.json', 'objects', 'no scheduled job runs',
+            "remove '%s' (every job then runs once at the next tick)" ],
+        [ 'daemon/*.state.json', 'json', 'the daemon supervisor starts no service',
+            "make sure no copy of the service runs, then remove '%s' and restart the host service" ],
+        [ '.install-state.json', 'json', 'the installed version reads as unknown',
+            "run the upgrade again, which rewrites '%s'" ],
+        [ 'notify-templates/*.tt', 'read', "the built-in notice wording is used instead of the site's",
+            "make '%s' readable by the site user" ],
     );
 }
 
@@ -4396,7 +4396,7 @@ sub _store_shape_fault {
     my ( $f, $shape ) = @_;
     if ( $shape eq 'sqlite' ) {
         return undef unless -e $f;
-        return undef unless eval { require DBI; require DBD::SQLite; 1 };    # the data checks say so
+        return undef unless eval { require DBI; require DBD::SQLite; 1 }; # the data checks say so
         my $ok = eval {
             my $dbh = DBI->connect( "dbi:SQLite:dbname=$f", '', '',
                 { RaiseError => 1, PrintError => 0, sqlite_open_flags => DBD::SQLite::OPEN_READONLY() } );
@@ -4407,7 +4407,7 @@ sub _store_shape_fault {
         return $ok ? undef : 'does not pass SQLite\'s quick_check';
     }
     if ( $shape eq 'db' ) {
-        return undef unless -e $f;
+        return undef                                         unless -e $f;
         return 'cannot be checked: DB_File is not installed' unless eval { require DB_File; 1 };
         my %t;
         my $tied = eval { require Fcntl; tie %t, 'DB_File', $f, Fcntl::O_RDONLY(), 0 };

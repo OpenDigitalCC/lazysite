@@ -769,8 +769,8 @@ sub _mail_sent_last_hour {
         unless ( ref $r eq 'HASH' ) {
             close $fh;
             Lazysite::Util::store_fault( category => 'notify', store => 'lazysite/logs/notice-mail.jsonl',
-                fault  => "holds a line that is not a send record (line $at)",
-                doing  => 'count the notice mail sent',
+                fault => "holds a line that is not a send record (line $at)",
+                doing => 'count the notice mail sent',
                 effect => 'Every notice mail is refused by its cap until it is repaired.' );
             return undef;
         }

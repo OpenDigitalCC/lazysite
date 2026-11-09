@@ -133,8 +133,8 @@ sub suppressed {
         unless ( ref $r eq 'HASH' && defined $r->{r} && defined $r->{p} ) {
             close $fh;
             store_fault( category => 'notify', store => 'lazysite/notify/suppressed.jsonl',
-                fault  => "holds a line that is not an unsubscribe record (line $n)",
-                doing  => 'tell who has unsubscribed',
+                fault => "holds a line that is not an unsubscribe record (line $n)",
+                doing => 'tell who has unsubscribed',
                 effect => 'No notification is sent until it is repaired; the queue keeps every entry.' );
             return undef;
         }

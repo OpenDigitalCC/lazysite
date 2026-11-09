@@ -12,17 +12,17 @@ use strict;
 use warnings;
 use Test::More;
 use FindBin;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
+use TestHelper qw(site_tempdir);
 use Lazysite::Manager::Upload qw(check_upload_rate);
 use Lazysite::Manager::Common ();
 
 eval { require DB_File };
 plan skip_all => 'DB_File not available' if $@;
 
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();
 make_path( "$docroot/lazysite/manager", "$docroot/lazysite/logs" );
 $Lazysite::Manager::Upload::LAZYSITE_DIR = "$docroot/lazysite";
 $Lazysite::Manager::Common::DOCROOT      = $docroot;

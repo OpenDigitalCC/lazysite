@@ -272,8 +272,8 @@ sub action_version {
     # before the file existed. Now the log names it, and so does the answer.
     unless ( ref $d eq 'HASH' ) {
         my $f = Lazysite::Util::store_fault( category => 'manager', store => 'lazysite/.install-state.json',
-            fault  => 'does not decode as a JSON object',
-            doing  => 'tell which lazysite version is installed',
+            fault => 'does not decode as a JSON object',
+            doing => 'tell which lazysite version is installed',
             effect => 'The site still serves; the installer rewrites it at the next upgrade.' );
         return { ok => 1, version => undef, error => $f->{error} };
     }

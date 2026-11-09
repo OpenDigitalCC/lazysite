@@ -202,14 +202,14 @@ sub store_fault {
     my $effect = length( $a{effect} // '' ) ? " $a{effect}" : '';
     my $doing  = $a{doing} // 'answer this';
     log_event( 'WARN', $a{category} // 'store', "cannot tell - $store $fault.$effect",
-        file   => $store,
+        file => $store,
         repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
     return {
         ok     => 0,
         kind   => 'cannot-tell',
         store  => $store,
         repair => 'lazysite check --docroot <docroot>',
-        error  => "Cannot $doing right now: $store $fault. This is a fault on the host, not a "
+        error => "Cannot $doing right now: $store $fault. This is a fault on the host, not a "
             . "decision about this request.$effect `lazysite check --docroot <docroot>` names the "
             . 'fault; repair it from the command line.',
     };

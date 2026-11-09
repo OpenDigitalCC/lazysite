@@ -18,10 +18,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib", "$FindBin::Bin/../../../lib";
+use TestHelper qw(site_tempdir);
 
 BEGIN {
     eval { require DBI; require DBD::SQLite; require YAML::PP; 1 }
@@ -31,7 +31,7 @@ use Lazysite::Data::Tables qw(apply_schema insert_row read_rows import_rows load
 use Lazysite::Data::Schema qw(plan_rebuild plan_migration);
 use Lazysite::Data::Connect ();
 
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();
 make_path( "$docroot/lazysite/db/tables", "$docroot/lazysite/logs" );
 my $path = "$docroot/lazysite/db/tables/probe.yaml";
 

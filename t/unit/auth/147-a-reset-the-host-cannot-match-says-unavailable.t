@@ -12,11 +12,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use JSON::PP qw(encode_json decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root env_passthrough run_child);
+use TestHelper qw(repo_root env_passthrough run_child site_tempdir);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -45,7 +44,7 @@ sub forgot {
 sub slurp { open my $fh, '<:raw', $_[0] or return undef; local $/; my $t = <$fh>; close $fh; return $t }
 
 sub build {
-    my $d = tempdir( CLEANUP => 1 );
+    my $d = site_tempdir();
     mkdir "$d/lazysite";
     mkdir "$d/lazysite/auth";
     mkdir "$d/lazysite/forms";

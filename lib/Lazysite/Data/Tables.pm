@@ -1824,7 +1824,7 @@ sub rebuild_table {
     # to plan.
     my $plan = plan_rebuild( $d, $dbh );
     return _err( "table '$name': $plan->{error}", table => $name,
-        ( $plan->{kind} ? ( kind => $plan->{kind} ) : () ) )    # ruling 206: cannot-tell stays itself
+        ( $plan->{kind} ? ( kind => $plan->{kind} ) : () ) ) # ruling 206: cannot-tell stays itself
         unless $plan->{ok};
 
     # THE CONFIRMATION NAMES THE COLUMNS, and must name all of them. A caller
