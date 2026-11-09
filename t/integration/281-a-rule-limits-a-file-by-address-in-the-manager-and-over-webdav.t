@@ -59,8 +59,10 @@ subtest 'acl-set writes the two fields, and acl-get returns them' => sub {
     is_deeply( $g->{acl}{addresses_deny}, ['blocked'], 'and addresses_deny' );
     is_deeply( $g->{address_profiles}, [ { name => 'blocked' }, { name => 'office' } ],
         'and the profiles the rule may name: names only, no kind, never entries' );
-    my $l = boss( 'list', undef, 'action=list&path=/' );
-    ok( ref $l->{address_profiles} eq 'ARRAY' && @{ $l->{address_profiles} } == 2, 'the listing offers the lists for the permissions editor' );
+    # n785 (T-113): with the other picker lists, never beside a listing's entries.
+    my $p = boss( 'principals', undef, 'action=principals' );
+    ok( ref $p->{address_profiles} eq 'ARRAY' && @{ $p->{address_profiles} } == 2, 'the pickers offer the lists for the permissions editor' );
+    ok( !exists boss( 'list', undef, 'action=list&path=/' )->{address_profiles}, 'and the listing does not' );
 };
 
 subtest 'a rule changed for another reason keeps its address profiles; an empty list clears' => sub {
