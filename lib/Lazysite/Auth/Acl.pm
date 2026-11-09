@@ -20,7 +20,7 @@ use Lazysite::PageCopy ();    # SM1354: a page's copy answers to the page's writ
 # Settings depends only on Lazysite::Util, so there is no cycle back here.
 use Lazysite::Auth::Settings ();
 
-our @EXPORT_OK = qw(load_acls save_acls acls_write_refusal _acl_norm _to_list _acl_allows _acls_path
+our @EXPORT_OK = qw(load_acls save_acls acls_write_refusal acls_fault_refusal _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user may_read_any_rule file_rule_bypass
     account_is_operator group_confers_operator
     gating_for root_gating placement_for relocating_key address_denial address_chain);
@@ -148,9 +148,10 @@ sub _acls_copy {
 # or will not decode - its callers that list or edit rules want a map - but it
 # now records that in $ACLS_FAULT, and the per-file check (_acl_allows, and
 # _acl_denied's refusal) reads it: a broken store is not "no rules", so a
-# non-operator is refused until it is repaired. The operator is unaffected
-# (_acl_denied asks _is_operator first), which keeps the repair in reach from
-# the manager. An ABSENT store is an answer: no rules.
+# check is refused until it is repaired. Ruling 206 withdrew the operator's
+# exception: acls_fault_refusal is asked before the bypass, so the operator is
+# refused too and the repair is made from the command line, where `lazysite
+# check` names the fault. An ABSENT store is an answer: no rules.
 our $ACLS_FAULT = 0;
 
 {
@@ -181,8 +182,9 @@ our $ACLS_FAULT = 0;
         unless ( ref $m eq 'HASH' ) {
             $ACLS_FAULT = 1;
             Lazysite::Util::log_event( 'WARN', 'acl',
-                'acls.json does not decode as a JSON object - every per-file check by a '
-                    . 'non-operator is refused until it is repaired',
+                'acls.json does not decode as a JSON object - every per-file check is '
+                    . 'refused, the operator\'s included, until it is repaired from the command '
+                    . 'line (lazysite check --docroot names it)',
                 file => 'lazysite/auth/acls.json' );
             return {};
         }
@@ -1079,21 +1081,34 @@ sub _acl_denied {
     }
     # SM1139: the visitor's address, before the bypass - see address_denial.
     if ( my $by_address = address_denial($rel) ) { return $by_address }
+    # Ruling 206 (withdrawing SM1024's operator exception): a broken store is
+    # refused BEFORE the bypass, so the operator is refused with everyone else
+    # and the repair is made from the command line.
+    if ( my $fault = acls_fault_refusal("$mode this file") ) { return $fault }
     return undef if file_rule_bypass();
     return undef if _acl_allows( $rel, $mode, $user );
-    # SM1024: refused because the store is broken, not because of a rule - the
-    # cannot-tell answer, naming the store and the repair (503).
+    return { ok => 0, error => "You do not have $mode access to this file", kind => 'permission' };
+}
+
+# SM1024 / ruling 206: the cannot-tell answer (503) for a check that cannot be
+# made because acls.json exists and cannot be read or does not decode - naming
+# the store and the repair. Asked before any bypass: nobody passes a rule the
+# engine cannot read. $what completes "whether you may ...". Undef when the
+# store reads, or is absent (no rules).
+sub acls_fault_refusal {
+    my ($what) = @_;
+    load_acls();
+    return undef unless $ACLS_FAULT;
     return {
         ok     => 0,
         kind   => 'cannot-tell',
         store  => 'lazysite/auth/acls.json',
         repair => 'lazysite check --docroot <docroot>',
-        error => 'Cannot tell whether you may ' . $mode . ' this file: lazysite/auth/acls.json '
-            . 'exists and cannot be read or does not decode. This is a fault on the host, not a '
-            . 'rule about this file. Every per-file check is refused until the site operator '
-            . 'repairs it; `lazysite check --docroot <docroot>` names the fault.',
-    } if $ACLS_FAULT;
-    return { ok => 0, error => "You do not have $mode access to this file", kind => 'permission' };
+        error  => "Cannot tell whether you may $what: lazysite/auth/acls.json exists and "
+            . 'cannot be read or does not decode. This is a fault on the host, not a rule. '
+            . "Every check against it is refused, the operator's included, until it is "
+            . 'repaired from the command line; `lazysite check --docroot <docroot>` names the fault.',
+    };
 }
 
 # SM1309 (ruling 46, T-02): A RULE UNDER AN ENCLOSING RULE MAY NOT ADMIT ANYONE

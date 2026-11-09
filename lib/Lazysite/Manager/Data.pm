@@ -463,7 +463,8 @@ sub _table_has_acl {
 # or change them, as a file's rule does for a file (SM979). The two compose.
 #
 # The OPERATOR is unaffected (the ruling's words): _is_operator - `local`, an
-# unsecured site, a cookie session holding manage_users. A token never is.
+# unsecured site, a cookie session holding manage_users. A token never is. A
+# broken acls.json is the exception: it refuses everyone (ruling 206).
 # Groups are the account's own, resolved from the store (groups_for), as
 # row_write_refusal resolves them. A table with no rule, and no site-wide rule
 # that reaches it, refuses nobody - the ACL store's meaning everywhere.
@@ -474,7 +475,12 @@ sub table_rule_refusal {
     my ( $table, $mode, %o ) = @_;
     no warnings 'once';
     local $Lazysite::Auth::Acl::DOCROOT = $DOCROOT;    # the data endpoint sets no other
-    return undef if _is_operator();
+
+    # Ruling 206: a broken acls.json refuses everyone, the operator included.
+    my $verb = $mode eq 'read' ? 'read' : 'change';
+    my $fault = Lazysite::Auth::Acl::acls_fault_refusal("$verb the rows of table '$table'");
+    return $fault if $fault;
+    return undef  if _is_operator();
     my $user = exists $o{user} ? $o{user} : $auth_user;
     $user = '' unless defined $user;
     my $groups = ref $o{groups} eq 'ARRAY' ? $o{groups} : groups_for($user);
