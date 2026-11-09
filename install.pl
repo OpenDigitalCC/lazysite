@@ -63,6 +63,16 @@ our $CHANNEL_DEFAULT = 'stable';
 # SM1369 X7: the extensions this payload does not carry (absent_extensions).
 our %ABSENT_EXT;
 
+# SM1361 (rulings 201, 202): THE SHARED READ-ONLY ENGINE. A volume-hosted site
+# runs in a container whose image IS this payload; the site holds only its own
+# state. With --engine shared (the container's entrypoint passes it, and the
+# install state remembers it) the plan lays no engine entry - nothing under
+# {CGIBIN}, nothing in {DOCROOT}/../lib, tools or extensions - and the steps
+# that run an installed tool run it from {ENGINE}, which is this payload. A
+# host never passes it: on Hestia and the deb hosts each site keeps its own
+# engine (ruling 201), which is why this is said rather than worked out from
+# where the payload sits - a deb host's payload is read-only too.
+our $SHARED_ENGINE = 0;
 
 # ---------- arg parse ----------
 
@@ -77,6 +87,7 @@ my %opt = (
     list_backups => 0,
     dry_run      => 0,
     invoked_as   => '',
+    engine       => '',
 );
 
 sub usage {
@@ -186,6 +197,15 @@ Maintenance modes:
                       Hestia deploy passes this and runs the check as root after its
                       permission pass, where the web server group's private store
                       is readable. The report says the check was not run.
+  --engine shared|copy
+                      SM1361 (ruling 201): `shared` lays only the site - its
+                      content, settings, templates and the manager's pages and
+                      assets - and runs the engine from THIS payload, read-only:
+                      nothing under --cgibin or beside the docroot (lib, tools,
+                      extensions) is written. For a container whose image is
+                      the payload; its entrypoint passes it. `copy`, the default,
+                      lays the site's own engine copy, as every host does. The
+                      choice is remembered in the install state.
   --serving-group G   The group the web server runs as. The install ends by
                       running the health check, which compares the tree against
                       this group; it defaults to www-data where that group
@@ -255,6 +275,8 @@ Getopt::Long::GetOptions(
     # a wrong guess would turn a healthy install into a failed one. Naming it is
     # the only way the installer can be told.
     'serving-group=s' => \$opt{serving_group},
+    # SM1361 (ruling 201): the container's read-only engine. See $SHARED_ENGINE.
+    'engine=s' => \$opt{engine},
     # SM939 E2 / R15: no starter content. See $NO_STARTER.
     'no-starter' => \$opt{no_starter},
     # SM1285 (ruling 33): the starter pages are opt-in.
@@ -760,6 +782,11 @@ sub cmd_install {
     my $state_path = state_path( $o->{docroot} );
     my $state      = load_state($state_path);
 
+    if ( defined( my $why = select_engine( $o, $state ) ) ) {
+        print {*STDERR} $why;
+        return 2;
+    }
+
     # SM939 E2: the flag, or a choice an earlier run recorded.
     # SM933 A5: carried forward - a directory created by an earlier run is still
     # that run's output.
@@ -1089,7 +1116,7 @@ sub cmd_install {
 # files are what stops the manager saving them afterwards.
 sub run_handler_conversion {
     my ( $docroot, $subs ) = @_;
-    my $tool = resolve_placeholders( '{DOCROOT}/../tools/lazysite-handlers.pl', $subs );
+    my $tool = resolve_placeholders( '{ENGINE}/tools/lazysite-handlers.pl', $subs );
     return ( 1, 'no handler tool in this payload' ) unless -f $tool;
     info('Handlers: converting to the handler contract (SM842)');
     my $pid = fork;
@@ -1115,7 +1142,7 @@ sub run_handler_conversion {
 # extension indexed or refused) are passed through. Returns ( $ok, $why ).
 sub run_hook_index_build {
     my ( $docroot, $subs ) = @_;
-    my $lib = resolve_placeholders( '{DOCROOT}/../lib', $subs );
+    my $lib = resolve_placeholders( '{ENGINE}/lib', $subs );
     return ( 1, 'no lib in this payload' ) unless -f "$lib/Lazysite/Extensions/Hooks.pm";
     my $pid = fork;
     return ( 0, "cannot fork: $!" ) unless defined $pid;
@@ -1143,7 +1170,7 @@ sub run_hook_index_build {
 # top up. Returns ( $ok, $why ).
 sub run_capability_top_up {
     my ( $docroot, $subs ) = @_;
-    my $tool = resolve_placeholders( '{DOCROOT}/../tools/lazysite-users.pl', $subs );
+    my $tool = resolve_placeholders( '{ENGINE}/tools/lazysite-users.pl', $subs );
     return ( 1, 'no users tool in this payload' ) unless -f $tool;
     my $pid = open my $fh, '-|';
     return ( 0, "cannot fork: $!" ) unless defined $pid;
@@ -1429,6 +1456,29 @@ sub _extensions_block {
     return ( $head, $last, @entries );
 }
 
+# SM1361: --engine, or what the install state remembers, else `copy`. Sets
+# $SHARED_ENGINE; returns a refusal, or undef.
+sub select_engine {
+    my ( $o, $state ) = @_;
+    my $want = $o->{engine} // '';
+    if ( !length $want ) {
+        $want = ( ref $state eq 'HASH' && ( $state->{engine} // '' ) eq 'shared' ) ? 'shared' : 'copy';
+    }
+    return "install.pl: --engine '$want' is not one of shared, copy\n"
+        unless $want eq 'shared' || $want eq 'copy';
+    $SHARED_ENGINE = $want eq 'shared' ? 1 : 0;
+    return undef;
+}
+
+# Is this manifest entry the engine's own code, which a shared-engine site runs
+# from the payload instead of holding a copy? The CGIs and their parts, and
+# everything beside the docroot: lib, tools, extensions.
+sub is_engine_entry {
+    my ($entry) = @_;
+    my $to = $entry->{install_to} // return 0;
+    return ( $to =~ m{\A\{CGIBIN\}/} || $to =~ m{\A\{DOCROOT\}/\.\./(?:lib|tools|extensions)/} ) ? 1 : 0;
+}
+
 # Is $script (`extensions/<file>.pl`) on in this lazysite.conf?
 sub conf_lists_extension {
     my ( $conf, $script ) = @_;
@@ -1681,6 +1731,7 @@ sub verify_code_files {
     for my $entry ( @{ $manifest->{files} } ) {
         next unless defined $entry->{install_to};
         next unless ( $entry->{bucket} // '' ) eq 'code';
+        next if $SHARED_ENGINE && is_engine_entry($entry);
         next if defined $entry->{extension} && $ABSENT_EXT{ $entry->{extension} };
         my $dest = resolve_placeholders( $entry->{install_to}, $subs );
         if ( !-f $dest ) { push @bad, "$dest (missing)"; next }
@@ -1698,6 +1749,10 @@ sub verify_code_files {
 sub cmd_verify {
     my ($o)      = @_;
     my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
+    if ( defined( my $why = select_engine( $o, load_state( state_path( $o->{docroot} ) ) ) ) ) {
+        print {*STDERR} $why;
+        return 2;
+    }
     my %subs     = placeholders( $o->{docroot}, $o->{cgibin} );
     %ABSENT_EXT = absent_extensions($manifest);
     my @bad      = verify_code_files( $manifest, \%subs );
@@ -1726,6 +1781,8 @@ sub compute_plan {
 
         # SM1369 X7: an extension this payload does not carry is left out whole.
         next if defined $entry->{extension} && $ABSENT_EXT{ $entry->{extension} };
+        # SM1361: a shared-engine site runs the engine from this payload.
+        next if $SHARED_ENGINE && is_engine_entry($entry);
 
         my $dest   = resolve_placeholders( $entry->{install_to}, $subs );
         my $source = "$STAGE_DIR/$entry->{path}";
@@ -2264,6 +2321,9 @@ sub mode_for {
 # ---------- imperative post-install steps ----------
 # =========================================================
 
+# The extensions whose script is linked into cgi-bin as an endpoint.
+sub endpoint_links { return qw(form-handler payment-demo) }
+
 sub post_install_steps {
     my ( $o, $manifest, $subs, $state_files, $mode, $stats ) = @_;
 
@@ -2278,7 +2338,10 @@ sub post_install_steps {
     # back to install if symlink unsupported (some shared hosts).
     # These paths are NOT tracked in .install-state.json - they are
     # links to files that ARE tracked.
-    for my $extension (qw(form-handler payment-demo)) {
+    # SM1361: on a shared-engine site the cgi-bin is the payload's, which the
+    # image links once at build time (installers/docker/Dockerfile, the same
+    # list: t/lint/391).
+    for my $extension ( $SHARED_ENGINE ? () : endpoint_links() ) {
         my $src = "$extension_dir/$extension.pl";
         my $dst = "$cgibin/$extension.pl";
         next unless -f $src;
@@ -2535,6 +2598,11 @@ sub create_runtime_paths {
         # means install, so an entry that predates the field behaves as before.
         my $by = $rp->{applied_by};
         next if ref $by eq 'ARRAY' && !grep { $_ eq 'install' } @$by;
+        # SM1361: beside the docroot is the image's on a shared-engine site;
+        # its extensions directory, where there is one, is the site's own
+        # read-only volume of local extensions, never the installer's to make
+        # or chmod.
+        next if $SHARED_ENGINE && $rp->{path} =~ m{\A\{DOCROOT\}/\.\./};
         my $path = resolve_placeholders( $rp->{path}, $subs );
         my $mode = oct( $rp->{mode} );
         # SM268 H5: never chmod a runtime path that is a symlink. `-d` follows
@@ -3147,6 +3215,7 @@ sub write_state {
         ( %left           ? ( dirs_left => \%left )     : () ),    # SM933 A5
         ( $once && @$once ? ( once => [ sort @$once ] ) : () ),   # SM798: steps done once
         ( $NO_STARTER     ? ( starter => 'none' )       : () ),    # SM939 E2: remembered
+        ( $SHARED_ENGINE  ? ( engine => 'shared' )      : () ),    # SM1361: remembered
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)
@@ -3262,6 +3331,10 @@ sub placeholders {
         CGIBIN   => $cgibin,
         LAZYSITE => lazysite_dir_for($docroot),
 
+        # SM1361: where the engine's tools and lib are for the steps that run
+        # them - this payload on a shared-engine site, the site's own copy
+        # beside the docroot everywhere else.
+        ENGINE => ( $SHARED_ENGINE ? $STAGE_DIR : _site_root_for($docroot) ),
 
         # SM321: the private store, so it can be DECLARED like every other
         # runtime directory instead of being created by whichever code path
@@ -3282,6 +3355,14 @@ sub placeholders {
         # where a fact must exist twice, the second copy is pinned to the first.
         PRIVATE_STORE => _private_store_for($docroot),
     );
+}
+
+# The directory the site's own engine copy sits in: the docroot's parent.
+sub _site_root_for {
+    my ($docroot) = @_;
+    return '' unless defined $docroot && length $docroot;
+    ( my $d = $docroot ) =~ s{/+\z}{};
+    return length $d ? dirname($d) : '';
 }
 
 # Mirrors Lazysite::Private::private_root exactly - a SIBLING of the docroot,
