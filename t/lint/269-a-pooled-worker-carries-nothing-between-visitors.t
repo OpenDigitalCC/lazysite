@@ -350,7 +350,9 @@ my %T = (
         '%CONF_MEMO'          => [ exempt => $KEYED ],
         '%SEEN_THIS_PROCESS'  => [ exempt => 'dedupes the hourly address-refusal audit row on (target, address, hour); it suppresses a duplicate row and decides nothing about a request, and the worker\'s recycle bounds it' ],
     },
-    'lib/Lazysite/Auth/Identity.pm' => { '%conf_cache' => [ exempt => $KEYED ] },
+    'lib/Lazysite/Auth/Identity.pm' => { '%conf_cache' => [ exempt => $KEYED ],
+        # SM297: a converted surface holds its value with `local`; nothing pooled assigns it
+        '$HELD' => [ unset => '' ] },
     'lib/Lazysite/Auth/Session.pm' => {
         '%LIFETIME_CACHE' => [ exempt => 'the session lifetime setting, keyed on the site directory' ],
         # SM1181 S2: cleared per request by the processor too, not only by the
