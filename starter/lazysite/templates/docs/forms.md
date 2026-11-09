@@ -688,9 +688,13 @@ webhook.connector: sms-gateway
   `webpush` too, comma-separated). Your gateway maps the account to a number.
 
 A notice to nobody in particular (a broadcast) goes to neither, as it goes to nobody by
-mail. **The site's hourly bound covers every route**: `mail.per_hour` in `notify.conf`
-(default 60) counts notices sent by mail, web push and webhook together. Every attempt
-is a line in the site log saying what happened - sent, or the reason it was not.
+mail. **Two hourly bounds**, in `notify.conf`: `mail.per_hour` (default 60) counts
+notices sent by every route but webhook - mail and web push together - and
+`webhook.per_hour` (default 20) counts the webhook route alone, so a flood of form
+submissions cannot spend the mail bound and text messages, which cost money, stay
+capped low. Every attempt is a line in the site log saying what happened - sent, or
+the reason it was not. A device whose push service answers that it has unsubscribed
+(404 or 410) is removed from the account, as turning it off on `/account` would.
 
 Web push needs CryptX on the server (Debian `libcryptx-perl`, which the package
 recommends); without it the account page says so, and `lazysite check` warns when

@@ -215,7 +215,9 @@ Archive
   `webhook.connector` names, in scheduled mode, with the notice's kind, title, account
   and link and never its content - the way a text message goes, to the operator's own
   gateway (ruling 188). `notify_routes: webhook` is an operator's setting. One hourly
-  bound, `mail.per_hour`, now counts every route's sends, and every attempt is a log line
+  bound, `mail.per_hour`, now counts every route's sends but webhook's, which has its own
+  `webhook.per_hour` (default 20, ruling 195); a device whose push service answers 404
+  or 410 is removed (ruling 199); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
   (t/unit/notify/41, t/unit/account/38).
 

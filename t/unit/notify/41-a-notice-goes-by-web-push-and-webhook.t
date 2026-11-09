@@ -9,7 +9,7 @@
 #   - webpush: an EMPTY POST to each of the account's devices, VAPID-signed with the
 #     site's own key (a JWT whose audience is the endpoint's origin, verified here)
 #   - a broadcast, and an account that did not choose the route, reach nobody
-#   - the one hourly bound (mail.per_hour) counts every route's sends
+#   - every route's send is a line in the one send record (the bounds: t/unit/notify/42)
 #   - every attempt is a log line with its outcome
 #   - without CryptX, web push says what is missing and the webhook still goes
 # Both destinations are a 127.0.0.1 fixture this test runs.
@@ -143,13 +143,6 @@ is( scalar @{ requests() }, $before, 'bob did not choose the routes, and a broad
 $log = slurp($LOG);
 like( $log, qr/notice not sent by webpush.*has not chosen notices by webpush/, 'log: bob\'s refusal, with its reason' );
 like( $log, qr/notice not sent by webhook.*broadcast/, 'log: the broadcast\'s' );
-
-# --- the one hourly bound counts every route --------------------------------------------------------
-notify_conf("mail.per_hour: 3\n");
-notice( to => 'alice' );
-is( scalar @{ requests() }, $before + 1, 'with 2 of 3 used, the push goes and the webhook is refused' );
-like( slurp($LOG), qr/notice not sent by webhook.*this site/, 'log: the bound named as the reason' );
-notify_conf();
 
 # --- without CryptX ----------------------------------------------------------------------------------
 my $shadow = tempdir( CLEANUP => 1 );

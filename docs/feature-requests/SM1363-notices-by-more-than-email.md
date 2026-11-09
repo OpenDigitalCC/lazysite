@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion)"
 area: notify
-status-note: "SHIPPED (PENDING, 0.16.9) on n784 with rulings 187 and 188: webpush and webhook in Notify's route table, notify_routes beside notify_email, app notices turned on per device on /account, an empty VAPID-signed push, SMS through a webhook connector, one hourly bound for every route, a log line per attempt."
+status-note: "SHIPPED (PENDING, 0.16.9) on n784 with rulings 187 and 188: webpush and webhook in Notify's route table, notify_routes beside notify_email, app notices turned on per device on /account, an empty VAPID-signed push, SMS through a webhook connector, a webhook bound beside the mail bound, a log line per attempt."
 ---
 
 # Proposed
@@ -32,6 +32,6 @@ status-note: "SHIPPED (PENDING, 0.16.9) on n784 with rulings 187 and 188: webpus
 - **Routes:** `webpush` and `webhook` join `bell`, `xmpp` and `email` in `route.<type>` (notify.conf). The webhook route is the connector `webhook.connector` names (scheduled mode), so it has the connector's secret header, rate cap, refusal of redirects and call record. Ruling 188: a text message goes this way, to the operator's gateway; the engine names no provider and has no SMS hook kind.
 - **Per account:** `notify_routes` (webpush, webhook) beside `notify_email`. A device turning notices on or off on `/account` adds or removes `webpush`; `webhook` is the operator's to set, since it may cost money. Per kind of notice is the site's `route.<type>`; the account chooses the route, not the kind.
 - **Content:** none on any route. A push has no payload (so no RFC 8291 encryption, only VAPID signing, ruling 187); the worker says something is waiting and opens `/account`. A webhook carries the kind, title, account and link.
-- **Limits:** `mail.per_hour` counts every route's sends; every attempt is a log line with its outcome.
+- **Limits:** `mail.per_hour` (default 60) counts every route's sends but webhook's (ruling 199); `webhook.per_hour` (default 20) bounds the webhook route alone (ruling 195); every attempt is a log line with its outcome. A device whose push service answers 404 or 410 is removed (ruling 199).
 - **Keys:** the VAPID key at `lazysite/auth/webpush-vapid.pem`, made on first use.
 - **Question 1:** answered by ruling 188: chosen per deployment, through a webhook connector, with none shipped.

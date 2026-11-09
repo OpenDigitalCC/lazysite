@@ -196,11 +196,12 @@ engine's page (the `data-ls-account="passkey-signin"`, `"passkey-claim"` and
 `account-passkeys.tt` from the engine. To make a group sign in by passkey only:
 `lazysite users --docroot <docroot> group-set <group> passkey_only on`.
 
-**`mail.per_hour` now bounds every notice route (SM1363).** The hourly bound in
-`lazysite/notify.conf` counted notice mail; it now counts a notice sent by mail, by web
-push and by webhook together, from the same record. A site that routes nothing new sees
-no change. One that adds `webpush` or `webhook` to a `route.<type>` line and keeps a low
-`mail.per_hour` should raise it to cover the extra sends. Nothing else changes for a site
+**Two hourly notice bounds (SM1363, rulings 195 and 199).** `mail.per_hour` in
+`lazysite/notify.conf` counted notice mail; it now counts every route but webhook -
+mail and web push together. The webhook route has its own bound, `webhook.per_hour`,
+20 an hour unless set. A site that routes nothing new sees no change. One that adds
+`webpush` and keeps a low `mail.per_hour` should raise it to cover the pushes; one that
+sends text messages by webhook sets `webhook.per_hour` to what it will pay for. Nothing else changes for a site
 that does not use the new routes; to use them, see "Notices to the app, and by text
 message" in `/docs/forms`. A site whose own `account.md` should offer app notices adds
 `::: account-push`.

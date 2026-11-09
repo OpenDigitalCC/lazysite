@@ -5447,8 +5447,10 @@ controls
   the account). The webhook route needs the operator to name a connector, to permit it
   scheduled calls, and to set `notify_routes: webhook` on each account (not
   self-service, a text may cost money).
-: One hourly bound (`mail.per_hour`, default 60) counts every route's sends from one
-  record and refuses when the record cannot be read; the connector's own rate cap and
+: Two hourly bounds count sends from one record (rulings 195, 199): `mail.per_hour`
+  (default 60) every route but webhook, `webhook.per_hour` (default 20) the webhook
+  alone, so a form flood cannot spend one through the other; each refuses when the
+  record cannot be read; the connector's own rate cap and
   call record apply on top. Every attempt is a log line with its outcome.
 : t/unit/notify/41 (a 127.0.0.1 fixture for both routes: the empty signed push and its
   JWT verified, the webhook's header and body, the refusals, the bound, the log lines,
@@ -5460,7 +5462,7 @@ residual risk
   nothing of what. The endpoint is checked by DNS at send time, so a name that
   re-resolves between the check and the connect could still reach a private address
   (the same window `Lazysite::Fetch` has). A device that has unsubscribed answers 404 or
-  410 and is logged as gone but kept until the person turns it off on `/account`.
+  410 and is removed (ruling 199), through the users tool, as turning it off would be.
 
 verdict
 : drafted for the release manager: accepted, contained. The new outbound path carries

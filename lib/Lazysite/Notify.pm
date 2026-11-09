@@ -66,6 +66,10 @@ our $MAIL_SENDER = \&_mail_send;
 # default - it is what stops a loop in a caller mailing all night.
 our $DEFAULT_MAIL_PER_HOUR = 60;
 
+# SM1363 (ruling 195): the webhook route's own bound - low, because a webhook is
+# how a site sends text messages and each one may cost money.
+our $DEFAULT_WEBHOOK_PER_HOUR = 20;
+
 # --- the type registry -------------------------------------------------------
 #
 # Each type declares a title (what a sysop sees in a routing UI) and the
@@ -518,23 +522,30 @@ sub send_mail {
     return '';
 }
 
-# THE ONE HOURLY BOUND, for every route (SM1363 widened it from mail): a notice
-# by mail, by web push or by webhook is one send against `mail.per_hour` in
-# notify.conf, counted from the one record. The key keeps its name, so a site
-# that set it keeps its bound. '' when there is room, else the refusal.
+# THE HOURLY BOUNDS (SM1363). Two, counted from the one send record:
+#   mail.per_hour     (default 60) every route but webhook - a notice by mail or by
+#                     web push. The key keeps its name, so a site that set it keeps
+#                     its bound (ruling 199).
+#   webhook.per_hour  (default 20) the webhook route alone (ruling 195), so a form
+#                     flood cannot spend the mail bound, and text messages, which
+#                     cost money, stay capped low.
+# $route is the route asking; '' when there is room, else the refusal.
 sub _hour_cap_refusal {
-    my ( $docroot, $conf, $what ) = @_;
-    my $cap = $conf->{'mail.per_hour'};
-    $cap = $DEFAULT_MAIL_PER_HOUR unless defined $cap && $cap =~ /\A\d+\z/;
+    my ( $docroot, $conf, $what, $route ) = @_;
+    my $hook = ( $route // '' ) eq 'webhook';
+    my $key  = $hook ? 'webhook.per_hour' : 'mail.per_hour';
+    my $cap  = $conf->{$key};
+    $cap = ( $hook ? $DEFAULT_WEBHOOK_PER_HOUR : $DEFAULT_MAIL_PER_HOUR ) unless defined $cap && $cap =~ /\A\d+\z/;
     require Lazysite::Egress;
     my ( $ok, $capwhy ) = Lazysite::Egress::within_caps(
         what => $what,
         axes => [ {
                 name    => 'this site',
                 limit   => ( $cap ? $cap : undef ),
-                used    => _mail_sent_last_hour($docroot),
+                used    => _mail_sent_last_hour( $docroot, $hook ? 'webhook' : 'other' ),
                 window  => 'hour',
-                setting => 'mail.per_hour in notify.conf (it bounds every notice route)',
+                setting => ( $hook ? 'webhook.per_hour in notify.conf'
+                    : 'mail.per_hour in notify.conf (it bounds every notice route but webhook)' ),
         } ],
     );
     return $ok ? '' : $capwhy;
@@ -611,6 +622,7 @@ sub _webpush_notice {
         _record_mail_sent( $docroot, 'webpush' );
         log_event( ( $ok ? 'INFO' : 'WARN' ), 'notify', ( $ok ? 'notice pushed' : 'notice push failed' ),
             to => $rec->{to}, device => $host, http => $code, ( $ok ? () : ( why => $err ) ) );
+        _forget_device( $docroot, $rec->{to}, $ep, $host ) if !$ok && ( $code == 404 || $code == 410 );
         if   ($ok) { $sent++ }
         else       { push @why, $err }
     }
@@ -618,12 +630,30 @@ sub _webpush_notice {
     return join '; ', @why;
 }
 
+# SM1363 (ruling 199): a device whose push service answers 404 or 410 has
+# unsubscribed, and keeping it would push into nothing on every notice. It is
+# removed through the users tool, the store's one writer, as turning it off on
+# /account would; the last one takes `webpush` out of notify_routes with it.
+sub _forget_device {
+    my ( $docroot, $login, $ep, $host ) = @_;
+    require Lazysite::Manager::Common;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT = $docroot;
+    my $r = Lazysite::Manager::Common::users_api(
+        { action => 'push-unsubscribe', username => $login, endpoint => $ep } );
+    log_event( ( ref $r eq 'HASH' && $r->{ok} ? 'INFO' : 'WARN' ), 'notify',
+        ( ref $r eq 'HASH' && $r->{ok} ? 'a device that unsubscribed was removed'
+            : 'a device that unsubscribed could not be removed' ),
+        to => $login, device => $host, ( ref $r eq 'HASH' && $r->{ok} ? () : ( why => ( ref $r eq 'HASH' ? $r->{error} : '' ) // '' ) ) );
+    return;
+}
+
 sub _webhook_notice {
     my ( $docroot, $conf, $rec, $vars ) = @_;
     my $id = $conf->{'webhook.connector'} // '';
     return 'notify.conf names no webhook.connector, so the webhook route has nowhere to go'
         unless length $id;
-    if ( my $capwhy = _hour_cap_refusal( $docroot, $conf, 'notice' ) ) { return $capwhy }
+    if ( my $capwhy = _hour_cap_refusal( $docroot, $conf, 'notice', 'webhook' ) ) { return $capwhy }
     require Lazysite::Manager::Connectors;
     no warnings 'once';
     local $Lazysite::Manager::Connectors::DOCROOT = $docroot;
@@ -702,8 +732,11 @@ sub _mail_record_file {
 # make fails exactly like an open it may not make, so the guard would have turned
 # "I am not allowed to look" into "nothing has been sent" - and a cap that cannot
 # count must never read as room to send.
+# SM1363 (ruling 195): $which counts one bucket - 'webhook', the webhook route's
+# sends; 'other', every other route's (a line from before routes were named is
+# mail). Absent counts every line.
 sub _mail_sent_last_hour {
-    my ($docroot) = @_;
+    my ( $docroot, $which ) = @_;
     my $f = _mail_record_file($docroot);
     open my $fh, '<', $f
         or return $!{ENOENT} ? 0 : cannot_read( 'the notice-mail record', $f );
@@ -711,6 +744,10 @@ sub _mail_sent_last_hour {
     my $n   = 0;
     while ( my $l = <$fh> ) {
         my $r = eval { JSON::PP::decode_json($l) } or next;
+        if ( defined $which ) {
+            my $is_hook = ( $r->{route} // 'email' ) eq 'webhook';
+            next if $is_hook != ( $which eq 'webhook' ? 1 : 0 );
+        }
         $n++ if ( $r->{t} // 0 ) >= $cut;
     }
     close $fh;
