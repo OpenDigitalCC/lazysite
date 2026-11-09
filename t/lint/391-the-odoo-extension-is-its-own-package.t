@@ -31,10 +31,9 @@ subtest 'debian/control declares lazysite-odoo' => sub {
     like( $stanza, qr/^Architecture:\s*all$/m, 'Architecture: all' );
     like( $stanza, qr/^Depends:\n(?:\s.*\n)*?\s+lazysite-common \(= \$\{source:Version\}\),/m,
         'Depends on the same-version lazysite-common' );
-    like( $stanza, qr/^Recommends:\n\s+libodoo-oom-perl,/m,
-        'OOM is a Recommends (ruling 202)' );
-    unlike( $stanza, qr/^Depends:\n(?:\s.*\n)*?\s+libodoo-oom-perl/m,
-        'and not a Depends: it is not in the Debian archive' );
+    like( $stanza, qr/^Depends:\n(?:\s.*\n)*?\s+libodoo-oom-perl,/m,
+        'and on OOM (ruling 205)' );
+    unlike( $stanza, qr/^(?:Recommends|Suggests):/m, 'with nothing weaker beside it' );
 };
 
 # The descriptor's owns.endpoints, read from its source.
