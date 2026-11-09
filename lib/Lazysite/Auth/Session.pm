@@ -99,7 +99,7 @@ sub session_lifetime {
 # to 31536000 - the raw text, for the refusal to name.
 sub _session_lifetime_read {
     return ( undef, undef ) unless defined $LAZYSITE_DIR && length $LAZYSITE_DIR;
-    open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" or return ( undef, undef );
+    open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" or return ( undef, undef ); # not a store
     my $raw;
     while ( my $l = <$fh> ) {
         next unless $l =~ /^\s*session_lifetime\s*:\s*(.*?)\s*$/;
@@ -371,10 +371,13 @@ sub session_store_fault {
 # decides; ENOENT is an answer). Errno is read before cannot_read clobbers it.
 sub _groups_unreadable {
     my $path = _auth_dir() . '/groups';
-    if ( open( my $fh, '<:utf8', $path ) ) { close $fh; return 0 }
-    return 0 if $!{ENOENT};
-    cannot_read( 'groups', $path );
-    return 1;
+    open( my $fh, '<:utf8', $path ) or do {
+        my $absent = $!{ENOENT} ? 1 : 0;
+        cannot_read( 'groups', $path );    # silent for ENOENT
+        return $absent ? 0 : 1;
+    };
+    close $fh;
+    return 0;
 }
 
 sub load_user_groups {

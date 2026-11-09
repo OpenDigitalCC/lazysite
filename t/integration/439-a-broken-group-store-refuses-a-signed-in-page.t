@@ -14,13 +14,12 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(setup_auth_site run_processor repo_root);
+use TestHelper qw(setup_auth_site run_processor repo_root site_tempdir);
 
 my $root    = repo_root();
-my $docroot = tempdir( CLEANUP => 1 );
+my $docroot = site_tempdir();
 setup_auth_site($docroot);
 my $GS = "$docroot/lazysite/auth/groups-settings.json";
 

@@ -508,6 +508,11 @@
       "why": "SM906: the capability grants themselves, plus each group's label and whether it may be assigned. The manager writes it (group-settings-set) and every capability decision READS it, so a file the CGI cannot open resolves every account to zero capabilities - which the engine then reported as facts about the account: an empty capability grid, labels falling back to technical names, backend groups offered as assignable, and account-create refusing about a capability the account held. It was the one auth store missing from both this model and the check"
     },
     {
+      "path": "{LAZYSITE}/auth/.consume.lock",
+      "ensure": "group-write",
+      "why": "ruling 206: the users tool takes this lock, opened for writing, around every account change and single-use secret, from the CLI and through the CGI; one the other identity cannot open refuses every change"
+    },
+    {
       "path": "{LAZYSITE}/auth/acls.json",
       "ensure": "group-write",
       "why": "per-file ACLs are written by the manager and the MCP/DAV surfaces"
