@@ -45,6 +45,14 @@ our %BEHAVIOUR;
         return 1;
     }
     sub Disconnect { push @CALLS, ['Disconnect']; 1 }
+    # SM1418's presence step, kept out of @CALLS: this file pins the transport's
+    # order, and t/unit/lib/322 pins the presence step. An empty roster, and a
+    # stream that is closed so nothing waits.
+    sub RosterGet            { () }
+    sub SetPresenceCallBacks { 1 }
+    sub PresenceSend         { 1 }
+    sub Subscription         { 1 }
+    sub Process              { undef }
 
     package Net::XMPP::Presence;
     sub new          { bless {}, shift }

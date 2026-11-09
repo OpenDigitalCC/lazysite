@@ -258,6 +258,16 @@ Archive
   same title are no longer a duplicate. Each warning names the page's address, and its
   domain on a site of several (ruling 199); a folder ruling 171 leaves out is not
   counted, and an alias without a content root of its own shares the primary's pages.
+- SM1418 (PENDING) **the XMPP notice account is a usable contact.** Adding the site's
+  account in a chat client left the presence subscription one-way (the sender only
+  connected, sent and left), so Conversations showed an unusable "Trust OMEMO
+  Fingerprints" dialogue. While connected for a send to a person, the delivery now
+  approves a subscribe from the configured recipient and from no one else, and asks for
+  its own subscription once (the roster says `both`, `to` or pending: no repeat).
+  A group chat gets no subscription step. A presence step that fails is logged and the
+  notice is still sent. Messages stay plain-body (chat for a person, groupchat for a
+  room); nothing is published under OMEMO. The test notification reports a `presence`
+  stage. t/unit/lib/322; /docs/forms.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

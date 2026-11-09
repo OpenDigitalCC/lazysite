@@ -657,6 +657,18 @@ means exactly that: nothing is looked up, and the other takes its usual default.
 One client and one recipient per site; use a room (`muc: 1`) when several people
 should see the notices.
 
+**Adding the account as a contact.** When `to` is a person, add the site's account
+(`jid`) in your chat client once and accept its subscription request. The account
+answers your request and asks for its own the first time it sends you a notice; it
+approves a request from the `to` address only, and ignores anyone else's. A group
+chat needs none of this.
+
+On Conversations and other clients that encrypt by default, open the chat with the
+account, tap the padlock and choose **Unencrypted**. The account publishes no OMEMO
+keys, so the client's key dialogue has nothing to trust. Notices are plaintext on
+purpose: they are protected by TLS to your server and between servers, and carry only
+what the notice template holds.
+
 The connector needs `Net::XMPP` and `Net::DNS` - on Debian, `libnet-xmpp-perl`
 and `libnet-dns-perl`.
 

@@ -223,6 +223,15 @@ message" in `/docs/forms`. A site whose own `account.md` should offer app notice
   reported by `validate_page`; such a page already rendered with its whole body as
   written. `| json` now works in a page body (SM1398).
 
+**The XMPP notice account answers a subscribe from its recipient (SM1418).** No
+setting changes and nothing to migrate. On the first notice after the upgrade to a
+person (not a room) the account asks the recipient to subscribe and approves their
+request; once both directions hold it does nothing more. The recipient accepts the
+account's request in their client and, in Conversations and other OMEMO-default
+clients, taps the padlock in the chat and chooses Unencrypted (see
+`/docs/forms`, "Configuring chat delivery"). While the subscription is incomplete a
+notice to a person waits up to a second for a pending request.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

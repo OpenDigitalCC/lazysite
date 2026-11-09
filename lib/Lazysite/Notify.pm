@@ -1309,6 +1309,9 @@ sub _xmpp_send {
             _xmpp_delivery_step( $note, $steps, $conf, $refused );
         }
         else {
+            # SM1418: the account becomes a contact the person can use. Best
+            # effort: a presence step that fails is logged and never blocks the send.
+            _xmpp_presence_step( $client, $conf->{to}, $note );
             my $refused = _xmpp_send_and_await( $client, $conf->{to},
                 sub { $client->MessageSend( to => $conf->{to}, body => $text, type => 'chat' ) },
                 ( $conf->{_await_bounce} ? $XMPP_BOUNCE_WAIT : 0 ) );
@@ -1322,6 +1325,73 @@ sub _xmpp_send {
     alarm 0;
     die $err unless $ok;
     return 1;
+}
+
+# SM1418: THE NOTICE ACCOUNT IS A CONTACT, NOT ONLY A SENDER.
+#
+# A person who adds the site's account in a chat client needs the presence
+# subscription to run both ways, or the client shows a contact it cannot trust.
+# This sender only connected, sent and left, so it never answered a subscribe.
+# While connected for a send to a PERSON (a room has no subscription step), it:
+#   - reads the roster once; 'both' means nothing to do (no repeat on every notice);
+#   - sends its own `subscribe` unless it already has one (`to`) or one is pending;
+#   - approves a `subscribe` from the configured recipient and from nobody else
+#     (a stranger's request is ignored, never approved), waiting briefly for a
+#     pending request the server delivers once presence is sent.
+# Nothing is published under OMEMO/PEP: the notices are plaintext, protected by
+# TLS to and between servers.
+our $PRESENCE_WAIT = 1;    # seconds spent waiting for a pending subscribe
+
+sub _bare_jid {
+    my $j = lc( $_[0] // '' );
+    $j =~ s{/.*}{}s;
+    return $j;
+}
+
+sub _xmpp_presence_step {
+    my ( $client, $to, $note ) = @_;
+    my $bare = _bare_jid($to);
+    my $ok   = eval {
+        my %raw    = $client->RosterGet();
+        my %roster = map { _bare_jid($_) => $raw{$_} } keys %raw;
+        my $item   = ref $roster{$bare} eq 'HASH' ? $roster{$bare} : {};
+        my $sub    = $item->{subscription} || 'none';
+        if ( $sub eq 'both' ) {
+            $note->( 'presence', 1, "$bare and the account are subscribed to each other" );
+            return 1;
+        }
+        my $approved = 0;
+        $client->SetPresenceCallBacks(
+            subscribe => sub {
+                my ( undef, $p ) = @_;
+                my $from = _bare_jid( $p->GetFrom() );
+                return unless $from eq $bare;    # only the configured recipient
+                $client->Subscription( type => 'subscribed', to => $from );
+                $approved = 1;
+            }
+        );
+        $client->PresenceSend();    # the server delivers a pending subscribe after this
+        my $asked = $sub eq 'to' || ( $item->{ask} // '' ) eq 'subscribe';
+        $client->Subscription( type => 'subscribe', to => $bare ) unless $asked;
+        if ( $sub ne 'from' ) {     # 'from' means they are already approved
+            my $until = time + $PRESENCE_WAIT;
+            while ( time < $until && !$approved ) {
+                last unless defined $client->Process(0.5);
+            }
+        }
+        $note->( 'presence', 1,
+            ( $asked ? 'already asked' : 'asked' ) . " $bare to subscribe"
+                . ( $approved ? ' and approved their request' : '' ) );
+        1;
+    };
+    return 1 if $ok;
+    my $err = $@;
+    die $err if $err =~ /timed out/;    # the alarm is the budget, not a presence fault
+    $err =~ s/\s+\z//;
+    log_event( 'WARN', 'notify', 'xmpp presence step failed; the notice is still sent',
+        error => $err );
+    $note->( 'presence', 1, "the presence step did not complete ($err); the notice is still sent" );
+    return 0;
 }
 
 # SM955 (ruled R9): A REFUSED RECIPIENT IS A FAILED TEST.

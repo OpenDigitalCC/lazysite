@@ -50,6 +50,8 @@ our %BEHAVIOUR;
         die "the server closed the stream\n" if $BEHAVIOUR{send_dies};
         return 1;
     }
+    # SM1418: a recipient already subscribed both ways, so the presence step is a no-op.
+    sub RosterGet { return ( q{ops@chat.example} => { subscription => q{both} } ) }
     sub Disconnect { push @CALLS, ['Disconnect']; 1 }
     # SM955: the stream after the send. A refusal arrives as an error stanza.
     sub SetMessageCallBacks { my ( $self, %cb ) = @_; $self->{cb} = \%cb; push @CALLS, ['SetMessageCallBacks']; 1 }
@@ -157,8 +159,8 @@ subtest 'a configured site: every stage reported, in order' => sub {
     is( $res->{stage}, 'ok', 'and says so' );
 
     my @names = map { $_->{step} } @{ $res->{steps} };
-    is_deeply( \@names, [qw(config library endpoint connect auth send delivery)],
-        'config, library, endpoint, connect, auth, send, delivery' )
+    is_deeply( \@names, [qw(config library endpoint connect auth presence send delivery)],
+        'config, library, endpoint, connect, auth, presence, send, delivery' )
         or diag explain \@names;
     ok( ( !grep { !$_->{ok} } @{ $res->{steps} } ), 'every stage passed' );
 
