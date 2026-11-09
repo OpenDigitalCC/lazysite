@@ -3121,6 +3121,12 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
             my $sid = ( ref $b eq 'HASH' ? $b->{sid} : undef ) // '';
             $sid =~ s/[^0-9a-f]//g;
             $aud_target = length $sid ? 'sid:' . substr( $sid, 0, 8 ) : '';
+            # SM1351, ruling 214 (Q128): "require sign-in again" is its own row.
+            if ( ref $b eq 'HASH' && $b->{reauth} ) {
+                $aud_action = 'session-reauth';
+                $aud_extra  = "provider=$result->{provider}"
+                    if ref $result eq 'HASH' && defined $result->{provider} && $result->{provider} =~ /\A[a-z0-9-]+\z/;
+            }
         }
         else {
             my $u = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';

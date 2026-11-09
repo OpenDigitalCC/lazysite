@@ -13,7 +13,10 @@ search: false
 Everyone signed in <strong>through a browser</strong> right now (sessions
 expire 24&nbsp;hours after sign-in). <strong>Sign out</strong> ends one
 session; <strong>Sign out everywhere</strong> ends all of a user's sessions.
-The user can sign straight back in.
+The user can sign straight back in. <strong>Require sign-in again</strong>
+makes the selected sessions sign in again at their next request: a session
+made through an outside sign-in provider goes back through its provider, which
+reads the person's groups afresh, and a local session is signed out.
 <br>
 <!-- SM580: an agent acting through the API, MCP or WebDAV is absent from this
      list BY CONSTRUCTION - only the cookie login path writes the session
@@ -26,6 +29,7 @@ appear here &mdash; it holds a key, not a browser session. See
 <strong>Active keys</strong> below.
 </p>
 <div id="session-list"><div class="mg-empty" style="padding:0.75rem;">Loading...</div></div>
+<p><button class="mg-btn mg-btn-sm" onclick="reauthSelected()">Require sign-in again</button></p>
 </div>
 </div>
 
@@ -106,12 +110,13 @@ function renderSessions(d) {
     return;
   }
   var h = '<div class="mg-table-wrap"><table class="audit-table"><thead><tr>' +
-    '<th>User</th><th>Signed in</th><th>From IP</th><th>Device</th><th></th>' +
+    '<th></th><th>User</th><th>Signed in</th><th>From IP</th><th>Device</th><th></th>' +
     '</tr></thead><tbody>';
   rows.forEach(function(s) {
     var when  = s.issued ? new Date(s.issued * 1000).toLocaleString() : '';
     var badge = s.current ? ' <span class="mg-tag mg-tag-on">this session</span>' : '';
     h += '<tr>' +
+      '<td><input type="checkbox" class="mg-reauth" value="' + escHtml(s.sid) + '" aria-label="Select this session"></td>' +
       '<td><a href="/manager/users?user=' + encodeURIComponent(s.user) + '">' + escHtml(s.user) + '</a>' + badge + '</td>' +
       '<td>' + escHtml(when) + '</td>' +
       '<td>' + escHtml(s.ip || '') + '</td>' +
@@ -148,6 +153,31 @@ function revokeSession(sid, user, current) {
         loadSessions();
       })
       .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
+// SM1351, ruling 214 (Q128): the selected sessions must sign in again.
+function reauthSelected() {
+  var sids = Array.prototype.map.call(document.querySelectorAll('input.mg-reauth:checked'), function(c) { return c.value; });
+  if (!sids.length) { showStatus('Select one or more sessions first.', true); return; }
+  mgConfirm('Require ' + sids.length + ' session(s) to sign in again? Their next request asks them to sign in; nothing else of theirs changes.',
+    { ok: 'Require sign-in again' }).then(function(__ok) {
+    if (!__ok) return;
+    var left = sids.length, failed = 0;
+    sids.forEach(function(sid) {
+      fetch(API + '?action=session-revoke', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid: sid, reauth: true })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (!d.ok) failed++; })
+        .catch(function() { failed++; })
+        .then(function() {
+          if (--left) return;
+          showStatus(failed ? failed + ' of ' + sids.length + ' could not be marked.' : 'The selected sessions must sign in again.', !!failed);
+          loadSessions();
+        });
+    });
   });
 }
 

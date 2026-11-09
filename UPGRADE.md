@@ -162,7 +162,9 @@ standard input) sets a secret from the command line for a repair. The endpoint i
 group that carries capabilities, operators included: map such a group only from a
 provider whose membership you control; only the operator can save such a mapping. A site's own copy of `login.md` that builds the
 provider links as `[% o.path %]?next=` needs `[% o.sep %]` in place of the `?` for an
-OIDC provider's link to work when the page carries a `next`.
+OIDC provider's link to work when the page carries a `next`. The Sessions page gains
+**Require sign-in again** for the selected sessions: a provider's session (OIDC or Odoo)
+signs in again through its provider at its next request, and a local one is signed out.
 
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 

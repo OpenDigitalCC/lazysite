@@ -443,7 +443,8 @@ sub start {
     my $redirect = "$a{base}$ENDPOINT";
     my ( $wok, $werr ) = _write_json( _pending_file( $a{lz}, $state ), {
             name => $p->{name}, nonce => $nonce, verifier => $verifier, redirect_uri => $redirect,
-            next => $a{next} // '/', exp => time + $PENDING_TTL } );
+            next => $a{next} // '/', exp => time + $PENDING_TTL,
+            ( defined $a{renew_sid} && $a{renew_sid} =~ /\A[0-9a-f]{16}\z/ ? ( renew_sid => $a{renew_sid} ) : () ) } );
     unless ($wok) {
         log_event( 'WARN', 'auth', 'an OIDC sign-in could not be recorded', provider => $p->{provider}, why => $werr );
         return { ok => 0, status => '500 Internal Server Error', error => 'the sign-in cannot be recorded' };
@@ -585,6 +586,19 @@ sub callback {
 
     no warnings 'once';
     local $Lazysite::Auth::Session::LAZYSITE_DIR = $a{lz};
+
+    # Ruling 214 (Q128): a session marked to sign in again is renewed in place - the
+    # same session, its groups read afresh, the mark cleared - when the same person
+    # signs in; anyone else gets a session of their own.
+    if ( defined $pend->{renew_sid}
+        && Lazysite::Auth::Session::renew_provider_session( provider => $prov, sid => $pend->{renew_sid},
+            login => $login, name => $display, groups => \@groups, ip => $a{ip} ) )
+    {
+        log_event( 'INFO', 'auth', 'an OIDC session signed in again', provider => $prov, user => "$prov:$login",
+            groups => join( ',', @groups ) );
+        return { ok => 1, renewed => 1, next => $pend->{next} // '/', provider => $prov, login => $login,
+            groups => \@groups };
+    }
     my ($cookie) = Lazysite::Auth::Session::mint_provider_session( provider => $prov, login => $login,
         name => $display, groups => \@groups, ip => $a{ip}, ua => $a{ua} );
     return { ok => 0, status => '503 Service Unavailable', error => 'The site could not start a session.' }

@@ -151,7 +151,11 @@ session lifetime, `session_lifetime`, 24 hours by default), and cookie
 verification consults `lazysite/auth/revoked.json` when it exists. The
 manager **Sessions** page lists the live sessions and can sign out a single
 session, all of one user's sessions ("Sign out everywhere"), or - by
-rotating the signing secret - everyone at once. Losing the registry only
+rotating the signing secret - everyone at once. **Require sign-in again**, for
+the sessions you select, makes each sign in again at its next request: a
+session made through an outside provider goes back through that provider (the
+same session continues, its groups read afresh), and a local session is signed
+out, so the person signs in again with their password. Losing the registry only
 degrades the listing; cookies minted before this feature cannot be listed
 but are still killable per-user or by rotation.
 
@@ -867,8 +871,11 @@ is saved in the manager.
 A person signed in this way is `oidc-<provider>:<subject>`, shown by their
 email. Their session lasts as long as a local one (`session_lifetime`). The
 groups are read at each sign-in: someone removed from a group at the provider
-keeps it until their session ends or is revoked on the Sessions page, while a
-map entry you remove takes the group away at their next request.
+keeps it until their session ends, until it is signed out, or until you mark it
+**Require sign-in again** on the Sessions page: they then sign in again
+through the provider at their next request, which reads their groups afresh, and
+are returned to the page they asked for. A map entry you remove takes the group
+away at their next request.
 
 ### How the sign-in is checked
 

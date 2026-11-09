@@ -30,12 +30,6 @@ BEGIN {
     for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib", ( length $doc ? "$doc/../lib" : () ) ) {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
-    # SM1369 X1: the extension's own module is in its payload lib, beside the
-    # descriptor in the extensions/ next to that lib.
-    require Lazysite::Extensions;
-    my $root = Lazysite::Extensions::engine_root();
-    Lazysite::Extensions::add_payload_lib( Lazysite::Extensions::extensions_dir($root) . '/oidc.pl' )
-        if defined $root;
 }
 
 exit main() if !caller;
@@ -64,6 +58,26 @@ sub reply {
     print 'Content-Length: ' . length($body) . "\r\n\r\n";
     print $body;
     return 0;
+}
+
+sub json_reply {
+    my ( $status, $data ) = @_;
+    require JSON::PP;
+    my $body = JSON::PP->new->canonical->encode($data);
+    binmode STDOUT;
+    print "Status: $status\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n";
+    print "Cache-Control: no-store\r\n";
+    print "$_\r\n" for @EXTRA;
+    print 'Content-Length: ' . length($body) . "\r\n\r\n";
+    print $body;
+    return 0;
+}
+
+sub _uri {
+    my ($s) = @_;
+    $s =~ s/([^A-Za-z0-9._~\/-])/sprintf( '%%%02X', ord $1 )/ge;
+    return $s;
 }
 
 sub redirect {
@@ -130,10 +144,45 @@ sub main {
         unless Lazysite::Manager::Extensions::extension_enabled('extensions/oidc.pl');
     my $lz = Lazysite::Paths::lazysite_dir($docroot);
 
-    require Lazysite::Ext::OIDC;
     require Lazysite::Util;
     my $q      = _query();
     my $secure = $ENV{HTTPS} ? 1 : 0;
+
+    # Ruling 214 (Q128): a session marked "require sign-in again" (its verdict
+    # `oidc-<name>-stale`, with this path) is sent here with `next`: the person
+    # signs in again through the same provider, and the same session is renewed
+    # with the groups read afresh. The loop guard (lzs_renewed, SM1381) is set on
+    # every answer. A probe of the session (answer=session) is answered as not
+    # signed in: a fetch cannot sign a person in.
+    my $renew_sid;
+    if ( defined $q->{renew} ) {
+        my $sec = $secure ? '; Secure' : '';
+        push @EXTRA, "Set-Cookie: lzs_renewed=1; Path=/; Max-Age=60; HttpOnly; SameSite=Lax$sec";
+        return json_reply( '200 OK', { ok => 1, signed_in => 0 } ) if ( $q->{answer} // '' ) eq 'session';
+        require Lazysite::Auth::Session;
+        local $Lazysite::Auth::Session::LAZYSITE_DIR = $lz;
+        my ( $id, $why, %d ) = Lazysite::Auth::Session::verify_session_cookie( stale_ok => 1 );
+        my ($name) = ( ref $id eq 'HASH' ? $id->{provider} // '' : '' ) =~ /\Aoidc-([a-z][a-z0-9]{0,15})\z/;
+        my $next = Lazysite::Util::sanitise_next( $q->{next} );
+        unless ( defined $name ) {
+            Lazysite::Util::log_event( 'INFO', 'auth', 'an OIDC renewal found no session of a provider here - sent to sign in',
+                why => $why // '', error => $d{error} // '' );
+            return redirect( '/login?next=' . _uri($next) );
+        }
+        @$q{qw(provider next)} = ( $name, $next );
+        $renew_sid = $id->{sid};
+    }
+
+    # SM1369 X1: the extension's own module is in its payload lib, beside its
+    # descriptor - the one the hook index names for this site, found as the
+    # loader finds it, so a hook the session verifier calls and this file load the
+    # one copy. After the renewal's verification, whose hooks load it first.
+    require Lazysite::Extensions;
+    require Cwd;
+    my $descriptor = Lazysite::Extensions::locate( 'oidc.pl', Cwd::realpath("$docroot/..") );
+    return reply( '500 Internal Server Error', 'The sign-in extension is not installed beside this site.' )
+        unless $descriptor && Lazysite::Extensions::add_payload_lib($descriptor);
+    require Lazysite::Ext::OIDC;
 
     if ( defined $q->{provider} ) {
         my $host = Lazysite::Util::request_host();
@@ -141,7 +190,7 @@ sub main {
         my $port = ( $ENV{HTTP_HOST} // '' ) =~ /:(\d+)\z/ ? ":$1" : '';
         my $r = Lazysite::Ext::OIDC::start( docroot => $docroot, lz => $lz, name => $q->{provider},
             next => Lazysite::Util::sanitise_next( $q->{next} ), base => ( $secure ? 'https' : 'http' ) . "://$host$port",
-            secure => $secure,                                   ip => _ip($lz) );
+            secure => $secure, ip => _ip($lz), renew_sid => $renew_sid );
         return reply( $r->{status}, $r->{error} ) unless $r->{ok};
         push @EXTRA, $r->{cookie};
         return redirect( $r->{location} );
@@ -154,7 +203,9 @@ sub main {
             ua     => substr( $ENV{HTTP_USER_AGENT} // '', 0, 120 ) );
         return reply( $r->{status}, $r->{error} ) unless $r->{ok};
         require Lazysite::Auth::Session;
-        push @EXTRA, Lazysite::Auth::Session::session_cookie_headers( $r->{cookie}, secure => $secure, dir => $lz );
+        # A session renewed in place keeps the cookie it has.
+        push @EXTRA, Lazysite::Auth::Session::session_cookie_headers( $r->{cookie}, secure => $secure, dir => $lz )
+            unless $r->{renewed};
         return redirect( Lazysite::Util::sanitise_next( $r->{next} ) );
     }
 

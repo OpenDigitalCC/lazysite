@@ -28,14 +28,20 @@
 #     refuses it, named with its remedy by the log and the check; a readable one
 #     is that provider's client's SSL_ca_file and no other's; starts are
 #     throttled per address by the sign-in limiter, and one over the limit writes
-#     no pending record.
+#     no pending record;
+#   * ruling 214 (Q128): the Sessions page's "require sign-in again" marks a
+#     session, which is then stale; a protected page sends it to the renew path
+#     with next; the same person renews the same session, its groups read
+#     afresh; another person gets their own; a local session is signed out.
 #
 # Sabotage (each run by hand, each fails here): drop the iss, aud or nonce check
 # from check_claims; drop the const_eq of the state cookie in callback; drop
 # `grants => 1` from the descriptor (the operators group is then dropped); drop
 # the `instances` resolution from Hooks::identity_provider (no session verifies);
 # drop the ca_file check from usable, or the SSL_ca_file from _ua; drop the
-# limiter from start.
+# limiter from start; ignore the mark in the verifier, keep it on renewal,
+# always revoke, drop the session-reauth audit act, drop the renewal sid, or
+# renew for anyone.
 use strict;
 use warnings;
 use Test::More;
@@ -50,7 +56,8 @@ use LWP::UserAgent;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root site_tempdir run_child run_processor grant_caps link_engine_extensions);
+use TestHelper qw(repo_root site_tempdir run_child run_processor grant_caps add_account link_engine_extensions);
+use ManagerSession                ();
 use Lazysite::Manager::Extensions qw(action_extension_enable action_extension_save);
 use Lazysite::Extensions::Hooks   qw(cross_problems);
 use Lazysite::Auth::Session       ();
@@ -125,6 +132,8 @@ sub answer {
         $c{exp}    = time - 3600             if $mode eq 'expired';
         $c{groups} = ['nobody-maps-this']    if $mode eq 'no-group';
         delete $c{groups} if $mode eq 'userinfo';
+        $c{groups} = ['writers'] if $mode eq 'writer';
+        $c{sub}    = 'user-999'  if $mode eq 'other';
         my $jwt = join '.', b64u( encode_json( { alg => 'RS256' } ) ), b64u( encode_json( \%c ) ), b64u('not-checked');
         return $json->( 200, { id_token => $jwt, access_token => "at-$p", token_type => 'Bearer' } );
     }
@@ -156,9 +165,10 @@ my $LZ = "$D/lazysite";
 make_path( "$LZ/auth", "$LZ/logs", "$LZ/cache" );
 spit( "$LZ/lazysite.conf", "site_name: T\n" );
 spit( "$LZ/auth/.secret",  ( 'c' x 64 ) . "\n" );
-chmod 0600, "$LZ/auth/.secret";
-grant_caps( $D, 'boss', 'ui' );                # a secured site
-grant_caps( $D, 'operators', 'ui', 'api' );    # role-operators carries capabilities
+grant_caps( $D, 'boss', 'ui', 'manage_users' );    # a secured site; boss manages sessions
+add_account( $D, 'boss' );
+grant_caps( $D, 'boss', 'ui' );                    # a secured site
+grant_caps( $D, 'operators', 'ui', 'api' );        # role-operators carries capabilities
 link_engine_extensions($D);
 
 spit( "$LZ/oidc.conf", join '', map { "$_\n" }
@@ -316,6 +326,72 @@ subtest 'userinfo: groups the ID token does not carry' => sub {
     my ($id) = verify( cookie_value( $c, 'lazysite_auth' ) // '' );
     is( $id->{groups}, 'staff', 'the groups are read from the userinfo endpoint' );
     set_mode( 'p2', 'good' );
+};
+
+subtest 'ruling 214 (Q128): require sign-in again' => sub {
+    my $m = bless { docroot => $D, root => $root, users => "$root/tools/lazysite-users.pl",
+        api => "$root/lazysite-manager-api.pl" }, 'ManagerSession';
+    ( my $raw = $P1 ) =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+    my ($sid) = $raw =~ /\Aoidc-p1=[^:]+:\d+:([0-9a-f]{16}):/ or die "no sid in $raw";
+    my $conf  = slurp("$LZ/oidc.conf");
+    spit( "$LZ/oidc.conf", $conf =~ s/^p1\.group_map: .*$/p1.group_map: service-team = role-operators, writers = staff/mr );
+    my $r = $m->call( 'boss', 'session-revoke', body => { sid => $sid, reauth => JSON::PP::true() }, groups => 'role-boss' );
+    ok( $r->{ok} && $r->{reauth}, 'the Sessions page marks the session' ) or diag explain $r;
+    is( $r->{provider}, 'oidc-p1', '...as a provider\'s' );
+    like( slurp("$LZ/logs/audit.log"), qr/\| session-reauth \| sid:\Q@{[ substr $sid, 0, 8 ]}\E \|.*provider=oidc-p1/,
+        '...with an audit row of its own' );
+    my ( $id, $why, %d ) = verify($P1);
+    ok( !$id, 'the session is no identity until it signs in again' );
+    is( $why, 'oidc-p1-stale', '...refused as stale' );
+    spit( "$D/members.md", "---\ntitle: Members\nauth: required\n---\nMEMBERS-ONLY\n" );
+    my $page = run_processor( $D, '/members', HTTP_COOKIE => "lazysite_auth=$P1" );
+    like( $page, qr{^Location: /cgi-bin/lazysite-oidc\.pl\?renew=1&next=%2Fmembers}m,
+        'a protected page sends it to its provider\'s endpoint, with next' );
+    set_mode( 'p1', 'writer' );
+    my $s = cgi( QUERY_STRING => 'renew=1&next=/members', HTTP_COOKIE => "lazysite_auth=$P1" );
+    diag $s->{log} unless ( $s->{status} // 0 ) == 302 && ( $s->{location} // "" ) =~ /authorize/;
+    is( $s->{status}, 302, 'the endpoint starts a sign-in' );
+    like( $s->{location} // '', qr{\A\Q$BASE\E/p1/authorize\?}, '...at the same provider' );
+    my $at = $UA->get( $s->{location} );
+    my $q  = form_of( URI->new( $at->header('Location') // '' )->query );
+    my $c  = cgi( QUERY_STRING => "code=$q->{code}&state=$q->{state}",
+        HTTP_COOKIE => 'lzs_oidc_state=' . cookie_value( $s, 'lzs_oidc_state' ) . "; lazysite_auth=$P1" );
+    is( $c->{status}, 302, 'the person signs in again' ) or diag $c->{body}, $c->{log};
+    is( $c->{location}, '/members', '...and is returned to the page they asked for' );
+    ok( !cookie_value( $c, 'lazysite_auth' ), '...keeping the session they had' );
+    ($id) = verify($P1);
+    is( $id->{user},   'oidc-p1:user-123', 'the same session is an identity again' );
+    is( $id->{groups}, 'staff',            '...with the groups read afresh' );
+    set_mode( 'p1', 'good' );
+    spit( "$LZ/oidc.conf", $conf );
+
+    # Someone else signing in at the prompt gets a session of their own.
+    $r = $m->call( 'boss', 'session-revoke', body => { sid => $sid, reauth => JSON::PP::true() }, groups => 'role-boss' );
+    set_mode( 'p1', 'other' );
+    $s = cgi( QUERY_STRING => 'renew=1&next=/members', HTTP_COOKIE => "lazysite_auth=$P1" );
+    $at = $UA->get( $s->{location} );
+    $q  = form_of( URI->new( $at->header('Location') // '' )->query );
+    $c  = cgi( QUERY_STRING => "code=$q->{code}&state=$q->{state}",
+        HTTP_COOKIE => 'lzs_oidc_state=' . cookie_value( $s, 'lzs_oidc_state' ) . "; lazysite_auth=$P1" );
+    my $other = cookie_value( $c, 'lazysite_auth' );
+    ok( $other, 'another person signing in at the prompt gets a new session' );
+    is( ( verify( $other // '' ) )[0]{user}, 'oidc-p1:user-999', '...as themselves' );
+    is( ( verify($P1) )[1], 'oidc-p1-stale', '...and the marked session is not renewed for them' );
+    set_mode( 'p1', 'good' );
+    $s = cgi( QUERY_STRING => 'renew=1&next=/members', HTTP_COOKIE => "lazysite_auth=$P1" );
+    $at = $UA->get( $s->{location} );
+    $q  = form_of( URI->new( $at->header('Location') // '' )->query );
+    cgi( QUERY_STRING => "code=$q->{code}&state=$q->{state}",
+        HTTP_COOKIE => 'lzs_oidc_state=' . cookie_value( $s, 'lzs_oidc_state' ) . "; lazysite_auth=$P1" );
+    is( ( verify($P1) )[0]{user}, 'oidc-p1:user-123', 'its own person renews it' );
+
+    # A local session: signing in again is signing out.
+    open my $reg, '>>', "$LZ/auth/sessions.jsonl" or die $!;
+    print {$reg} JSON::PP->new->canonical->encode( { sid => 'abcdef0123456789', user => 'ed', t => time } ), "\n";
+    close $reg;
+    $r = $m->call( 'boss', 'session-revoke', body => { sid => 'abcdef0123456789', reauth => JSON::PP::true() }, groups => 'role-boss' );
+    ok( $r->{ok} && $r->{reauth} && !$r->{provider}, 'a local session is marked too' ) or diag explain $r;
+    like( slurp("$LZ/auth/revoked.json"), qr/abcdef0123456789/, '...by signing it out' );
 };
 
 subtest 'ruling 206: a broken secret refuses that provider only, and is named' => sub {

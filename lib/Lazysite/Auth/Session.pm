@@ -30,7 +30,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
     verify_session_cookie request_session account_disabled load_user_groups session_revoked session_store_fault
     mint_provider_session renew_provider_session session_cookie_headers session_clear_headers
-    provider_login_of SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
+    provider_login_of require_provider_reauth SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 
 # One name, one lifetime, stated once. lazysite-auth.pl mints with these and
 # this module verifies with them; a drift between the two is a login that
@@ -826,16 +826,39 @@ sub mint_provider_session {
 sub renew_provider_session {
     my (%a)    = @_;
     my $p      = _provider( $a{provider} ) or return 0;
-    my $id     = $p->{provider} // $p->{extension};
+    my $id  = $p->{provider} // $p->{extension};
     my $old    = _provider_record( $a{sid}, $id ) or return 0;
+    # SM1351: with `login`, only that person's session is renewed.
+    return 0 if defined $a{login} && ( $old->{user} // '' ) ne "$id:$a{login}";
     my @groups = grep { defined && !ref } @{ ref $a{groups} eq 'ARRAY' ? $a{groups} : [] };
-    my $ok     = _registry_append( {
-            %$old, provider => $id, renew => 1, checked => ( $a{now} // time ) + 0,
+    my %rec    = %$old;
+    delete $rec{reauth};    # ruling 214: the provider was asked again
+    my $ok = _registry_append( {
+            %rec, provider => $id, renew => 1, checked => ( $a{now} // time ) + 0,
             name   => _session_field( $a{name} // $old->{name}, 100 ),
             groups => [@groups],
     } );
     _audit_grant( $old->{user}, 'renew-grant', $id, \@groups, $a{ip} ) if $ok && ( $p->{grants} // '' ) eq '1';
     return $ok;
+}
+
+# RULING 214 (Q128): "REQUIRE SIGN-IN AGAIN" FOR A PROVIDER'S SESSION.
+#
+# require_provider_reauth( sid ) -> provider id, or '' when the sid is no
+# provider's session. A newer line for the session marks it (`reauth`); the
+# verifier then treats it as stale - no groups, refused with the provider's
+# `renew` path - until the provider is asked again and renew_provider_session
+# writes a line without the mark. No token is stored: the provider is asked by
+# signing the person in again. The line carries `renew` so the Sessions page,
+# which lists a session by its first line, still lists it once.
+sub require_provider_reauth {
+    my ($sid) = @_;
+    return '' unless defined $sid && $sid =~ /\A[[:xdigit:]]{16}\z/;
+    my $old = _provider_record($sid) or return '';
+    my $id  = _record_provider($old);
+    return '' unless length $id;
+    _registry_append( { %$old, provider => $id, renew => 1, reauth => time + 0 } ) or return '';
+    return $id;
 }
 
 sub _verify_provider_session {
@@ -873,6 +896,7 @@ sub _verify_provider_session {
     my ( $vok, $state ) = _provider_call( $p, 'still_valid', {%$rec} );
     return ( undef, "$id-failed", %who, error => $state ) unless $vok && defined $state && !ref $state && $state =~ /\A(?:ok|stale)\z/;
     my $stale = $state eq 'stale' ? 1 : 0;
+    $stale = 1 if $rec->{reauth};    # ruling 214: marked to sign in again
     # SM1381: the stale verdict says where the session is renewed (the provider's path)
     return ( undef, "$id-stale", %who, sid => $sid, renew => $p->{renew} // '' ) if $stale && !$opt{stale_ok};
 

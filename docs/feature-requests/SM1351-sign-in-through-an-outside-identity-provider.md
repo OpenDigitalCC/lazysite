@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion)"
 area: auth
-status-note: "SHIPPED (PENDING, 0.16.9) on n792: the oidc extension, H-1's second consumer; several providers (oidc-<name>, H-1 instances), code flow with PKCE, identity from the token endpoint (ruling 185), groups that may grant, audited (ruling 186), a broken provider refused and named (ruling 206). Questions 1-3 stay open."
+status-note: "SHIPPED (PENDING, 0.16.9) on n792: the oidc extension, H-1's second consumer; several providers (oidc-<name>, H-1 instances), code flow with PKCE, identity from the token endpoint (ruling 185), groups that may grant, audited (ruling 186), a broken provider refused and named (ruling 206). Questions 1-3 ruled (213, 214)."
 ---
 
 # Today
@@ -107,3 +107,13 @@ Ruling 213 (n792)
   A start counts against the sign-in limiter per address before anything is written.
   The provider stays in the query, with `sep`: the web server rules (nginx's
   `/cgi-bin/<one segment>`) and the front door take no path after a script name.
+
+Ruling 214 (n792)
+: Q127: the providers are set on the Extensions page, secret included, through a new
+  settings type (`records`: a repeating section of named records, a group map as rows,
+  one secret into the secrets store, never read back); oidc.conf keeps its shape and
+  `--secret` stays for a repair. Q128: the Sessions page's **Require sign-in again**
+  marks the selected sessions; a provider's session is stale until its provider is asked
+  again (for OIDC a new sign-in that renews the same session, groups read afresh, back
+  to `next`; no token stored), a local one is signed out; audited `session-reauth`.
+  Q129: a map entry whose target carries capabilities is saved only by the operator.

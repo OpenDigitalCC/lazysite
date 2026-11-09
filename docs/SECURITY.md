@@ -5165,7 +5165,12 @@ controls
   t/unit/extensions/170 against a 127.0.0.1 fixture issuer, sabotaged by hand: the iss,
   aud, nonce and expiry checks, the state cookie compare, the no-group refusal, the
   secret check, `grants`, the `instances` resolution, the mint's provider id, the
-  /login list and the family clash each fail it.
+  /login list and the family clash each fail it. Ruling 214 (Q128), the same test: the
+  Sessions page's mark makes the session stale, a protected page sends it to the renew
+  path with `next`, the same person renews the same session with the groups read afresh,
+  another person gets a session of their own, and a local session is signed out;
+  sabotaged (the mark ignored, the mark kept on renewal, always revoking, no audit act,
+  no renewal sid, renewal for anyone).
 
 residual risk
 : Ruling 186's widening: a provider group mapped to operators makes the provider's
@@ -5177,7 +5182,10 @@ residual risk
   A token is never the operator (SM991), so such a mapping is made in the manager, and
   the settings have no MCP door. The sysadmin can still write lazysite/oidc.conf. Membership is read at sign-in only: someone removed
   from a group at the provider keeps it until their session ends (session_lifetime) or
-  is revoked; removing the map entry takes it away at the next request. The ID token's
+  is revoked, or until it is marked "require sign-in again" on the Sessions page (ruling
+  214: stale until the provider is asked again, the same session then renewed only for
+  the same subject, with its groups read afresh; no token is stored; audited
+  `session-reauth`); removing the map entry takes it away at the next request. The ID token's
   signature is not checked (ruling 185), so the trust rests on TLS to the token
   endpoint; plain http:// is accepted only to this host. TLS is verified against the
   system's certificate store, or the provider's own `<name>.ca_file` (ruling 213); a

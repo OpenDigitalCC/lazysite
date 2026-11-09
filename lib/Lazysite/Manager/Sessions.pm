@@ -194,7 +194,7 @@ sub dispatch_sessions_keys {
     else {
         my $req = _json_body();
         $result = $action eq 'session-revoke'
-            ? action_session_revoke( $req->{sid} )
+            ? action_session_revoke( $req->{sid}, reauth => ( ref $req eq 'HASH' && $req->{reauth} ? 1 : 0 ) )
             : action_user_revoke( $req->{username} );
     }
     return $result;
@@ -307,16 +307,33 @@ sub action_sessions_list {
 
 # Sign out ONE session: the revoked sid is rejected by the auth wrapper on
 # its next request, whatever cookie carries it.
+#
+# RULING 214 (Q128): `reauth` - "require sign-in again". A session an identity
+# provider minted is marked rather than ended: at its next request it must sign
+# in again through its provider, which re-reads the groups, and the provider's
+# endpoint returns the person to the page they asked for
+# (Auth::Session::require_provider_reauth). For a local session, signing in again
+# is what a sign-out already asks - the next request goes to /login with `next` -
+# so it is the same revocation. The audit row is `session-reauth` either way.
 sub action_session_revoke {
-    my ($sid) = @_;
+    my ( $sid, %o ) = @_;
     $sid = '' unless defined $sid;
     return { ok => 0, error => 'A session id (16 hex characters) is required' }
         unless $sid =~ /\A[0-9a-f]{16}\z/;
+    if ( $o{reauth} ) {
+        require Lazysite::Auth::Session;
+        no warnings 'once';
+        local $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
+        if ( length( my $p = Lazysite::Auth::Session::require_provider_reauth($sid) ) ) {
+            log_event( 'WARN', $auth_user, 'session must sign in again', sid => substr( $sid, 0, 8 ), provider => $p );
+            return { ok => 1, sid => $sid, reauth => 1, provider => $p };
+        }
+    }
     my ( $ok, $err, $broken ) = _update_revoked( sub { $_[0]{sids}{$sid} = time() } );
     return _revoked_refusal() if $broken;
     return { ok => 0, error => $err } unless $ok;
     log_event( 'WARN', $auth_user, 'session revoked', sid => substr( $sid, 0, 8 ) );
-    return { ok => 1, sid => $sid };
+    return { ok => 1, sid => $sid, ( $o{reauth} ? ( reauth => 1 ) : () ) };
 }
 
 # Sign a user out EVERYWHERE: every cookie issued before now - including

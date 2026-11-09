@@ -156,6 +156,12 @@ Archive
   Ruling 214 (Q129): a group map entry whose target carries capabilities (operators, or
   any group that grants one) is saved only by the operator; manage_config maps to plain
   groups. The refusal is `forbidden` and names the group.
+  Ruling 214 (Q128): the Sessions page gains **Require sign-in again** for the selected
+  sessions (`session-revoke` with `reauth`, the same gate, audited `session-reauth`). A
+  provider's session is marked (Auth::Session::require_provider_reauth): it is stale until
+  its provider is asked again, so the next request goes through the provider's `renew`
+  path - for OIDC, a new sign-in that renews the same session with its groups read afresh
+  and returns to `next`; no token is stored. A local session is signed out.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

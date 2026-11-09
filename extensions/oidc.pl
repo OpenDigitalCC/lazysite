@@ -97,6 +97,7 @@ sub describe {
                     still_valid  => 'Lazysite::Ext::OIDC::provider_still_valid',
                     groups       => 'Lazysite::Ext::OIDC::provider_groups',
                     login_option => 'Lazysite::Ext::OIDC::provider_login_option',
+                    renew        => '/cgi-bin/lazysite-oidc.pl?renew=1',
                     grants       => 1,
                     instances    => 1,
                 },
