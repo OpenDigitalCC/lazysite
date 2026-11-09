@@ -1379,14 +1379,14 @@ sub _xmpp_presence_step {
                 last unless defined $client->Process(0.5);
             }
         }
-        $note->( 'presence', 1,
-            ( $asked ? 'already asked' : 'asked' ) . " $bare to subscribe"
-                . ( $approved ? ' and approved their request' : '' ) );
+        my $what = $asked    ? "already asked"               : "asked";
+        my $also = $approved ? " and approved their request" : "";
+        $note->( 'presence', 1, "$what $bare to subscribe$also" );
         1;
     };
     return 1 if $ok;
     my $err = $@;
-    die $err if $err =~ /timed out/;    # the alarm is the budget, not a presence fault
+    die $err if $err =~ /timed out/;    # the time budget, not a presence fault
     $err =~ s/\s+\z//;
     log_event( 'WARN', 'notify', 'xmpp presence step failed; the notice is still sent',
         error => $err );
