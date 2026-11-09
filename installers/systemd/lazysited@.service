@@ -84,6 +84,12 @@ ExecStart=/usr/bin/perl ${ENGINE}/tools/lazysited.pl \
     --docroot ${DOCROOT} --user ${USER}
 Restart=on-failure
 RestartSec=5
+# SM1417 (rulings 206, 216): exit 4 is the supervisor refusing to start any
+# service because a lazysite/daemon/<service>.state.json cannot be told - a
+# damaged store, which restarting cannot repair. systemd leaves it down; the
+# timer's five-minute run finds the same fault and refuses again, so nothing
+# starts until the sysadmin repairs the file (`lazysite check` names it).
+RestartPreventExitStatus=4
 
 # SEC-2026-07 (L-SYSTEMD), matching the pool: root is dropped inside the
 # process, so these directives shrink the blast radius of the long-running

@@ -127,8 +127,10 @@ for items 9-17, 20 and 21; items 18 and 19 use the SM1024 lines that already exi
     read-only); repair, restore from a backup.
 17. **A damaged service state file starts no service.** Refuses: the daemon
     supervisor's start (exit 4, nothing adopted, nothing started) when a
-    `lazysite/daemon/<service>.state.json` will not open or decode; Status says
-    `failed` with the remedy. Check: FAIL per file; make sure no copy runs, remove it,
+    `lazysite/daemon/<service>.state.json` will not open or decode. The runtime
+    stays down until the file is repaired: `lazysited@.service` lists 4 in
+    RestartPreventExitStatus (ruling 216), and the timer's five-minute run refuses
+    again. Status says `failed` with the remedy. Check: FAIL per file; make sure no copy runs, remove it,
     restart the host service.
 18. **The manager door says cannot-tell.** Refuses: `/manager/` with a 503 "Cannot
     tell right now" page, not the 403 "ask for the ui grant", when

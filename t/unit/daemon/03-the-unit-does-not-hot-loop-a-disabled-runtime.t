@@ -36,6 +36,10 @@ my $src = do {
 subtest 'the unit restarts on failure, never always' => sub {
     like( $src, qr/^Restart=on-failure$/m,
         'Restart=on-failure - a disabled runtime exits 0 and must STAY stopped' );
+    # SM1417 (ruling 216): exit 4 is a damaged service state file, which a
+    # restart cannot repair - systemd must not retry it every five seconds.
+    like( $src, qr/^RestartPreventExitStatus=(?:\S+\s+)*4(?:\s|$)/m,
+        'RestartPreventExitStatus holds 4 - a store fault stays down until repaired' );
     unlike( $src, qr/^Restart=always$/m,
         'not Restart=always, which would hot-loop every site with the extension off' )
         or diag( 'The pool unit uses always and is right to; this one must not. '

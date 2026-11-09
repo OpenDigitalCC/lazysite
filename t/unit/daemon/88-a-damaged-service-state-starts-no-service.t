@@ -111,6 +111,7 @@ subtest 'a state file that does not decode: nothing starts, and it is left as fo
     is( $svc->{verdict}, 'failed', 'Status says failed, not on and not starting' )
         or diag explain $st->{services};
     like( $svc->{message} // '', qr/lives\.state\.json cannot be read or does not decode/, 'naming the file' );
+    like( $svc->{message} // '', qr/stays down until the file is repaired/, 'and that it stays down' );
     like( $svc->{remedy}  // '', qr/lazysite check --docroot <docroot>/, 'with the remedy' );
 };
 

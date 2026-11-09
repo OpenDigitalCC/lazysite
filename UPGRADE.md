@@ -276,7 +276,7 @@ names the file and the repair. A store that does not exist yet is not a fault.
 | The notify-outbox job reports "nothing was sent"; queued notices wait | `lazysite/notify/ledger.jsonl` or `notify/suppressed.jsonl` | repair the line the check names; never remove `suppressed.jsonl`, it records who unsubscribed |
 | A form's acknowledgement, a notice mail, or a capped connector call refused by its cap | `lazysite/forms/submitter-mail.jsonl`, `logs/notice-mail.jsonl`, `connectors/calls.jsonl` | repair or remove the line the check names |
 | No scheduled job runs | `lazysite/daemon/scheduler-runs.json` | remove it; every job runs once at the next tick |
-| The daemon starts no service (exit 4); Status says `failed` | `lazysite/daemon/<service>.state.json` | make sure no copy of the service runs, remove the file, restart `lazysited@<domain>` |
+| The daemon starts no service and stays down until the file is repaired (exit 4, which `lazysited@.service` no longer restarts; the timer's five-minute run refuses again); Status says `failed` | `lazysite/daemon/<service>.state.json` | make sure no copy of the service runs, remove the file, restart `lazysited@<domain>` |
 | A data migration, rebuild or import refused ("could not be queried") | `lazysite/db/data.sqlite` | the check runs SQLite's quick_check; restore from a backup if it fails |
 | The manager says "Cannot tell right now" (503) to a signed-in person | `lazysite/auth/groups-settings.json` | repair the JSON (the check already names it) |
 | Forgot-password answers `?error=unavailable` | `lazysite/auth/user-settings.json` | repair the JSON (the check already names it) |

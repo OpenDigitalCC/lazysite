@@ -505,7 +505,8 @@ sub status {
             ( $verdict eq 'failed' && $fault
                 ? ( message => "the state file lazysite/daemon/$s->{name}.state.json cannot be read "
                         . 'or does not decode, so the supervisor cannot tell whether the service '
-                        . 'is already running and starts no service',
+                        . 'is already running and starts no service; it stays down until the '
+                        . 'file is repaired (systemd does not restart exit 4)',
                     remedy => 'lazysite check --docroot <docroot> names it; once no copy of the '
                         . 'service is running, remove the file and restart the host service'
                     )
