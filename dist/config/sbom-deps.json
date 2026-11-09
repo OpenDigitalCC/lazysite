@@ -349,6 +349,14 @@
       "alpine_pkg": "perl-template-toolkit",
       "used_by": "Template Toolkit page rendering (processor core)"
     },
+    "Template::Filters": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libtemplate-perl",
+      "rhel_pkg": "perl-Template-Toolkit",
+      "alpine_pkg": "perl-template-toolkit",
+      "used_by": "n785 the page-parse guard's list of Template Toolkit's standard filters (ships with Template)"
+    },
     "Template::Parser": {
       "core": false,
       "license": "Artistic-1.0-Perl",

@@ -2726,6 +2726,7 @@ sub _page_filter_issues {
     my $parsed = eval { require Template::Parser; Template::Parser->new( {} )->parse($text) };
     return () unless ref $parsed eq 'HASH' && defined $parsed->{BLOCK};
     require Template::Filters;
+    no warnings 'once';    # the module's own table of its standard filters
     my %have = map { ( $_ => 1 ) } keys %{$Template::Filters::FILTERS}, @PAGE_BODY_FILTERS;
     my ( @issues, %said, $line );
     for my $l ( split /\n/, $parsed->{BLOCK} ) {
