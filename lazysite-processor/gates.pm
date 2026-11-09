@@ -10,6 +10,9 @@ package main;
 #         answers 503 with Retry-After (output_page reads %MAINT). A request that
 #         is not a GET or HEAD is refused 503, not redirected. Lazysite::Maintenance
 #         is the decision, loaded only when lazysite.conf carries the key.
+#         _store_fault_gate($uri) (ruling 206): a host whose content_root is
+#         rejected, or a signed-in request while groups-settings.json cannot be
+#         read, is answered 503 (_serve_store_fault), never served on a guess.
 #         peek_payment($path), check_payment($uri, $meta, $auth, $vars) and
 #         serve_402($result): a page whose front matter says `payment: required`
 #         is served 402 with an x402 X-Payment-Response unless the caller is in
@@ -18,7 +21,8 @@ package main;
 #         auth secret, unexpired, a well-formed layout/theme) with
 #         read_request_cookie, load_preview_secret and preview_const_eq.
 # OWNS    the 402 response; what a valid preview cookie overrides.
-# CALLS   _peek_md, _request_croot, _system_page_md, process_md,
+# CALLS   confine_content_root, _request_identity,
+#         _peek_md, _request_croot, _system_page_md, process_md,
 #         _sanitise_not_found, _rewrite_if_changed, output_page
 #         (lazysite-processor.pl); _provider_signin_paths (extensions.pm, SM1369
 #         X4); encode_json, hmac_sha256_hex (imported by the script's `use`).
@@ -95,6 +99,68 @@ sub _maintenance_gate {
     print "Cache-Control: no-store\r\n";
     print "Location: $to\r\n\r\n";
     return 1;
+}
+
+# Ruling 206 (items 5 and 7 of the 0.16.9 fault survey): A REQUEST THE ENGINE
+# CANNOT JUDGE IS REFUSED (503), NEVER SERVED ON A GUESS.
+#
+# Item 7: a content_root the confinement rejects (a shape it refuses, a folder
+# that is not there, a path outside the docroot or inside the engine tree) used
+# to serve the DOCROOT ROOT for that host, with a WARN - another site's pages
+# under this host's name. Item 5: a groups-settings.json that exists and will
+# not open or decode was read as {} by _group_settings, so SM1140's
+# address-refused groups were lost from _group_closure and their members still
+# matched `@group` rules. Both now refuse: the host, for every request; the
+# group store, for every SIGNED-IN request (an anonymous visitor holds no group
+# and nothing about it is in doubt). The visitor is told the host cannot serve
+# the page; the log names the store and the repair; `lazysite check` names it.
+# An absent groups-settings.json is a site with no groups yet, and no fault.
+# Returns 1 when the request has been answered.
+sub _store_fault_gate {
+    my ($uri) = @_;
+    my %sv = resolve_site_vars();
+    my ( $store, $why );
+    if ( defined $sv{content_root} && length $sv{content_root}
+        && !defined confine_content_root( $DOCROOT, $sv{content_root} ) )
+    {
+        ( $store, $why ) = ( 'lazysite/lazysite.conf',
+            "the content_root for this host ($sv{content_root}) is not a folder inside the "
+                . 'docroot outside the engine tree' );
+    }
+    elsif ( my $gs_fault = _group_store_fault() ) {
+        my $ident = _request_identity( conf => \%sv );
+        ( $store, $why ) = ( 'lazysite/auth/groups-settings.json', $gs_fault )
+            if length( $ident->{user} // '' ) || @{ $ident->{groups} || [] };
+    }
+    return 0 unless $store;
+    _serve_store_fault( $uri, $store, $why, host => ( $sv{alias_host} || '-' ) );
+    return 1;
+}
+
+# The 503 for _store_fault_gate. The visitor is told nothing of the host's
+# layout (SM494: a file name is not a stranger's to see); the log carries it.
+sub _serve_store_fault {
+    my ( $uri, $store, $why, %log ) = @_;
+    log_event( 'WARN', $uri // '-', "request refused: cannot tell - $why",
+        store => $store, %log,
+        repair => 'lazysite check --docroot <docroot> names it; repair it from the command line' );
+    $ACCESS_REC{s} = 503;
+    output_page( "This page cannot be served right now: the site cannot read part of its "
+            . "configuration. This is a fault on the host, not a decision about this request; "
+            . "the site operator can see the cause in the site log.\n",
+        'text/plain; charset=utf-8', undef, 1, '503 Service Unavailable' );
+    return 1;
+}
+
+# Why groups-settings.json cannot be told, or '' (absent, or it reads as an
+# object). Opened here, not -f first (SM770: the open decides).
+sub _group_store_fault {
+    my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
+    open my $fh, '<:raw', $f or return $!{ENOENT} ? '' : "groups-settings.json cannot be read ($!)";
+    local $/;
+    my $gs = eval { JSON::PP::decode_json(<$fh>) };
+    close $fh;
+    return ref $gs eq 'HASH' ? '' : 'groups-settings.json does not decode as a JSON object';
 }
 
 sub peek_payment {

@@ -1471,6 +1471,7 @@ sub run_checks {
     report_page_titles();               # SM1357
     report_structured_data();           # SM1357
     report_foreign_site_folders();      # SM1357, ruling 171
+    report_content_roots();             # ruling 206
     report_retired_conf_keys();
     report_retired_notify_keys();       # SM1412
     report_app_settings();              # SM1155
@@ -3498,6 +3499,49 @@ sub report_foreign_site_folders {
                 . ' the bare host serves its pages; the sitemap and llms.txt leave it out',
             "declare it as a domain's content root (alias.<host>.content_root: $f->[0] in lazysite.conf),"
                 . ' or move it out of the docroot' );
+    }
+    return;
+}
+
+# Ruling 206 (item 7 of the 0.16.9 fault survey): EVERY DECLARED CONTENT ROOT
+# IS ONE THE ENGINE WILL SERVE. A content_root (the primary's, or an
+# alias.<host>.content_root) that the processor's confine_content_root rejects
+# refuses that host with a 503 - it used to serve the docroot root under the
+# host's name. The same tests, in the same order: a safe shape, a folder that
+# exists, inside the docroot once symlinks are resolved, and not the engine tree.
+# One FAIL per root, naming the host and the repair. Silent when all are good.
+sub report_content_roots {
+    my $d = $opt{docroot};
+    open my $fh, '<', "$LZ/lazysite.conf" or return;
+    my @roots;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^(alias\.(\S+)\.)?content_root\h*:\h*(.+?)\h*$/;
+        push @roots, [ ( defined $2 ? $2 : 'the primary host' ), $3 ];
+    }
+    close $fh;
+    my $droot = abs_path($d) // $d;
+    my $lzdir = abs_path( Lazysite::Paths::lazysite_dir($d) );
+    for my $r (@roots) {
+        my ( $host, $v ) = @$r;
+        ( my $rel = $v ) =~ s{^["']|["']$}{}g;
+        $rel =~ s{^/+|/+$}{}g;
+        next unless length $rel;   # '' or '/' is the docroot root, as the engine reads it
+        my $why =
+            $rel =~ /\0/ || $rel =~ m{(?:^|/)\.\.(?:/|$)} || $rel =~ m{[<>"'\\]} ? 'is not a safe path'
+            : !-d "$d/$rel" ? 'is not a folder in the docroot'
+            :                 undef;
+        unless ($why) {
+            my $abs = abs_path("$d/$rel") // '';
+            $why = 'resolves outside the docroot'
+                unless $abs eq $droot || index( $abs, "$droot/" ) == 0;
+            $why //= 'is inside the engine tree'
+                if defined $lzdir && ( $abs eq $lzdir || index( $abs, "$lzdir/" ) == 0 );
+        }
+        next unless $why;
+        report( 'FAIL',
+            "the content_root for $host ($v) $why - every request to that host is refused (503)",
+            "correct it in '$LZ/lazysite.conf'"
+                . ( $why eq 'is not a folder in the docroot' ? ", or create the folder '$d/$rel'" : '' ) );
     }
     return;
 }

@@ -7,9 +7,10 @@
 #       by traversal or by a symlink leaving the subtree);
 #   S2  a content root can never be, contain, or alias into lazysite/ (auth,
 #       secret, ACLs are never web-reachable through any domain root);
-#   S6  a bad/missing content root degrades that host to the docroot root with
-#       a WARN - it never 500s, never leaks a sibling, never takes the
-#       instance down.
+#   S6  a bad/missing content root refuses that host (503, ruling 206 - it
+#       used to degrade to the docroot root, serving the agency's pages under
+#       the host's name) with a WARN naming the repair - it never 500s, never
+#       leaks a sibling, never takes the instance down.
 # Plus the functional half: each domain serves its own subtree as '/', and one
 # domain can never see another's pages.
 use strict;
@@ -199,26 +200,28 @@ sub _slurp {
         'a prefix-superset sibling is not served via an in-tree symlink' );
     unlike( $out, qr/Status: 200 OK/, 'superstring-sibling request is not a 200' );
 }
-# A content_root that is a symlink OUT of the docroot: rejected -> fall back to
-# the docroot root; the outside tree is never served.
+# A content_root that is a symlink OUT of the docroot: rejected -> the host is
+# refused; the outside tree is never served.
 {
     my $out = run_processor( $docroot, '/evil', HTTP_HOST => 'badroot.example' );
     unlike( $out, qr/OUTSIDE_CONTENT/, 'content_root symlinked outside the docroot is not served' );
+    like( $out, qr/Status: 503/, 'and the host is refused (503)' );
 }
 # A content_root with traversal is rejected before touching the filesystem.
 {
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'travroot.example' );
-    like( $out, qr/AGENCY_ROOT_HOME/, 'traversal content_root degrades to docroot root' );
+    like( $out, qr/Status: 503/, 'traversal content_root refuses the host (503)' );
+    unlike( $out, qr/AGENCY_ROOT_HOME/, 'and never serves the docroot root' );
 }
 
 # =========================================================================
 # S2: the lazysite/ management tree is never reachable through a domain root.
 # =========================================================================
 {
-    # content_root: lazysite/auth is rejected -> docroot-root fallback.
+    # content_root: lazysite/auth is rejected -> the host is refused.
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'introot.example' );
     unlike( $out, qr/TOP_SECRET_MATERIAL/, 'content_root into lazysite/ never serves secrets' );
-    like( $out, qr/AGENCY_ROOT_HOME/, 'content_root into lazysite/ degrades to docroot root' );
+    like( $out, qr/Status: 503/, 'content_root into lazysite/ refuses the host (503)' );
 }
 {
     # Even asking for the secret by name through that host must not serve it.
@@ -227,13 +230,31 @@ sub _slurp {
 }
 
 # =========================================================================
-# S6: bad/missing roots degrade safely and in isolation.
+# S6: bad/missing roots refuse their own host, and only it (ruling 206).
 # =========================================================================
 {
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'missroot.example' );
-    unlike( $out, qr/Status: 5\d\d/, 'missing content_root does not 500' );
-    like( $out, qr/AGENCY_ROOT_HOME/, 'missing content_root degrades to docroot root' );
+    unlike( $out, qr/Status: 500/, 'missing content_root does not 500' );
+    like( $out, qr/Status: 503/, 'it refuses the host (503)' );
+    unlike( $out, qr/AGENCY_ROOT_HOME/, 'and never serves the docroot root under its name' );
+    like( $out, qr/fault on the host/, 'saying the fault is the host\'s' );
+    $out = run_processor( $docroot, '/no-such-page', HTTP_HOST => 'missroot.example' );
+    like( $out, qr/Status: 503/, 'a path that would 404 is refused the same way' );
 }
+# Ruling 206: `lazysite check` names every content root the engine would refuse,
+# with the host and the repair, and none it would serve.
+{
+    my $check = TestHelper::run_cmd( $^X, TestHelper::repo_root() . '/tools/lazysite-check.pl',
+        '--docroot', $docroot );
+    like( $check, qr/content_root for missroot\.example \(sites\/does-not-exist\) is not a folder in the docroot - every request to that host is refused \(503\)/,
+        'check names the missing root' );
+    like( $check, qr/create the folder '\S*sites\/does-not-exist'/, 'with the repair' );
+    like( $check, qr/content_root for travroot\.example \(\.\.\/\.\.\/etc\) is not a safe path/,   'the traversal' );
+    like( $check, qr/content_root for introot\.example \(lazysite\/auth\) is inside the engine tree/, 'the engine tree' );
+    like( $check, qr/content_root for badroot\.example \(sites\/evil\) resolves outside the docroot/, 'the symlink out' );
+    unlike( $check, qr/content_root for client[ab]\.example/, 'and nothing about the good roots' );
+}
+
 # Fault isolation: after hitting every broken domain, a good domain still works.
 {
     run_processor( $docroot, '/index', HTTP_HOST => 'badroot.example' );

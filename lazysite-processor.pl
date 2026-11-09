@@ -1273,6 +1273,12 @@ sub main {
     # a trusted source (auth wrapper or configured proxy) set them.
     apply_trust_gate($uri);
 
+    # Ruling 206: a host whose content_root is rejected, or a signed-in request
+    # while groups-settings.json cannot be read, is refused (503) here - before
+    # any path, a 404 included, could be served from a guessed root. After the
+    # trust gate, so the identity asked is the one it left.
+    return if _store_fault_gate($uri);
+
     # SM1118: a site in maintenance sends everyone who does not hold
     # `maintenance_access` to its maintenance page. After the trust gate, so the
     # identity asked is the one the gate left; before the manager path, which is
@@ -1313,20 +1319,21 @@ sub main {
     # invalid or missing root degrades to the docroot root with a WARN (S6), so
     # one mis-configured domain can never take the instance down or leak a
     # sibling's tree. Unset content_root => $croot == $DOCROOT (unchanged).
+    # Ruling 206: an invalid or missing root no longer degrades to the docroot
+    # root - _store_fault_gate refused the request above, and this answers the
+    # same should the root have changed in between.
     my $croot = $DOCROOT;
     {
         my %sv = resolve_site_vars();
         if ( defined $sv{content_root} && length $sv{content_root} ) {
             my $c = confine_content_root( $DOCROOT, $sv{content_root} );
-            if ( defined $c ) {
-                $croot = $c;
+            unless ( defined $c ) {
+                _serve_store_fault( $uri, 'lazysite/lazysite.conf',
+                    "the content_root for this host ($sv{content_root}) is rejected",
+                    host => ( $sv{alias_host} || '-' ) );
+                return;
             }
-            else {
-                log_event( 'WARN', $uri,
-                    'content_root rejected - serving docroot root',
-                    host         => ( $sv{alias_host} || '-' ),
-                    content_root => $sv{content_root} );
-            }
+            $croot = $c;
         }
     }
 
