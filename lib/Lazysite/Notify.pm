@@ -172,7 +172,18 @@ sub _template {
         # t/lint/121 is right that a stat this process may not make fails exactly
         # like an open it may not make. Behaviour is unchanged; one fewer way to
         # be told "no" for the wrong reason.
-        open my $fh, '<:utf8', $path or next;    # not a store - a template file
+        # Ruling 206 (item 21 of the 0.16.9 fault survey): a template that is
+        # there and will not open fell back to the built-in in silence; now it
+        # WARNs, naming the file, and `lazysite check` names it. An absent one
+        # is the site not overriding, and the fallback is right.
+        open my $fh, '<:utf8', $path or do {
+            log_event( 'WARN', 'notify',
+                "notice template lazysite/notify-templates/$key.tt cannot be read ($!) - the "
+                    . 'built-in is used until it is repaired (lazysite check --docroot names it)',
+                file => "lazysite/notify-templates/$key.tt" )
+                unless $!{ENOENT};
+            next;
+        };
         local $/;
         my $body = <$fh>;
         close $fh;
@@ -216,7 +227,9 @@ sub _render {
             $o;
         };
         if ( defined $out && length $out ) { $out =~ s/\s+\z//; return $out }
-        log_event( 'WARN', 'notify', 'template failed; using the message',
+        log_event( 'WARN', 'notify',
+            'notice template failed; using the message until it is repaired '
+                . '(lazysite check --docroot names it)',
             error => "$@" );
         return $vars->{message};
     }
