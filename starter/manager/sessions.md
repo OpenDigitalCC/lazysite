@@ -29,7 +29,7 @@ appear here &mdash; it holds a key, not a browser session. See
 <strong>Active keys</strong> below.
 </p>
 <div id="session-list"><div class="mg-empty" style="padding:0.75rem;">Loading...</div></div>
-<p><button class="mg-btn mg-btn-sm" onclick="reauthSelected()">Require sign-in again</button></p>
+<p><button class="mg-btn mg-btn-sm" data-impact="destroy" onclick="reauthSelected()">Require sign-in again</button></p>
 </div>
 </div>
 
@@ -116,7 +116,7 @@ function renderSessions(d) {
     var when  = s.issued ? new Date(s.issued * 1000).toLocaleString() : '';
     var badge = s.current ? ' <span class="mg-tag mg-tag-on">this session</span>' : '';
     h += '<tr>' +
-      '<td><input type="checkbox" class="mg-reauth" value="' + escHtml(s.sid) + '" aria-label="Select this session"></td>' +
+      '<td><input type="checkbox" class="sess-reauth" value="' + escHtml(s.sid) + '" aria-label="Select this session"></td>' +
       '<td><a href="/manager/users?user=' + encodeURIComponent(s.user) + '">' + escHtml(s.user) + '</a>' + badge + '</td>' +
       '<td>' + escHtml(when) + '</td>' +
       '<td>' + escHtml(s.ip || '') + '</td>' +
@@ -158,7 +158,7 @@ function revokeSession(sid, user, current) {
 
 // SM1351, ruling 214 (Q128): the selected sessions must sign in again.
 function reauthSelected() {
-  var sids = Array.prototype.map.call(document.querySelectorAll('input.mg-reauth:checked'), function(c) { return c.value; });
+  var sids = Array.prototype.map.call(document.querySelectorAll('input.sess-reauth:checked'), function(c) { return c.value; });
   if (!sids.length) { showStatus('Select one or more sessions first.', true); return; }
   mgConfirm('Require ' + sids.length + ' session(s) to sign in again? Their next request asks them to sign in; nothing else of theirs changes.',
     { ok: 'Require sign-in again' }).then(function(__ok) {

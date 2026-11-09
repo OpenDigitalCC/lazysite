@@ -824,10 +824,10 @@ sub mint_provider_session {
 # issue time so the wrapper's pruning and the Sessions page treat it as the one
 # session it is.
 sub renew_provider_session {
-    my (%a)    = @_;
-    my $p      = _provider( $a{provider} ) or return 0;
+    my (%a) = @_;
+    my $p   = _provider( $a{provider} ) or return 0;
     my $id  = $p->{provider} // $p->{extension};
-    my $old    = _provider_record( $a{sid}, $id ) or return 0;
+    my $old = _provider_record( $a{sid}, $id ) or return 0;
     # SM1351: with `login`, only that person's session is renewed.
     return 0 if defined $a{login} && ( $old->{user} // '' ) ne "$id:$a{login}";
     my @groups = grep { defined && !ref } @{ ref $a{groups} eq 'ARRAY' ? $a{groups} : [] };

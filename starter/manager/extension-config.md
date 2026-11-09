@@ -402,9 +402,9 @@ function renderForm(extension, values) {
 var mgRecordSpec = {};
 function renderRecords(f, recs) {
   mgRecordSpec[f.key] = f;
-  var h = '<div class="mg-records" data-records="' + esc(f.key) + '">';
+  var h = '<div class="ext-records" data-records="' + esc(f.key) + '">';
   recs.forEach(function(r) { h += recordBlock(f, r); });
-  h += '</div><button type="button" class="mg-btn mg-btn-sm" onclick="addRecord(this,\'' + esc(f.key) + '\')">Add '
+  h += '</div><button type="button" class="mg-btn mg-btn-sm" data-impact="edit" onclick="addRecord(this,\'' + esc(f.key) + '\')">Add '
     + esc((f.record_label || 'record').toLowerCase()) + '</button>';
   return h;
 }
@@ -413,7 +413,7 @@ function noteMark(s) {
     + '" data-note="' + esc(s.note) + '">&#9432;</span>' : '';
 }
 function pairRow(s, a, b) {
-  return '<div class="mg-pair"><input type="text" placeholder="' + esc(s.from_label || 'From') + '" value="' + esc(a)
+  return '<div class="ext-pair"><input type="text" placeholder="' + esc(s.from_label || 'From') + '" value="' + esc(a)
     + '" autocomplete="off"> = <input type="text" placeholder="' + esc(s.to_label || 'To') + '" value="' + esc(b)
     + '" autocomplete="off"></div>';
 }
@@ -425,10 +425,10 @@ function pairsOf(line) {
 }
 function recordBlock(f, r) {
   r = r || {};
-  var h = '<fieldset class="mg-record" data-record-of="' + esc(f.key) + '"><legend>' + esc(f.record_label || 'Record')
+  var h = '<fieldset class="ext-record" data-record-of="' + esc(f.key) + '"><legend>' + esc(f.record_label || 'Record')
     + ' <input type="text" data-rf="name" value="' + esc(r.name || '') + '"' + (r.name ? ' readonly' : '')
     + ' placeholder="name" size="16" autocomplete="off"> <button type="button" class="mg-btn mg-btn-sm"'
-    + ' data-impact="destroy" onclick="removeRecord(this)">Remove</button></legend>';
+    + ' data-impact="edit" onclick="removeRecord(this)">Remove</button></legend>';
   (f.fields || []).forEach(function(s) {
     h += '<div class="mg-field"><label>' + esc(s.label) + noteMark(s) + '</label>';
     if (s.type === 'secret') {
@@ -439,7 +439,7 @@ function recordBlock(f, r) {
     } else if (s.type === 'pairs') {
       h += '<div data-rf-pairs="' + esc(s.key) + '">';
       pairsOf(r[s.key]).forEach(function(p) { h += pairRow(s, p[0], p[1]); });
-      h += pairRow(s, '', '') + '</div><button type="button" class="mg-btn mg-btn-sm"'
+      h += pairRow(s, '', '') + '</div><button type="button" class="mg-btn mg-btn-sm" data-impact="edit"'
         + ' onclick="addPairRow(this,\'' + esc(f.key) + '\',\'' + esc(s.key) + '\')">Add a row</button>';
     } else {
       h += '<input type="text" data-rf="' + esc(s.key) + '" value="' + esc(r[s.key] || '') + '"'
@@ -449,23 +449,24 @@ function recordBlock(f, r) {
   });
   return h + '</fieldset>';
 }
-function recordsChanged(el) {
+function recordsDirty(el) {
   var form = el.closest('form');
   if (form) form.dispatchEvent(new Event('change', { bubbles: true }));
 }
 function addRecord(btn, key) {
   var box = btn.previousElementSibling;
   box.insertAdjacentHTML('beforeend', recordBlock(mgRecordSpec[key], {}));
-  recordsChanged(btn);
+  recordsDirty(btn);
 }
 function removeRecord(btn) {
   var form = btn.closest('form');
   btn.closest('fieldset').remove();
-  if (form) form.dispatchEvent(new Event('change', { bubbles: true }));
+  if (form) recordsDirty(form);
 }
 function addPairRow(btn, key, field) {
   var spec = (mgRecordSpec[key].fields || []).filter(function(s) { return s.key === field; })[0] || {};
   btn.previousElementSibling.insertAdjacentHTML('beforeend', pairRow(spec, '', ''));
+  recordsDirty(btn);
 }
 function gatherRecords(form, values) {
   var boxes = form.querySelectorAll('[data-records]');
@@ -481,7 +482,7 @@ function gatherRecords(form, values) {
       });
       sets[j].querySelectorAll('[data-rf-pairs]').forEach(function(pd) {
         var rows = [];
-        pd.querySelectorAll('.mg-pair').forEach(function(row) {
+        pd.querySelectorAll('.ext-pair').forEach(function(row) {
           var ins = row.querySelectorAll('input');
           if (ins[0].value || ins[1].value) rows.push([ins[0].value, ins[1].value]);
         });
