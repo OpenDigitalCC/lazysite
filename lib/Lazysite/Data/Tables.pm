@@ -1344,7 +1344,15 @@ sub import_rows {
         return _err( "table '$name': the data store cannot be opened",
             table => $name )
             unless $dbh;
-        my $keys = eval { $dbh->selectcol_arrayref( key_list_sql($d) ) } || [];
+        # Ruling 206 (item 16 of the 0.16.9 fault survey): a failed key query
+        # read as "no rows yet", so every row of the CSV was planned as an
+        # insert over rows that were there. Now the import refuses.
+        my $keys = eval { $dbh->selectcol_arrayref( key_list_sql($d) ) };
+        return Lazysite::Util::store_fault( category => 'data', store => 'lazysite/db/data.sqlite',
+            fault  => "could not be queried for the existing keys of table '$name'",
+            doing  => "import into '$name'",
+            effect => 'Nothing was imported.' )
+            if $@ || ref $keys ne 'ARRAY';
         %exists = map { $_ => 1 } grep { defined } @{$keys};
     }
 
@@ -1815,7 +1823,8 @@ sub rebuild_table {
     # above never reads $plan, so it is paid for only when there is a rebuild
     # to plan.
     my $plan = plan_rebuild( $d, $dbh );
-    return _err( "table '$name': $plan->{error}", table => $name )
+    return _err( "table '$name': $plan->{error}", table => $name,
+        ( $plan->{kind} ? ( kind => $plan->{kind} ) : () ) )    # ruling 206: cannot-tell stays itself
         unless $plan->{ok};
 
     # THE CONFIRMATION NAMES THE COLUMNS, and must name all of them. A caller

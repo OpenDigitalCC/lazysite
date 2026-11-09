@@ -81,12 +81,27 @@ sub _index_name {
 # THE DUPLICATE PROBE BOTH PLANNERS RUN (DA-14): the first value that appears
 # in more than one row, or undef. eval'd because the column may not exist yet -
 # the probe is asked BEFORE the migration that would create it.
+# ( 1, $dup-or-undef ), or ( 0 ) when the query failed.
+#
+# Ruling 206 (item 16 of the 0.16.9 fault survey): A QUERY THAT FAILED IS NOT AN
+# ANSWER. This and the two pre-flight queries in plan_rebuild read a failure as
+# "no rows": no duplicate, no null, no value that will not convert - so a
+# migration or a rebuild was planned as safe on a store that had not been read.
+# Each now refuses with _query_fault, naming the store.
 sub _first_duplicate {
     my ( $dbh, $d, $f ) = @_;
-    return eval {
-        my $row = $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) );
-        $row ? $row->[0] : undef;
-    };
+    my $row = eval { $dbh->selectrow_arrayref( duplicate_value_sql( $d, $f ) ) };
+    return (0) if $@;
+    return ( 1, $row ? $row->[0] : undef );
+}
+
+sub _query_fault {
+    my ( $d, $what ) = @_;
+    require Lazysite::Util;
+    return Lazysite::Util::store_fault( category => 'data', store => 'lazysite/db/data.sqlite',
+        fault  => "could not be queried for $what in table '$d->{table}'",
+        doing  => "plan this change to '$d->{table}'",
+        effect => 'Nothing was changed.' );
 }
 
 sub plan_migration {
@@ -232,7 +247,8 @@ sub plan_migration {
         next if $observed->{indexes}{$name};
 
         if ($has_rows) {
-            my $dup = _first_duplicate( $dbh, $d, $f );
+            my ( $asked, $dup ) = _first_duplicate( $dbh, $d, $f );
+            return _query_fault( $d, "duplicates of '$f'" ) unless $asked;
             if ( defined $dup ) {
                 push @blocked,
                     { field => $f,
@@ -345,6 +361,7 @@ sub plan_rebuild {
 
         if ( $spec->{required} && !$have->{notnull} ) {
             my ($n) = eval { $dbh->selectrow_array( null_count_sql( $d, $f ) ) };
+            return _query_fault( $d, "rows with no '$f'" ) if $@;
             push @blocked, { field => $f, rule => 'required', rows => 0 + ( $n // 0 ),
                 why => "$n row" . ( $n == 1 ? ' has' : 's have' )
                     . " no '$f', and the new descriptor makes it required. "
@@ -353,7 +370,8 @@ sub plan_rebuild {
         }
 
         if ( grep { $_ eq $f } @{ $d->{unique} || [] } ) {
-            my $dup = _first_duplicate( $dbh, $d, $f );
+            my ( $asked, $dup ) = _first_duplicate( $dbh, $d, $f );
+            return _query_fault( $d, "duplicates of '$f'" ) unless $asked;
             push @blocked, { field => $f, rule => 'unique',
                 why => "'$f' cannot be made unique: the value '$dup' is in "
                     . 'more than one row already' }
@@ -362,7 +380,8 @@ sub plan_rebuild {
 
         my $want_type = column_type($spec);
         if ( uc( $have->{type} // '' ) ne uc($want_type) ) {
-            my $vals = eval { $dbh->selectcol_arrayref( column_values_sql( $d, $f ) ) } || [];
+            my $vals = eval { $dbh->selectcol_arrayref( column_values_sql( $d, $f ) ) };
+            return _query_fault( $d, "the stored values of '$f'" ) if $@ || ref $vals ne 'ARRAY';
             my @bad;
             for my $v ( @{$vals} ) {
                 my ($why) = coerce_field( $f, $spec, $v );
