@@ -42,7 +42,7 @@ STUB
 spit( "$eng/tools/lazysite-pool.pl", "\$SIG{TERM} = sub { exit 0 }; open my \$o, '>>', '$t/pool.starts'; print {\$o} \"\$\$\\n\"; close \$o; sleep 1 while 1;\n" );
 spit( "$eng/tools/lazysited.pl",
     "open my \$o, '>>', '$t/daemon.starts'; print {\$o} \"\$\$\\n\"; close \$o; exit 4 if -e '$t/state-damaged'; \$SIG{TERM} = sub { exit 0 }; sleep 1 while 1;\n" );
-spit( "$t/nginx", "#!/bin/bash\necho \$\$ >> '$t/nginx.starts'\ntrap 'exit 0' TERM\ntrap '' HUP\nwhile :; do sleep 0.2; done\n" );
+spit( "$t/nginx", "#!/bin/bash\n[ \"\${1:-}\" = -t ] && exit 0\necho \$\$ >> '$t/nginx.starts'\ntrap 'exit 0' TERM\ntrap '' HUP\nwhile :; do sleep 0.2; done\n" );
 spit( "$t/curl", "#!/bin/bash\nprintf 200\n" );
 chmod 0755, "$t/nginx", "$t/curl";
 

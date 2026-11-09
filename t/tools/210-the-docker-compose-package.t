@@ -114,6 +114,17 @@ like( $docker, qr{mkdir -p /srv/sites[^\n]*\n[^\n]*chown www-data:www-data /srv/
 unlike( $nginx, qr/^\s*user\s/m, 'nginx.conf sets no user: it is started as one' );
 like( $nginx, qr{^pid /tmp/}m, 'and keeps its pid where that user can write' );
 like( $nginx, qr{^\s*include /tmp/nginx/sites/\*\.conf;}m, 'and reads the server blocks the entrypoint writes at start' );
+# Ruling 220's walk: a block naming no log inherits nginx's compiled-in
+# /var/log/nginx/access.log, on the read-only root, and nginx refuses the lot.
+like( $nginx, qr{^\s*access_log /dev/stdout;}m, 'nginx.conf sends every inherited access log to the container\'s stream' );
+unlike( $nginx =~ s/^\s*#[^\n]*\n//mgr, qr{/var/log}, 'and names no /var/log path' );
+my @blocks = $entry =~ /printf '(server \{.*?\}\\n)'/g;
+cmp_ok( scalar @blocks, '>=', 2, 'the entrypoint writes its own server blocks (the 503, the default)' );
+for my $b (@blocks) {
+    my ($what) = $b =~ /(default_server|return 503)/;
+    like( $b, qr{access_log /dev/stdout;}, 'the ' . ( $what // 'block' ) . ' block names its access log' );
+    like( $b, qr{error_log stderr;},       'and its error log' );
+}
 like( $entry, qr{NGINX_DIR=\$\{LAZYSITE_NGINX_DIR:-/tmp/nginx/sites\}}, 'which is where the entrypoint writes them' );
 like( $entry, qr{--engine shared}, 'the entrypoint lays every site on the shared engine' );
 

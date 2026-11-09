@@ -97,7 +97,15 @@ cmd_remove() {
 
 cmd_status() {
     local name domains bad=0 code st why
-    [ -f "$CONF" ] || { echo "no sites listed in $CONF"; return 0; }
+    # Ruling 206: nginx refusing the last configuration is named first - every
+    # site's state below is then what was meant, and not what nginx serves.
+    if [ -f "$RUN/nginx-config" ]; then
+        local nst nwhy
+        IFS=$'\t' read -r nst nwhy < "$RUN/nginx-config"
+        printf 'nginx: %s the last configuration, and serves the one before it: %s\n' "$nst" "$nwhy"
+        bad=1
+    fi
+    [ -f "$CONF" ] || { echo "no sites listed in $CONF"; return "$bad"; }
     printf '%-24s %-10s %-5s %s\n' SITE STATE HTTP WHY
     while read -r name domains; do
         case "$name" in '' | '#'*) continue ;; esac

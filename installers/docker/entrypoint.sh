@@ -236,7 +236,11 @@ vhost_serve() {    # NAME DOMAIN [ALIAS...]
 vhost_refuse() {    # NAME DOMAIN [ALIAS...]
     local name=$1
     shift
-    printf 'server {\n    listen %s;\n    server_name %s;\n    default_type text/plain;\n    return 503 "This site is not serving. Its operator: lazysite-sites status\\n";\n}\n' \
+    # Its logs named, as every block this writes names them: a block without one
+    # inherits nginx's compiled-in /var/log/nginx/access.log, which the
+    # read-only root cannot open - the reload was refused, the old
+    # configuration kept, and the site answered the default server's 404.
+    printf 'server {\n    listen %s;\n    server_name %s;\n    default_type text/plain;\n    access_log /dev/stdout;\n    error_log stderr;\n    return 503 "This site is not serving. Its operator: lazysite-sites status\\n";\n}\n' \
         "$PORT" "$*" > "$NGINX_DIR/$name.conf"
 }
 
@@ -245,9 +249,22 @@ vhost_default() {
         "$PORT" > "$NGINX_DIR/00-default.conf"
 }
 
+# Ruling 206: a configuration nginx will not load is a fault, never a silence.
+# A HUP alone told nobody when nginx refused the new blocks and served the old
+# ones: the sites it had just refused answered as though they were not there.
+# So the configuration is tested first; a refusal is logged with nginx's own
+# words, kept in run/nginx-config for `lazysite-sites status` to name, and the
+# running configuration is left as it was.
 nginx_reload() {
-    local pid
+    local pid out
     pid=$(cat "$RUN/nginx.pid" 2> /dev/null) || return 0
+    if ! out=$("$NGINX" -t -q 2>&1); then
+        out=$(printf '%s' "$out" | tr '\n' ' ')
+        printf 'refused\t%s\n' "$out" > "$RUN/nginx-config"
+        log "nginx refused the new configuration and still serves the last one it loaded: $out"
+        return 1
+    fi
+    rm -f "$RUN/nginx-config"
     kill -HUP "$pid" 2> /dev/null || true
 }
 
@@ -413,7 +430,7 @@ prepare_run() {
             return 1
         fi
     done
-    rm -f "$RUN"/sites/*.pid "$STATUS"/* "$RUN"/runtime/*
+    rm -f "$RUN"/sites/*.pid "$STATUS"/* "$RUN"/runtime/* "$RUN/nginx-config"
     if ! echo $$ > "$RUN/supervisor.pid" 2> /dev/null; then
         refuse_start "$RUN/supervisor.pid"
         return 1

@@ -111,6 +111,10 @@ in `NAME/html-lazysite/daemon/` cannot be read. That runtime is not restarted: a
 restart cannot repair a file. The site still serves pages. `status` shows it as
 `runtime-down` and names the directory. Repair the file, then run `restart NAME`.
 
+Each reload tests nginx's configuration first. If nginx refuses it, the log
+gives nginx's reason, and `status` names it on its first line and exits 1. nginx
+keeps serving the last configuration it loaded.
+
 The container refuses to start when it cannot write its run directory,
 `/run/lazysite`, and the log names the path. Keep the `tmpfs` lines in
 `compose.yaml` as they are: compose mounts a bare entry root-owned, and the

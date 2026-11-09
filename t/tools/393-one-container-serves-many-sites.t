@@ -57,7 +57,7 @@ END { make_writable($_) for grep {defined} $image, $older }
 my $sites = "$t/sites";
 my $run   = "$t/run";
 make_path($sites);
-spit( "$t/nginx", "#!/bin/bash\ntrap 'echo reload >> \"$t/nginx.reloads\"' HUP\ntrap 'exit 0' TERM\n"
+spit( "$t/nginx", "#!/bin/bash\n[ \"\${1:-}\" = -t ] && exit 0\ntrap 'echo reload >> \"$t/nginx.reloads\"' HUP\ntrap 'exit 0' TERM\n"
         . "echo \$\$ > '$t/nginx.started'\nwhile :; do sleep 0.2; done\n" );
 spit( "$t/curl", "#!/bin/bash\nif [ -e '$t/http-down' ]; then printf 000; else printf 200; fi\n" );
 chmod 0755, "$t/nginx", "$t/curl";
