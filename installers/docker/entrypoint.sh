@@ -258,6 +258,7 @@ site_supervisor() {    # NAME DOMAIN [ALIAS...]
     local docroot=$SITES/$1/html
     local pool=0 daemon=0 stopping=0 rc now
     local -a crashes=()
+    rm -f "$RUN/runtime/$name"
     trap 'stopping=1; [ "$pool" -gt 0 ] && kill -TERM "$pool" 2>/dev/null; [ "$daemon" -gt 0 ] && kill -TERM "$daemon" 2>/dev/null' TERM INT
 
     (
@@ -268,6 +269,17 @@ site_supervisor() {    # NAME DOMAIN [ALIAS...]
             child=$!
             wait "$child"
             rc=$?
+            # Ruling 218 (SM1417): exit 4 is lazysited refusing because a
+            # service state file under the site's daemon/ cannot be told. A
+            # restart cannot repair a file, so the runtime stays down - named
+            # in the log and in `lazysite-sites status` - until it is repaired
+            # and the site restarted. The pool serves on.
+            if [ "$rc" -eq 4 ]; then
+                printf 'down\tits runtime refused: a state file in %s cannot be read - see lazysite-sites check %s, repair the file, then lazysite-sites restart %s\n' \
+                    "$SITES/$name/html-lazysite/daemon" "$name" "$name" > "$RUN/runtime/$name"
+                log "site $name: its runtime (lazysited) refused, exit 4: a state file in $SITES/$name/html-lazysite/daemon cannot be read; it is not restarted - repair the file, then: lazysite-sites restart $name"
+                exit 0
+            fi
             if [ "$rc" -eq 0 ]; then sleep "$DAEMON_RETRY" & else sleep 5 & fi
             child=$!
             wait "$child"
@@ -323,7 +335,7 @@ site_stop() {    # NAME
     pid=$(cat "$RUN/sites/$1.pid" 2> /dev/null) || return 0
     kill -TERM "$pid" 2> /dev/null
     wait "$pid" 2> /dev/null
-    rm -f "$RUN/sites/$1.pid"
+    rm -f "$RUN/sites/$1.pid" "$RUN/runtime/$1"
 }
 
 # Bring the running set to what sites.conf lists. A site held for a restore
@@ -379,10 +391,38 @@ stop_all() {
     [ "$NGINX_PID" -gt 0 ] && kill -TERM "$NGINX_PID" 2> /dev/null
 }
 
+refuse_start() {    # PATH
+    log "not starting: cannot create or write $1 as $(id -un) (uid $(id -u))"
+    log "  the run directory must be writable by this user. In compose.yaml mount it so:"
+    log "    tmpfs:"
+    log "      - /run/lazysite:uid=$(id -u),gid=$(id -g),mode=0770"
+    log "      - /tmp:mode=1777"
+    log "  or with docker run: --tmpfs /run/lazysite:uid=$(id -u),gid=$(id -g),mode=0770 --tmpfs /tmp:mode=1777"
+}
+
+# Ruling 206 / 220: the supervisor's own run state must be writable before
+# anything is served. Without it there is no supervisor (no pid, no status, no
+# hold), yet nginx would answer its health location - a container reported
+# healthy with nothing behind it. So it refuses, naming the path and the remedy,
+# before nginx starts.
+prepare_run() {
+    local d
+    for d in "$RUN" "$RUN/sites" "$STATUS" "$RUN/hold" "$RUN/runtime" "$NGINX_DIR"; do
+        if ! mkdir -p "$d" 2> /dev/null || [ ! -w "$d" ]; then
+            refuse_start "$d"
+            return 1
+        fi
+    done
+    rm -f "$RUN"/sites/*.pid "$STATUS"/* "$RUN"/runtime/*
+    if ! echo $$ > "$RUN/supervisor.pid" 2> /dev/null; then
+        refuse_start "$RUN/supervisor.pid"
+        return 1
+    fi
+    return 0
+}
+
 run_all() {
-    mkdir -p "$RUN" "$NGINX_DIR" "$RUN/sites" "$STATUS"
-    rm -f "$RUN"/sites/*.pid "$STATUS"/*
-    echo $$ > "$RUN/supervisor.pid"
+    prepare_run || return 2
     vhost_default
     [ -f "$CONF" ] || log "no sites yet: add one with  lazysite-sites add NAME DOMAIN"
 

@@ -37,9 +37,14 @@ services:
       - lazysite-sites:/srv/sites
     # The image is read-only: the container writes only the volume and these.
     read_only: true
+    # Ruling 220: compose mounts a bare tmpfs entry root-owned 0755, which the
+    # www-data processes cannot write, so each says whose it is. /run/lazysite
+    # holds the supervisor's pid, each site's status and every pool's socket;
+    # /tmp holds nginx's temp and server-block directories. The entrypoint
+    # refuses to start when it cannot write them, naming this.
     tmpfs:
-      - /tmp
-      - /run/lazysite
+      - /tmp:mode=1777
+      - /run/lazysite:uid=33,gid=33,mode=0770
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/lazysite-health"]
       interval: 30s

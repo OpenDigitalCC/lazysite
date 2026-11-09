@@ -52,8 +52,16 @@ is_deeply( \@services, ['lazysite'], 'one service serves every site' );
 
 like( $compose, qr/^\s+read_only:\s*true\s*$/m, 'the root filesystem is read-only (ruling 210)' );
 my ($tmpfs) = $compose =~ /^\s+tmpfs:\n((?:\s+- .*\n)+)/m;
-is_deeply( [ sort( ( $tmpfs // '' ) =~ /- (\S+)/g ) ], [ '/run/lazysite', '/tmp' ],
+my %tmpfs = map { /\A([^:]+)(?::(.*))?\z/ ? ( $1 => $2 // '' ) : () } ( $tmpfs // '' ) =~ /- (\S+)/g;
+is_deeply( [ sort keys %tmpfs ], [ '/run/lazysite', '/tmp' ],
     'the only writable places besides the volume: /tmp and the sockets' );
+# Ruling 220: a bare entry is mounted root-owned 0755, which www-data cannot
+# write - the run dir then holds no supervisor, and nginx answers healthy anyway.
+my %run = map { split /=/, $_, 2 } grep {/=/} split /,/, $tmpfs{'/run/lazysite'} // '';
+is( $run{uid}, 33, 'the run dir is mounted owned by www-data (uid 33)' );
+is( $run{gid}, 33, 'and its group (gid 33)' );
+like( $run{mode} // '', qr/\A0?7[57]0\z/, 'and writable by them, not by the world' );
+like( $tmpfs{'/tmp'}, qr/(?:\A|,)mode=1777(?:,|\z)/, '/tmp is the usual 1777, so nginx can make its temp dirs' );
 unlike( $compose, qr/^\s*(?:secrets|configs):/m, 'no secrets: the recipe handles no certificate (ruling 205)' );
 unlike( $compose =~ s/^\s*#[^\n]*\n//mgr, qr/443|ssl|tls/i, 'and serves no TLS' );
 unlike( $compose, qr/^\s+user:\s*(?:root|0)\b/m,  'and never runs as root' );

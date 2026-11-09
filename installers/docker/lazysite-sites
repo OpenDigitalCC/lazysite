@@ -107,6 +107,14 @@ cmd_status() {
         code=$("$CURL" -s -o /dev/null -w '%{http_code}' -m 10 -H "Host: ${domains%% *}" "http://127.0.0.1:$PORT/" 2> /dev/null)
         case "$code" in 2* | 3* | 401 | 403) ;; *) bad=1 ;; esac
         [ "$st" = serving ] || bad=1
+        # Ruling 218: a runtime refused for a damaged state file is named too.
+        if [ -f "$RUN/runtime/$name" ]; then
+            local rt rwhy
+            IFS=$'\t' read -r rt rwhy < "$RUN/runtime/$name"
+            st="$st,runtime-$rt"
+            why="${why:+$why; }$rwhy"
+            bad=1
+        fi
         printf '%-24s %-10s %-5s %s\n' "$name" "$st" "${code:-000}" "$why"
     done < "$CONF"
     return "$bad"
@@ -115,6 +123,14 @@ cmd_status() {
 cmd_restart() {
     [ $# -eq 1 ] || fail 'restart needs NAME'
     listed "$1" || fail "$1 is not in $CONF"
+    # A site whose runtime is down (ruling 218) still has its supervisor: stop
+    # that, so the reload starts the site, and its runtime, again.
+    if [ -f "$RUN/runtime/$1" ]; then
+        local pid
+        pid=$(cat "$RUN/sites/$1.pid" 2> /dev/null) && kill -TERM "$pid" 2> /dev/null
+        rm -f "$RUN/runtime/$1"
+        sleep 1
+    fi
     rm -f "$RUN/status/$1"
     poke "$1"
 }

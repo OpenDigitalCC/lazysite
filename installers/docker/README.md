@@ -106,6 +106,16 @@ A site's pool that dies is restarted for that site alone, with a backoff. After
 five crashes in ten minutes the site is left `crashed` (503) until
 `restart NAME`.
 
+A site's runtime (`lazysited`) can refuse to start because a service state file
+in `NAME/html-lazysite/daemon/` cannot be read. That runtime is not restarted: a
+restart cannot repair a file. The site still serves pages. `status` shows it as
+`runtime-down` and names the directory. Repair the file, then run `restart NAME`.
+
+The container refuses to start when it cannot write its run directory,
+`/run/lazysite`, and the log names the path. Keep the `tmpfs` lines in
+`compose.yaml` as they are: compose mounts a bare entry root-owned, and the
+container runs as `www-data`.
+
 The container is unhealthy, and exits, only when nginx or its supervisor is
 down. One bad site never marks it unhealthy: watch `lazysite-sites status`
 (exit 1) for that. nginx's logs go to the container's streams
