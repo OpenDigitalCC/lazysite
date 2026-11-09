@@ -1477,6 +1477,7 @@ sub run_checks {
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
     report_pool_status(); # SM1144: R5 reads the fleet's pool status from the deploy report
+    report_pool_engine();    # ruling 203: the pool runs the site's own engine
 
     # --- 8i2. is this site's persistent runtime armed? (SM893) ----------------
     report_daemon_runtime();
@@ -3957,6 +3958,7 @@ sub find_pool_conf {
             $v{front_door} = $1 if $l =~ /^\s*FRONT_DOOR\s*=\s*"?([^"\s]*)"?/;
             $v{workers}    = $1 if $l =~ /^\s*WORKERS\s*=\s*"?([^"\s]*)"?/;
             $v{socket}     = $1 if $l =~ /^\s*SOCKET\s*=\s*"?([^"\s]+)"?/;
+            $v{cgibin}     = $1 if $l =~ /^\s*CGIBIN\s*=\s*"?([^"\s]+)"?/;    # ruling 203
         }
         close $fh;
         next unless defined $v{docroot};
@@ -3997,6 +3999,30 @@ sub report_pool_status {
     return report( 'WARN', "pool: configured, $ws ($p->{file}), but its socket $sock is not there",
         'The pool is not running, so this site is served by plain CGI until it is '
             . "started: systemctl start lazysite\@$p->{instance}." );
+}
+
+# Ruling 203: THE POOL RUNS THIS SITE'S OWN ENGINE - the processor in the cgi-bin
+# its pool conf names (CGIBIN=, else the docroot's sibling, as the launcher
+# resolves it) and the lib beside the docroot. When any of the three is missing
+# the pool answers every request 503 and never runs the package's engine instead
+# (ruling 206: refuse, and name the remedy). Silent with no pool conf: plain CGI
+# runs the cgi-bin copy, and the cgi-bin check above covers that.
+sub report_pool_engine {
+    my $p = find_pool_conf();
+    return unless $p;
+    require File::Basename;
+    my $up  = File::Basename::dirname( abs_path( $opt{docroot} ) // $opt{docroot} );
+    my $cgi = length( $p->{cgibin} // '' ) ? $p->{cgibin} : "$up/cgi-bin";
+    my @missing;
+    push @missing, "$cgi/lazysite-processor.pl" unless -f "$cgi/lazysite-processor.pl";
+    push @missing, "$cgi/lazysite-processor/"   unless -d "$cgi/lazysite-processor";
+    push @missing, "$up/lib/"                   unless -d "$up/lib/Lazysite";
+    return report( 'OK', "pool engine: the site's own ($cgi)" ) unless @missing;
+    return report( 'FAIL', "pool engine: the site's own engine is missing: " . join( ', ', @missing ),
+        "The pool ($p->{file}) answers every request 503 until it is repaired; it never "
+            . "runs the package's engine for a site. Lay the engine again with lazysite "
+            . "reinstall --docroot $opt{docroot} (or upgrade, if the site is behind), then "
+            . "systemctl restart lazysite\@$p->{instance}." );
 }
 
 sub report_front_door_mode {

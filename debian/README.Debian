@@ -65,9 +65,14 @@ libfcgi-procmanager-perl (Recommends), then per site:
    systemd cannot template User= from an instance name, so the unit
    starts /usr/share/lazysite/tools/lazysite-pool.pl as root; it binds
    /run/lazysite/example.com.sock, chowns it USER:GROUP 0660, drops
-   privileges to USER, and execs the processor with the listen socket
+   privileges to USER, and execs the site's own processor (from its
+   cgi-bin, CGIBIN= or the docroot's sibling) with the listen socket
    on fd 0 (the spawn-fcgi convention). No root remains in the request
-   path. The pattern is documented in the unit file itself.
+   path. The pattern is documented in the unit file itself. The pool
+   never runs the package's engine for a site: after a package upgrade
+   a site keeps its own version until `lazysite upgrade` moves it, and a
+   site whose engine copy is missing is answered 503 until it is
+   repaired (`lazysite check` names it).
 
 3. Point the web server at the socket, e.g. Apache mod_proxy_fcgi:
 

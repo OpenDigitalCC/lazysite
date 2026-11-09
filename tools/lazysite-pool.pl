@@ -12,8 +12,9 @@
 #   2. chowns/chmods it so the web server group can connect,
 #   3. drops privileges to USER (no root remains in the request path),
 #   4. puts the listen socket on fd 0 - the spawn-fcgi convention the
-#      processor's SM142 dual-mode dispatch detects - and execs
-#      lazysite-processor.pl from the payload next to this script.
+#      processor's SM142 dual-mode dispatch detects - and execs THE SITE'S
+#      OWN lazysite-processor.pl, from its cgi-bin (ruling 203), or answers
+#      503 when the site's engine tree is missing.
 #
 # Nothing here writes into the site tree (the SM139 principle); the only
 # root actions are the bind and the privilege drop. Run unprivileged as
@@ -57,7 +58,8 @@ environment (systemd EnvironmentFile=/etc/lazysite/pools/NAME.conf):
   MAX_REQUESTS=  worker recycles after N requests (default 500)
   SOCKET=        socket path (default RUNDIR/NAME.sock)
   FRONT_DOOR=    1 = the worker routes every request (one vhost rule)
-  CGIBIN=        surfaces dir for relayed requests (default ../cgi-bin)
+  CGIBIN=        the site's cgi-bin: the processor the pool runs and the
+                 surfaces for relayed requests (default ../cgi-bin)
   RELAY_TIMEOUT= seconds a relayed surface may take (default 120)
 USAGE
     exit( $rc // 0 );
@@ -205,12 +207,74 @@ $ENV{LAZYSITE_CGIBIN} =
 $ENV{LAZYSITE_RELAY_TIMEOUT} = $ENV{RELAY_TIMEOUT}
     if length( $ENV{RELAY_TIMEOUT} // '' );
 
+# --- which engine serves this site (ruling 203) ---
+#
+# The pool runs THE SITE'S OWN ENGINE: the processor in its cgi-bin (the same
+# directory the relays above use, and the copy the manager, auth and DAV CGIs
+# run) and the lib beside its docroot, where install.pl lays it. It used to exec
+# the package's processor beside this launcher, so after a package upgrade the
+# site had not yet taken, the pool rendered with the new engine and every other
+# surface with the old one: one site, two engine versions. Now a site moves to
+# a new engine through its own `upgrade`, and only then.
+#
+# A site whose tree is missing or unreadable is a fault (ruling 206). The pool
+# refuses it, answering 503 and logging what is missing, and never falls back
+# to the package's engine: that is the skew this exists to remove. `lazysite
+# check` names the same fault and its remedy. Checked after the privilege
+# drop, so "readable" means readable by the account that runs it.
+#
+# The one exception is a shared read-only engine (SM1361, rulings 200-202): a
+# container whose image is the engine and whose site holds no engine copy. The
+# image marks its engine root with SHARED-ENGINE (the name
+# Lazysite::Extensions::$SHARED_MARK reads); on such an engine the engine's own
+# processor IS the site's, as before. It is read from this launcher's own tree,
+# never from the site's, so a site cannot plant it.
+my $engine_root = dirname( dirname( abs_path($0) ) );
+my $shared_mark = "$engine_root/SHARED-ENGINE";
+my $processor;
+if ( -f $shared_mark && !-l $shared_mark ) {
+    $processor = "$engine_root/lazysite-processor.pl";
+    bail("processor not found at $processor") unless -f $processor;
+}
+else {
+    $processor = "$ENV{LAZYSITE_CGIBIN}/lazysite-processor.pl";
+    my $parts = "$ENV{LAZYSITE_CGIBIN}/lazysite-processor";
+    my $lib   = dirname($docroot) . '/lib/Lazysite';
+    my @missing;
+    push @missing, $processor unless -f $processor && -r _;
+    push @missing, "$parts/"  unless -d $parts     && -r _ && -x _;
+    push @missing, "$lib/"    unless -d $lib       && -r _ && -x _;
+    refuse_site(@missing) if @missing;
+}
+
 # --- fd 0 = listen socket (spawn-fcgi convention), exec the processor ---
-my $processor = dirname( dirname( abs_path($0) ) ) . '/lazysite-processor.pl';
-bail("processor not found at $processor") unless -f $processor;
 open STDIN, '<&', $sock
     or bail("dup listen socket to fd 0: $!");
 exec( $^X, $processor ) or bail("exec $processor: $!");
+
+# The site's engine tree is missing or unreadable: answer every request 503 and
+# say why in the log, once, at start. The visitor is told only that the site is
+# unavailable; the paths are the sysop's. FCGI.pm is what the worker itself
+# needs, so a host that has none cannot run a pool either way.
+sub refuse_site {
+    my (@missing) = @_;
+    print {*STDERR} "lazysite-pool: $opt{instance}: the site's own engine is missing or "
+        . 'unreadable (' . join( ', ', @missing ) . '). Refusing every request with 503; '
+        . "the package's engine is never used for a site (ruling 203). Repair: lazysite "
+        . "reinstall --docroot $docroot (or upgrade, if the site is behind), then "
+        . "systemctl restart lazysite\@$opt{instance}. lazysite check names this too.\n";
+    open STDIN, '<&', $sock
+        or bail("dup listen socket to fd 0: $!");
+    my $req = eval { require FCGI; FCGI::Request() }
+        or bail('FCGI.pm is not installed, so the pool cannot answer at all');
+    while ( $req->Accept() >= 0 ) {
+        print "Status: 503 Service Unavailable\r\n"
+            . "Content-Type: text/plain; charset=utf-8\r\n"
+            . "Retry-After: 300\r\n\r\n"
+            . "This site is unavailable while its installation is repaired.\n";
+    }
+    exit 0;
+}
 
 __END__
 
@@ -227,10 +291,14 @@ lazysite-pool.pl - per-site FastCGI pool launcher for lazysite
 Started (normally by the C<lazysite@.service> systemd template unit, as
 root) with the pool's identity in the environment, it binds the unix
 listen socket, makes it connectable by the web server group, drops
-privileges to the site user and execs C<lazysite-processor.pl> with the
-socket on fd 0 - the spawn-fcgi convention the processor's SM142
-dual-mode dispatch detects. The processor then services requests from a
-persistent accept loop (one pool per site, the PHP-FPM model).
+privileges to the site user and execs the site's own
+C<lazysite-processor.pl> (from C<CGIBIN>, with the lib beside the
+docroot) with the socket on fd 0 - the spawn-fcgi convention the
+processor's SM142 dual-mode dispatch detects. The processor then services
+requests from a persistent accept loop (one pool per site, the PHP-FPM
+model). The package's processor is never run for a site: a site whose
+engine tree is missing or unreadable is answered 503 and logged until it
+is repaired.
 
 systemd cannot set C<User=> from a template instance name, which is why
 the drop happens here rather than in the unit; see the comments in

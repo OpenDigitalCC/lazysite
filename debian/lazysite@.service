@@ -9,7 +9,8 @@
 # the launcher as root; the launcher binds /run/lazysite/%i.sock, chowns
 # it USER:GROUP 0660 so the web server can connect, drops privileges to
 # USER, puts the listen socket on fd 0 (the spawn-fcgi convention the
-# processor's dual-mode dispatch detects) and execs lazysite-processor.pl.
+# processor's dual-mode dispatch detects) and execs the SITE'S OWN
+# lazysite-processor.pl, from its cgi-bin (ruling 203), never the package's.
 # No root remains in the request path and nothing writes into the site
 # tree. Point the web server at the socket (see README.Debian), e.g.
 # Apache mod_proxy_fcgi:

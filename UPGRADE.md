@@ -232,6 +232,18 @@ clients, taps the padlock in the chat and chooses Unencrypted (see
 `/docs/forms`, "Configuring chat delivery"). While the subscription is incomplete a
 notice to a person waits up to a second for a pending request.
 
+**A pool site keeps its own engine until it runs `upgrade` (ruling 203).** The FastCGI
+pool (`lazysite@<site>`) now runs the site's own processor, from its cgi-bin, and its own
+lib, as the manager, auth and DAV CGIs already did. It used to run the package's, so
+after a package upgrade the pool rendered with the new engine while the rest of the site
+ran the old one. Now, after a package upgrade, a pool site keeps its own version until
+`lazysite upgrade --docroot ...` (or `upgrade --all`) moves it, and then the pool's
+restart picks it up. Nothing to do on upgrade beyond the usual restart. A site whose
+engine copy is missing or unreadable is answered 503 and logged, never served by the
+package's engine; `lazysite check` names it (`pool engine: ...`) and the remedy:
+`lazysite reinstall` (or `upgrade`), then `systemctl restart lazysite@<site>`. A pool
+conf whose `CGIBIN=` points somewhere other than the site's cgi-bin must be corrected.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

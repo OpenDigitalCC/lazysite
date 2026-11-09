@@ -5550,3 +5550,49 @@ residual risk
 verdict
 : drafted as accepted, for the release manager's confirmation: no trigger fired;
   recorded because the processor gains an entry point outside a request.
+
+### 2026-11-09 - ruling 203 (0.16.9, PENDING): the FastCGI pool runs the site's own engine
+
+Assessment drafted by the developer agent (n791), for the release manager's confirmation.
+
+what changed
+: A version-consistency hardening. The pool launcher (`tools/lazysite-pool.pl`, run by
+  `lazysite@.service`) exec'd the package's processor, so after a package upgrade a site
+  had not taken, its pool rendered with the package's engine and its manager, auth and
+  DAV CGIs with the site's own: one site, two engine versions, and two sets of controls
+  (n788). It now execs the site's own processor, from the cgi-bin the pool already relays
+  to (`CGIBIN=`, else the docroot's sibling), with the lib beside the docroot. A site
+  whose processor, processor parts or lib is missing or unreadable to the pool's account
+  is answered 503, logged by path, and never served by the package's engine; `lazysite
+  check` reports it as a FAIL with the remedy (ruling 206). A shared read-only engine
+  (SM1361's `SHARED-ENGINE` marker at the launcher's own engine root) keeps running that
+  engine, as before.
+
+threat delta
+: ADR 0007's code-loading boundary is touched: which processor the pool runs. None of
+  the four triggers fires: no new external interface, sign-in method, dependency or
+  processing of restricted data. The questions:
+  - Tampering and Elevation of privilege: could the pool now be pointed at other code?
+    It runs the file the site's own CGIs already run, as the site's account, after the
+    privilege drop; the pool conf naming `CGIBIN=` is root's file in `/etc`, as before.
+  - Tampering: could a site plant the shared-engine marker to get the package's engine?
+    The marker is read from the launcher's own tree, never the site's, and a link is no
+    marker.
+  - Denial of service: a broken site tree now gets 503 rather than a silently skewed
+    render; that is the fault being refused, named, and fixable from the command line.
+
+controls
+: t/integration/458 runs the launcher from a package tree whose engine leaves a mark:
+  with the site's tree in place the page renders with the site's engine and the mark is
+  never made; with the site's processor gone the request gets 503, the mark is never
+  made, the log names the file and `lazysite check` names the fault and the remedy. It
+  fails with either change reverted.
+
+residual risk
+: A site that has not run `upgrade` keeps its own engine's behaviour, including any
+  fix the package carries, until it does; that is the one-version rule ruling 203 asks
+  for, and the upgrade path is unchanged. A security release still reaches it through
+  `upgrade --all --force-security`.
+
+verdict
+: drafted; for the release manager's confirmation.
