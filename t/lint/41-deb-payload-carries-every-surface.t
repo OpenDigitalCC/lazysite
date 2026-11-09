@@ -33,7 +33,10 @@ sub slurp {
 }
 
 subtest 'every root CGI surface is in the deb payload' => sub {
-    my $install = slurp("$root/debian/lazysite-common.install");
+    # SM1369 X7 (ruling 202): an extension's endpoint ships in the extension's
+    # own package (lazysite-odoo), from the same payload root.
+    my $install = join '', map { slurp($_) }
+        ( "$root/debian/lazysite-common.install", "$root/debian/lazysite-odoo.install" );
 
     my @surfaces = sort map { s{\A\Q$root/\E}{}r } glob("$root/lazysite-*.pl");
     cmp_ok( scalar @surfaces, '>=', 6, 'found the CGI surfaces' );

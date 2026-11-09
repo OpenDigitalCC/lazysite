@@ -8,7 +8,6 @@ lazysite-auth.pl        usr/share/lazysite
 lazysite-dav.pl         usr/share/lazysite
 lazysite-manager-api.pl usr/share/lazysite
 lazysite-data.pl        usr/share/lazysite
-lazysite-odoo.pl        usr/share/lazysite
 lazysite-oidc.pl        usr/share/lazysite
 lazysite-mcp.pl         usr/share/lazysite
 lazysite-oauth.pl       usr/share/lazysite

@@ -34,3 +34,8 @@ execute_after_dh_install:
 	install -D -m 0755 tools/lazysite-hestia-domain.pl debian/lazysite-hestia/usr/bin/lazysite-hestia-domain
 	install -D -m 0755 tools/lazysite-apache-vhost.pl debian/lazysite-apache/usr/bin/lazysite-apache-vhost
 	install -D -m 0755 tools/lazysite-nginx-vhost.pl debian/lazysite-nginx/usr/bin/lazysite-nginx-vhost
+	# SM1369 X7 (ruling 202): the Odoo extension is lazysite-odoo's, not the
+	# common payload's. lazysite-common.install names `extensions` whole, so
+	# its Odoo files are removed here and shipped by lazysite-odoo.install.
+	rm -rf debian/lazysite-common/usr/share/lazysite/extensions/odoo
+	rm -f debian/lazysite-common/usr/share/lazysite/extensions/odoo.pl

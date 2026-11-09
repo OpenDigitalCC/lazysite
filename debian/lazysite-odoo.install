@@ -1,0 +1,6 @@
+# SM1369 X7 (rulings 188, 202): the Odoo extension, at the same place in the
+# engine payload that lazysite-common used to carry it. debian/rules removes
+# these from lazysite-common, so each file is in exactly one package.
+extensions/odoo.pl      usr/share/lazysite/extensions
+extensions/odoo         usr/share/lazysite/extensions
+lazysite-odoo.pl        usr/share/lazysite

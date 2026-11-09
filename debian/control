@@ -146,3 +146,27 @@ Description: static site builder and manager - nginx glue
  .
  The multi-server wiring reference (Apache, nginx, Caddy, lighttpd and
  the generic front-end contract) ships in this package's doc directory.
+
+Package: lazysite-odoo
+Architecture: all
+# SM1369 X7 (rulings 188, 202): the Odoo extension, off the common install.
+# Strict same-version lazysite-common: the extension's payload is loaded by
+# that package's engine (Lazysite::Extensions::require_payload) from the same
+# /usr/share/lazysite tree, so the pair must move together. OOM is a
+# Recommends, not a Depends: libodoo-oom-perl is not in Debian's archive, and
+# the extension refuses by name, naming the package, when it is missing.
+Depends:
+ lazysite-common (= ${source:Version}),
+ ${perl:Depends},
+ ${misc:Depends},
+Recommends:
+ libodoo-oom-perl,
+Description: static site builder and manager - Odoo extension
+ lazysite renders Markdown sites through Template Toolkit layouts, with a
+ built-in manager UI, WebDAV/MCP publishing endpoints, forms, and auth.
+ .
+ This package adds the Odoo extension to the engine payload at
+ /usr/share/lazysite: its descriptor, its payload (modules, browser helper,
+ sign-in component) and its endpoint. `lazysite upgrade` lays it into a site
+ when it is installed; a site with the extension on is refused, before
+ anything changes, when it is not.
