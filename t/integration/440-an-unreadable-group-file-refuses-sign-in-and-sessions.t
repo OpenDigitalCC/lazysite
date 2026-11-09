@@ -7,7 +7,7 @@
 # session lost its groups - which lifts every rule that denies by group (a
 # locked group, an address-limited one). Now the groups file is one of
 # session_store_fault's stores: the sign-in answers ?error=unavailable with no
-# cookie, an existing session reaches the page as no identity (cannot-tell),
+# cookie, an existing session is refused 503 (cannot-tell, SM297),
 # and `lazysite check` names the file. An ABSENT groups file is a site with no
 # groups yet and signs in as before.
 use strict;
@@ -96,7 +96,11 @@ subtest 'UNREADABLE groups file: sign-in and sessions refused' => sub {
     my $out = login();
     unlike( $out, qr/Set-Cookie:\s*lazysite_auth=[^;\s]/, 'no session cookie issues' );
     like( $out, qr/Location:[^\n]*error=unavailable/, 'sign-in answers error=unavailable' );
-    like( page_as_human(), qr/USER=\n/, 'an existing session reaches the page as no identity' );
+    # SM297 (ruling 217), earlier on this line: a session the engine cannot
+    # check is refused 503 (cannot-tell) before the page, never rendered as anonymous.
+    my $page = page_as_human();
+    like( $page, qr/\AStatus: 503/, 'an existing session is refused 503 (cannot-tell)' );
+    unlike( $page, qr/USER=/, '...and never reaches the page' );
     my $check = run_cmd( $^X, "$root/tools/lazysite-check.pl", '--docroot', $d );
     like( $check, qr/lazysite\/auth\/groups \(0000.*is not readable by the CGI.*every sign-in\s+and every session is refused/s,
         'lazysite check names the file and what it stops' ) or diag $check;

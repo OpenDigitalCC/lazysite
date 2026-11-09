@@ -100,7 +100,11 @@ for my $v ( '0', '10', '99999999999', '1h' ) {
         my $out = login();
         unlike( $out, qr/Set-Cookie:\s*lazysite_auth=[^;\s]/, 'no session cookie issues' );
         like( $out, qr/Location:[^\n]*error=unavailable/, 'sign-in answers error=unavailable' );
-        like( page_as_human(), qr/USER=\n/, 'an existing session reaches the page as no identity' );
+        # SM297 (ruling 217), earlier on this line: a session the engine cannot
+        # check is refused 503 (cannot-tell) before the page, never rendered as anonymous.
+        my $page = page_as_human();
+        like( $page, qr/\AStatus: 503/, 'an existing session is refused 503 (cannot-tell)' );
+        unlike( $page, qr/USER=/, '...and never reaches the page' );
         like( check(), qr/FAIL.*session_lifetime in lazysite\.conf is '\Q$v\E', which is not a whole number of\s+seconds from 300 to 31536000 - every sign-in and every session is refused/s,
             'lazysite check names the key, the range and what it stops' );
     };

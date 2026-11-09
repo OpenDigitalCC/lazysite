@@ -353,11 +353,8 @@ my %T = (
     'lib/Lazysite/Auth/Identity.pm' => { '%conf_cache' => [ exempt => $KEYED ],
         # SM297: a converted surface holds its value with `local`; nothing pooled assigns it
         '$HELD' => [ unset => '' ] },
-    # Ruling 206 (n789): the answer of the last check_login_rate call, cleared at
-    # the top of every call, so it never outlives the attempt it describes.
-    'lib/Lazysite/Auth/LoginRate.pm' => {
-        '$FAULT' => [ exempt => 'why the last check_login_rate could not count; cleared first by every call' ],
-    },
+    # Ruling 206 (n789) added Auth::LoginRate's $FAULT here; at the restack it is out of
+    # the resident set, which reached it only through the Odoo engine's modules (n782).
     'lib/Lazysite/Auth/Session.pm' => {
         '%LIFETIME_CACHE' => [ exempt => 'the session lifetime setting, keyed on the site directory' ],
         '%LIFETIME_FAULT_CACHE' => [ exempt => 'whether that setting is invalid (ruling 206), keyed the same way' ],
