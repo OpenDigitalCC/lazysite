@@ -930,10 +930,13 @@ sub _module_file {
 sub _shadowed {
     my ( $rel, $lib ) = @_;
     my $mine = Cwd::abs_path("$lib/$rel");
+    # SM1361: on a shared engine, every engine extension's payload lib too,
+    # whether or not it is on @INC yet - so a site's own extension can never
+    # name a module an engine extension holds.
     return grep {
         !ref && length && $_ ne $lib && -e "$_/$rel"
             && ( !defined $mine || ( Cwd::abs_path("$_/$rel") // '' ) ne $mine )
-    } @INC;
+    } @INC, Lazysite::Extensions::shared_payload_libs();
 }
 
 # THE CODE A DECLARATION NAMES IS THE EXTENSION'S OWN. Each function's module

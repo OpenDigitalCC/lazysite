@@ -25,7 +25,8 @@ use warnings;
 use Exporter 'import';
 use Lazysite::Paths ();
 
-our @EXPORT_OK = qw(locate extensions_dir registry_key payload_dir payload_lib add_payload_lib engine_root require_payload);
+our @EXPORT_OK = qw(locate extensions_dir registry_key payload_dir payload_lib add_payload_lib engine_root require_payload
+    shared_engine shared_payload_libs);
 
 # The directory's name under an install root, and the package's copy. The
 # registry key a site's lazysite.conf lists is the same name and the file:
@@ -52,6 +53,47 @@ sub registry_key {
     return "$DIR/$file";
 }
 
+# SM1361 (rulings 200-202): A SHARED READ-ONLY ENGINE. A volume-hosted site runs
+# in a container whose image carries the engine and its extensions, read-only,
+# and the site holds only its own state. The image says so with a marker at the
+# engine's root (installers/docker/Dockerfile writes it): a regular file named
+# $SHARED_MARK beside the lib this module was loaded from. A package or a
+# tarball never carries one, so on Hestia and the deb hosts - where each site
+# has its own engine copy (ruling 201) - nothing below changes. It is the
+# engine's own tree that is asked, never the site's: a site cannot plant it,
+# and a test fixture site is not taken for a shared one.
+#
+# On a shared engine, X1's rule is: the engine's own payload path, or the
+# site's own extensions dir (its local extensions), still never a link -
+#
+#   - a name the engine ships is ALWAYS the engine's copy. A site file of that
+#     name (a planted shadow) is never run, and the manager's registry names it
+#     (Manager::Extensions::extension_registry);
+#   - a site's own extension is found in its extensions dir, beside the
+#     docroot, for a name the engine does not ship, and only as a regular file;
+#   - a module in a site extension's payload lib that an engine extension's
+#     payload lib also holds is refused (Hooks::_shadowed), as two payload libs
+#     holding one module are refused today.
+our $SHARED_MARK = 'SHARED-ENGINE';
+
+# The engine's own extensions directory when this engine is a shared one, else
+# undef.
+sub shared_engine {
+    my $root = engine_root();
+    return undef unless defined $root;
+    my $mark = "$root/$SHARED_MARK";
+    return undef unless -f $mark && !-l $mark;
+    my $dir = extensions_dir($root);
+    return ( -d $dir && !-l $dir ) ? $dir : undef;
+}
+
+# The payload libs of a shared engine's extensions, for the shadow check of a
+# site's own extension; () on any other engine.
+sub shared_payload_libs {
+    return () unless defined shared_engine();
+    return map { $_->[1] } _engine_payloads();
+}
+
 # The first readable copy of $file, or undef. @roots are install roots, in the
 # order the caller trusts them; an undefined or empty one is skipped.
 sub locate {
@@ -60,6 +102,16 @@ sub locate {
     for my $d ( Lazysite::Paths::dev_extension_dirs() ) {
         my $p = "$d/$file";
         return $p if -f $p && !-l $p;
+    }
+    if ( defined( my $eng = shared_engine() ) ) {
+        my $p = "$eng/$file";
+        return $p    if -f $p && !-l $p;
+        return undef if -e $p || -l $p; # the engine's name, and not a file: never a site's
+        for my $root ( grep { defined && length } @roots ) {
+            my $s = extensions_dir($root) . "/$file";
+            return $s if -f $s && !-l $s;
+        }
+        return undef;
     }
     for my $root ( grep { defined && length } @roots ) {
         my $p = extensions_dir($root) . "/$file";

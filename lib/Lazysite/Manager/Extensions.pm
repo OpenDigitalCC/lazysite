@@ -38,6 +38,9 @@ our $DOCROOT;
 sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $action = '';
 
+# SM1361: a planted shadow is logged once per process (extension_registry).
+our %SHADOW_NAMED;
+
 # SM255 (completion): every write to lazysite.conf goes through Common's single
 # writer, which locks, writes atomically and records the change. This module
 # used to write the file twice by hand - once for the extensions: block (no commit)
@@ -75,8 +78,12 @@ sub extension_registry {
 
     # Core descriptor scripts: at the install root, or under cgi-bin/ on a
     # real deployment. They publish config schemas (the site config page).
+    # SM1361: on a shared engine they are the engine's, at its root.
+    my $eng = Lazysite::Extensions::shared_engine();
     for my $core (qw(lazysite-processor.pl lazysite-auth.pl)) {
-        for my $cand ( "$base/$core", "$base/cgi-bin/$core" ) {
+        my @cand = ( "$base/$core", "$base/cgi-bin/$core" );
+        unshift @cand, Lazysite::Extensions::engine_root() . "/$core" if defined $eng;
+        for my $cand (@cand) {
             if ( -f $cand && -r $cand ) { $reg{$core} = $cand; last }
         }
     }
@@ -86,11 +93,23 @@ sub extension_registry {
     # SM1222: under the dev server, its --extensions directories come first and
     # the first directory holding a name wins; on an installed engine
     # dev_extension_dirs() is empty and this is the one directory it always was.
-    for my $dir ( Lazysite::Paths::dev_extension_dirs(), Lazysite::Extensions::extensions_dir($base) ) {
+    # SM1361: on a shared engine, the engine's own directory comes before the
+    # site's (the site's then adds only its own extensions), and a site file
+    # with a name the engine ships is never registered: it is named, once per
+    # process, as the planted shadow it is.
+    my $site = Lazysite::Extensions::extensions_dir($base);
+    for my $dir ( Lazysite::Paths::dev_extension_dirs(), ( defined $eng ? $eng : () ), $site ) {
         if ( opendir my $pd, $dir ) {
             for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
-                my $p = "$dir/$f";
-                $reg{ Lazysite::Extensions::registry_key($f) } //= $p if -f $p && -r $p && !-l $p;
+                my $p   = "$dir/$f";
+                my $key = Lazysite::Extensions::registry_key($f);
+                if ( defined $eng && $dir eq $site && exists $reg{$key} && ( -e $p || -l $p ) ) {
+                    log_event( 'WARN', 'extension', 'a site file has the name of an extension the engine ships; '
+                            . 'it is not run', file => $p )
+                        unless $SHADOW_NAMED{$p}++;
+                    next;
+                }
+                $reg{$key} //= $p if -f $p && -r $p && !-l $p;
             }
             closedir $pd;
         }
@@ -250,7 +269,7 @@ sub _extension_list_state {
     my $base  = Cwd::realpath("$DOCROOT/..") // '';
     my @dir   = stat( Lazysite::Extensions::extensions_dir($base) );
     my @bits  = ( @dir ? "dir:$dir[9]" : 'dir:none' );
-    for my $xd ( Lazysite::Paths::dev_extension_dirs() ) {
+    for my $xd ( Lazysite::Paths::dev_extension_dirs(), grep { defined } Lazysite::Extensions::shared_engine() ) {
         my @xs = stat($xd);
         push @bits, "xdir:$xd:" . ( @xs ? $xs[9] : 'none' );
     }
@@ -348,7 +367,10 @@ sub action_extension_list {
     # for good; it answers this request and no later one.
     my $base      = Cwd::realpath("$DOCROOT/..") // '';
     my $cache_dir = dirname($cache_file);
-    if ( -d Lazysite::Extensions::extensions_dir($base) || Lazysite::Paths::dev_extension_dirs() ) {
+    if ( -d Lazysite::Extensions::extensions_dir($base)
+        || Lazysite::Paths::dev_extension_dirs()
+        || defined Lazysite::Extensions::shared_engine() )
+    {
         make_path($cache_dir) unless -d $cache_dir;
         if ( open my $fh, '>', $cache_file ) {
             print $fh encode_json( { ok => 1, state => $state, extensions => \@extensions } );

@@ -1456,13 +1456,20 @@ sub _extensions_block {
     return ( $head, $last, @entries );
 }
 
-# SM1361: --engine, or what the install state remembers, else `copy`. Sets
+# SM1361: --engine, or what the install state remembers, or `shared` when this
+# payload carries the shared-engine marker the image writes at its root (the
+# same name Lazysite::Extensions::$SHARED_MARK reads; this installer loads no
+# module, and t/lint/392 holds the two names equal), else `copy`. Sets
 # $SHARED_ENGINE; returns a refusal, or undef.
 sub select_engine {
     my ( $o, $state ) = @_;
     my $want = $o->{engine} // '';
     if ( !length $want ) {
-        $want = ( ref $state eq 'HASH' && ( $state->{engine} // '' ) eq 'shared' ) ? 'shared' : 'copy';
+        my $mark = "$STAGE_DIR/SHARED-ENGINE";
+        $want
+            = ( ref $state eq 'HASH' && ( $state->{engine} // '' ) eq 'shared' ) ? 'shared'
+            : ( -f $mark && !-l $mark ) ? 'shared'
+            :                             'copy';
     }
     return "install.pl: --engine '$want' is not one of shared, copy\n"
         unless $want eq 'shared' || $want eq 'copy';
@@ -1731,7 +1738,7 @@ sub verify_code_files {
     for my $entry ( @{ $manifest->{files} } ) {
         next unless defined $entry->{install_to};
         next unless ( $entry->{bucket} // '' ) eq 'code';
-        next if $SHARED_ENGINE && is_engine_entry($entry);
+        next if $SHARED_ENGINE              && is_engine_entry($entry);
         next if defined $entry->{extension} && $ABSENT_EXT{ $entry->{extension} };
         my $dest = resolve_placeholders( $entry->{install_to}, $subs );
         if ( !-f $dest ) { push @bad, "$dest (missing)"; next }
@@ -3215,7 +3222,7 @@ sub write_state {
         ( %left           ? ( dirs_left => \%left )     : () ),    # SM933 A5
         ( $once && @$once ? ( once => [ sort @$once ] ) : () ),   # SM798: steps done once
         ( $NO_STARTER     ? ( starter => 'none' )       : () ),    # SM939 E2: remembered
-        ( $SHARED_ENGINE  ? ( engine => 'shared' )      : () ),    # SM1361: remembered
+        ( $SHARED_ENGINE  ? ( engine  => 'shared' )     : () ),    # SM1361: remembered
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)

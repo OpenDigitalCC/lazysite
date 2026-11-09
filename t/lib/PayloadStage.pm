@@ -49,6 +49,9 @@ sub make_stage {
         # extension scripts executable, the endpoint links made, and the whole
         # tree read-only. make_writable undoes it for the tempdir's cleanup.
         chmod 0755, glob("$stage/lazysite-*.pl"), glob("$stage/extensions/*.pl");
+        open my $mk, '>', "$stage/SHARED-ENGINE" or die "marker: $!";
+        print {$mk} "this engine is shared and read-only\n";
+        close $mk;
         for my $e (@{ $o{links} || [] }) {
             symlink "extensions/$e.pl", "$stage/$e.pl" or die "link $e: $!";
         }

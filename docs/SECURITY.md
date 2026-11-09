@@ -5718,3 +5718,53 @@ residual risk
 
 verdict
 : drafted, for the release manager's confirmation. A hardening; no trigger fires.
+
+### 2026-11-09 - SM1361, SM1369 X7 (0.16.9, PENDING): the shared read-only engine's loader rule
+
+Assessment drafted by the developer agent (n788), for the release manager's confirmation.
+
+what changed
+: A volume-hosted site runs the image's read-only engine (rulings 200, 201, 205). The
+  image marks itself with a file, `SHARED-ENGINE`, at the engine's root. On an engine
+  carrying it, where an extension's code is found changes (`Lazysite::Extensions`,
+  `Manager::Extensions::extension_registry`, `Hooks::_shadowed`):
+  - a name the engine ships is always the engine's copy;
+  - a site's own extension is found in the site's extensions dir only under a name the
+    engine does not ship, and only as a regular file;
+  - a site extension's module that an engine extension's payload lib holds is refused.
+
+  An engine without the marker (every package and tarball install, so Hestia and the deb
+  hosts) is unchanged. `install.pl` gains `--engine shared` (and the marker as its
+  default): a site laid that way holds no engine copy. Separately, the Odoo extension
+  ships in its own deb, `lazysite-odoo`, and an upgrade from a payload without it refuses
+  a site that has it on, before anything changes.
+
+threat delta
+: ADR 0007's code-loading boundary is touched: which file runs for an extension. No
+  trigger of the four fires (no new external interface, sign-in method, dependency of the
+  engine itself, or new processing of restricted data). `lazysite-odoo` Depends on
+  libodoo-oom-perl, which `lazysite-common` already listed in the SBOM as the
+  extension's. The questions:
+  - Tampering and Elevation of privilege: could a file planted in a site's extensions
+    dir run in place of an engine extension, or could a site's own extension name an
+    engine extension's module as its own?
+  - Tampering: could the marker be planted to switch a host site onto the shared rule?
+  - Tampering: could a link anywhere on the path point the loader at other code?
+
+controls
+: The engine's copy wins for every shipped name, and a site file of that name is not
+  registered and is logged by name. A local hook module is checked against every engine
+  payload lib, loaded or not, at the index build and at the call. The marker is read from
+  the engine's own root, found from where the loaded lib is, never from a site's tree; the
+  image is root-owned and read-only to every site process. Links are refused at the
+  descriptor, the payload, its lib and the module file, as before, and a linked marker is
+  no marker. Tests: t/unit/extensions/130, t/tools/391, t/tools/392, t/lint/391,
+  t/lint/392.
+
+residual risk
+: A site's own extension is Perl running as the site's user, as on any host (ADR 0009):
+  the rule decides which file is that extension, not what it may do. In the container the
+  extensions directory is root-owned, so the site's processes cannot write one.
+
+verdict
+: drafted; for the release manager's confirmation.

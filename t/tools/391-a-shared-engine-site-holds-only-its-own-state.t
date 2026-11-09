@@ -11,6 +11,9 @@
 #   - provision lays no engine copy and writes nothing into the payload, the
 #     site passes its own health check, and the state remembers `shared`;
 #   - a later run without the flag stays shared (a remembered choice);
+#   - the image's SHARED-ENGINE marker makes a new site shared without the
+#     flag, and the hook index is built from the payload, naming its copy of
+#     the extension (Lazysite::Extensions' shared rule);
 #   - a site as today's recipe left it (engine copies recorded in the state,
 #     gone with the recreated container) upgrades without re-laying them;
 #   - an unknown --engine is refused.
@@ -74,7 +77,8 @@ subtest 'a later run without the flag stays shared' => sub {
 
 subtest 'a site from today\'s recipe upgrades without re-laying the copies' => sub {
     my ( $docroot, $cgibin, $root ) = new_site();
-    my ( $rc, $out ) = run_install( $image, '--docroot', $docroot, '--cgibin', $cgibin, '--mode', 'provision' );
+    my ( $rc, $out ) = run_install( $image, '--docroot', $docroot, '--cgibin', $cgibin, '--mode', 'provision',
+        '--engine', 'copy' );
     is( $rc, 0, 'provisioned with the engine copy, as the recipe did' ) or diag $out;
     ok( -f "$root/lib/Lazysite/Extensions.pm" && -f "$cgibin/lazysite-processor.pl", 'with its copies' );
     make_writable($root);
@@ -95,6 +99,25 @@ subtest 'a site from today\'s recipe upgrades without re-laying the copies' => s
     is( $state->{engine}, 'shared', 'the site is shared now' );
     ok( !( grep { m{\A\Q$root\E/(?:lib|tools|extensions|cgi-bin)/} } keys %{ $state->{files} } ),
         'and the state forgets the old copies' );
+    is( tree_digest($image), $before, 'the payload is unchanged' );
+};
+
+subtest 'the image\'s marker makes a site shared without the flag, and the index is the payload\'s' => sub {
+    my ( $docroot, undef, $root ) = new_site();
+    my ( $rc, $out ) = run_install( $image, '--docroot', $docroot, '--cgibin', $image, '--mode', 'provision' );
+    is( $rc, 0, 'provisioned from the marked image, no --engine' ) or diag $out;
+    is( shared_state($docroot)->{engine}, 'shared', 'the site is shared' );
+    ok( !-e "$root/$_", "no $_ beside the docroot" ) for qw(lib tools extensions);
+    my $conf = slurp("$docroot/lazysite/lazysite.conf");
+    $conf =~ s/^extensions:\s*\n/extensions:\n  - extensions\/odoo.pl\n/m
+        or $conf .= "extensions:\n  - extensions/odoo.pl\n";
+    spit( "$docroot/lazysite/lazysite.conf", $conf );
+    ( $rc, $out ) = run_install( $image, '--docroot', $docroot, '--cgibin', $image, '--mode', 'reinstall' );
+    is( $rc, 0, 'reinstalled with Odoo on' ) or diag $out;
+    unlike( $out, qr/HOOKS:/, 'the hook index step ran clean' );
+    my $index = decode_json( slurp("$docroot/lazysite/extensions.index.json") // '{}' );
+    is( ( $index->{extensions}{odoo} // {} )->{payload}, "$image/extensions/odoo",
+        'the index names the payload\'s copy of the extension, found by the engine\'s rule' );
     is( tree_digest($image), $before, 'the payload is unchanged' );
 };
 
