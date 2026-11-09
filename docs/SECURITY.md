@@ -5120,7 +5120,8 @@ what changed
   `lazysite/oidc.conf` names, by the authorisation code flow with PKCE (S256); the
   identity is `oidc-<name>:<sub>`. H-1 gains `instances`: one extension is several
   providers, each its own session prefix, record, why codes and audit rows. The client
-  secret is in the one secrets store (H-11), set from the command line. Discovery is
+  secret is in the one secrets store (H-11), set on the settings form (ruling 214) or
+  from the command line. Discovery is
   fetched on save and by Refresh, and cached.
 
 threat delta
@@ -5146,7 +5147,11 @@ controls
   token lacks, and its sub must be the token's. Every call is https:// (http:// only to
   this host, the connectors' rule), follows no redirect, is capped at 256 KB and times
   out at 10 s; discovery must name the configured issuer exactly and offer S256. The
-  secret is never in the config, never shown and set only from the command line; the
+  secret is never in the config and never shown: the settings form's secret field (the
+  `records` type, ruling 214) writes it only into the secrets store under the
+  extension's id, the reader answers only whether it is set, a blank keeps it and a
+  removed provider takes it with it (t/unit/manager/582); the command line sets it for a
+  repair; the
   verifier and nonce sit in a 0660 record under lazysite/oidc/pending/, deleted on use.
   Core keeps the session (H-1: only core signs; off means off at every request; an
   unsecured site refuses it). Ruling 186: `grants => 1`, so groups that carry

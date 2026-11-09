@@ -153,10 +153,11 @@ able to write `lazysite/daemon/` for an on-demand refresh to count in the age.
 you enable it: people sign in at a provider the site trusts and its groups become site
 groups. Nothing changes on a site that does not enable it. To use it, see
 [Authentication](/docs/auth) ("Signing in through an OpenID Connect provider"): register
-`https://<site>/cgi-bin/lazysite-oidc.pl` as the redirect URI at the provider, describe
-each provider in `lazysite/oidc.conf`, set its client secret with
-`extensions/oidc.pl --secret <name> --docroot <docroot>` (read from standard input), and
-save or Refresh to fetch its discovery. The endpoint is reached through the existing
+`https://<site>/cgi-bin/lazysite-oidc.pl` as the redirect URI at the provider, then add
+each provider, with its client secret, in the extension's settings on the Extensions page;
+saving fetches its discovery. The settings are kept in `lazysite/oidc.conf` and the secret
+in the secrets store; `extensions/oidc.pl --secret <name> --docroot <docroot>` (read from
+standard input) sets a secret from the command line for a repair. The endpoint is reached through the existing
 `/cgi-bin/` rule, so no web server configuration changes. A provider group may map to a
 group that carries capabilities, operators included: map such a group only from a
 provider whose membership you control. A site's own copy of `login.md` that builds the

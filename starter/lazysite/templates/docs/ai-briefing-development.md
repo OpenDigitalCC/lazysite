@@ -143,6 +143,18 @@ Types: `text`, `email`, `number`, `select`, `boolean`, `path`. Use
 `show_when` to conditionally display a field based on another field's
 value.
 
+`records` (an extension with its own `config_file` only) is a repeating
+section: a list of named records, each with the same `fields`, of type
+`text`, `pairs` (rows of two values, with `from_label` and `to_label`) or
+`secret` (one per section). It is kept in the config file as
+`<key>: a, b` and `a.<field>: value`; a `pairs` field is stored as
+`from = to, from2 = to2`. A secret goes into the site's secrets store
+(`lazysite/<extension id>/keys/<record>.key`), is never written to the file
+or sent back (the reader answers `<field>_set`), a blank one keeps the stored
+value, and removing a record removes it. A field's `validate` is called with a
+third argument, `{ operator, user, record, old }`, and may answer
+`{ kind, error }` to refuse with a kind other than `invalid`.
+
 ## log_event()
 
 Every script declares:

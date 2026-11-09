@@ -1055,7 +1055,180 @@ sub action_extension_read {
         delete $values{ $field->{key} } if ( $field->{type} // '' ) eq 'password';
     }
 
+    # SM1351 (ruling 214): a repeating section answers its records, each secret
+    # field as whether it is set - never its value.
+    if ( $config_file && ( my @rf = _records_fields($desc) ) ) {
+        my $kv = _read_kv_lines("$DOCROOT/$config_file");
+        $values{ $_->{key} } = _records_read( $kv, $_, $desc->{id} ) for @rf;
+    }
+
     return { ok => 1, values => \%values };
+}
+
+# ---- SM1351 (ruling 214): A REPEATING SECTION IN AN EXTENSION'S SETTINGS ----
+#
+# A config_schema field of type `records` is a list of named records, each with
+# the same fields (its `fields`, of type text, pairs or secret), kept in the
+# extension's own config file as
+#
+#   <key>: a, b
+#   a.<field>: value
+#
+# so a reader of the file needs nothing new. A record's name is a lower-case
+# letter, then letters and digits (at most 16). A `pairs` field is rows of two
+# values (`from = to`), stored on one line comma separated, so neither half may
+# hold a comma, an equals sign or a line break. A `secret` field (one per
+# section) is never written to the file and never read back: it goes into the
+# one secrets store (Lazysite::Secrets) under the extension's id and the
+# record's name, a blank value keeps the stored one, and removing a record
+# removes its secret. A field's `validate` is called as other fields' are, with
+# a third argument: { operator, user, record, old } - whether the caller is an
+# operator (a token never is, Manager::Common), who, the record's name and the
+# stored value - so a rule may depend on who saves what (ruling 214, Q129).
+
+my $RECORD_NAME = qr/\A[a-z][a-z0-9]{0,15}\z/;
+my $RECORDS_MAX = 50;
+
+sub _records_fields {
+    my ($desc) = @_;
+    return grep { ( $_->{type} // '' ) eq 'records' && ref $_->{fields} eq 'ARRAY' } @{ $desc->{config_schema} // [] };
+}
+
+sub _record_names {
+    my ($s) = @_;
+    return grep { length } split /\s*,\s*/, ( $s // '' );
+}
+
+sub _records_read {
+    my ( $kv, $f, $owner ) = @_;
+    my @out;
+    for my $n ( grep { /$RECORD_NAME/ } _record_names( $kv->{ $f->{key} } ) ) {
+        my %r = ( name => $n );
+        for my $s ( @{ $f->{fields} } ) {
+            if ( ( $s->{type} // '' ) eq 'secret' ) {
+                require Lazysite::Secrets;
+                my $h = Lazysite::Secrets::has( _lz(), $owner, $n );
+                $r{"$s->{key}_set"} = defined $h ? $h : 'unreadable';
+            }
+            else { $r{ $s->{key} } = $kv->{"$n.$s->{key}"} // '' }
+        }
+        push @out, \%r;
+    }
+    return \@out;
+}
+
+# Whether the account asking is the operator (Manager::Common's own answer).
+sub _caller_is_operator {
+    my $u = $Lazysite::Manager::Common::auth_user // '';
+    return 0 unless length $u;
+    my $op = eval { Lazysite::Manager::Common::_operator() }; ## no critic (Subroutines::ProtectPrivateSubs)
+    return $op ? 1 : 0;
+}
+
+# A pairs value as it is stored: rows of [from, to] or { from, to }, or the line.
+sub _pairs_line {
+    my ($v) = @_;
+    return ( $v,    '' )                       unless ref $v;
+    return ( undef, 'must be a list of rows' ) unless ref $v eq 'ARRAY';
+    my @rows;
+    for my $r (@$v) {
+        my ( $from, $to ) = ref $r eq 'ARRAY' ? @$r : ref $r eq 'HASH' ? @$r{qw(from to)} : ();
+        $_ = defined $_ && !ref $_ ? $_ : '' for $from, $to;
+        s/\A\s+|\s+\z//g for $from, $to;
+        next unless length $from || length $to;
+        return ( undef, "the row '$from = $to' needs both halves" ) unless length $from && length $to;
+        return ( undef, "the row '$from = $to' holds a comma, an equals sign or a line break" )
+            if "$from$to" =~ /[,=\r\n]/;
+        push @rows, "$from = $to";
+    }
+    return ( join( ', ', @rows ), '' );
+}
+
+# ( $prep, undef ) or ( undef, $refusal ). $prep: names, values (name => field =>
+# line), secrets (name => value), removed (names), changed (0|1).
+sub _records_prepare {
+    my ( $desc, $f, $in, $old_kv ) = @_;
+    my $k = $f->{key};
+    my $bad = sub { return ( undef, { ok => 0, kind => 'invalid', field => $k, error => "'$k': $_[0]" } ) };
+    return $bad->('must be a list of records, each with a name') unless ref $in eq 'ARRAY';
+    return $bad->("at most $RECORDS_MAX records") if @$in > $RECORDS_MAX;
+    my @old = grep { /$RECORD_NAME/ } _record_names( $old_kv->{$k} );
+    my ( @names, %vals, %secrets, %seen );
+    for my $r (@$in) {
+        return $bad->('each record is a mapping with a name') unless ref $r eq 'HASH';
+        my $n = $r->{name} // '';
+        return $bad->("'$n' is not a name: a lower-case letter, then letters and digits, at most 16")
+            unless !ref $n && $n =~ $RECORD_NAME;
+        return $bad->("'$n' is named twice") if $seen{$n}++;
+        push @names, $n;
+        for my $s ( @{ $f->{fields} } ) {
+            my ( $sk, $type ) = ( $s->{key}, $s->{type} // 'text' );
+            my $v = $r->{$sk};
+            if ( $type eq 'secret' ) {
+                next unless defined $v && !ref $v && $v =~ /\S/; # blank keeps the stored one
+                return $bad->("$n.$sk must be one line") if $v =~ /[\r\n]/;
+                $secrets{$n} = $v;
+                next;
+            }
+            my $why = '';
+            ( $v, $why ) = _pairs_line($v) if $type eq 'pairs';
+            return $bad->("$n.$sk $why") if length $why;
+            $v = '' unless defined $v;
+            return $bad->("$n.$sk is one value on one line") if ref $v || $v =~ /[\r\n]/;
+            $v =~ s/\A\s+|\s+\z//g;
+            return $bad->("$n.$sk is required") if $s->{required} && !length $v;
+            if ( length $v && ( my ( $mod, $fn ) = ( $s->{validate} // '' ) =~ /\A(Lazysite(?:::\w+)+)::(validate_\w+)\z/ ) ) {
+                ( my $file = "$mod.pm" ) =~ s{::}{/}g;
+                my $code = eval {
+                    if ( grep { !ref && -f "$_/$file" } @INC ) { require $file }
+                    else { require Lazysite::Extensions; Lazysite::Extensions::require_payload($mod) }
+                    $mod->can($fn);
+                };
+                if ($code) {
+                    my $w = $code->( $v, _lz(), { operator => _caller_is_operator(), record => $n,
+                            user => $Lazysite::Manager::Common::auth_user // '', old => $old_kv->{"$n.$sk"} // '' } );
+                    if ( defined $w && length $w ) {
+                        my $kind = ref $w eq 'HASH' ? $w->{kind} // 'invalid' : 'invalid';
+                        my $msg  = ref $w eq 'HASH' ? $w->{error} // ''       : $w;
+                        return ( undef, { ok => 0, kind => $kind, field => "$k.$n.$sk", error => "$n.$sk is refused: $msg" } );
+                    }
+                }
+            }
+            $vals{$n}{$sk} = $v;
+        }
+    }
+    my %now = map { $_ => 1 } @names;
+    my @subs = map { $_->{key} } grep { ( $_->{type} // '' ) ne 'secret' } @{ $f->{fields} };
+    my $canon = sub {
+        my ( $ns, $get ) = @_;
+        return join "\n", join( ',', @$ns ), map { my $n = $_; map { "$n.$_=" . ( $get->( $n, $_ ) // '' ) } @subs } @$ns;
+    };
+    my $changed = $canon->( \@old, sub { $old_kv->{"$_[0].$_[1]"} } ) ne $canon->( \@names, sub { $vals{ $_[0] }{ $_[1] } } )
+        || %secrets ? 1 : 0;
+    return ( { names => \@names, values => \%vals, secrets => \%secrets, subs => \@subs,
+            removed => [ grep { !$now{$_} } @old ], old => \@old, changed => $changed } );
+}
+
+# Write a prepared section into the file's text: its names line and its records'
+# lines replace what was there for every name it held or holds.
+sub _records_apply {
+    my ( $content_ref, $f, $prep ) = @_;
+    my $k     = $f->{key};
+    my %names = map { $_ => 1 } @{ $prep->{old} }, @{ $prep->{names} };
+    my $re    = join '|', map { quotemeta } sort keys %names;
+    my $sk    = join '|', map { quotemeta } @{ $prep->{subs} };
+    ${$content_ref} =~ s/^(?:$re)\.(?:$sk)[ \t]*:.*(?:\n|\z)//mg if length $re && length $sk;
+    ${$content_ref} =~ s/^\Q$k\E[ \t]*:.*(?:\n|\z)//mg;
+    my $new = "$k: " . join( ', ', @{ $prep->{names} } ) . "\n";
+    for my $n ( @{ $prep->{names} } ) {
+        for my $s ( @{ $prep->{subs} } ) {
+            my $v = $prep->{values}{$n}{$s} // '';
+            $new .= "$n.$s: $v\n" if length $v;
+        }
+    }
+    ${$content_ref} .= "\n" if length ${$content_ref} && ${$content_ref} !~ /\n\z/;
+    ${$content_ref} .= $new;
+    return;
 }
 
 sub action_extension_save {
@@ -1073,9 +1246,11 @@ sub action_extension_save {
         grep { ( $_->{type} // '' ) eq 'password' } @{ $desc->{config_schema} // [] };
     my %is_email = map { $_->{key} => 1 }
         grep { ( $_->{type} // '' ) eq 'email' } @{ $desc->{config_schema} // [] };
+    my %is_records = map { $_->{key} => $_ } _records_fields($desc);
     my %safe;
     for my $k ( keys %$values ) {
         next unless $allowed{$k};
+        next if $is_records{$k};    # SM1351: a repeating section, prepared below
 
         # SM1108 (0.15.7 test plan U5): A BLANK PASSWORD IS "UNCHANGED", not
         # "clear it".
@@ -1176,6 +1351,27 @@ sub action_extension_save {
 
     my $config_file = $desc->{config_file} // '';
 
+    # SM1351 (ruling 214): each repeating section sent is checked whole, against
+    # what the file holds, before anything is written; its secrets go into the
+    # secrets store first, so a record never names a secret that failed.
+    my %rec_prep;
+    for my $k ( sort grep { exists $values->{$_} } keys %is_records ) {
+        return { ok => 0, kind => 'invalid', field => $k,
+            error => "'$k' is a repeating section, which only an extension with its own config file can keep" }
+            unless $config_file;
+        my ( $prep, $refusal ) = _records_prepare( $desc, $is_records{$k}, $values->{$k},
+            _read_kv_lines("$DOCROOT/$config_file") );
+        return $refusal if $refusal;
+        $rec_prep{$k} = $prep;
+    }
+    for my $k ( sort keys %rec_prep ) {
+        require Lazysite::Secrets;
+        for my $n ( sort keys %{ $rec_prep{$k}{secrets} } ) {
+            my ( $ok, $why ) = Lazysite::Secrets::put( _lz(), $desc->{id}, $n, $rec_prep{$k}{secrets}{$n} );
+            return { ok => 0, field => "$k.$n", error => "the secret of '$n' could not be kept: $why" } unless $ok;
+        }
+    }
+
     # Track which keys ACTUALLY changed - the UI posts the whole form, so
     # without a diff the audit says "8 settings" for a one-field edit.
     my @changed;
@@ -1225,6 +1421,10 @@ sub action_extension_save {
         }
 
         $apply->( \$content, $_ ) for keys %safe;
+        for my $k ( sort keys %rec_prep ) {
+            _records_apply( \$content, $is_records{$k}, $rec_prep{$k} );
+            push @changed, $k if $rec_prep{$k}{changed};
+        }
 
         # A config carrying a password field must not be world-readable -
         # notify-xmpp.conf sits at the lazysite/ top level, outside the
@@ -1240,6 +1440,10 @@ sub action_extension_save {
         return { ok => 0, error => "Cannot write config: $werr" }
             unless $wok;
         close $lock;
+        # A record removed takes its secret with it.
+        for my $k ( sort keys %rec_prep ) {
+            Lazysite::Secrets::clear( _lz(), $desc->{id}, $_ ) for @{ $rec_prep{$k}{removed} };
+        }
     }
     elsif ( $desc->{config_keys} ) {
         my %want      = map { $_ => 1 } @{ $desc->{config_keys} };

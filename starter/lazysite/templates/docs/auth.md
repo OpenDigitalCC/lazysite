@@ -816,40 +816,33 @@ not signed in.
    person's groups in a claim (usually `groups`), in the ID token or from the
    userinfo endpoint.
 2. On the Extensions page, enable **OpenID Connect sign-in**.
-3. Describe each provider in `lazysite/oidc.conf`, under a name of your choice
-   (a lower-case letter, then letters and digits):
+3. Open its settings and add a provider for each issuer you trust, under a name
+   of your choice (a lower-case letter, then letters and digits; the name
+   cannot be changed later):
+   - **Issuer**: the provider's issuer URL, exactly as its discovery names it
+     (`https://`; plain `http://` only to this host).
+   - **Client id** and **Client secret**: what the provider gave this site. The
+     secret is kept in the site's secrets store and never shown again; leave it
+     blank to keep the current one.
+   - **Scopes** (default `openid email profile`) and **Group claim** (default
+     `groups`).
+   - **Group map**: one row per provider group and the site group it gives.
+   - **Button label** (default "Sign in with <name>").
+   - **CA bundle**: only for a provider whose certificate is from a private
+     authority - a full path to a PEM file the site and the web server can
+     read, used for that provider alone. Verification stays on.
+4. Save. Each provider's discovery document (`/.well-known/openid-configuration`)
+   is fetched and kept; press **Refresh** on the extension's card after the
+   provider changes its endpoints.
 
-   ```
-   providers: staff, partners
-   staff.issuer: https://id.example.com/application/o/example-site/
-   staff.client_id: example-site
-   staff.scopes: openid email profile groups
-   staff.group_claim: groups
-   staff.group_map: site-admins = operators, writers = editors
-   staff.label: Sign in with Example ID
-   partners.issuer: https://login.partner.example/
-   partners.client_id: example-site
-   partners.group_map: owners = site-owners
-   ```
+The settings live in `lazysite/oidc.conf` (`providers: staff, partners`, then
+`staff.issuer: ...` and so on), so a sysadmin can repair them there. A secret
+can also be set from the command line, as the site's user, reading it from
+standard input:
 
-   `issuer` must be `https://` (plain `http://` only to this host); `scopes`
-   defaults to `openid email profile`, `group_claim` to `groups` and `label` to
-   "Sign in with <name>". `group_map` is `<provider group> = <site group>`,
-   comma separated; name a provider group twice to give it two site groups.
-   A provider behind a private certificate authority names its CA bundle with
-   `<name>.ca_file: /full/path/ca.pem` (readable by the site and the web
-   server), used for that provider alone; verification stays on.
-4. Set each provider's client secret from the command line, as the site's user.
-   It is read from standard input and kept in the site's secrets store
-   (`lazysite/oidc/keys/<name>.key`), never in the config file:
-
-   ```
-   extensions/oidc.pl --secret staff --docroot /var/www/example/public_html
-   ```
-
-5. Save the extension's settings, or press **Refresh** on its card: each
-   provider's discovery document (`/.well-known/openid-configuration`) is
-   fetched and kept. Run Refresh again after the provider changes its endpoints.
+```
+extensions/oidc.pl --secret staff --docroot /var/www/example/public_html
+```
 
 The sign-in page then offers one "Sign in with ..." link per provider, beside
 the site's own form. Run `lazysite check` to see each provider ready, or why

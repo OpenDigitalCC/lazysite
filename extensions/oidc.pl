@@ -48,15 +48,42 @@ sub describe {
         # SM409: born disabled, executes only while listed.
         contract => 1,
 
+        # Ruling 214 (Q127): the providers are a repeating section of the
+        # settings form (Manager::Extensions, type records), kept in
+        # lazysite/oidc.conf as `providers: a, b` and `a.issuer: ...`; the client
+        # secret goes into the secrets store and is never shown.
         config_schema => [
-            { key => 'providers', label => 'Providers', type => 'text', list => ',',
-                note => 'The names of the providers this site trusts, comma separated (a lower-case '
-                    . 'letter, then letters and digits). Each one\'s issuer, client id, scopes, group '
-                    . 'claim, group map and button label are set in lazysite/oidc.conf as '
-                    . '<name>.issuer and so on, and its client secret from the command line '
-                    . '(extensions/oidc.pl --secret <name>); see /docs/auth. A provider\'s groups may '
-                    . 'map to any site group, operators included, and every sign-in is audited with '
-                    . 'the groups it granted.' },
+            { key => 'providers', label => 'Providers', type => 'records', record_label => 'Provider',
+                note => 'The OpenID Connect providers this site trusts. Each is named (a lower-case letter, '
+                    . 'then letters and digits); people signed in through it are oidc-<name>:<subject>. '
+                    . 'Saving fetches each provider\'s discovery. A provider\'s groups may map to any site '
+                    . 'group; a group that carries capabilities, operators included, can be mapped only by '
+                    . 'the operator, and every sign-in is audited with the groups it granted. See /docs/auth.',
+                fields => [
+                    { key => 'issuer', label => 'Issuer', type => 'text', required => 1,
+                        note => 'The provider\'s issuer URL, exactly as its discovery names it: https:// '
+                            . '(plain http:// only to 127.0.0.1 or localhost).' },
+                    { key => 'client_id', label => 'Client id', type => 'text', required => 1,
+                        note => 'The id the provider gave this site as a confidential client. Its redirect '
+                            . 'URI is https://<this site>/cgi-bin/lazysite-oidc.pl.' },
+                    { key => 'secret', label => 'Client secret', type => 'secret',
+                        note => 'Kept in the site\'s secrets store and never shown. Leave blank to keep the '
+                            . 'current one.' },
+                    { key => 'scopes', label => 'Scopes', type => 'text',
+                        note => 'Space separated; must include openid. Blank: openid email profile.' },
+                    { key => 'group_claim', label => 'Group claim', type => 'text',
+                        note => 'The claim that carries the person\'s groups. Blank: groups.' },
+                    { key => 'group_map', label => 'Group map', type => 'pairs', from_label => 'Provider group',
+                        to_label => 'Site group',
+                        note => 'Each provider group and the site group it gives. A person in none of them is '
+                            . 'not signed in.' },
+                    { key => 'label', label => 'Button label', type => 'text',
+                        note => 'What the sign-in page\'s link says. Blank: Sign in with <name>.' },
+                    { key => 'ca_file', label => 'CA bundle (file path)', type => 'text',
+                        note => 'Leave blank unless the provider\'s certificate is from a private authority: '
+                            . 'a full path to a PEM file the site and the web server can read, used for this '
+                            . 'provider alone.' },
+                ] },
         ],
 
         owns => {

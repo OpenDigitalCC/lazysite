@@ -149,6 +149,10 @@ Archive
   (ruling 213). H-1 gains `instances` (SM1369): one
   extension may be several providers, `<id>-<name>`, each its own session prefix, and
   /login's options carry `sep` for a path with a query. t/unit/extensions/170.
+  Ruling 214 (Q127): the providers are set on the Extensions page, with their secrets,
+  through a new settings type, a repeating section (`records`: named records of text,
+  `pairs` rows and one `secret`, kept as `<key>: a, b` and `a.<field>: value`, the
+  secret in the secrets store and never read back). t/unit/manager/582.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

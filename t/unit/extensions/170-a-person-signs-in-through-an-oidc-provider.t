@@ -181,7 +181,11 @@ ok( $en->{ok} && grep( { $_ eq 'oidc' } @{ $en->{index}{indexed} || [] } ), 'the
 is( secret_set( 'p1', 'secret-one' )->{status}, 0, 'the secret of p1 is set from the command line' );
 is( secret_set( 'p2', 'secret-two' )->{status}, 0, '...and of p2' );
 unlike( slurp("$LZ/oidc.conf"), qr/secret-/, 'neither secret is in the config file' );
-my $sv = action_extension_save( undef, 'extensions/oidc.pl', { providers => 'p1, p2' } );
+my $sv = action_extension_save( undef, 'extensions/oidc.pl', { providers => [
+            { name => 'p1', issuer => "$BASE/p1", client_id => 'site-one', group_map => [ [ 'service-team', 'role-operators' ] ],
+                label => 'Sign in with One' },
+            { name => 'p2', issuer => "$BASE/p2", client_id => 'site-two', group_map => 'partners = staff',
+                label => 'Sign in with Two' } ] } );
 ok( $sv->{ok} && $sv->{hook} && $sv->{hook}{ok}, 'saving the config fetches each provider\'s discovery' )
     or diag explain $sv;
 

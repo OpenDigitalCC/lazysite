@@ -367,7 +367,9 @@ function renderForm(extension, values) {
       + (f.note ? ' <span class="mg-info" tabindex="0" role="img" aria-label="' + esc(f.note)
         + '" data-note="' + esc(f.note) + '">&#9432;</span>' : '')
       + '</label>';
-    if (f.type === 'select') {
+    if (f.type === 'records') {
+      html += renderRecords(f, Array.isArray(v) ? v : []);
+    } else if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
       (f.options||[]).forEach(function(o) { html += '<option'+(v===o?' selected':'')+'>'+o+'</option>'; });
       html += '</select>';
@@ -390,6 +392,105 @@ function renderForm(extension, values) {
   html += '<div class="mg-field"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
        +  ' <span id="dirty-' + extension.id + '" class="mg-note mg-note-info" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
   return html;
+}
+
+// SM1351 (ruling 214): A REPEATING SECTION (config_schema type `records`) - one
+// block per record with its fields, a `pairs` field as rows of two, a `secret`
+// field as set or not set (its value is never sent here). The inputs carry no
+// name, so the form's own loop leaves them alone; saveConfig gathers each
+// section as a list of records.
+var mgRecordSpec = {};
+function renderRecords(f, recs) {
+  mgRecordSpec[f.key] = f;
+  var h = '<div class="mg-records" data-records="' + esc(f.key) + '">';
+  recs.forEach(function(r) { h += recordBlock(f, r); });
+  h += '</div><button type="button" class="mg-btn mg-btn-sm" onclick="addRecord(this,\'' + esc(f.key) + '\')">Add '
+    + esc((f.record_label || 'record').toLowerCase()) + '</button>';
+  return h;
+}
+function noteMark(s) {
+  return s.note ? ' <span class="mg-info" tabindex="0" role="img" aria-label="' + esc(s.note)
+    + '" data-note="' + esc(s.note) + '">&#9432;</span>' : '';
+}
+function pairRow(s, a, b) {
+  return '<div class="mg-pair"><input type="text" placeholder="' + esc(s.from_label || 'From') + '" value="' + esc(a)
+    + '" autocomplete="off"> = <input type="text" placeholder="' + esc(s.to_label || 'To') + '" value="' + esc(b)
+    + '" autocomplete="off"></div>';
+}
+function pairsOf(line) {
+  return String(line || '').split(',').map(function(e) {
+    var i = e.indexOf('=');
+    return i < 0 ? null : [e.slice(0, i).trim(), e.slice(i + 1).trim()];
+  }).filter(function(p) { return p && (p[0] || p[1]); });
+}
+function recordBlock(f, r) {
+  r = r || {};
+  var h = '<fieldset class="mg-record" data-record-of="' + esc(f.key) + '"><legend>' + esc(f.record_label || 'Record')
+    + ' <input type="text" data-rf="name" value="' + esc(r.name || '') + '"' + (r.name ? ' readonly' : '')
+    + ' placeholder="name" size="16" autocomplete="off"> <button type="button" class="mg-btn mg-btn-sm"'
+    + ' data-impact="destroy" onclick="removeRecord(this)">Remove</button></legend>';
+  (f.fields || []).forEach(function(s) {
+    h += '<div class="mg-field"><label>' + esc(s.label) + noteMark(s) + '</label>';
+    if (s.type === 'secret') {
+      var st = r[s.key + '_set'];
+      h += '<input type="password" data-rf="' + esc(s.key) + '" autocomplete="new-password" placeholder="'
+        + (st === 1 || st === true ? 'set - leave blank to keep' : st === 'unreadable' ? 'cannot be read - set it again' : 'not set')
+        + '">';
+    } else if (s.type === 'pairs') {
+      h += '<div data-rf-pairs="' + esc(s.key) + '">';
+      pairsOf(r[s.key]).forEach(function(p) { h += pairRow(s, p[0], p[1]); });
+      h += pairRow(s, '', '') + '</div><button type="button" class="mg-btn mg-btn-sm"'
+        + ' onclick="addPairRow(this,\'' + esc(f.key) + '\',\'' + esc(s.key) + '\')">Add a row</button>';
+    } else {
+      h += '<input type="text" data-rf="' + esc(s.key) + '" value="' + esc(r[s.key] || '') + '"'
+        + (s.required ? ' required' : '') + ' autocomplete="off">';
+    }
+    h += '</div>';
+  });
+  return h + '</fieldset>';
+}
+function recordsChanged(el) {
+  var form = el.closest('form');
+  if (form) form.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function addRecord(btn, key) {
+  var box = btn.previousElementSibling;
+  box.insertAdjacentHTML('beforeend', recordBlock(mgRecordSpec[key], {}));
+  recordsChanged(btn);
+}
+function removeRecord(btn) {
+  var form = btn.closest('form');
+  btn.closest('fieldset').remove();
+  if (form) form.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function addPairRow(btn, key, field) {
+  var spec = (mgRecordSpec[key].fields || []).filter(function(s) { return s.key === field; })[0] || {};
+  btn.previousElementSibling.insertAdjacentHTML('beforeend', pairRow(spec, '', ''));
+}
+function gatherRecords(form, values) {
+  var boxes = form.querySelectorAll('[data-records]');
+  for (var i = 0; i < boxes.length; i++) {
+    var list = [];
+    var sets = boxes[i].querySelectorAll('fieldset[data-record-of]');
+    for (var j = 0; j < sets.length; j++) {
+      var r = {};
+      sets[j].querySelectorAll('[data-rf]').forEach(function(inp) {
+        var k = inp.getAttribute('data-rf');
+        if (inp.type === 'password') { if (inp.value) r[k] = inp.value; }
+        else r[k] = inp.value;
+      });
+      sets[j].querySelectorAll('[data-rf-pairs]').forEach(function(pd) {
+        var rows = [];
+        pd.querySelectorAll('.mg-pair').forEach(function(row) {
+          var ins = row.querySelectorAll('input');
+          if (ins[0].value || ins[1].value) rows.push([ins[0].value, ins[1].value]);
+        });
+        r[pd.getAttribute('data-rf-pairs')] = rows;
+      });
+      list.push(r);
+    }
+    values[boxes[i].getAttribute('data-records')] = list;
+  }
 }
 
 function applyShowWhen(container) {
@@ -421,6 +522,7 @@ function saveConfig(e, extensionId, script) {
     else if (el.type === 'password') { if (el.value) values[el.name] = el.value; }
     else { values[el.name] = el.value; }
   }
+  gatherRecords(form, values);    // SM1351: each repeating section, as its records
   if (status) status.textContent = 'Saving...';
   fetch(API + '?action=extension-save&extension=' + encodeURIComponent(extensionId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
