@@ -26,7 +26,7 @@ use Exporter 'import';
 use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(locate extensions_dir registry_key payload_dir payload_lib add_payload_lib engine_root require_payload
-    shared_engine shared_payload_libs);
+    shared_engine shared_payload_libs refused_site_files);
 
 # The directory's name under an install root, and the package's copy. The
 # registry key a site's lazysite.conf lists is the same name and the file:
@@ -63,17 +63,20 @@ sub registry_key {
 # engine's own tree that is asked, never the site's: a site cannot plant it,
 # and a test fixture site is not taken for a shared one.
 #
-# On a shared engine, X1's rule is: the engine's own payload path, or the
-# site's own extensions dir (its local extensions), still never a link -
+# On a shared engine, X1's rule is the engine's own payload path, and only
+# that (ruling 210: the shared container belongs to one operator, and only the
+# image's own extensions run in it). Never a link, as everywhere:
 #
-#   - a name the engine ships is ALWAYS the engine's copy. A site file of that
-#     name (a planted shadow) is never run, and the manager's registry names it
-#     (Manager::Extensions::extension_registry);
-#   - a site's own extension is found in its extensions dir, beside the
-#     docroot, for a name the engine does not ship, and only as a regular file;
-#   - a module in a site extension's payload lib that an engine extension's
-#     payload lib also holds is refused (Hooks::_shadowed), as two payload libs
-#     holding one module are refused today.
+#   - every extension is the engine's copy;
+#   - anything in a site's extensions dir beside the docroot is REFUSED by
+#     name: never found, never registered. The manager's registry logs it
+#     (Manager::Extensions::extension_registry) and `lazysite check` names it
+#     with its remedy (refused_site_files). A site that needs its own
+#     extension moves to a dedicated service: Hestia, or a container of its
+#     own;
+#   - a module a site payload lib holds that an engine payload lib also holds
+#     is still refused (Hooks::_shadowed), for a payload put on @INC some
+#     other way.
 our $SHARED_MARK = 'SHARED-ENGINE';
 
 # The engine's own extensions directory when this engine is a shared one, else
@@ -89,6 +92,23 @@ sub shared_engine {
 
 # The payload libs of a shared engine's extensions, for the shadow check of a
 # site's own extension; () on any other engine.
+# Ruling 210: what a site's extensions dir beside the docroot holds on a
+# shared engine, by name - every entry is refused. () on any other engine, and
+# for the engine's own directory.
+sub refused_site_files {
+    my ($root) = @_;
+    my $eng = shared_engine();
+    return () unless defined $eng && defined $root && length $root;
+    my $dir = extensions_dir($root);
+    require Cwd;
+    my $real = Cwd::realpath($dir);
+    return () if defined $real && $real eq ( Cwd::realpath($eng) // '' );
+    opendir my $dh, $dir or return ();
+    my @names = sort grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+    closedir $dh;
+    return map { "$dir/$_" } @names;
+}
+
 sub shared_payload_libs {
     return () unless defined shared_engine();
     return map { $_->[1] } _engine_payloads();
@@ -105,13 +125,7 @@ sub locate {
     }
     if ( defined( my $eng = shared_engine() ) ) {
         my $p = "$eng/$file";
-        return $p    if -f $p && !-l $p;
-        return undef if -e $p || -l $p; # the engine's name, and not a file: never a site's
-        for my $root ( grep { defined && length } @roots ) {
-            my $s = extensions_dir($root) . "/$file";
-            return $s if -f $s && !-l $s;
-        }
-        return undef;
+        return ( -f $p && !-l $p ) ? $p : undef;    # ruling 210: never a site's
     }
     for my $root ( grep { defined && length } @roots ) {
         my $p = extensions_dir($root) . "/$file";

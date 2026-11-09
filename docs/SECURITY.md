@@ -5728,10 +5728,11 @@ what changed
   image marks itself with a file, `SHARED-ENGINE`, at the engine's root. On an engine
   carrying it, where an extension's code is found changes (`Lazysite::Extensions`,
   `Manager::Extensions::extension_registry`, `Hooks::_shadowed`):
-  - a name the engine ships is always the engine's copy;
-  - a site's own extension is found in the site's extensions dir only under a name the
-    engine does not ship, and only as a regular file;
-  - a site extension's module that an engine extension's payload lib holds is refused.
+  - every extension is the engine's copy;
+  - anything in the site's extensions dir is refused by name: never found, never
+    registered, logged, and named by `lazysite check` (ruling 210: the shared container
+    belongs to one operator and only the image's own extensions run in it);
+  - a site payload's module that an engine extension's payload lib holds is refused.
 
   An engine without the marker (every package and tarball install, so Hestia and the deb
   hosts) is unchanged. `install.pl` gains `--engine shared` (and the marker as its
@@ -5752,8 +5753,8 @@ threat delta
   - Tampering: could a link anywhere on the path point the loader at other code?
 
 controls
-: The engine's copy wins for every shipped name, and a site file of that name is not
-  registered and is logged by name. A local hook module is checked against every engine
+: Only the engine's directory is read; every site extension file is refused, logged
+  and named by the check with its remedy. A hook module is checked against every engine
   payload lib, loaded or not, at the index build and at the call. The marker is read from
   the engine's own root, found from where the loaded lib is, never from a site's tree; the
   image is root-owned and read-only to every site process. Links are refused at the
@@ -5762,9 +5763,11 @@ controls
   t/lint/392.
 
 residual risk
-: A site's own extension is Perl running as the site's user, as on any host (ADR 0009):
-  the rule decides which file is that extension, not what it may do. In the container the
-  extensions directory is root-owned, so the site's processes cannot write one.
+: Every site in the shared container runs as www-data (ruling 210): the container is one
+  operator's, and a site's code is the image's code. One site's engine process can read
+  another site's state there; the separation between sites is the engine's own
+  confinement of each request to its docroot, not the operating system's. A site whose
+  end user takes it over moves to a dedicated service (Hestia, or a container of its own).
 
 verdict
 : drafted; for the release manager's confirmation.

@@ -38,7 +38,8 @@ our $DOCROOT;
 sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $action = '';
 
-# SM1361: a planted shadow is logged once per process (extension_registry).
+# SM1361: a refused site extension file is logged once per process
+# (extension_registry).
 our %SHADOW_NAMED;
 
 # SM255 (completion): every write to lazysite.conf goes through Common's single
@@ -93,22 +94,22 @@ sub extension_registry {
     # SM1222: under the dev server, its --extensions directories come first and
     # the first directory holding a name wins; on an installed engine
     # dev_extension_dirs() is empty and this is the one directory it always was.
-    # SM1361: on a shared engine, the engine's own directory comes before the
-    # site's (the site's then adds only its own extensions), and a site file
-    # with a name the engine ships is never registered: it is named, once per
-    # process, as the planted shadow it is.
+    # SM1361, ruling 210: on a shared engine only the engine's own extensions
+    # run. Its directory replaces the site's, and every entry in the site's is
+    # refused by name: logged once per process, and named by `lazysite check`.
     my $site = Lazysite::Extensions::extensions_dir($base);
-    for my $dir ( Lazysite::Paths::dev_extension_dirs(), ( defined $eng ? $eng : () ), $site ) {
+    if ( defined $eng ) {
+        for my $p ( Lazysite::Extensions::refused_site_files($base) ) {
+            log_event( 'WARN', 'extension', 'a site extension file is refused: only the shared '
+                    . "engine's own extensions run here", file => $p )
+                unless $SHADOW_NAMED{$p}++;
+        }
+    }
+    for my $dir ( Lazysite::Paths::dev_extension_dirs(), ( defined $eng ? $eng : $site ) ) {
         if ( opendir my $pd, $dir ) {
             for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
                 my $p   = "$dir/$f";
                 my $key = Lazysite::Extensions::registry_key($f);
-                if ( defined $eng && $dir eq $site && exists $reg{$key} && ( -e $p || -l $p ) ) {
-                    log_event( 'WARN', 'extension', 'a site file has the name of an extension the engine ships; '
-                            . 'it is not run', file => $p )
-                        unless $SHADOW_NAMED{$p}++;
-                    next;
-                }
                 $reg{$key} //= $p if -f $p && -r $p && !-l $p;
             }
             closedir $pd;

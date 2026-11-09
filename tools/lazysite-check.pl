@@ -1462,6 +1462,7 @@ sub run_checks {
 
     # --- 8g1. is every enabled extension listed under the one name? (SM1142) ----
     report_extensions_list();
+    report_refused_site_extensions();    # SM1361, ruling 210
 
 # --- 8g1b. the extension index: built, and what the enabled extensions declare (SM1369 X2) ---
     report_hook_index();
@@ -4232,6 +4233,25 @@ sub report_theme_assets_mirrored {
 # here with the line to write instead, and so is an old directory left beside
 # the docroot, whose files nothing runs.
 #
+# SM1361 (ruling 210): ON A SHARED ENGINE, ONLY THE ENGINE'S OWN EXTENSIONS RUN.
+# Every entry in the site's extensions dir beside the docroot is refused by the
+# loader (Lazysite::Extensions::refused_site_files); named here with its remedy.
+# A warning, not a failure: the site serves, and what it is told is that this
+# file does nothing in this container.
+sub report_refused_site_extensions {
+    require Lazysite::Extensions;
+    my $eng = Lazysite::Extensions::shared_engine();
+    return unless defined $eng;
+    my @refused = Lazysite::Extensions::refused_site_files( File::Basename::dirname($DOC) );
+    report( 'WARN',
+        "a site extension is refused on this shared engine: $_ - only the engine's own extensions run here",
+        'remove it; a site that needs its own extension moves to a dedicated service '
+            . '(Hestia, or a container of its own)' )
+        for @refused;
+    report( 'OK', 'shared engine: only its own extensions run, and the site holds none' ) unless @refused;
+    return;
+}
+
 # old-name: begin (SM1142, the check names the spelling it finds)
 sub report_extensions_list {
     my $old = 'plugins';
