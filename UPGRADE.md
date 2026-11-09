@@ -287,6 +287,17 @@ Three only say so: the notify status (`notify/status.json`) is no longer written
 template under `notify-templates/` is logged while the built-in wording is used (make it
 readable). Nothing to do on a site whose check is clean.
 
+**A site whose engine tree sits beside its docroot: run `lazysite repair` after the
+upgrade (T-115).** This covers a site moved with `lazysite migrate-engine-tree`, or any
+site with `<docroot>-lazysite`. On such a site, earlier upgrades laid the auth and
+forms example files, `forms/smtp.conf` and the form configs world-readable. The
+`auth/` and `forms/` directories kept others out, except where `forms/` had world
+access. This upgrade lays every file it ships there at its private mode. A file you
+edited is kept with its old mode, and `lazysite check` now names it, along with a
+world-readable user store, group list or ACL file. Run `lazysite repair --domain
+DOMAIN` (or `lazysite check --docroot DOCROOT --fix`) once, and it sets each to its
+declared mode. A site whose engine tree is inside its docroot is not affected.
+
 **Odoo is its own package, `lazysite-odoo` (SM1369 X7, rulings 188, 205).** On a deb host
 that uses Odoo, install `lazysite-odoo` with the upgrade. It brings `libodoo-oom-perl`
 with it, so the host needs the repository that carries that package. If a site has Odoo

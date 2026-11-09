@@ -339,6 +339,14 @@ Archive
     file is refused by name, and `lazysite check` names it.
   - Fixed: `install.pl` gave an engine tree laid beside the docroot 0644 on its account
     store and SMTP secret.
+  - T-115, the beside layout (a migrated Hestia site too) is closed in full:
+    - `install.pl` gives the auth and forms seeds, `forms/smtp.conf` and the form configs
+      their private modes there;
+    - the group-write step reaches every declared file (it had reached none);
+    - `forms/` is applied 2770 by the install as well as the check;
+    - `lazysite check` fails a world bit on the user store, the group list, the ACLs,
+      the auth and forms examples and either directory, and `lazysite repair` sets the
+      declared mode.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

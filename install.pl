@@ -2335,6 +2335,10 @@ sub mode_for {
     # 0660 when a password is entered.
     return 0640 if $path =~ m{/lazysite/forms/smtp\.conf(?:\.example)?$};
     return 0640 if $path =~ m{/lazysite/forms/.*\.example$};
+    # T-115: and the live form configs the installer seeds from them
+    # (forms/<name>.conf): the form store holds submissions and handler targets,
+    # and nothing in it is anyone's but the site's. Group-readable for the CGI.
+    return 0640 if $path =~ m{/lazysite/forms/[^/]+\.conf$};
 
     return 0644;
 }
@@ -2519,10 +2523,15 @@ sub post_install_steps {
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
         lazysite/logs/audit.log lazysite/logs/audit-reads.log
     ) unless @gw;
+    # T-115: resolved through the placeholders, as every other declared path is.
+    # It joined the spec to "$docroot/" after stripping a `{DOCROOT}/` the model's
+    # rows do not carry (they are `{LAZYSITE}/...`), so the path was never a file
+    # and the step skipped every row; and the fallback's `lazysite/` named the
+    # tree inside the docroot only, missing a site whose tree sits beside it.
     for my $spec (@gw) {
-        ( my $rel = $spec ) =~ s/\{DOCROOT\}\///;
-        my $p = "$docroot/$rel";
-        next unless -f $p;
+        ( my $s = $spec ) =~ s{\A\{DOCROOT\}/lazysite/}{{LAZYSITE}/};
+        my $p = resolve_placeholders( $s, $subs );
+        next if -l $p || !-f $p;
         my $m = ( stat _ )[2] & 07777;
         chmod( $m | 0020, $p ) unless $m & 0020;
     }

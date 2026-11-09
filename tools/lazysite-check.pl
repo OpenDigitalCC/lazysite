@@ -788,6 +788,47 @@ sub run_checks {
         }
     }
 
+    # --- 5c. T-115: nothing in the account store or the form store is world-readable
+    # The secrets (check 4) were the only files tested for world bits, so a user
+    # store, group list or ACL file left 0644 - which install.pl did to an
+    # unedited seed on a site whose engine tree sits beside the docroot (its
+    # modes named the tree as `/lazysite/` only) - passed every check. Each is
+    # named here, on both layouts (model_path), and --fix (and `lazysite
+    # repair`) sets the declared mode: 0660 for a store the CGI rewrites, 0640
+    # for a shipped example, 2770 for the two directories.
+    {
+        my @files = map { [ $_, 0660 ] } qw(lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json);
+        for my $dir (qw(lazysite/auth lazysite/forms)) {
+            my $d = model_path($dir);
+            next unless -d $d && !-l $d;
+            if ( opendir my $dh, $d ) {
+                push @files, map { [ "$dir/$_", 0640 ] } sort grep { /\.example\z/ && -f "$d/$_" && !-l "$d/$_" } readdir $dh;
+                closedir $dh;
+            }
+            my $mode = mode_of($d);
+            if ( $mode & 0007 ) {
+                report( 'FAIL',
+                    sprintf( "%s/ has world access (%04o) - it holds accounts or form submissions", $dir, $mode ),
+                    sprintf( "chmod 2770 '%s'", $d ) );
+                push @chmod_fixes, [ 02770, $d ];
+            }
+        }
+        my $bad = 0;
+        for my $f (@files) {
+            my ( $rel, $want ) = @$f;
+            my $path = model_path($rel);
+            next if -l $path || !-f $path;
+            my $mode = mode_of($path);
+            next unless $mode & 0007;
+            $bad++;
+            report( 'FAIL',
+                sprintf( "%s is world-readable (%04o) - nothing in the account or form store may be", $rel, $mode ),
+                sprintf( "chmod %04o '%s'", $want, $path ) );
+            push @chmod_fixes, [ $want, $path ];
+        }
+        report( 'OK', 'nothing in lazysite/auth/ or lazysite/forms/ is world-readable' ) unless $bad;
+    }
+
     # --- 6. config present + readable BY THE CGI; cgi-bin scripts executable -----
     # (-r/-x here would answer for the invoking user - run as root they pass on
     #  files the www-data CGI cannot read or exec; use the arithmetic instead)

@@ -456,6 +456,7 @@
       "mode": "2770",
       "why": "form config + submission store; the CGI appends submissions and it holds PII",
       "applied_by": [
+        "install",
         "check"
       ],
       "on_upgrade": "repair"

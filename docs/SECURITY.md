@@ -5771,3 +5771,52 @@ residual risk
 
 verdict
 : drafted; for the release manager's confirmation.
+
+### 2026-11-09 - T-115 (0.16.9, PENDING): the account and form stores on a site whose engine tree is beside its docroot
+
+Assessment drafted by the developer agent (n788), for the release manager's confirmation. A hardening.
+
+what changed
+: On the beside layout (SM293/SM850: `<docroot>-lazysite`, which `lazysite
+  migrate-engine-tree` makes and the shared container lays from the start), released
+  0.16.8 had four gaps:
+  - `install.pl`'s `mode_for` named the engine tree as `/lazysite/` only, so it laid the
+    auth and forms seeds and `forms/smtp.conf` at 0644;
+  - its group-write step joined the declared `{LAZYSITE}/...` rows to the docroot and
+    so reached no file at all, on either layout;
+  - `forms/`, declared 2770, was applied by the check alone;
+  - `lazysite check` tested world bits on the secrets list only.
+
+  Now:
+  - `mode_for` asks for the tree;
+  - the group-write step resolves its rows through the placeholders;
+  - the install applies `forms/` 2770 (repaired on every upgrade, as `auth/` is);
+  - `forms/*.conf` is laid 0640;
+  - `lazysite check` fails a world bit on `auth/users`, `auth/groups`,
+    `auth/acls.json`, the `auth/` and `forms/` examples and either directory, and
+    `--fix` (with `lazysite repair`) sets 0660, 0640 or 2770 to match the declared
+    mode. Both layouts are covered, through `model_path`.
+
+threat delta
+: None of ADR 0007's triggers fires. Information disclosure, narrowed: a local account
+  on the host could read a beside site's seeds, its form configs and an SMTP password
+  saved into `smtp.conf` by hand while it was 0644, where `forms/` had world access.
+  `auth/` itself was 2770 and repaired on every upgrade, so the account store's files
+  were unreachable to others. The exposure was low, and it was real only for
+  `forms/`.
+
+controls
+: t/tools/394 provisions a beside site with the real `install.pl`, puts it in the state
+  0.16.8 left, and upgrades it. It checks that no world bit is left under `auth/` or
+  `forms/`, that `forms/` is 2770, and that the user store is group-writable again. The
+  real check then names a world-readable user store and a world-readable `forms/`, and
+  `--fix` sets each to its declared mode. It fails on the previous commit.
+
+residual risk
+: A file the operator edited keeps its mode through the upgrade (as every edited file
+  does) until `lazysite repair` runs; UPGRADE.md says to run it once. The auth code's
+  empty lock file (`auth/.consume.lock`) is made at the process umask inside the 2770
+  directory and holds nothing.
+
+verdict
+: drafted; for the release manager's confirmation.
