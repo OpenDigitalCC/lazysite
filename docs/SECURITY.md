@@ -5551,7 +5551,7 @@ verdict
 : drafted as accepted, for the release manager's confirmation: no trigger fired;
   recorded because the processor gains an entry point outside a request.
 
-### 2026-11-09 - ruling 203 (0.16.9, PENDING): the FastCGI pool runs the site's own engine
+### 2026-11-09 - SM1416 (0.16.9, PENDING): the FastCGI pool runs the site's own engine (ruling 203)
 
 Assessment drafted by the developer agent (n791), for the release manager's confirmation.
 

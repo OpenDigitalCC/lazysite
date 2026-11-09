@@ -268,6 +268,13 @@ Archive
   notice is still sent. Messages stay plain-body (chat for a person, groupchat for a
   room); nothing is published under OMEMO. The test notification reports a `presence`
   stage. t/unit/lib/322; /docs/forms.
+- SM1416 (PENDING) **The FastCGI pool runs the site's own engine (ruling 203).** The pool
+  launcher exec'd the package's processor while the manager, auth and DAV CGIs ran the
+  site's own copy, so after a package upgrade one site ran two engine versions. It now
+  runs the site's own processor (from `CGIBIN=`, else the docroot's sibling cgi-bin) and
+  lib. A site whose engine copy is missing or unreadable gets 503 and a log line, never
+  the package's engine, and `lazysite check` names the fault and its remedy (ruling 206).
+  A shared read-only engine keeps running the image's. t/integration/458.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 

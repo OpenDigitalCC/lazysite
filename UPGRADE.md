@@ -232,7 +232,7 @@ clients, taps the padlock in the chat and chooses Unencrypted (see
 `/docs/forms`, "Configuring chat delivery"). While the subscription is incomplete a
 notice to a person waits up to a second for a pending request.
 
-**A pool site keeps its own engine until it runs `upgrade` (ruling 203).** The FastCGI
+**A pool site keeps its own engine until it runs `upgrade` (SM1416, ruling 203).** The FastCGI
 pool (`lazysite@<site>`) now runs the site's own processor, from its cgi-bin, and its own
 lib, as the manager, auth and DAV CGIs already did. It used to run the package's, so
 after a package upgrade the pool rendered with the new engine while the rest of the site
