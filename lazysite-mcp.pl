@@ -1388,7 +1388,7 @@ my %TOOLS = (
     # module. An MCP grant is always confined (SM648), so it sees the groups
     # relevant to its domains, and changes only the groups it created.
     list_groups => {
-        description => 'List the groups a principal can be granted to: each with its name, the capabilities it turns on, how many accounts are directly in it, and whether it is the operator group. A grant confined to some domains sees the groups those domains name in their allowed_groups, the groups it is in, and the groups it created with set_group - no others. Call this before naming a group in a permission rule or a table\'s writable_by, so a typo is not mistaken for a group that does not exist yet. Read-only.',
+        description => 'List the groups a principal can be granted to: each with its name, the capabilities it turns on, how many accounts are directly in it, whether it is the operator group, and whether it shipped with the engine (seeded). A grant confined to some domains sees the groups those domains name in their allowed_groups, the groups it is in, and the groups it created with set_group - no others. Call this before naming a group in a permission rule or a table\'s writable_by, so a typo is not mistaken for a group that does not exist yet. Read-only.',
         cap => 'manage_users',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { Lazysite::Manager::Groups::groups_list( _groups_who( $_[1], $_[2] ) ) },

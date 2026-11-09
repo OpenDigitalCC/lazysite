@@ -228,6 +228,14 @@ Archive
   body (ruling 196); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
   (t/unit/notify/41, t/unit/account/38).
+- SM1407 (PENDING) **The Groups page adopts the layer roles, and a listing shows the
+  mark.** On the 0.16.8 edge run `analysts` and `lead-readers` did not arrive after the
+  Groups page was opened: the adoptions run where the users tool seeds, and the Users
+  page's read seeded while the Groups page's (`group-settings-get`) did not. It does now.
+  Each role is still adopted once, with no members, and stays deleted after an operator
+  deletes it. The groups listing (`list_groups`, the control API's `groups`) carries each
+  group's `seeded` mark, so an operator can see whether the operator group has it.
+
 - SM1404 (PENDING) **The operator's Files listing is MCP's listing.** The manager API's
   `list` still carried the permissions editor's address-profile choices beside the
   entries (SM1404 kept them there for the Files page), so an operator's listing of a

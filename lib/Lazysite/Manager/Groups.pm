@@ -147,6 +147,10 @@ sub groups_list {
             caps     => [ grep { $rec->{$_} } @caps ],
             members  => scalar( grep { $accounts->{$_} } @members ),
             operator => ( $rec->{manager} ? JSON::PP::true() : JSON::PP::false() ),
+            # n785 (T-112): the SM608 mark, so a listing shows whether the operator
+            # group carries it - the store state the SM1393 and SM1407 adoptions
+            # read (tools/lazysite-users.pl _store_marked).
+            seeded => ( $rec->{seeded} ? JSON::PP::true() : JSON::PP::false() ),
             ( ( $rec->{created_by} // '' ) eq $who{actor} ? ( yours => JSON::PP::true() ) : () ),
         };
     }

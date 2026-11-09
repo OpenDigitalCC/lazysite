@@ -214,6 +214,15 @@ message" in `/docs/forms`. A site whose own `account.md` should offer app notice
 `::: account-push`, and `::: account-phone` for the phone text notices go to (ruling
 196); an operator can also set an account's phone on the Users page.
 
+- The Groups page adds the two roles too (SM1407, as 0.16.8 said it would): opening it
+  now adds `analysts` and `lead-readers` on an older site, as the Users page already did.
+  The groups listing (MCP `list_groups`, the control API's `groups`) says for each group
+  whether it shipped with the engine (`seeded`).
+- A page whose body names a filter a page body does not have (anything beyond Template
+  Toolkit's own, `json` and `url_safe` - `markdown` is a layout's) is refused on save and
+  reported by `validate_page`; such a page already rendered with its whole body as
+  written. `| json` now works in a page body (SM1398).
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

@@ -596,6 +596,12 @@ if ($API_MODE) {
             $result = { ok => 1, groups => \%groups };
         }
         elsif ( $action eq 'group-settings-get' ) {
+            # n785 (T-112): THE GROUPS PAGE ADOPTS THE RELEASE TOO. This is the
+            # Groups page's read, and it seeded nothing: the adoptions (SM1241,
+            # SM1371, SM1407) ran on the Users page's read alone, so on the 0.16.8
+            # edge run the layer roles never arrived after the Groups page was
+            # opened, as the SM1407 filing said they would.
+            _ensure_groups_seeded();
             # SM906 remainder: the view is built first, because the flag it sets
             # is only true of the read that just happened.
             my $view = _group_settings_view();
