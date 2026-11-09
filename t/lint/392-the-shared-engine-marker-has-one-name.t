@@ -15,7 +15,8 @@
 # engine carrying the marker, and the site's own everywhere else. It loads no
 # Lazysite module either, so the name is a literal there too; a drift would
 # have the pool refuse every site in the container (it would look for each
-# site's own engine, which a shared-engine site does not hold).
+# site's own engine, which a shared-engine site does not hold). And (ruling 223)
+# the marker's one writer, the Dockerfile.
 use strict;
 use warnings;
 use Test::More;
@@ -40,5 +41,14 @@ my $pool = do { local $/; <$ph> };
 close $ph;
 my @plit = $pool =~ m{"\$engine_root/([A-Z][A-Z-]+)"}g;
 is_deeply( \@plit, [$name], 'the pool launcher reads the same name, once, at its engine root' );
+
+# Ruling 223: and the one writer, the image. The Dockerfile writes the marker at the
+# engine root it installs to (/usr/share/lazysite); a drift there would leave every
+# reader above looking for a file the image never wrote.
+open my $dh, '<', "$root/installers/docker/Dockerfile" or die $!;
+my $docker = do { local $/; <$dh> };
+close $dh;
+my @dlit = $docker =~ m{>\s*/usr/share/lazysite/([A-Z][A-Z-]+)\b}g;
+is_deeply( \@dlit, [$name], 'the Dockerfile writes the same name, once, at the engine root' );
 
 done_testing();
