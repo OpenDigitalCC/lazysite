@@ -799,6 +799,93 @@ Create `403.md` in the docroot. These context variables are available:
 
 The 403 page is never cached.
 
+## Signing in through an OpenID Connect provider
+
+The OpenID Connect sign-in extension lets people sign in at a provider the site
+trusts - Authentik, Kanidm, Authelia, Pocket ID or any other OpenID Connect
+issuer - instead of holding an account on the site. The groups the provider
+holds for a person become site groups, by a map you set per provider. No
+account is made on the site, and a person who is in none of the mapped groups is
+not signed in.
+
+### Setting it up
+
+1. At the provider, register this site as a confidential client using the
+   authorisation code flow. The redirect URI is
+   `https://<your site>/cgi-bin/lazysite-oidc.pl`. Have the provider put the
+   person's groups in a claim (usually `groups`), in the ID token or from the
+   userinfo endpoint.
+2. On the Extensions page, enable **OpenID Connect sign-in**.
+3. Describe each provider in `lazysite/oidc.conf`, under a name of your choice
+   (a lower-case letter, then letters and digits):
+
+   ```
+   providers: staff, partners
+   staff.issuer: https://id.example.com/application/o/example-site/
+   staff.client_id: example-site
+   staff.scopes: openid email profile groups
+   staff.group_claim: groups
+   staff.group_map: site-admins = operators, writers = editors
+   staff.label: Sign in with Example ID
+   partners.issuer: https://login.partner.example/
+   partners.client_id: example-site
+   partners.group_map: owners = site-owners
+   ```
+
+   `issuer` must be `https://` (plain `http://` only to this host); `scopes`
+   defaults to `openid email profile`, `group_claim` to `groups` and `label` to
+   "Sign in with <name>". `group_map` is `<provider group> = <site group>`,
+   comma separated; name a provider group twice to give it two site groups.
+4. Set each provider's client secret from the command line, as the site's user.
+   It is read from standard input and kept in the site's secrets store
+   (`lazysite/oidc/keys/<name>.key`), never in the config file:
+
+   ```
+   extensions/oidc.pl --secret staff --docroot /var/www/example/public_html
+   ```
+
+5. Save the extension's settings, or press **Refresh** on its card: each
+   provider's discovery document (`/.well-known/openid-configuration`) is
+   fetched and kept. Run Refresh again after the provider changes its endpoints.
+
+The sign-in page then offers one "Sign in with ..." link per provider, beside
+the site's own form. Run `lazysite check` to see each provider ready, or why
+not.
+
+### What it grants
+
+A provider group may map to any site group, including one that carries
+capabilities such as `operators`. Whoever controls membership of that group at
+the provider can therefore give manager rights on this site; map such groups
+only from a provider you control. Every sign-in through a provider is written
+to the audit trail with the provider, the person's subject and the groups it
+granted.
+
+A person signed in this way is `oidc-<provider>:<subject>`, shown by their
+email. Their session lasts as long as a local one (`session_lifetime`). The
+groups are read at each sign-in: someone removed from a group at the provider
+keeps it until their session ends or is revoked on the Sessions page, while a
+map entry you remove takes the group away at their next request.
+
+### How the sign-in is checked
+
+The sign-in uses the authorisation code flow with PKCE. The site checks that
+the answer comes back to the browser that started it (the state), then
+exchanges the code at the provider's token endpoint over TLS, authenticating
+with the client secret. The ID token from that answer must name the configured
+issuer, this site's client id and the nonce the site sent, and must not have
+expired. Its signature is not checked: the token comes straight from the
+provider over a verified TLS connection (OpenID Connect Core 3.1.3.7), so there
+are no signing keys to fetch or rotate.
+
+### When a provider is broken
+
+A provider whose settings are wrong, whose client secret is missing or
+unreadable, or whose discovery could not be fetched signs nobody in, and the
+sessions it made end at their next request. The other providers are not
+affected. The server log and `lazysite check` name the fault and how to fix it.
+If `lazysite/oidc.conf` itself cannot be read, every provider is refused.
+
 ## External auth proxy
 
 Any reverse proxy that sets HTTP headers works with lazysite; the settings, the

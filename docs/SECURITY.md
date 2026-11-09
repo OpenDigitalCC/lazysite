@@ -5104,3 +5104,82 @@ verdict
   new-processing-of-restricted-data trigger fires and is contained by the connector's
   callers, the table's read rules and the read-only mapping, so the ADR 0007 waiver
   stands. The other three triggers do not fire. Drafted by the developer agent (n783).
+
+### 2026-11-09 - SM1351 (0.16.9, PENDING): a new sign-in method - an outside OpenID Connect provider, whose groups may grant
+
+Assessment drafted by the developer agent (n792), for the release manager's
+confirmation. Rulings 185, 186 and 206; built on H-1 (SM1369 X4, n781). ADR 0007's
+sign-in-method trigger fires, with ruling 186's widening exercised for the first time.
+Its new-external-interface trigger fires too: a new endpoint, and outbound calls to the
+providers the operator configures.
+
+what changed
+: A new extension, `oidc` (off until enabled), and its endpoint
+  `/cgi-bin/lazysite-oidc.pl` (GETs only; H-4's kit refuses any body and any POST before
+  the extension's code). A person is signed in through any of the providers
+  `lazysite/oidc.conf` names, by the authorisation code flow with PKCE (S256); the
+  identity is `oidc-<name>:<sub>`. H-1 gains `instances`: one extension is several
+  providers, each its own session prefix, record, why codes and audit rows. The client
+  secret is in the one secrets store (H-11), set from the command line. Discovery is
+  fetched on save and by Refresh, and cached.
+
+threat delta
+: Spoofing: a forged or replayed answer from the provider (login CSRF, a code injected
+  from another browser, an ID token for another client or issuer, a replayed or stale
+  token); a provider named inside another's family. Elevation of privilege: ruling 186
+  lets a provider group map to a capability group, operators included, so whoever
+  controls that group's membership at the provider can make a manager here. Information
+  disclosure: the client secret, and the PKCE verifier and nonce kept between the start
+  and the answer. Tampering: a discovery document or token endpoint redirecting the
+  call. Denial of service: an issuer that hangs or answers a large body; a broken
+  provider taking the others down.
+
+controls
+: The state is 256 random bits in an HttpOnly, SameSite=Lax cookie scoped to the
+  endpoint; the answer must carry the same state (constant-time compare) and name a
+  record made here, which is single use and expires in ten minutes, so an answer
+  started in another browser is refused. Ruling 185: the code is exchanged at the
+  token endpoint over TLS with client authentication and the PKCE verifier; the ID
+  token in that answer must name the configured issuer, this client (aud, and azp with
+  several audiences) and the nonce sent, and must not have expired (60 s skew); its
+  signature is not checked (OIDC Core 3.1.3.7). Userinfo is read only for claims the
+  token lacks, and its sub must be the token's. Every call is https:// (http:// only to
+  this host, the connectors' rule), follows no redirect, is capped at 256 KB and times
+  out at 10 s; discovery must name the configured issuer exactly and offer S256. The
+  secret is never in the config, never shown and set only from the command line; the
+  verifier and nonce sit in a 0660 record under lazysite/oidc/pending/, deleted on use.
+  Core keeps the session (H-1: only core signs; off means off at every request; an
+  unsecured site refuses it). Ruling 186: `grants => 1`, so groups that carry
+  capabilities are kept, and every sign-in writes core's `login-grant` audit row with
+  the provider, the subject and the groups granted; a person in no mapped group is
+  refused and no account is made; the record's groups are re-read against the current
+  map at every request. Ruling 206: a provider whose config, secret or discovery is
+  broken is refused and its sessions end, the others untouched; the log and
+  `lazysite check` name the fault and the remedy; an unreadable oidc.conf refuses all.
+  Core refuses another extension's provider inside an instances provider's family.
+  t/unit/extensions/170 against a 127.0.0.1 fixture issuer, sabotaged by hand: the iss,
+  aud, nonce and expiry checks, the state cookie compare, the no-group refusal, the
+  secret check, `grants`, the `instances` resolution, the mint's provider id, the
+  /login list and the family clash each fail it.
+
+residual risk
+: Ruling 186's widening: a provider group mapped to operators makes the provider's
+  administrators managers of this site; the audit rows are the record, and the docs say
+  to map such a group only from a provider whose membership the site controls. Who may
+  configure it is who may write lazysite/oidc.conf (manage_config, or the sysadmin) and
+  set the secret (the sysadmin). Membership is read at sign-in only: someone removed
+  from a group at the provider keeps it until their session ends (session_lifetime) or
+  is revoked; removing the map entry takes it away at the next request. The ID token's
+  signature is not checked (ruling 185), so the trust rests on TLS to the token
+  endpoint; plain http:// is accepted only to this host. TLS verification uses the
+  system's certificate store (no per-provider CA bundle). A start writes one small
+  pending record and is not rate-limited: records older than ten minutes are swept at
+  each start, so what a flood can leave is bounded by ten minutes of requests.
+
+verdict
+: drafted as contained, for the release manager's confirmation. The sign-in-method and
+  new-external-interface triggers fire and are contained: the session is core's H-1
+  session, the answer is bound to the browser and to this client, and the widening is a
+  declaration that is audited at every sign-in. No ahead-of-schedule third-party
+  engagement proposed beyond the one ADR 0007 already requires; whether ruling 186's
+  first use warrants one is the release manager's call.

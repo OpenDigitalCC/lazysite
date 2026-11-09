@@ -61,6 +61,6 @@ query_params:
     here too, carrying any next through to the provider's page; the local form above stays.
     Each option's label is the provider's (SM1328: the name the site gives the system, or none),
     and its class names the provider (login-<id>). %]
-[% FOREACH o IN login_options %]<p class="login-[% o.id | html %]" data-ls-auth-in><a href="[% o.path | html %][% IF query.next %]?next=[% query.next | uri %][% END %]">[% o.label | html %]</a></p>[% END %]
+[% FOREACH o IN login_options %]<p class="login-[% o.id | html %]" data-ls-auth-in><a href="[% o.path | html %][% IF query.next %][% o.sep | html %]next=[% query.next | uri %][% END %]">[% o.label | html %]</a></p>[% END %]
 
 [% IF smtp_configured %]<p data-ls-auth-in style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>[% END %]

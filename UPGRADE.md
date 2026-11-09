@@ -149,6 +149,20 @@ refreshed". The record is now written under a lock file beside it,
 `schedule-runs.json.lock`, which the daemon and the manager share; both users must be
 able to write `lazysite/daemon/` for an on-demand refresh to count in the age.
 
+**Signing in through an OpenID Connect provider (SM1351).** A new extension, off until
+you enable it: people sign in at a provider the site trusts and its groups become site
+groups. Nothing changes on a site that does not enable it. To use it, see
+[Authentication](/docs/auth) ("Signing in through an OpenID Connect provider"): register
+`https://<site>/cgi-bin/lazysite-oidc.pl` as the redirect URI at the provider, describe
+each provider in `lazysite/oidc.conf`, set its client secret with
+`extensions/oidc.pl --secret <name> --docroot <docroot>` (read from standard input), and
+save or Refresh to fetch its discovery. The endpoint is reached through the existing
+`/cgi-bin/` rule, so no web server configuration changes. A provider group may map to a
+group that carries capabilities, operators included: map such a group only from a
+provider whose membership you control. A site's own copy of `login.md` that builds the
+provider links as `[% o.path %]?next=` needs `[% o.sep %]` in place of the `?` for an
+OIDC provider's link to work when the page carries a `next`.
+
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 
 **`owner_contact` is ignored from 0.16.8 (SM1412, ruling 159).** The `owner_contact:`

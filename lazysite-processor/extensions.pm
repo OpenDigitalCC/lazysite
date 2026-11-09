@@ -441,11 +441,20 @@ sub _identity_template_vars {
                 my ( $id, $ip ) = @$p;
                 next unless defined $ip->{login_option} && !ref $ip->{login_option} && _provider_on( $id, $ip );
                 my ( $ok, $o ) = _call_extension_hook( $id, $ip->{login_option}, _hook_context() );
-                next unless $ok && ref $o eq 'HASH';
-                my ( $label, $path ) = @$o{qw(label path)};
-                next unless defined $label && !ref $label && length $label && $label !~ /[\x00-\x1f\x7f]/;
-                next unless defined $path && !ref $path && $path =~ m{\A/[\w/.-]*\z} && $path !~ m{//};
-                push @o, { id => $id, label => $label, path => $path };
+                # SM1351: an instances provider answers one option per provider that
+                # is on, each naming its own `<id>-<name>`, its path a same-site one
+                # that may carry a query.
+                my $many = ( $ip->{instances} // '' ) eq '1';
+                next unless $ok && ( $many ? ref $o eq 'ARRAY' : ref $o eq 'HASH' );
+                for my $one ( $many ? grep { ref $_ eq 'HASH' } @$o : $o ) {
+                    my ( $label, $path ) = @$one{qw(label path)};
+                    my $oid = $many ? $one->{id} : $id;
+                    next unless defined $oid && !ref $oid && ( $many ? $oid =~ /\A\Q$id\E-[a-z0-9][a-z0-9-]*\z/ : 1 );
+                    next unless defined $label && !ref $label && length $label && $label !~ /[\x00-\x1f\x7f]/;
+                    my $pq = $many ? qr{\A/[\w/.-]*(?:\?[\w=&.-]+)?\z} : qr{\A/[\w/.-]*\z};
+                    next unless defined $path && !ref $path && $path =~ $pq && $path !~ m{//};
+                    push @o, { id => $oid, label => $label, path => $path, sep => ( index( $path, q{?} ) >= 0 ? q{&} : q{?} ) };
+                }
             }
             return \@o;
         },

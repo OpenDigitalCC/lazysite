@@ -82,7 +82,7 @@ our %KINDS = (
     identity_provider => {
         hook         => 'H-1', slice => 'X4', live => 1, form => 'record',
         functions    => [qw(on still_valid groups login_option banner)],
-        fields       => [qw(renew signin_page grants)],
+        fields       => [qw(renew signin_page grants instances)],
         required     => [qw(on still_valid groups)],
         check_values => \&_check_identity_provider,
     },
@@ -440,6 +440,17 @@ sub cross_problems {
         }
         # X4: a sign-in page has one provider.
         my $ip = ref $hooks->{identity_provider} eq 'HASH' ? $hooks->{identity_provider} : {};
+        # SM1351: a provider id is one provider's: no provider is named inside an
+        # instances provider's `<id>-` family, whichever was indexed first.
+        if (%$ip) {
+            for my $o ( sort keys %$entries ) {
+                next if $o eq $id;
+                next if index( $id, "$o-" ) != 0;
+                my $oh = $entries->{$o}{hooks} || {};
+                next unless ref $oh->{identity_provider} eq 'HASH' && ( $oh->{identity_provider}{instances} // '' ) eq '1';
+                push @{ $bad{$id} }, "the provider id '$id' is inside the extension '$o''s providers ($o-<name>)";
+            }
+        }
         if ( defined( my $p = $ip->{signin_page} ) ) {
             if ( my $o = $owner{"signin:$p"} ) {
                 push @{ $bad{$id} }, "the sign-in page '$p' is already declared by the extension '$o'";
@@ -485,8 +496,17 @@ sub cross_problems {
 #   grants        1 when the provider's groups may carry capabilities (ruling 186:
 #                 an OIDC provider); absent or 0, core refuses any group that
 #                 carries one (G-3), the rule Odoo's map always had
+#   instances     1 when the extension is several providers, named in its own
+#                 config (SM1351: one per OpenID Connect issuer). Each is the
+#                 provider `<id>-<name>`: its own session prefix, record, why
+#                 codes and audit rows; the bare `<id>` is no provider. Its
+#                 functions are handed `provider` (`<id>-<name>`) and `instance`
+#                 (`<name>`) in ctx, and its login_option answers a list, one
+#                 { id => '<id>-<name>', label, path } per provider that is on,
+#                 the path a same-site one that may carry a query
 #
-# ctx is { docroot, lazysite_dir }. Any function that cannot be called, dies or
+# ctx is { docroot, lazysite_dir }, with provider and instance for an instances
+# provider's own sessions. Any function that cannot be called, dies or
 # answers something else fails closed: the session is not accepted.
 our @CORE_SYSTEM_PAGES = qw(login claim forgot logout account maintenance 402 403 404);
 
@@ -514,25 +534,62 @@ sub _check_identity_provider {
     }
     push @bad, _err( $id, "hooks.$kind", 'identity_provider.grants must be 0 or 1' )
         if exists $v->{grants} && ( $v->{grants} // '' ) !~ /\A[01]\z/;
+    push @bad, _err( $id, "hooks.$kind", 'identity_provider.instances must be 0 or 1' )
+        if exists $v->{instances} && ( $v->{instances} // '' ) !~ /\A[01]\z/;
+    # SM1351: an instances provider's sessions are `<id>-<name>=`, so its id leaves
+    # room for a name in the 32 a session's prefix may be.
+    push @bad, _err( $id, "hooks.$kind", "identity_provider.instances: the id '$id' leaves no room for a provider's name (at most 24 characters)" )
+        if ( $v->{instances} // '' ) eq '1' && defined $id && length $id > 24;
     return @bad;
+}
+
+# SM1351: the instances provider and the name a provider id `<id>-<name>` is
+# made of, as ( $entry_id, $name ), from the index's entries, or (). The longest
+# declared id wins, so `a-b` is tried before `a` for `a-b-c`.
+sub _instance_of {
+    my ( $exts, $pid ) = @_;
+    my @parts = split /-/, $pid;
+    for my $n ( reverse 1 .. $#parts ) {
+        my $fam  = join '-', @parts[ 0 .. $n - 1 ];
+        my $name = join '-', @parts[ $n .. $#parts ];
+        my $e    = $exts->{$fam};
+        next unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{identity_provider} eq 'HASH';
+        next unless ( $e->{hooks}{identity_provider}{instances} // '' ) eq '1';
+        return ( $fam, $name ) if $name =~ /\A[a-z0-9][a-z0-9-]*\z/;
+    }
+    return ();
 }
 
 # THE PROVIDER A SESSION PREFIX NAMES, from the index of the ENABLED
 # extensions: { %declaration, extension => $id, key => conf key } or undef.
 # Whether it is on NOW is enabled_keys' answer, asked again here, so a
 # provider whose extension was turned off mints and verifies nothing (G-1).
+#
+# SM1351: `provider` is the session's prefix - the extension's id, or for an
+# instances provider `<id>-<name>`, with `instance` the name. The bare id of an
+# instances provider is no provider.
 sub identity_provider {
     my ( $lz, $id ) = @_;
     return undef unless defined $lz && defined $id && $id =~ /\A[a-z][a-z0-9-]{0,31}\z/;
-    my $e = read_index($lz)->{extensions}{$id};
-    return undef unless ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{identity_provider} eq 'HASH';
+    my $exts = read_index($lz)->{extensions};
+    my ( $ext, $instance ) = ( $id, undef );
+    my $e = $exts->{$id};
+    if ( ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{identity_provider} eq 'HASH' ) {
+        return undef if ( $e->{hooks}{identity_provider}{instances} // '' ) eq '1';
+    }
+    else {
+        ( $ext, $instance ) = _instance_of( $exts, $id ) or return undef;
+        $e = $exts->{$ext};
+    }
     my $on = enabled_keys($lz);
     return undef unless $on->{ $e->{key} // '' };
     return undef if grep { !$on->{$_} } @{ ref $e->{requires_keys} eq 'ARRAY' ? $e->{requires_keys} : [] };
-    return { %{ $e->{hooks}{identity_provider} }, extension => $id, key => $e->{key} };
+    return { %{ $e->{hooks}{identity_provider} }, extension => $ext, key => $e->{key}, provider => $id,
+        ( defined $instance ? ( instance => $instance ) : () ) };
 }
 
-# Every provider the index declares, enabled now, in id order.
+# Every provider the index declares, enabled now, in id order. An instances
+# provider's providers are named in its own config, so they are not listed here.
 sub identity_providers {
     my ($lz) = @_;
     my @out;

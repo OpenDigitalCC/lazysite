@@ -4,11 +4,11 @@ title: "SM1351: sign in through an outside identity provider, with its groups"
 subtitle: "A service team working across hundreds of instances cannot hold an account on each. lazysite signs people in through a standard OpenID Connect provider, and the groups the provider holds become lazysite groups."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-11-06
 raised-by: "release manager (SM1350 discussion)"
 area: auth
-status-note: "Filed 2026-11-06 under SM1350. Builds on ruling 70 (a generic identity provider hook)."
+status-note: "SHIPPED (PENDING, 0.16.9) on n792: the oidc extension, H-1's second consumer; several providers (oidc-<name>, H-1 instances), code flow with PKCE, identity from the token endpoint (ruling 185), groups that may grant, audited (ruling 186), a broken provider refused and named (ruling 206). Questions 1-3 stay open."
 ---
 
 # Today
@@ -43,3 +43,59 @@ The engine side is the same for all of them, which is why it is a standard relyi
 1. Provider: Authentik or a lighter one, with a master lazysite as a later option?
 2. May an instance turn its local sign-in form off entirely?
 3. Provider sessions: the same session length as local sessions?
+
+# Built (n792, 0.16.9)
+
+Built to rulings 185, 186 and 206, as H-1's second consumer (SM1369 X4). There is no
+OpenID Connect code in core.
+
+The extension
+: `extensions/oidc.pl`, its engine `Lazysite::Ext::OIDC` in its payload lib, and its
+  endpoint `lazysite-oidc.pl` (H-4, held to the request kit; it takes GETs only).
+
+Several providers
+: Named in `lazysite/oidc.conf` (`providers: a, b` and `<name>.issuer`, `.client_id`,
+  `.scopes`, `.group_claim`, `.group_map`, `.label`). H-1 gains `instances`: an extension
+  that declares it is the providers `<id>-<name>`, each its own session prefix, record,
+  why codes and audit rows; its functions are told which in `ctx`, its `login_option`
+  answers one option per provider, and core refuses another extension's provider inside
+  that family. The client secret is in the one secrets store (`lazysite/oidc/keys/`),
+  set from the command line (`extensions/oidc.pl --secret <name>`, read from standard
+  input).
+
+The flow
+: The code flow with PKCE (S256). The state is a random value in an HttpOnly,
+  SameSite=Lax cookie scoped to the endpoint, naming a single-use record (nonce,
+  verifier, redirect URI, next) kept ten minutes. Ruling 185: the code is exchanged at
+  the token endpoint with client authentication (client_secret_basic, or _post where
+  discovery offers only that); the ID token's signature is not checked; iss, aud (azp
+  with several audiences), the nonce, the state and exp are. sub, the email and the
+  groups come from the ID token, or from userinfo (its sub the token's) for any it
+  lacks. The login is the subject: `oidc-<name>:<sub>`, shown by the email.
+
+Groups
+: Ruling 186: the extension declares `grants`, so a provider group may map to a
+  capability group, operators included; core's grant row audits every sign-in with the
+  provider, the subject and the groups granted. A person in no mapped group is refused
+  and no account is made. The record's groups are re-read against the current map at
+  every request.
+
+Faults (ruling 206)
+: A provider with a config problem, a missing or unreadable secret, or a discovery that
+  failed signs nobody in and its sessions end; the others are untouched. The log line
+  and `lazysite check` (H-6) name the fault and the remedy. An unreadable
+  `lazysite/oidc.conf` refuses them all.
+
+Discovery
+: Fetched on save (`on_save`) and by Refresh, cached in `lazysite/oidc/discovery/`. A
+  failed fetch replaces the cache with the failure. The issuer it names must be the
+  configured one; the endpoints must be `https://` (plain `http://` only to this host,
+  the connectors' rule); PKCE S256 must be offered where the document lists methods.
+
+Tests
+: `t/unit/extensions/170` against a 127.0.0.1 fixture issuer of two providers: a full
+  sign-in; the state, iss, aud, nonce and expiry each refused when wrong; no mapped
+  group refused; a group mapped to an operators group granted and audited; two
+  providers side by side and on /login; userinfo groups; a broken secret refused, its
+  sessions ended and named by check; a failed discovery refusing one provider; the
+  family clash in core. Each sabotaged by hand.

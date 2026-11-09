@@ -22,7 +22,7 @@
     },
     {
       "_comment": "Core CGI scripts stay at repo root with the lazysite- prefix. processor, auth, manager-api, dav, mcp, oauth are explicitly enumerated so a future stray lazysite-*.pl at root won't get silently installed to cgi-bin.",
-      "pattern": "^lazysite-(processor|auth|manager-api|dav|mcp|oauth|front|data|odoo)\\.pl$",
+      "pattern": "^lazysite-(processor|auth|manager-api|dav|mcp|oauth|front|data|odoo|oidc)\\.pl$",
       "install_to": "{CGIBIN}/$0",
       "bucket": "code"
     },
@@ -778,6 +778,26 @@
       "path": "{DOCROOT}/../extensions/app-offline/assets",
       "mode": "0755",
       "why": "as ../extensions/app-offline - the kit (owns.hooks.assets), served by the processor from here at /assets/app-offline-kit.js"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/oidc",
+      "mode": "0755",
+      "why": "as ../extensions - SM1351, the OpenID Connect sign-in extension's payload beside its descriptor"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/oidc/lib",
+      "mode": "0755",
+      "why": "as ../lib - the OIDC extension's own module (its payload lib, the X1 layout)"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/oidc/lib/Lazysite",
+      "mode": "0755",
+      "why": "as ../lib"
+    },
+    {
+      "path": "{DOCROOT}/../extensions/oidc/lib/Lazysite/Ext",
+      "mode": "0755",
+      "why": "as ../lib - Lazysite::Ext::OIDC, the shape ruling 68 gives an extension's modules"
     }
   ]
 }

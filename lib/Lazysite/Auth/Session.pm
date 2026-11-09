@@ -771,8 +771,10 @@ sub _provider_call {
     my $docroot = Lazysite::Paths::docroot_of($LAZYSITE_DIR);
     return ( 0, 'the site\'s docroot cannot be found from its engine tree' ) unless defined $docroot;
     require Lazysite::Extensions::Hooks;
-    return Lazysite::Extensions::Hooks::call_hook( $docroot, $p->{extension}, $p->{$fn},
-        { docroot => $docroot, lazysite_dir => $LAZYSITE_DIR }, @args );
+    # SM1351: an instances provider is told which of its providers is asked.
+    my %ctx = ( docroot => $docroot, lazysite_dir => $LAZYSITE_DIR,
+        ( defined $p->{instance} ? ( provider => $p->{provider}, instance => $p->{instance} ) : () ) );
+    return Lazysite::Extensions::Hooks::call_hook( $docroot, $p->{extension}, $p->{$fn}, \%ctx, @args );
 }
 
 # The site's audit trail, for a sign-in through a provider whose groups grant.
@@ -796,7 +798,8 @@ sub mint_provider_session {
     my (%a) = @_;
     my $login = $a{login};
     my $p     = _provider( $a{provider} ) or return ();
-    my $id    = $p->{extension};
+    # SM1351: `<id>-<name>` for an instances provider
+    my $id = $p->{provider} // $p->{extension};
     return () unless provider_login_ok($login);
     my $secret = _auth_secret_read();
     return () unless length $secret;
@@ -823,7 +826,7 @@ sub mint_provider_session {
 sub renew_provider_session {
     my (%a)    = @_;
     my $p      = _provider( $a{provider} ) or return 0;
-    my $id     = $p->{extension};
+    my $id     = $p->{provider} // $p->{extension};
     my $old    = _provider_record( $a{sid}, $id ) or return 0;
     my @groups = grep { defined && !ref } @{ ref $a{groups} eq 'ARRAY' ? $a{groups} : [] };
     my $ok     = _registry_append( {

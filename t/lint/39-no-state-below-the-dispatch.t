@@ -66,6 +66,7 @@ my @SCRIPTS = qw(
     lazysite-front.pl
     lazysite-data.pl
     lazysite-odoo.pl
+    lazysite-oidc.pl
     tools/lazysite-check.pl
 );
 

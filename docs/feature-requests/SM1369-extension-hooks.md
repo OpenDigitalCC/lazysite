@@ -373,6 +373,14 @@ The declaration
   the engine's; `grants`, 0 or 1. The provider's id is the extension's id. The build
   refuses a second extension declaring the same sign-in page.
 
+Several providers (SM1351, n792)
+: `instances`, 0 or 1: the extension is the providers `<id>-<name>`, named in its own
+  config, each its own session prefix, record, why codes and audit rows; the bare id is
+  none. Its functions get `provider` and `instance` in ctx, and its `login_option`
+  answers a list of `{ id, label, path }`, the path a same-site one that may carry a
+  query (`sep` joins /login's `next`). The build refuses another extension's provider
+  inside the family. The OIDC extension is the one that declares it.
+
 The session
 : Core's, as SM1160's was. `mint_provider_session(provider, login, name, groups, ip,
   ua)` signs `<id>=<login>:ts:sid:` and writes the record with `provider`;

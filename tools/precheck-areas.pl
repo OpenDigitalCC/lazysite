@@ -46,6 +46,9 @@ my @MAP = (
     # daemon services (oomd, the endpoint's warm-fork parent) - and its page endpoint.
     [ 'extensions/odoo/lib/' => qw(t/unit/odoo/ t/unit/daemon/ integration:lazysite-odoo integration:OdooTest) ],
     [ 'lazysite-odoo.pl'      => qw(t/unit/odoo/ integration:lazysite-odoo) ],
+    # SM1351: the OIDC extension's payload lib and its sign-in endpoint.
+    [ 'extensions/oidc/lib/'     => qw(t/unit/extensions/) ],
+    [ 'lazysite-oidc.pl'         => qw(t/unit/extensions/) ],
     [ 'lib/Lazysite/Extensions/' => qw(t/unit/extensions/ t/unit/odoo/) ],
     # SM1226: the Odoo endpoint's warm-fork parent, its wire and its service.
     [ 'lib/Lazysite/WarmFork.pm'       => qw(t/unit/daemon/ integration:WarmFork) ],

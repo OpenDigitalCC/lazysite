@@ -152,7 +152,8 @@ on and empty otherwise, so a layout may render them on any site:
   sign-out links; empty on any other site. Render it where the account links go:
   `[% IF signin_banner %][% signin_banner %][% ELSE %]...[% END %]`
 - `login_options` - the other ways in that /login offers, one per such provider:
-  each has `id`, `label` (text: escape it) and `path` (a path on this site)
+  each has `id`, `label` (text: escape it), `path` (a path on this site, which may
+  carry a query) and `sep` (`?` or `&`, what joins a `next=` to the path)
 
 - `odoo_signin_banner` (the Odoo extension) - "Signed in as <name>" with a
   sign-out, on a site whose Odoo sign-in is the site sign-in; `odoo_display_name`,

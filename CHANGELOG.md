@@ -132,6 +132,21 @@ Archive
   daemon and an on-demand refresh, the daemon merging only its own entries; the Data
   page shows a sourced table's age and last outcome with Refresh now.
   t/unit/data/110, t/unit/manager/512, t/unit/manager/513, t/unit/daemon/38.
+- SM1351 (PENDING) **auth: sign in through an outside OpenID Connect provider, with its
+  groups.** A new extension, `oidc` (OpenID Connect sign-in), with its endpoint
+  `/cgi-bin/lazysite-oidc.pl`: the code flow with PKCE against any number of providers
+  named in `lazysite/oidc.conf`, each with its issuer, client id, scopes, group claim,
+  group map and button label, and its client secret in the secrets store, set with
+  `extensions/oidc.pl --secret <name>`. The identity is the token endpoint's answer over
+  TLS with client authentication (ruling 185): iss, aud, the nonce, the state and the
+  expiry are checked, the ID token's signature is not. A provider group may map to any
+  site group, operators included, and every sign-in is audited with the groups it
+  granted (ruling 186); a person in no mapped group is not signed in. A provider whose
+  config, secret or discovery is broken is refused, its sessions end, and the log and
+  `lazysite check` name the fault and the remedy (ruling 206); the others are untouched.
+  Discovery is fetched on save and by Refresh. H-1 gains `instances` (SM1369): one
+  extension may be several providers, `<id>-<name>`, each its own session prefix, and
+  /login's options carry `sep` for a path with a query. t/unit/extensions/170.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
