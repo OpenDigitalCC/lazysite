@@ -58,6 +58,19 @@ Archive
   guide and its short summary under features/) and two had no description. Each now has a
   title that says what it is, the two have a subtitle, and no page moved. A test runs the
   check over the whole shipped docs tree.
+- SM1421 (PENDING) **`lazysite check` over a sound DB_File counter prints nothing on
+  STDERR.** The upload-rate and login-rate counter checks kept the object `tie`
+  returns while they ran `untie`, so Perl printed "untie attempted while 1 inner
+  references still exist" twice into every check and repair over a healthy site. The
+  reference is dropped first. No other `untie` in `tools/` or `lib/` keeps one.
+- SM1421 (PENDING) **A check message quotes its apostrophe.** The engine-tree line
+  read "front end`s deny rules"; it reads "front end's".
+- SM1421 (PENDING) **The repair's tally says when it applied changes.** A site with a
+  warning left counts as awaiting your decision, as it always has (a warning is one the
+  repair never settles); after "--fix applied 2 change(s)" the line read "0 repaired, 1
+  awaiting your decision" and looked like a no-op. It now reads "1 awaiting your
+  decision (2 changes applied)". The repair also shows its own report as one block
+  once the fix has run, where it streamed.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 

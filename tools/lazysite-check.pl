@@ -3861,7 +3861,7 @@ sub report_engine_tree {
         # above lives.
         report( 'OK',
             'the engine tree is inside the document root, kept '
-                . 'unreachable by the front end`s deny rules - supported, and '
+                . 'unreachable by the front end\'s deny rules - supported, and '
                 . 'the alternative is to move it beside the document root, '
                 . 'after which no such rule is needed' );
     }
@@ -4473,6 +4473,7 @@ sub _store_shape_fault {
         my %t;
         my $tied = eval { require Fcntl; tie %t, 'DB_File', $f, Fcntl::O_RDONLY(), 0 };
         return 'does not open as a DB_File database' unless $tied;
+        undef $tied;    # an untie while this still holds the object warns on STDERR
         untie %t;
         return undef;
     }
@@ -4561,7 +4562,10 @@ sub report_login_rate_limit {
             require Fcntl;
             tie %t, 'DB_File', $db, Fcntl::O_RDONLY(), 0;
         };
-        if ($tied) { untie %t }
+        if ($tied) {
+            undef $tied;    # an untie while this still holds the object warns on STDERR
+            untie %t;
+        }
         else {
             report( 'FAIL',
                 "the login rate limiter cannot count: its counter $db does not open as a "

@@ -1410,6 +1410,7 @@ sub cmd_repair {
     # no longer such a warning - the top-up below grants it - so a site whose
     # only gap was that lands in repaired; a decision still left lands here.
     my ( @clean, @repaired, @stuck, @decide );
+    my $decide_changes = 0;
 
     for my $s (@$targets) {
         my @base = ( '--docroot', $s->{docroot} );
@@ -1431,8 +1432,11 @@ sub cmd_repair {
         }
 
         print "  -> repairing\n";
-        system( $^X, _lib_arg(), $tool, @base, '--fix' ) >= 0
-            or warn "  could not run the repair\n";
+        # The repair's own report is read as well as shown: it says how many
+        # changes it applied, which the tally below repeats (n800).
+        my $fixed = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} --fix 2>&1);
+        $? == -1 ? warn "  could not run the repair\n" : print $fixed;
+        my ($applied) = $fixed =~ /^\(--fix applied (\d+) change/m;
 
         # SM1273 (ruling 25, 2026-10-23): the SM645 top-up, before the re-check.
         # A manager group missing a capability this release added is granted it
@@ -1471,6 +1475,7 @@ sub cmd_repair {
         }
         elsif (@left) {
             push @decide, $s->{name};
+            $decide_changes += $applied // 0;
             print "  -> repaired. Left for you to decide, not a fault:\n";
             print "     $_\n" for @left;
         }
@@ -1480,8 +1485,13 @@ sub cmd_repair {
         }
     }
 
-    printf "\n%d clean, %d repaired, %d awaiting your decision, %d need a human.\n",
-        scalar @clean, scalar @repaired, scalar @decide, scalar @stuck;
+    # n800: a site with a warning left always counts as awaiting a decision (the
+    # warning is the doctor's, and repair never settles one), so the line says
+    # when the repair did apply changes to it.
+    printf "\n%d clean, %d repaired, %d awaiting your decision%s, %d need a human.\n",
+        scalar @clean, scalar @repaired, scalar @decide,
+        $decide_changes ? " ($decide_changes change" . ( $decide_changes == 1 ? '' : 's' ) . ' applied)' : '',
+        scalar @stuck;
     printf "AWAITING YOUR DECISION: %s\n", join( ', ', @decide ) if @decide;
     printf "NEEDS A HUMAN: %s\n",          join( ', ', @stuck )  if @stuck;
 
