@@ -129,7 +129,7 @@ like( $dep, qr/^STATE_FILE="\$LZ\/\.install-state\.json"$/m,
     'the deploy looks for the install marker in the engine tree, wherever it is' )
     or diag( 'Otherwise every upgrade of a migrated site is a first-time install: the '
         . 'Hestia template re-applied and the vhost rebuilt, every time.' );
-like( $dep, qr/^if \[ ! -f "\$LZ\/auth\/groups-settings\.json" \]; then$/m,
+like( $dep, qr/^if \[ ! -f "\$LZ\/auth\/groups-settings\.json" \]( && \[ -z "\$SYSOP" \])?; then$/m,
     'and the first-run setup runs once, not on every deploy of a migrated site' );
 like( $dep, qr/\[ -f "\$LZ\/\$sec" \] && chmod 660 "\$LZ\/\$sec"/, 'the secrets are locked where they are' );
 like( $dep, qr/if \[ "\$LZ" = "\$DOC-lazysite" \]; then\n\s*chown -RP/, 'and a moved tree is swept like the docroot' );
