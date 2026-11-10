@@ -101,6 +101,12 @@ Archive
   model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
   refused the moved site); t/tools/581.
 
+- SM1424 (PENDING) **The upgrade note says when `analysts` and `lead-readers` arrive.**
+  The 0.16.9 note said opening the Groups page adds them on an older site, without the
+  conditions the adoption holds to. It now says: an operator group and at least one
+  shipped bundle group, a role the site lacks and has not had, none where the operator
+  group carries the `seeded` mark, and no members; a site without the bundle layer gets
+  neither (t/unit/users/317).
 - SM1424 (PENDING) **The Unknown Odoo writes link is said to be on the page that has the card.**
   The Odoo capability's description and the generated capability map said the link sits
   "on its card on Extensions"; the cards are on Extensions - configure

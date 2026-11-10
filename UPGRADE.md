@@ -343,7 +343,12 @@ able to write `lazysite/daemon/` for an on-demand refresh to count in the age.
 
 - The Groups page adds the two roles too (SM1407, as 0.16.8 said it would): opening it
   now adds `analysts` and `lead-readers` on an older site, as the Users page already did.
-  The groups listing (MCP `list_groups`, the control API's `groups`) says for each group
+  They arrive only on a site that has an operator group and at least one shipped bundle
+  group (a `cap-*` or `ch-*` group), and only a role the site lacks and has not had
+  before: a site without the bundle layer gets neither, because there they would grant
+  nothing, and a role an operator deleted stays deleted. On a site whose operator group
+  carries the `seeded` mark an absent role is taken as deleted, so none is added. They
+  arrive with no members, so nobody's access changes. The groups listing (MCP `list_groups`, the control API's `groups`) says for each group
   whether it shipped with the engine (`seeded`).
 - A page whose body names a filter a page body does not have (anything beyond Template
   Toolkit's own, `json` and `url_safe` - `markdown` is a layout's) is refused on save and
