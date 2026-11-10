@@ -20,11 +20,10 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use File::Temp qw(tempdir);
 use Cwd ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root site_tempdir);
 
 plan skip_all => 'running as root - the tools drop or refuse' if $> == 0;
 
@@ -36,7 +35,7 @@ sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; my $s = <$fh>;
 sub spit  { my ( $p, $b, $m ) = @_; open my $fh, '>', $p or die "$p: $!"; print {$fh} $b; close $fh; chmod $m // 0644, $p; return }
 
 # --- the arguments, through the real script ---------------------------------
-sub deploy { my $o = qx(bash \Q$deploy\E @_ 2>&1); return ( $? >> 8, $o ) }
+sub deploy { my $args = join ' ', @_; my $o = qx(bash \Q$deploy\E $args 2>&1); return ( $? >> 8, $o ) }
 {
     my ( $rc, $out ) = deploy('');
     is( $rc, 2, 'no arguments: a usage refusal' );
@@ -58,7 +57,7 @@ sub deploy { my $o = qx(bash \Q$deploy\E @_ 2>&1); return ( $? >> 8, $o ) }
 }
 
 # --- the functions, against stubs --------------------------------------------
-my $T = Cwd::realpath( tempdir( CLEANUP => 1 ) );
+my $T = Cwd::realpath( site_tempdir() );
 my $block = slurp($deploy);
 $block =~ /^# n807: functions begin.*?\n(.*?)^# n807: functions end\n/ms or BAIL_OUT('the deploy lost its n807 function block');
 spit( "$T/functions.sh", $1 );

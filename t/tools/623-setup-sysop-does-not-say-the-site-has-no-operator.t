@@ -19,7 +19,8 @@ plan skip_all => 'running as root - the tool drops or refuses' if $> == 0;
 
 sub users {
     my ( $doc, @args ) = @_;
-    my $out = qx($^X -I\Q$root\E/lib \Q$USERS\E --docroot \Q$doc\E @args 2>&1);
+    my $words = join ' ', map { quotemeta } @args;
+    my $out = qx($^X -I\Q$root\E/lib \Q$USERS\E --docroot \Q$doc\E $words 2>&1);
     return ( $? >> 8, $out );
 }
 

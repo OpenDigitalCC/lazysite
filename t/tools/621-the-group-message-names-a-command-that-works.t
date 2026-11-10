@@ -22,8 +22,10 @@ use strict;
 use warnings;
 use Test::More;
 use File::Path qw(make_path);
-use File::Temp qw(tempdir);
+use File::Basename qw(dirname);
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use TestHelper qw(site_tempdir);
 
 my $ROOT    = "$FindBin::Bin/../..";
 my $INSTALL = "$ROOT/install.pl";
@@ -37,10 +39,9 @@ plan skip_all => 'needs a supplementary group to fail the chown on'
 plan skip_all => 'no unprivileged user namespaces on this host'
     unless system('unshare -r --map-root-user true >/dev/null 2>&1') == 0;
 
-my $t       = tempdir( CLEANUP => 1 );
-my $docroot = "$t/site/public_html";
-my $cgibin  = "$t/site/cgi-bin";
-make_path( $docroot, $cgibin );
+my $docroot = site_tempdir();
+my $cgibin  = dirname($docroot) . '/cgi-bin';
+make_path($cgibin);
 chown -1, $second, $docroot or plan skip_all => "cannot chgrp the docroot: $!";
 chmod 0755, $docroot;
 
