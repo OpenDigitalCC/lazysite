@@ -165,6 +165,14 @@ Archive
   Hestia's list). The three runs are now list-form pipes (`_capture`), their output read as
   before. The other `qx` calls in the CLI already quote every word. t/tools/626 repairs a
   docroot named with `;touch MARK` and `$(touch MARK2)` and fails without the change.
+- SM1429 (PENDING) **The Hestia deploy checks USER and DOMAIN before it touches
+  anything.** Found at the 0.16.10 walk: both became path parts and the registry file's
+  name and were checked only by the docroot existing. DOMAIN must now be a plain host name
+  (letters, digits, dots and hyphens; no slash, no space, no leading dot or hyphen), USER a
+  plain name, and USER a user Hestia holds (`v-list-user`); anything else is refused with
+  exit 2 before the template, the install or the registry is touched. The summary says the
+  claim link is a credential for 24 hours and must not be pasted into a ticket or a log.
+  t/tools/627 fails without the change.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 

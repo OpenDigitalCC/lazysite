@@ -90,6 +90,17 @@ case "$CHANNEL" in ""|edge|beta|stable|certified) ;;
 if [ -n "$SYSOP" ] && ! printf '%s' "$SYSOP" | grep -Eq '^[A-Za-z0-9_.-]+$'; then
   echo "$0: --sysop NAME may hold letters, digits, '.', '_' and '-' only (got '$SYSOP')" >&2; exit 2
 fi
+# n808: USER and DOMAIN become path parts (/home/USER/web/DOMAIN) and the registry file's
+# name, so they are refused unless plain, before anything is touched: a host name of
+# letters, digits, dots and hyphens with no leading dot or hyphen (no slash, no space), and
+# a user name of letters, digits, '.', '_' and '-' with no leading dot or hyphen. That USER
+# is a Hestia user is asked of Hestia itself (check_hestia_user).
+if ! printf '%s' "$DOMAIN" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9.-]*$'; then
+  echo "$0: DOMAIN must be a plain host name: letters, digits, dots and hyphens, no slash or space, no leading dot or hyphen (got '$DOMAIN')" >&2; exit 2
+fi
+if ! printf '%s' "$U" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]*$'; then
+  echo "$0: USER must be a Hestia user name: letters, digits, '.', '_' and '-', no slash or space, no leading dot or hyphen (got '$U')" >&2; exit 2
+fi
 [ "$(id -u)" = 0 ] || { echo "$0: must run as root (it sets ownership/perms)" >&2; exit 1; }
 # SM892 D4: install.sh is now a signpost that refuses everything, so this
 # script drives install.pl - the implementation - directly, with an explicit
@@ -111,12 +122,17 @@ HESTIA=/usr/local/hestia
 DOM="/home/$U/web/$DOMAIN"
 DOC="$DOM/public_html"
 CGI="$DOM/cgi-bin"
-[ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
-LZ="$(lazysite_dir "$DOC")"
 
 # n807: functions begin (t/tools/624 sources this block with stubs)
 # Each reads the script's variables (U DOMAIN DOM DOC CGI LZ STAGE HESTIA CHANNEL
 # SYSOP LZS_CLI) and prints what it did.
+
+# n808: USER is asked of Hestia, so a name Hestia does not hold is refused (exit 2) before
+# the template, the install or the registry is touched.
+check_hestia_user() {
+  "$HESTIA/bin/v-list-user" "$U" >/dev/null 2>&1 \
+    || { echo "$0: '$U' is not a Hestia user ($HESTIA/bin/v-list-user refused it)" >&2; exit 2; }
+}
 
 # lazysite-proxy is the nginx template that hands a protected section's static files
 # back to Apache. Hestia has it only once the template is copied in.
@@ -224,6 +240,7 @@ print_summary() {
   if [ -n "$SYSOP" ] && [ -n "${CLAIM_URL:-}" ]; then
     echo "    claim:     $CLAIM_URL"
     echo "               (single-use link for '$SYSOP' to set their own password)"
+    echo "               it is a credential for 24 hours: do not paste it into a ticket or a log"
   elif [ -n "$SYSOP" ]; then
     echo "    claim:     none - setup-sysop for '$SYSOP' did not finish (see above)"
   else
@@ -241,6 +258,11 @@ print_summary() {
   echo "               grep -n X-Forwarded-For $HESTIA/data/templates/web/nginx/lazysite-proxy.*tpl   # trusted_proxies: the front end must overwrite it"
 }
 # n807: functions end
+
+# n808: the user is Hestia's, asked before the docroot is looked for or anything is touched.
+check_hestia_user
+[ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
+LZ="$(lazysite_dir "$DOC")"
 
 # Update-channel pre-check, BEFORE we touch anything. If this site is on the
 # 'stable' channel and the build is 'edge', the upgrade will be skipped - so bail
