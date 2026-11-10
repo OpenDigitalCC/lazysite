@@ -3564,8 +3564,10 @@ sub print_summary {
         my $g = getgrgid( ( stat $INSTALL_DOCROOT )[5] // -1 ) // 'the docroot group';
         print STDERR "  Group:      $GROUP_ADOPT_FAILED created path(s) could not be given "
             . "group '$g'\n"
-            . "              (this user is not a member of it - run the install as the\n"
-            . "              site owner, or root, so new paths match the docroot)\n";
+            . "              (this user is not a member of it, so running the install again as\n"
+            . "              the site owner fails the same way. As root, either:\n"
+            . "                on a Hestia host:  $STAGE_DIR/installers/hestia/lazysite-hestia-deploy.sh USER DOMAIN\n"
+            . "                anywhere:          perl $STAGE_DIR/tools/lazysite-cli.pl repair --docroot $INSTALL_DOCROOT)\n";
     }
     if (@$warnings) {
         print STDERR "\nWarnings:\n";
