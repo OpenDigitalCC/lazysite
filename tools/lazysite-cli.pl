@@ -546,16 +546,27 @@ sub _discover_hestia_sites {
     return \@sites;
 }
 
+# n807 (SM1427): `docroot => 1` makes --docroot D a third way to name the site, for the
+# verbs whose usage line says "--docroot D | --domain NAME | --all" and whose
+# per-site code reads only the target (repair, probe). A site with no registry
+# entry has no --domain to give, and the usage promised --docroot. The verbs that
+# hand --docroot straight to their tool (check, acl, users, handlers) do not ask
+# for it, so they keep passing it through.
 sub extract_site_targets {
-    my ($argv) = @_;
-    my ( @rest, $all, $name );
+    my ( $argv, %opt ) = @_;
+    my ( @rest, $all, $name, $docroot );
     while ( defined( my $a = shift @$argv ) ) {
         if    ( $a eq '--all' )             { $all = 1 }
         elsif ( $a eq '--domain' )          { $name = shift @$argv }
         elsif ( $a =~ /\A--domain=(.+)\z/ ) { $name = $1 }
+        elsif ( $opt{docroot} && $a eq '--docroot' )          { $docroot = shift @$argv }
+        elsif ( $opt{docroot} && $a =~ /\A--docroot=(.+)\z/ ) { $docroot = $1 }
         else                                { push @rest, $a }
     }
     @$argv = @rest;
+    fail('--docroot, --domain and --all are alternatives: give one')
+        if defined $docroot && ( $all || defined $name );
+    return _target_for_docroot($docroot) if defined $docroot;
     return undef unless $all || defined $name;
 
     fail('--all and --domain are mutually exclusive') if $all && defined $name;
@@ -575,6 +586,29 @@ sub extract_site_targets {
                 . join( ', ', map { $_->{name} } @$sites ) );
     }
     return [$hit];
+}
+
+# The one site a --docroot names, as a target. A registered site at that docroot is
+# used as it is (its name is the host, which the probe needs; the Hestia list is
+# not consulted - it needs root, and a docroot was given);
+# an unregistered one is described from the path: the name site_name_for gives,
+# the cgi-bin beside the docroot if there is one, the owner from the tree.
+sub _target_for_docroot {
+    my ($given) = @_;
+    fail('--docroot needs a directory') unless length $given;
+    fail("not a directory: $given")     unless -d $given;
+    my $docroot = abs_path($given) // $given;
+    my $sites = read_registry();
+    my ($hit) = grep { ( abs_path( $_->{docroot} ) // $_->{docroot} ) eq $docroot } @$sites;
+    return [$hit] if $hit;
+    my $cgibin = dirname($docroot) . '/cgi-bin';
+    my $site   = {
+        name    => site_name_for( undef, $docroot ),
+        docroot => $docroot,
+        cgibin  => ( -d $cgibin ? $cgibin : '' ),
+    };
+    $site->{owner} = site_owner($site);
+    return [$site];
 }
 
 # Run a per-site tool once per target, and report per site.
@@ -1387,7 +1421,7 @@ sub cmd_repair {
     # Addressing first: --domain and --all are consumed here, so the verb's own
     # option parser never sees them. The other order makes GetOptions reject the
     # addressing it was given.
-    my $targets = extract_site_targets( \@ARGV );
+    my $targets = extract_site_targets( \@ARGV, docroot => 1 );
     $targets ||= _targets_or_fail();
 
     my %o;
@@ -1541,7 +1575,7 @@ sub _topup_commands {
 # to "not confirmed" - the safe direction, and one that needs no maintenance as
 # the probe grows.
 sub cmd_probe {
-    my $targets = extract_site_targets( \@ARGV );
+    my $targets = extract_site_targets( \@ARGV, docroot => 1 );
     $targets ||= _targets_or_fail();
 
     my $tool = payload_root() . '/tools/lazysite-check.pl';
