@@ -21,8 +21,8 @@ under a label of their login (SM1396). From 0.16.9: an account's passkeys, publi
 only (SM1352), its web-push endpoints and optional phone number (SM1363), the site's
 own web-push signing key and an outside sign-in provider's client secret, the last in
 the one secrets store (SM1351, SM1369 X6), and, in a table that names a source, the
-rows another system's API sends (SM1364). Restated at the 0.16.9 walk, a draft for the
-release manager's confirmation.
+rows another system's API sends (SM1364). Restated at the 0.16.9 walk; confirmed by the release manager on
+2026-11-10 (ruling 226).
 
 Trust boundaries (each is where an attacker's input crosses into trusted code):
 
@@ -113,7 +113,7 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     the processor serves its asset files and renders its components and template
     variables (X5's asset part); Odoo is the first extension declaring each, and the
     offline kit (SM1396) the second asset consumer. From 0.16.9 it has more callers
-    (restated at the 0.16.9 walk, a draft for the release manager's confirmation): the
+    (restated at the 0.16.9 walk; confirmed by the release manager on 2026-11-10, ruling 226): the
     session code asks an extension's identity provider for its `on`,
     `still_valid` and `groups` (SM1369 X4; the `oidc` extension is the second provider,
     SM1351), an extension's endpoint runs after core's request kit has capped the body
@@ -129,7 +129,8 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
 
 Not yet code, so not yet boundaries: SM1128's directory groups. Its native OpenID
 Connect relying party is code in 0.16.9, as the `oidc` extension (SM1351), reached
-through boundary 15 and the new-external-interface its entry records. The visitor log's
+through boundary 15 and the new-external-interface its entry records. Corrected at the 0.16.9 walk; confirmed by the
+release manager on 2026-11-10 (ruling 226). The visitor log's
 signed-in account (SM1219) and the maintenance capability (SM1118), held out of the
 0.16.0 stable, are in 0.16.1; see `architecture/security.md` and the register.
 
@@ -173,15 +174,15 @@ Elevation of privilege | A group deleted while an access rule, a page, a domain,
 Elevation of privilege | A member - an account without `ui`, perhaps one of hundreds - writing through the manager API's cookie door once `write_content` opens it (SM1414): a path no rule governs, a file whose rule names someone else, the engine's `lazysite/` tree, another domain's content or the primary's, an action outside the content verbs, a rule widened | The door admits a `write_content` holder only for the six actions declared `member_content` (read, list, save, mkdir, move, delete), checked at load; a write needs the governing rule's write list to name the account or its group, so an ungoverned path and a rule naming others are refused; paths are refused climbing, NUL, backslash or reserved, and resolved inside the session's domain's content root, another domain's root refused; a listing shows only entries a rule lets the member read; acl-set is outside the set; CSRF and the audit row are the door's | 0.16.8 (t/integration/377; row written at the 0.16.8 walk, confirmed by the release manager on 2026-11-08 (ruling 182), with the SM1414 entry confirmed by ruling 177): a folder rule naming a members' group lets any member overwrite or delete another's file under it, which is what the rule says; a listing does not ask the address rules per entry
 Information disclosure | A person's earlier values kept after the table no longer holds them (SM1355): a row's values before a change, and a deleted row's, in the row history (`_row_changes`), read back by someone who may not read the table or for longer than the site means to keep them | The history is read only with `manage_data` under the table's read rule; it is kept for the table's period (90 days by default, `row_history_days` otherwise) and pruned after each recorded write and daily by the daemon's `row-history-prune` job, which needs only `run_jobs` and is audited each run (rulings 170, 175); an undo past the period is refused | 0.16.8 (t/unit/data/81, 82; t/unit/daemon/05; row written at the 0.16.8 walk, confirmed by the release manager on 2026-11-08 (ruling 182), with the SM1355 entry, which fires new-processing-of-restricted-data, confirmed contained by ruling 177): where the daemon does not run, a store nobody writes to keeps expired changes until its next write; the store is in the site's backups as the table is
 Information disclosure | The offline kit's kept reads and queued changes in a browser (SM1396) shown to, or sent as, the next person at a shared device, or kept for nobody and sent as whoever signs in next | What is kept is stored under the owner label `?csrf=1` names (a hash of the login, on a site whose Odoo sign-in is the site sign-in), shown and sent only while that owner is signed in; nothing is kept with no owner; the kit's wrapper of the Odoo helper's sign-out empties that owner's kept reads; a queued change is sent once with its `Idempotency-Key`; no token, cookie or password is stored | 0.16.8 (t/unit/extensions/78; t/unit/odoo/28, 41, 63; row written at the 0.16.8 walk, confirmed by the release manager on 2026-11-08 (ruling 182), with the SM1396 entry, which fires new-processing-of-restricted-data, confirmed contained by ruling 177): a session that ends without the helper's sign-out leaves the kept reads under the owner's label, readable in that browser's storage by whoever uses its profile; a queued change waits for its owner by design; both are kept as built (ruling 183)
-Spoofing | An extension's identity provider minting a session under another provider's id or a local name, outliving its provider, or handing a group that carries a capability (SM1369 X4, H-1) | Only core signs: `mint_provider_session` and `renew_provider_session` are the provider's only way to a session; the provider is read from the index and never from the cookie, whose `<id>=` prefix cannot be a local name; the extension must be on at every check; a group that carries a capability is dropped unless the provider declares `grants`, and a provider function that fails is no session | 0.16.9 (t/unit/extensions/80; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the X4 entry, confirmed on 2026-11-10 (ruling 225)): a provider is the extension's own code under boundary 15's contract, not a sandbox
-Spoofing | A forged, replayed or misdirected answer from an outside OpenID Connect provider (SM1351): a login-CSRF answer, a code started in another browser, an ID token for another issuer, client or time, a provider named inside another's family | A state in an HttpOnly, SameSite=Lax cookie must match the answer and name a single-use pending record that lasts ten minutes; the code is exchanged over TLS with PKCE (S256) and the client's secret; the ID token must name the configured issuer, this client (`azp` with several audiences) and the nonce sent, and not have expired; every call is https (http only to this host), follows no redirect, is capped at 256 KB and times out at 10 s; core refuses another extension's provider inside an instances provider's family | 0.16.9 (t/unit/extensions/170; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1351 entry, confirmed on 2026-11-10 (ruling 225)): the ID token's signature is not checked (ruling 185), so the trust rests on TLS to the token endpoint
-Elevation of privilege | A provider's group claim making a manager here (SM1351, ruling 186): a group mapped to operators or any capability group, whoever controls that group at the provider | A person in no mapped group is not signed in and no account is made; the record's groups are re-read against the current map at every request; every sign-in and renewal writes a `login-grant` or `renew-grant` audit row naming the groups granted; only the operator saves a map entry whose target carries capabilities (ruling 214); the Sessions page can mark a session stale so the provider is asked again (`session-reauth`) | 0.16.9 (t/unit/extensions/170, t/unit/manager/582; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1351 entry, confirmed on 2026-11-10 (ruling 225) and ruling 186's first use): membership is read at sign-in only, so a person removed at the provider keeps the group until the session ends, is revoked or is marked stale; the map is for a provider whose membership the site controls
-Spoofing | A passkey sign-in accepted for a signature the site did not ask for, one made for another site, a replayed or cloned answer, or a passkey planted in another person's account (SM1352) | A challenge is 32 random bytes, answerable for five minutes, issued for one purpose and spent by the first answer; the origin and the RP ID hash must be this host's and user presence and user verification both set; the signature is checked with the key and algorithm stored at enrolment over bytes the engine builds, a counter that does not advance is refused; the sign-in passes the password sign-in's address scope, rate limiter and account gates; a passkey is added only by its own account, and a manager can only wipe them all | 0.16.9 (t/unit/auth/107-109, t/unit/account/36; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1352 entry, confirmed on 2026-11-10 (ruling 225)): attestation is `none`, so the authenticator's make is not checked; the challenge directory holds at most 1000 for five minutes, so a flood can delay passkey sign-ins
-Tampering | A web-push endpoint an account registered pointing the site at an internal address, or a notice's content leaving by a push or a webhook (SM1363) | An endpoint is stored only as https, 1024 characters at most, a bounded number per account, and at send passes `Fetch::is_safe_url`, follows no redirect and is read to 4 KB in ten seconds; a push carries no payload; the webhook body is the notice's kind, title, login and link, never its content; `webhook.per_hour` and `mail.per_hour` bound the sends; only the account adds or removes its own device | 0.16.9 (t/unit/notify/41, t/unit/account/38; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1363 entry, confirmed on 2026-11-10 (ruling 225)): a name that re-resolves between the check and the connect could still reach a private address, the window `Fetch` has
-Information disclosure | An account's phone number leaving the site, or set for a stranger's (SM1363, ruling 196) | The number is carried in the webhook route's connector call alone, not in a push, a mail, the bell record or the log; the route reaches an account only where an operator set `notify_routes: webhook`, under its own bound and the connector's call record; the form is checked in the users tool | 0.16.9 (t/unit/notify/41, t/unit/account/39; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1363 phone entry, confirmed on 2026-11-10 (ruling 225), which fires new-processing-of-restricted-data): a member whose account was given the webhook route can set any number in the right form; the number is at rest with the rest of the record
-Spoofing | An identity written into the data endpoint's environment, by the client or the web server or the process, believed by the endpoint's readers (SM297, boundary 2) | The endpoint holds the verified identity as a value (`local $Lazysite::Auth::Identity::HELD`), its readers are answered that and read nothing from `%ENV` while it is held, and it writes no `X-Remote-*` header; a session whose store cannot be read is refused 503 | 0.16.9 (t/unit/auth/177, t/integration/478, 479; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM297 entry, confirmed on 2026-11-10 (ruling 225)): the manager API in the pool keeps its relay and the header contract until 0.17.0 (ruling 217)
-Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
-Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
+Spoofing | An extension's identity provider minting a session under another provider's id or a local name, outliving its provider, or handing a group that carries a capability (SM1369 X4, H-1) | Only core signs: `mint_provider_session` and `renew_provider_session` are the provider's only way to a session; the provider is read from the index and never from the cookie, whose `<id>=` prefix cannot be a local name; the extension must be on at every check; a group that carries a capability is dropped unless the provider declares `grants`, and a provider function that fails is no session | 0.16.9 (t/unit/extensions/80; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the X4 entry, confirmed on 2026-11-10 (ruling 225)): a provider is the extension's own code under boundary 15's contract, not a sandbox
+Spoofing | A forged, replayed or misdirected answer from an outside OpenID Connect provider (SM1351): a login-CSRF answer, a code started in another browser, an ID token for another issuer, client or time, a provider named inside another's family | A state in an HttpOnly, SameSite=Lax cookie must match the answer and name a single-use pending record that lasts ten minutes; the code is exchanged over TLS with PKCE (S256) and the client's secret; the ID token must name the configured issuer, this client (`azp` with several audiences) and the nonce sent, and not have expired; every call is https (http only to this host), follows no redirect, is capped at 256 KB and times out at 10 s; core refuses another extension's provider inside an instances provider's family | 0.16.9 (t/unit/extensions/170; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1351 entry, confirmed on 2026-11-10 (ruling 225)): the ID token's signature is not checked (ruling 185), so the trust rests on TLS to the token endpoint
+Elevation of privilege | A provider's group claim making a manager here (SM1351, ruling 186): a group mapped to operators or any capability group, whoever controls that group at the provider | A person in no mapped group is not signed in and no account is made; the record's groups are re-read against the current map at every request; every sign-in and renewal writes a `login-grant` or `renew-grant` audit row naming the groups granted; only the operator saves a map entry whose target carries capabilities (ruling 214); the Sessions page can mark a session stale so the provider is asked again (`session-reauth`) | 0.16.9 (t/unit/extensions/170, t/unit/manager/582; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1351 entry, confirmed on 2026-11-10 (ruling 225) and ruling 186's first use): membership is read at sign-in only, so a person removed at the provider keeps the group until the session ends, is revoked or is marked stale; the map is for a provider whose membership the site controls
+Spoofing | A passkey sign-in accepted for a signature the site did not ask for, one made for another site, a replayed or cloned answer, or a passkey planted in another person's account (SM1352) | A challenge is 32 random bytes, answerable for five minutes, issued for one purpose and spent by the first answer; the origin and the RP ID hash must be this host's and user presence and user verification both set; the signature is checked with the key and algorithm stored at enrolment over bytes the engine builds, a counter that does not advance is refused; the sign-in passes the password sign-in's address scope, rate limiter and account gates; a passkey is added only by its own account, and a manager can only wipe them all | 0.16.9 (t/unit/auth/107-109, t/unit/account/36; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1352 entry, confirmed on 2026-11-10 (ruling 225)): attestation is `none`, so the authenticator's make is not checked; the challenge directory holds at most 1000 for five minutes, so a flood can delay passkey sign-ins
+Tampering | A web-push endpoint an account registered pointing the site at an internal address, or a notice's content leaving by a push or a webhook (SM1363) | An endpoint is stored only as https, 1024 characters at most, a bounded number per account, and at send passes `Fetch::is_safe_url`, follows no redirect and is read to 4 KB in ten seconds; a push carries no payload; the webhook body is the notice's kind, title, login and link, never its content; `webhook.per_hour` and `mail.per_hour` bound the sends; only the account adds or removes its own device | 0.16.9 (t/unit/notify/41, t/unit/account/38; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1363 entry, confirmed on 2026-11-10 (ruling 225)): a name that re-resolves between the check and the connect could still reach a private address, the window `Fetch` has
+Information disclosure | An account's phone number leaving the site, or set for a stranger's (SM1363, ruling 196) | The number is carried in the webhook route's connector call alone, not in a push, a mail, the bell record or the log; the route reaches an account only where an operator set `notify_routes: webhook`, under its own bound and the connector's call record; the form is checked in the users tool | 0.16.9 (t/unit/notify/41, t/unit/account/39; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1363 phone entry, confirmed on 2026-11-10 (ruling 225), which fires new-processing-of-restricted-data): a member whose account was given the webhook route can set any number in the right form; the number is at rest with the rest of the record
+Spoofing | An identity written into the data endpoint's environment, by the client or the web server or the process, believed by the endpoint's readers (SM297, boundary 2) | The endpoint holds the verified identity as a value (`local $Lazysite::Auth::Identity::HELD`), its readers are answered that and read nothing from `%ENV` while it is held, and it writes no `X-Remote-*` header; a session whose store cannot be read is refused 503 | 0.16.9 (t/unit/auth/177, t/integration/478, 479; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM297 entry, confirmed on 2026-11-10 (ruling 225)): the manager API in the pool keeps its relay and the header contract until 0.17.0 (ruling 217)
+Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
+Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
 ```
 
 ## Five priority entries (from the review)
@@ -5695,8 +5696,11 @@ controls
 
 residual risk
 : A refusal is loud only where it is looked at: the visitor sees "unavailable" and the
-  operator must read the log or run the check. The Odoo sign-in (extensions/odoo) refuses
-  on a broken rate limiter with its own 'rate' wording, left for the Odoo slice. A host on
+  operator must read the log or run the check. When the limiter cannot count, the Odoo
+  sign-in (extensions/odoo) and an OIDC sign-in start each answer cannot-tell, 503, in
+  the limiter's own `fault_refusal` words (rulings 212, 223, 226; t/unit/odoo/260,
+  t/unit/extensions/200), not "too many attempts"; over the cap a working limiter still
+  answers rate. A host on
   which DB_File is genuinely absent (it is core Perl on Debian; perl-DB_File on RHEL) now
   refuses sign-in until it is installed or the extension is switched off.
 
@@ -5879,8 +5883,9 @@ verdict
 
 ### 2026-11-10 - SM1418, SM1407 (T-112), SM1404 (T-113), SM1398 (T-114), the container's tooling and the restack's wording (0.16.9): the rest of 0.16.9, with no trigger
 
-Assessment drafted by the developer agent at the 0.16.9 compliance walk (SM1419), for the
-release manager's confirmation; ruling 225 (2026-11-10) puts n794 (SM1418) in this list.
+Assessment drafted by the developer agent at the 0.16.9 compliance walk (SM1419);
+confirmed by the release manager on 2026-11-10 (ruling 226); ruling 225 puts n794
+(SM1418) in this list.
 The walk read the CHANGELOG's `## Unreleased` section and `git log
 8a2806723..63e8f1970` (102 commits). The rest of 0.16.9 moves no control:
 SM1418 (n794) makes the XMPP notice account answer a presence subscribe from the
@@ -5892,9 +5897,8 @@ listing is MCP's; SM1398 (T-114) gives a page body the `| json` filter and refus
 save a filter a body lacks; the shared container's tooling, `lazysite-sites`, the
 per-site pools, the 503 for a refused site and the supervisor's refusals (SM1361's
 commits after the loader rule, rulings 206, 208, 218, 220) is operator packaging inside
-the container; the restack's wording (rulings 212, 216, 217, 223) says a limiter that
-cannot count is a fault, in one refusal, for the Odoo sign-in, the OIDC start and the
-front door's status; the rest is lint and test fix-ups and renumbering; SM1419 is this
+the container; the restack's wording (rulings 216, 217) gives a damaged store the
+engine's one refusal and the front door's status a number; the rest is lint and test fix-ups and renumbering; SM1419 is this
 walk. The other changes of 0.16.9 have their own entries, confirmed by the release
 manager on 2026-11-10 (ruling 225): SM1369 X4 (firing the sign-in-method trigger,
 contained), X5, X6 and X7, SM1351 (firing the sign-in-method and new-external-interface
@@ -5935,11 +5939,8 @@ what changed
   fails or is newer than the image is refused, answers 503 and is named while the others
   serve; the run directory belongs to www-data and the supervisor refuses what it cannot
   supervise (t/tools/393, 395, 396).
-: The restack's wording. The Odoo sign-in and the OIDC start answer a limiter that
-  cannot count as cannot-tell (503), where they said "too many attempts"; over the cap
-  a working limiter still answers 429 (t/unit/odoo/260, t/unit/extensions/200). A damaged
-  store gets the engine's one refusal, which names no file to a visitor (t/integration/498,
-  499).
+: The restack's wording. A damaged store gets the engine's one refusal, which names no
+  file to a visitor (t/integration/498, 499).
 
 threat delta
 : None of ADR 0007's four triggers fired: no new interface (the delivery makes the
@@ -5960,14 +5961,14 @@ threat delta
 : The container's tooling: Elevation of privilege, none beyond the loader rule's own entry
   (SM1361, SM1369 X7): it is reached by the host's operator, acts with the container's
   rights, and no visitor's request reaches it.
-: The restack's wording: Denial of service by design, as ruling 206 chose, and
-  Repudiation narrowed, since a visitor and the log are told it is a fault, not a rate.
+: The restack's wording: Information disclosure, narrowed, since the one refusal names
+  no file to a visitor.
 
 controls
 : SM1418: t/unit/lib/322 (a subscribe from the recipient is approved, one from another
   is not, the account asks once, a failed step still sends). SM1407: t/unit/users/116.
   SM1404: t/unit/manager/532. SM1398: t/unit/processor/228. The container: t/tools/393,
-  395, 396. The restack: t/unit/odoo/260, t/unit/extensions/200, t/integration/498.
+  395, 396. The restack: t/integration/498.
 
 residual risk
 : SM1418: the approval holds only while the account is connected for a send, so a request
@@ -5978,11 +5979,8 @@ residual risk
   site runs as www-data).
 
 verdict
-: drafted at the 0.16.9 compliance walk, for the release manager's confirmation. No
-  trigger fired; recorded because SM1418 makes the notice account answer a presence
-  request and the rest changes what a listing, a refusal and a page body carry. Whether
-  0.16.9 is security-critical is the release manager's call at the cut: the register
-  records hardenings (SM1417 closes paths that read a damaged store as empty or as
-  permissive; T-115 closes world bits on a beside site's seeds and form configs) and
-  names no vulnerability that was exploited, and the walk states the channel as edge
-  (OBLIGATIONS.md, the vulnerability-handling row).
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 226). No trigger
+  fired; recorded because SM1418 makes the notice account answer a presence request and
+  the rest changes what a listing, a refusal and a page body carry. 0.16.9 is edge, not
+  security-critical (ruling 226): it fixes no known vulnerability (SM1417 and T-115 are
+  hardenings; OBLIGATIONS.md, the vulnerability-handling row).

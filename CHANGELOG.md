@@ -366,13 +366,12 @@ Archive
   push and webhook (new-external-interface), SM1363's phone number and SM1364
   (new-processing-of-restricted-data); the other nine fire none. There is no early
   third-party review: the OIDC grant mapping and the passkey paths are named in the scope
-  of the engagement ADR 0007 already requires. Drafted at the walk, for confirmation: an
+  of the engagement ADR 0007 already requires. Written at the walk and confirmed (ruling 226): an
   entry for SM1418 (the XMPP notice account answers a subscribe from its recipient only),
   SM1407, SM1404, SM1398, the container's tooling and the restack's wording, which names
   the rest of 0.16.9 and why each moves no control; trust boundary 15 and the assets
   line restated; nine STRIDE rows; five operate-side rows; a 0.16.9 section in
-  docs/architecture/security.md. The SBOM strict check exits 0 with 495 components. The
-  channel and whether 0.16.9 is security-critical are the release manager's at the cut.
+  docs/architecture/security.md. The SBOM strict check exits 0 with 495 components. 0.16.9 is edge, not security-critical (ruling 226).
   UPGRADE.md's 0.16.9 notes are one section. Docs only; nothing is signed.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)

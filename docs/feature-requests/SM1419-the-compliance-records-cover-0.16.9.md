@@ -1,14 +1,14 @@
 ---
 id: SM1419
 title: "SM1419: the compliance records cover 0.16.9"
-subtitle: "The gate's compliance check refuses 0.16.9 with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.8. Both are walked against the 0.16.9 stack and stamped 0.16.9; the sixteen register entries the branches wrote are confirmed (ruling 225), and one entry, a restated boundary, the assets line and nine STRIDE rows are drafted."
+subtitle: "The gate's compliance check refuses 0.16.9 with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.8. Both are walked against the 0.16.9 stack and stamped 0.16.9; the sixteen register entries the branches wrote are confirmed (ruling 225), and so are the walk's own entry, a restated boundary, the assets line and nine STRIDE rows (ruling 226)."
 brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-11-10
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1415); release manager, ruling 225 (2026-11-10)"
 area: release
-status-note: "SHIPPED (0.16.9) on n796. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.9; sixteen entries confirmed (ruling 225; seven fire, contained); the walk's entry (SM1418 and five more), boundary 15, the assets line and nine STRIDE rows drafted; five operate-side rows; UPGRADE.md's 0.16.9 section; no code changes."
+status-note: "SHIPPED (0.16.9) on n796. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.9; sixteen entries confirmed (ruling 225; seven fire, contained); the walk's entry (SM1418 and five more), boundary 15, the assets line and nine STRIDE rows confirmed (ruling 226); five operate-side rows; UPGRADE.md's 0.16.9 section; no code changes."
 ---
 
 # What was asked
@@ -43,7 +43,7 @@ walk's closing list.
   identity provider; an outside OIDC provider's answer; its group claim reaching a
   capability group; a passkey sign-in; a web-push endpoint; the phone number; an
   identity written into the data endpoint's environment; code in a site's extensions
-  directory on the shared engine; a sourced table's writes), drafts.
+  directory on the shared engine; a sourced table's writes), confirmed (ruling 226).
 - docs/compliance/OBLIGATIONS.md, stamped 0.16.9: the register, threat-model, SBOM
   (strict, exit 0, 495 components, the nineteen more listed; sbom-deps.json gains four
   entries), first-penetration-test (the scope), fired-trigger and vulnerability-handling
@@ -64,13 +64,13 @@ walk's closing list.
 
 # Found at the walk
 
-- The ruling confirms the entries and does not state the channel. 0.16.9 is judged edge
-  at the walk; whether it is security-critical is the release manager's at the cut
-  (SM1417 and T-115 are hardenings; the register records no exploitation).
-- The SM1417 entry for items 1-8 says the Odoo sign-in refuses on a broken limiter "with
-  its own 'rate' wording, left for the Odoo slice". Ruling 212 and the restack changed
-  it to cannot-tell (t/unit/odoo/260, and the OIDC start, t/unit/extensions/200). The
-  walk's entry records the new wording and the confirmed entry is left as it was.
+- Ruling 226: 0.16.9 is edge, not security-critical (it fixes no known vulnerability;
+  SM1417 and T-115 are hardenings).
+- The SM1417 entry for items 1-8 said the Odoo sign-in refuses on a broken limiter "with
+  its own 'rate' wording, left for the Odoo slice". Rulings 212, 223 and 226 changed
+  that: the Odoo sign-in and the OIDC start answer cannot-tell, 503, in the limiter's own
+  `fault_refusal` words (t/unit/odoo/260, t/unit/extensions/200). The entry now says so,
+  and the walk's entry carries no note about it.
 - The SM1369 filing's status-note was not updated: the 0.16.8 walk updated no filing's
   note but its own.
 
