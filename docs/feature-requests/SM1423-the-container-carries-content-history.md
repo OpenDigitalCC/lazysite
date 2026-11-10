@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "release manager, ruling 227 (the 0.16.1-recipe migration walk)"
 area: docker
-status-note: "SHIPPED (PENDING): the image installs Debian's git; content history is off until turned on, one command in the README. The README's new section moves a 0.16.1 site in eight steps: volume names, create, copy as www-data, site_url, add, history. UPGRADE.md points at it. t/lint/563."
+status-note: "SHIPPED (PENDING): the image installs Debian's git; content history is off until turned on, one command in the README. The README's new section moves a 0.16.1 site in eight steps: volume names, create, copy as www-data, site_url, add, history. UPGRADE.md points at it. The upgrade sets declared modes on every declared directory (form-events was 2755). t/lint/563, t/tools/581."
 ---
 
 # What happened
@@ -31,3 +31,7 @@ prefixes the project name), what ownership and modes the files need, or that the
 - UPGRADE.md's paragraph points at the steps, and notes the image now carries `git`.
 - t/lint/563 reads the Dockerfile's package list and holds it to the programs the engine
   runs (`git`, `curl`, `nginx`), and checks the engine file that runs each still does.
+- The install's mode step (ruling 215) now sets the declared mode, mode only, on every directory
+  the model declares: install_dirs (the check's "declared directories" list) and the runtime
+  paths marked repair. The 0.16.1 recipe left lazysite/stats/form-events at 2755, which the check
+  FAILs and the upgrade-on-start left, so a moved site was refused. t/tools/581 holds it.

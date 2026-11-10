@@ -97,7 +97,9 @@ Archive
   names, `docker compose create` for the new volume, the copy as `www-data` keeping modes,
   `site_name` and `site_url` in the copied `lazysite.conf`, and the host names given to
   `lazysite-sites add`. t/lint/563 holds the Dockerfile's packages to the programs the
-  engine runs.
+  engine runs. The upgrade also sets the declared mode, mode only, on every directory the
+  model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
+  refused the moved site); t/tools/581.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 

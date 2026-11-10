@@ -2029,6 +2029,12 @@ sub execute_plan {
 # must install unchanged.
 our %INSTALL_DIR_MODE;
 
+# The runtime paths the model declares `on_upgrade: repair` (the engine owns the mode),
+# resolved once per run, whoever applies them: form-events and git are `applied_by:
+# check` only, so create_runtime_paths skips them, and align_store_modes sets their
+# mode when they exist.
+our %RUNTIME_REPAIR_MODE;
+
 # The resolved docroot for this run, so make_declared_path can tell "a directory
 # the installer owns" from "a directory above the site" (SM268 03-F8) - the two
 # need opposite advice.
@@ -2078,9 +2084,14 @@ sub _adopt_site_group {
 sub load_install_dirs {
     my ( $manifest, $subs ) = @_;
     %INSTALL_DIR_MODE = ();
+    %RUNTIME_REPAIR_MODE = ();
     $INSTALL_DOCROOT  = $subs->{DOCROOT} // '';
     for my $d ( @{ $manifest->{install_dirs} || [] } ) {
         $INSTALL_DIR_MODE{ resolve_placeholders( $d->{path}, $subs ) } = oct( $d->{mode} );
+    }
+    for my $r ( @{ $manifest->{runtime_paths} || [] } ) {
+        next unless ( $r->{on_upgrade} // '' ) eq 'repair';
+        $RUNTIME_REPAIR_MODE{ resolve_placeholders( $r->{path}, $subs ) } = oct( $r->{mode} );
     }
     return scalar keys %INSTALL_DIR_MODE;
 }
@@ -2358,8 +2369,16 @@ sub mode_for {
 # file included; never through a link; a file this run cannot chmod (another
 # account's) is left for `lazysite repair` and the check names it. Drift after
 # the install stays the check's to name and repair's to fix.
+#
+# And every directory the model declares (install_dirs, the table written into the
+# install state as `dirs`, which the check's "declared directories carry their
+# declared mode" line walks; and the runtime paths marked on_upgrade: repair, which
+# the check holds as its group-writable set): the 0.16.1 container recipe left
+# lazysite/stats/form-events at 2755, the check FAILs it as not group-writable, and
+# the upgrade-on-start left it so. Only directories below the docroot or the
+# lazysite tree, never a link; the mode only, never an owner or group.
 sub align_store_modes {
-    my ($docroot) = @_;
+    my ( $docroot, $install_mode ) = @_;
     my $lz = lazysite_dir_for($docroot);
     return 0 unless length $lz && -d $lz;
     my @want;
@@ -2372,6 +2391,14 @@ sub align_store_modes {
         push @want, map { [ "$d/$_", 0640 ] } sort grep { /\.example\z/ } readdir $dh;
         closedir $dh;
     }
+    # Only on an upgrade: a provision or a reinstall must not claim a directory that was
+    # there before the install, or undo a mode a sysop set since (SM933 R16, t/tools/96).
+    my %declared = ( $install_mode // '' ) eq 'upgrade' ? ( %INSTALL_DIR_MODE, %RUNTIME_REPAIR_MODE ) : ();
+    for my $p ( sort keys %declared ) {
+        next unless index( $p, "$docroot/" ) == 0 || index( $p, "$lz/" ) == 0;
+        next if -l $p                             || !-d $p;
+        push @want, [ $p, $declared{$p} ];
+    }
     my $n = 0;
     for my $w (@want) {
         my ( $p, $mode ) = @$w;
@@ -2379,7 +2406,7 @@ sub align_store_modes {
         next if ( ( lstat $p )[2] & 07777 ) == $mode;
         $n++ if chmod $mode, $p;
     }
-    info("  modes:     set the declared mode on $n path(s) in the account and form stores") if $n;
+    info("  modes:     set the declared mode on $n path(s)") if $n;
     return $n;
 }
 
@@ -2573,7 +2600,7 @@ sub post_install_steps {
     }
 
     # --- T-115 (ruling 215): the account and form stores' declared modes ---
-    align_store_modes($docroot);
+    align_store_modes( $docroot, $mode );
 
     # --- SGID on the lazysite/ subtree (not whole docroot) ---
     my $laz = lazysite_dir_for($docroot);

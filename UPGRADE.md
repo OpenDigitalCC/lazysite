@@ -78,6 +78,10 @@ history", has the command. A site whose `lazysite.conf` already says
 `git_history: enabled` with no history behind it (it was enabled where `git` was
 missing) is repaired by the same command.
 
+The upgrade now sets the declared mode (mode only, never an owner) on every directory the
+install declares, as ruling 215 did for the account and form stores. A directory you
+tightened below its declared mode is set back to it.
+
 ## A broken store now refuses, Odoo's sign-in becomes an identity provider, and the rest of 0.16.9
 
 **A broken store or setting now refuses (SM1417, ruling 206).** Until 0.16.8 a site with a
