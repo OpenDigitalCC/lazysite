@@ -393,6 +393,11 @@ our %CLI_NO_DIRECT_AUDIT = (
 # own summary entries, so one operator action is one (or two) trail lines.
 our $AUDIT_SUPPRESS = 0;
 
+# n807: setup-sysop composes add + group-add and is itself the answer to "this site has
+# no operator yet", so it silences that notice from the primitives it composes. The
+# notice belongs to `add` and `group-add` run on their own.
+our $NO_OPERATOR_NOTE = 0;
+
 sub cli_audit {
     my ( $act, $target, $detail ) = @_;
     return if $API_MODE || $AUDIT_SUPPRESS;
@@ -1067,6 +1072,7 @@ sub _site_has_operator {
 
 sub _no_operator_note {
     my ($user) = @_;
+    return '' if $NO_OPERATOR_NOTE;
     return "Note: this site has no operator yet, so '$user' has no manager access.\n"
         . "The first operator is made with: setup-sysop --user NAME  (it creates\n"
         . "the account, the operator group and a registration link). Once an\n"
@@ -1853,6 +1859,7 @@ sub cmd_setup_sysop {
             # One operator action = two trail entries (below), not one per
             # composed primitive - see the CLI audit registry note above.
             local $AUDIT_SUPPRESS = 1;
+            local $NO_OPERATOR_NOTE = 1;
             my %users = read_users();
             # A throwaway, cleared below; long enough for any policy (SM1041).
             cmd_add( $user, generate_random_hex(64) ) unless exists $users{$user};
@@ -1905,6 +1912,7 @@ sub cmd_setup_sysop {
         # One operator action = two trail entries (below), not one per
         # composed primitive.
         local $AUDIT_SUPPRESS = 1;
+        local $NO_OPERATOR_NOTE = 1;
         my %users = read_users();
         if ( exists $users{$user} ) { cmd_passwd( $user, $pass ) }
         else                        { cmd_add( $user, $pass ) }
