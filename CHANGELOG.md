@@ -79,6 +79,11 @@ Archive
   capability (found against a local authentik, n801). The operator's entries are now
   kept as saved, the provider group and the site group together; a new one, or one
   moved to another provider group, is refused `forbidden`. t/unit/manager/743.
+- SM1426 (PENDING) **The sign-in's `lzs_session` marker has one writer.** The sign-in
+  wrapper printed its own copy of the marker line, beside the helper SM1425 gave the
+  renewals. It now prints `Lazysite::Auth::Session::session_marker_header`'s line, with
+  the same attributes. t/lint/592 holds the line to that one writer and fails without the
+  change.
 - SM1425 (PENDING) **A session renewed in place sets the signed-in marker again.**
   After Require sign-in again (ruling 214) the verifier's stale answer clears the
   `lzs_session` display marker, and the renewal that followed kept the session but did

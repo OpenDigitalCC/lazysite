@@ -405,7 +405,9 @@ sub _land_signed_in {
     # SM099: a non-HttpOnly display-only marker so client JS can show the right
     # sign-in/out control without trusting cached HTML. Carries no authority - the
     # HttpOnly cookie above remains the gate.
-    print "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
+    # SM1426: the marker's one writer, the helper the renewals use.
+    my $marker = Lazysite::Auth::Session::session_marker_header( secure => ( $ENV{HTTPS} ? 1 : 0 ), dir => $LAZYSITE_DIR );
+    print "$marker\r\n";
     print "Location: $next\r\n\r\n";
     return;
 }
