@@ -30,6 +30,8 @@ Depends:
 # libcryptx-perl: CryptX, lazy-required only by passkeys (SM1352) and web
 # push (SM1363), under one ADR 0007 dependency entry (ruling 187); without it
 # those two features say they need it and `lazysite check` names it.
+# git: the host program content history (SM085) runs, as the container image
+# installs it (SM1423); history is off until a site turns it on (SM1426).
 Recommends:
  libfcgi-perl,
  libfcgi-procmanager-perl,
@@ -39,6 +41,7 @@ Recommends:
  libio-socket-ssl-perl,
  libcryptx-perl,
  tzdata,
+ git,
 Suggests:
  libnet-xmpp-perl,
 Description: static site builder and manager - engine payload and CLI

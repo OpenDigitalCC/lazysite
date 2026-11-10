@@ -79,6 +79,10 @@ Archive
   capability (found against a local authentik, n801). The operator's entries are now
   kept as saved, the provider group and the site group together; a new one, or one
   moved to another provider group, is refused `forbidden`. t/unit/manager/743.
+- SM1426 (PENDING) **`lazysite-common` recommends `git`.** Content history runs `git`, and
+  the container image installs it (SM1423); the Debian package did not say so. It is
+  Recommends, not Depends: history is off until a site turns it on. t/lint/593 reads
+  the stanza and fails without the change.
 - SM1426 (PENDING) **The sign-in's `lzs_session` marker has one writer.** The sign-in
   wrapper printed its own copy of the marker line, beside the helper SM1425 gave the
   renewals. It now prints `Lazysite::Auth::Session::session_marker_header`'s line, with
