@@ -63,12 +63,23 @@ Fixed alongside, each its own commit:
   to the usage text must be put in one list on purpose.
 - `setup-sysop` printed "this site has no operator yet" in the run that makes the operator.
   The notice belongs to `add` and `group-add` on their own. t/tools/623.
+- Registering one site hid the others. The fleet verbs read the Hestia list only when the
+  registry was empty, so the first entry the deploy wrote made `check`, `repair`, `probe`,
+  `upgrade`, `users` and `sites` `--all` see that site alone. They now use the registry
+  entries and the Hestia-listed sites together, merged by docroot, the registry winning for a
+  site in both. With no registry nothing changes; with one, the list is best effort and
+  silent (a non-root caller or a host without Hestia gets the registry as before).
+  `migrate-engine-tree --all` still walks the registry alone. t/tools/625.
 - `lazysite-users.pl` as root: it already becomes the owner of the docroot tree before any
   write and refuses a root-owned tree (SM619, t/unit/tools/70, including a real run under
   `unshare -r`). That is the behaviour of `upgrade --all`, `probe` and `bundle-apply`, and
   `lazysite users --all` as root (SM625) depends on it, so it is left as it is.
 
 # Tests
+
+t/tools/625 (`--all` is the registry and the Hestia list together: a one-site registry
+and a stubbed Hestia list of three give three, the registered one with its registry channel;
+with no registry, the list alone).
 
 t/tools/621 (group message), 622 (repair/probe `--docroot` and the usage-line hold), 623
 (setup-sysop notice), 624 (the deploy's arguments through the real script, its first-time

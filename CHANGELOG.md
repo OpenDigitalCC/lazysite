@@ -143,7 +143,9 @@ Archive
   as a full URL, and ends with one summary. An upgrade is unchanged. Fixed alongside: the
   installer's group message names a root command that works, `repair --docroot D` and
   `probe --docroot D` take the option their usage line lists, and `setup-sysop` no longer
-  says the site has no operator. t/tools/621-624.
+  says the site has no operator. `--all` on the fleet verbs is the registry's sites and
+  the Hestia list's together, merged by docroot with the registry winning, so registering one
+  site no longer hides the rest. t/tools/621-625.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 

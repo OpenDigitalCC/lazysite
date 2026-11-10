@@ -88,12 +88,12 @@ tarball, `lazysite-hestia-deploy.sh USER DOMAIN --sysop NAME` installs the site,
 registry entry `/etc/lazysite/sites.d/DOMAIN` (not over an existing one) and makes `NAME` the
 first operator, printing the claim link as a full URL. Nothing changes for an upgrade of an
 existing site: the deploy writes none of these on a site that already has an install marker.
-Two things to know on a host with several sites. First, the registry is read before the
-Hestia site list: once `/etc/lazysite/sites.d` holds an entry, `lazysite check --all` and the
-other fleet verbs use the registry alone, so a host whose other sites are not registered
-should register them (`lazysite provision` writes the entry for a new site; the format is
-five `key=value` lines) or keep addressing them by `--docroot`. Second, `lazysite repair` and
-`lazysite probe` now take `--docroot D`, as their usage always said.
+On a host with several sites, `--all` (check, repair, probe, upgrade, users, and `sites`)
+now means the registry's sites and the Hestia list's together, merged by docroot, a registry
+entry winning for a site in both (its channel and policy). Until now the Hestia list was read
+only when the registry was empty, so registering one site hid the rest; with no registry
+nothing changes. Also, `lazysite repair` and `lazysite probe` now take `--docroot D`, as their
+usage always said.
 
 ## A broken store now refuses, Odoo's sign-in becomes an identity provider, and the rest of 0.16.9
 

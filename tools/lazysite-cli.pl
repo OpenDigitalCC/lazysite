@@ -517,12 +517,13 @@ sub _no_sites_registered {
 # told that rather than "no registered site named X", which would send them
 # looking for a registry entry that was never going to exist.
 sub _discover_hestia_sites {
+    my (%o) = @_;
     my $lister = payload_root() . '/installers/hestia/lazysite-hestia-list.sh';
     return [] unless -f $lister;
 
     my @out = qx(bash \Q$lister\E --plain --template-only 2>/dev/null);
     if ( $? != 0 || !@out ) {
-        if ( !running_as_root() ) {
+        if ( !running_as_root() && !$o{quiet} ) {
             fail( 'the Hestia site list needs root (it reads '
                     . "/usr/local/hestia/data/users).\n"
                     . '  Re-run with sudo, or pass --docroot explicitly.' );
@@ -552,6 +553,25 @@ sub _discover_hestia_sites {
 # entry has no --domain to give, and the usage promised --docroot. The verbs that
 # hand --docroot straight to their tool (check, acl, users, handlers) do not ask
 # for it, so they keep passing it through.
+# n807 (SM1427): THE SITES A FLEET VERB MEANS BY --all (and by --domain): the registry
+# entries AND the Hestia-listed sites, merged by docroot, the registry entry winning
+# where a site is in both (its channel and policy). Until now the Hestia list was
+# read only when the registry was EMPTY, so registering one site - which the Hestia
+# deploy now does for a new one - hid every unregistered site on the host from
+# check, repair, probe, upgrade, users and sites --all.
+#
+# With no registry the answer is the Hestia list alone, as it was (and a non-root
+# caller is told the list needs root). With a registry the list is best effort and
+# silent: a deb host with no Hestia, or a non-root caller who cannot read it, gets
+# the registry exactly as before.
+sub _all_sites {
+    my $reg = read_registry();
+    return _discover_hestia_sites() unless @$reg;
+    my $found = _discover_hestia_sites( quiet => 1 );
+    my %have  = map { ( abs_path( $_->{docroot} ) // $_->{docroot} ) => 1 } @$reg;
+    return [ @$reg, grep { !$have{ abs_path( $_->{docroot} ) // $_->{docroot} } } @$found ];
+}
+
 sub extract_site_targets {
     my ( $argv, %opt ) = @_;
     my ( @rest, $all, $name, $docroot );
@@ -571,8 +591,7 @@ sub extract_site_targets {
 
     fail('--all and --domain are mutually exclusive') if $all && defined $name;
 
-    my $sites = read_registry();
-    $sites = _discover_hestia_sites() unless @$sites;
+    my $sites = _all_sites();
     unless (@$sites) {
         fail( 'no sites registered in ' . registry_dir()
                 . ", and no Hestia site list available - give --docroot instead" );
@@ -1270,6 +1289,7 @@ sub cmd_upgrade_all {
         }
         return _no_sites_registered();
     }
+    $sites = _all_sites();
     my $me      = current_user();
     my $is_root = running_as_root();
     if ( !$is_root ) {
@@ -1719,8 +1739,7 @@ sub _probe_unconfirmed_reason {
 }
 
 sub _targets_or_fail {
-    my $sites = read_registry();
-    $sites = _discover_hestia_sites() unless @$sites;
+    my $sites = _all_sites();
     fail('give --domain NAME, --all, or run where sites are discoverable')
         unless @$sites;
     return $sites;
@@ -1877,6 +1896,7 @@ sub version_lt {
 sub cmd_sites {
     my $sites = read_registry();
     return _no_sites_registered() if !@$sites;
+    $sites = _all_sites();
     my @rows;
     for my $s (@$sites) {
         my $channel = site_conf_value( $s->{docroot}, 'update_channel' );
