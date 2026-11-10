@@ -1,12 +1,48 @@
 # lazysite on HestiaCP — install runbook (packaged flow)
 
-Status: current (SM139 increment 4). lazysite on Hestia is installed
-from the **debs** — `lazysite-common` (engine payload + `lazysite` CLI)
+Status: current (SM139 increment 4; the tarball one-command flow, SM1427).
+
+## From a tarball: one command
+
+On a Hestia host that has the release tarball and no packages, a new site is one
+command, run as root from the unpacked release. The domain exists in Hestia
+already (`v-add-web-domain <user> <domain>`, or the panel):
+
+```bash
+sudo bash installers/hestia/lazysite-hestia-deploy.sh <user> <domain> --sysop <name>
+```
+
+That installs the site as the Hestia user (never as root), applies the
+`lazysite-app` web template and, when Hestia has it, the `lazysite-proxy` nginx
+template; sets `site_url: https://<domain>`; sets the permissions the web server
+needs; writes the registry entry `/etc/lazysite/sites.d/<domain>`
+(`policy=manual`, `channel=edge`, or the one given with `--channel`, never over an
+existing entry); runs the health check; and, because `--sysop` was given, makes
+`<name>` the first operator and prints their single-use claim link as a full
+`https://<domain>/claim?...` URL. It ends with one summary: the site, the manager,
+the claim link, the registry entry and the front-end probe.
+
+If Hestia does not have the proxy template yet, the deploy says so and names the
+two commands that copy it in and apply it (the tarball ships
+`installers/hestia/lazysite-proxy.tpl` and `.stpl`). Without `--sysop` the site is
+deployed with no accounts, which is a whole state, and the summary gives the line
+to rerun with a name. Rerunning on a site that already has accounts does what
+`setup-sysop` does there: adds `<name>` as an operator and issues a new link
+(clearing the password of an account of that name until its link is followed).
+
+Do not run `lazysite-cli.pl provision` as the site user for this: that user is
+not in `www-data`, so the paths it creates carry no web-server group and the site
+answers 500. The one command above runs the install as the user and the
+permission pass as root. A site already installed that way, or by `provision`,
+is repaired by the same command, or by a root
+`perl tools/lazysite-cli.pl repair --docroot <docroot>`.
+
+The rest of this runbook is the **packaged** flow. lazysite on Hestia can also be
+installed from the **debs** — `lazysite-common` (engine payload + `lazysite` CLI)
 and `lazysite-hestia` (web templates + `lazysite-hestia-domain`). The
-hand-run scripts in this directory (`install-hestia.sh`,
-`lazysite-hestia-deploy.sh`, `lazysite-hestia-update-all.sh`, the
-`lazysite-app` template) are **superseded** by the packages; they stay
-in the tree only because existing deployments still reference them —
+hand-run scripts `install-hestia.sh` and the `lazysite-app` template are
+**superseded** by the packages; `lazysite-hestia-deploy.sh` and
+`lazysite-hestia-update-all.sh` are the tarball flow above and stay current —
 see the appendix.
 
 ## Model
@@ -240,12 +276,12 @@ are inert without the template.
 
 Until 0.7.1 the Hestia story was hand-run from an unpacked tarball:
 `lazysite-hestia-deploy.sh USER DOMAIN STAGE` per site (template +
-root-run install + permission sweep), `lazysite-hestia-update-all.sh`
+install as the user + permission sweep), `lazysite-hestia-update-all.sh`
 for fleet updates, and the `lazysite-app` `.tpl/.stpl/.sh` template
-trio. Those scripts remain in this directory untouched for existing
-deployments, but new installs must use the packaged flow above — the
-deploy scripts' root-run install + chown-after model is exactly what
-SM139 removed.
+trio. They remain the way to run a site from a tarball (see the first
+section: since 0.16.10 the deploy finishes a new site, first operator
+included). A host with the debs uses the packaged flow, which has no
+chown-after pass at all (SM139).
 
 For the old runbook text (the full manual procedure, the
 `--domain` minimal-conf trap, the permissions model, the WebDAV/davfs2

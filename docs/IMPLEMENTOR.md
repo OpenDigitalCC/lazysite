@@ -63,8 +63,9 @@ the generic contract - is
 lazysite with no web server at all, `lazysite demo` provisions a scratch
 site and serves it on the built-in dev server. The full worked Hestia
 procedure, including the one-time template copy and `a2enmod` lines, is the
-runbook. The tarball-era `lazysite-hestia-deploy.sh` script is superseded
-and kept only for existing deployments (runbook appendix).
+runbook. On a host with only the release tarball, one command
+(`lazysite-hestia-deploy.sh USER DOMAIN --sysop NAME`) installs a site and makes its
+first operator; the runbook's first section describes it.
 
 ## Deploying with Docker Compose (since 0.16.1)
 

@@ -134,6 +134,17 @@ Archive
   "on its card on Extensions"; the cards are on Extensions - configure
   (`/manager/extension-config`), and a tester looked for the link on the enable/disable
   page. Both now name it (t/unit/extensions/381).
+- SM1427 (PENDING) **A new Hestia site is one command, the first operator included.**
+  `lazysite-hestia-deploy.sh USER DOMAIN [STAGE_DIR] [--sysop NAME] [--channel C]` now
+  finishes a first-time site: it applies the `lazysite-proxy` template when Hestia has it
+  (and names the copy command when it does not), sets `site_url: https://DOMAIN` through the
+  new `install.pl --site-url`, writes `/etc/lazysite/sites.d/DOMAIN` (never over an existing
+  entry), runs `setup-sysop` as the site user after the health check and prints the claim link
+  as a full URL, and ends with one summary. An upgrade is unchanged. Fixed alongside: the
+  installer's group message names a root command that works, `repair --docroot D` and
+  `probe --docroot D` take the option their usage line lists, and `setup-sysop` no longer
+  says the site has no operator. t/tools/621-624.
+
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 
 - SM297 (0bc5e7c9) **Identity is a value: the data endpoint holds who is calling and

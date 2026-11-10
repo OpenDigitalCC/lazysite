@@ -33,11 +33,12 @@ a single-site `upgrade` as root - no root writes into site trees):
 sudo -u <siteuser> lazysite upgrade --docroot <docroot>   # --cgibin from the registry
 ```
 
-Legacy tarball-era Hestia hosts still use the superseded hand-run scripts
-(kept in-tree for existing deployments only - see the runbook's appendix):
+A Hestia host with only the release tarball uses one command, as root, from the
+unpacked release (a new site is this one command, the first operator included -
+see the runbook's first section):
 
 ```bash
-sudo bash installers/hestia/lazysite-hestia-deploy.sh <user> <domain> <stage>
+sudo bash installers/hestia/lazysite-hestia-deploy.sh <user> <domain> [<stage>] [--sysop <name>] [--channel <c>]
 sudo bash installers/hestia/lazysite-hestia-update-all.sh --list   # fleet preview
 sudo bash installers/hestia/lazysite-hestia-update-all.sh          # fleet code+content
 ```

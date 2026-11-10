@@ -82,6 +82,19 @@ The upgrade now sets the declared mode (mode only, never an owner) on every dire
 install declares, as ruling 215 did for the account and form stores. A directory you
 tightened below its declared mode is set back to it.
 
+**A new Hestia site is one command (SM1427).** On a host that runs lazysite from the
+tarball, `lazysite-hestia-deploy.sh USER DOMAIN --sysop NAME` installs the site, applies the
+`lazysite-proxy` template when Hestia has it, sets `site_url: https://DOMAIN`, writes the
+registry entry `/etc/lazysite/sites.d/DOMAIN` (not over an existing one) and makes `NAME` the
+first operator, printing the claim link as a full URL. Nothing changes for an upgrade of an
+existing site: the deploy writes none of these on a site that already has an install marker.
+Two things to know on a host with several sites. First, the registry is read before the
+Hestia site list: once `/etc/lazysite/sites.d` holds an entry, `lazysite check --all` and the
+other fleet verbs use the registry alone, so a host whose other sites are not registered
+should register them (`lazysite provision` writes the entry for a new site; the format is
+five `key=value` lines) or keep addressing them by `--docroot`. Second, `lazysite repair` and
+`lazysite probe` now take `--docroot D`, as their usage always said.
+
 ## A broken store now refuses, Odoo's sign-in becomes an identity provider, and the rest of 0.16.9
 
 **A broken store or setting now refuses (SM1417, ruling 206).** Until 0.16.8 a site with a
