@@ -30,7 +30,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
     verify_session_cookie request_session account_disabled load_user_groups session_revoked session_store_fault
     mint_provider_session renew_provider_session session_cookie_headers session_marker_header session_clear_headers
-    provider_login_of require_provider_reauth SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
+    session_marker_clear_header provider_login_of require_provider_reauth SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 
 # One name, one lifetime, stated once. lazysite-auth.pl mints with these and
 # this module verifies with them; a drift between the two is a login that
@@ -1038,7 +1038,17 @@ sub session_clear_headers {
     my (%o) = @_;
     my $sec = $o{secure} ? '; Secure' : '';
     return ( "Set-Cookie: ${\ SESSION_COOKIE_NAME()}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$sec",
-        "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$sec" );
+        session_marker_clear_header(%o) );
+}
+
+# SM1430: the marker's clearing twin. A public page served to a visitor whose session
+# no longer verifies (revoked, signed out, an unknown account) clears the marker with
+# it, so the page stops drawing "Sign out"; the HttpOnly cookie is left to the
+# endpoints that own it, as /login's session check leaves it.
+sub session_marker_clear_header {
+    my (%o) = @_;
+    my $sec = $o{secure} ? '; Secure' : '';
+    return "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$sec";
 }
 
 1;

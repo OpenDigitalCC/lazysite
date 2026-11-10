@@ -290,6 +290,27 @@ subtest 'without the Odoo session cookie nothing is ended, and next stays on the
     isnt( $r->{status}, 303, 'the step is a GET only' );
 };
 
+# ================================================================================
+# SM1430: a public page clears the marker a session that no longer verifies left - and
+# leaves it for a session that is only stale, which the renewal step keeps (as
+# ?action=session leaves it above). Sabotage: without the renewal check in
+# output.pm's _stale_marker_clear the stale request's page clears the marker.
+subtest 'a public page leaves a stale session\'s marker for the renewal step' => sub {
+    spit( "$d/open.md", "---\ntitle: Open\nauth: none\n---\nOPEN-PAGE\n" );
+    my $sid = sign_in();
+    age();
+    is( verdict(), 'odoo-stale', 'the session is stale' );
+    my $p = page( '/open', "lazysite_auth=$JAR{lazysite_auth}; lzs_session=1" );
+    like( $p->{out}, qr/OPEN-PAGE/, 'the public page is served' );
+    unlike( $p->{out}, qr/^Set-Cookie:\s*lzs_session=;/mi, '...and the marker is left for the step' );
+
+    $http->expire($sid);
+    my $r = request( 'GET', 'renew=1&next=%2Fopen', undef, HTTP_COOKIE => jar() );
+    is( verdict(), 'revoked', 'Odoo ended it: the site session is over' );
+    $p = page( '/open', "lazysite_auth=$JAR{lazysite_auth}; lzs_session=1" );
+    like( $p->{out}, qr/^Set-Cookie:\s*lzs_session=;.*Max-Age=0/mi, 'and now the public page clears the marker' );
+};
+
 diag $logs if $ENV{T135_LOGS};
 # ================================================================================
 subtest 'a site with its own sign-in page: the step falls back there, next kept' => sub {

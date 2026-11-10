@@ -399,7 +399,24 @@ sub check_auth {
 sub _session_renewal {
     my ($uri) = @_;
     my $cookie = $ENV{HTTP_COOKIE} // '';
-    return '' unless length $cookie;
+    my ( $why, $renew ) = _session_renew_verdict();
+    return '' unless length $renew;
+    if ( $cookie =~ /(?:\A|;)\s*lzs_renewed=1\s*(?:;|\z)/ ) {
+        log_event( 'INFO', $uri, 'auth: session not accepted, renewal already tried - sent to sign in', why => $why );
+        return '';
+    }
+    log_event( 'INFO', $uri, 'auth: session not accepted - sent to be renewed', why => $why );
+    return $renew;
+}
+
+# The verdict on this request's refused session, as ( $why, $renew ): the front
+# door's held value in the pool, else request_session asked here (lazily, ADR 0001).
+# $renew is the provider's renewal path when it is a same-site path with a query,
+# else ''. Asked by _session_renewal and, SM1430, by output.pm's _stale_marker_clear,
+# which leaves a renewable session's marker for the renewal to keep.
+sub _session_renew_verdict {
+    my $cookie = $ENV{HTTP_COOKIE} // '';
+    return ( '', '' ) unless length $cookie;
     my ( $why, $renew ) = ( '', '' );
     if ( ref $REQUEST_IDENT eq 'HASH' ) {
         ( $why, $renew ) = ( $REQUEST_IDENT->{why} // '', $REQUEST_IDENT->{renew} // '' );
@@ -413,13 +430,8 @@ sub _session_renewal {
             1;
         };
     }
-    return '' unless length $renew && $renew =~ m{\A/[\w/.-]*\?[\w=&]+\z} && $renew !~ m{//};
-    if ( $cookie =~ /(?:\A|;)\s*lzs_renewed=1\s*(?:;|\z)/ ) {
-        log_event( 'INFO', $uri, 'auth: session not accepted, renewal already tried - sent to sign in', why => $why );
-        return '';
-    }
-    log_event( 'INFO', $uri, 'auth: session not accepted - sent to be renewed', why => $why );
-    return $renew;
+    $renew = '' unless length $renew && $renew =~ m{\A/[\w/.-]*\?[\w=&]+\z} && $renew !~ m{//};
+    return ( $why, $renew );
 }
 
 # SM1131: THE PROCESSOR'S WAY TO THE ONE IDENTITY READER. Lazysite::Auth::Identity

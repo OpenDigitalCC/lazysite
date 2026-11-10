@@ -8,6 +8,7 @@ package main;
 #         placeholders; forbidden() and not_found() (the 404 page through
 #         output_page, with _sanitise_not_found and _rewrite_if_changed);
 #         _security_headers, _content_security_policy, _inline_script_hashes,
+#         _stale_marker_clear (SM1430);
 #         _csp_mode and _is_manager_request (the ADR 0001 copy of
 #         Lazysite::SecurityHeaders, pinned by value by t/lint/55), with
 #         _csp_origin_ok and _csp_allow (P16, the allow-lists; t/lint/225); _pp_denied
@@ -20,6 +21,8 @@ package main;
 # CALLS   process_md, _system_page_md, _chrome, load_form_secret, is_fresh,
 #         _draft_requested,
 #         confine_content_root, _cache_umask, read_file, resolve_site_vars,
+#         _request_identity, _session_renew_verdict and _lazy_lib (SM1430, the
+#         stale marker's clear),
 #         log_event (the script
 #         and its parts); hmac_sha256_hex, sha256, encode_base64 (imported by
 #         the script's `use`, before its parts load).
@@ -107,6 +110,12 @@ sub output_page {
     print "X-Lazysite-Preview-Theme: " . ( $PREVIEW_THEME_STATE // 'refused: the page rendered with no layout' ) . "\n"
         if defined $PREVIEW_THEME;
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
+    if ( my $clear = _stale_marker_clear() ) {
+        # SM1430: a marker that outlived its session is cleared here, and that one
+        # response is never stored; a visitor without the marker gets neither.
+        print "$clear\n";
+        $auth_protected = 1;
+    }
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
     }
@@ -127,6 +136,34 @@ sub output_page {
     print "$_\n" for _timing_header();    # SM1144
     print "\n";
     print $content;
+}
+
+# SM1430 (0.16.10 edge, O-1): THE SIGNED-IN MARKER IS CLEARED WHEN THE SESSION NO
+# LONGER VERIFIES. The `lzs_session` marker (SM099) lives the session's whole
+# lifetime, and the page's auth-sync script draws "Sign out" from it alone. After
+# "Require sign-in again" on a local session, or a revoked one, or an account since
+# removed, the manager answered 401 and public pages still said "Sign out", until a
+# visit to /manager/ took the /login bounce that clears it. Every page response
+# comes through output_page, so the marker is cleared here, the way that bounce
+# clears it: the request carries the marker and this request has no signed-in
+# identity - the wrapper's verified session on CGI, the front door's held value in
+# the pool, or a listed proxy's user (the one reader, read as _access_account reads
+# it). Returns the clearing header, or '' - no marker, signed in, or a reader that
+# could not answer (unknown is not signed out): nothing to send, and the response
+# stays as cacheable as it was.
+sub _stale_marker_clear {
+    my $cookie = $ENV{HTTP_COOKIE} // '';
+    return '' unless $cookie =~ /(?:\A|;)\s*lzs_session=1\s*(?:;|\z)/;
+    my $id = eval { _request_identity() };
+    return '' unless ref $id eq 'HASH';
+    my $src = $id->{source} // '';
+    return '' if ( $src eq 'cookie' || $src eq 'proxy' ) && length( $id->{user} // '' );
+    # A session refused only until its provider is asked again (SM1381) is not over:
+    # its renewal sets the marker again (SM1425), and /login's check leaves it too.
+    my ( undef, $renew ) = _session_renew_verdict();
+    return '' if length $renew;
+    _lazy_lib('Lazysite::Auth::Session');
+    return Lazysite::Auth::Session::session_marker_clear_header( secure => ( $ENV{HTTPS} ? 1 : 0 ) );
 }
 
 sub forbidden {

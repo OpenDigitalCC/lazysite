@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1430 (PENDING) **auth: a public page clears the signed-in marker a dead session left.**
+  After "Require sign-in again" on a local session, a revoked session or a removed
+  account, public pages still drew "Sign out" from the `lzs_session` marker until a visit
+  to /manager/. A page response to a request carrying the marker and no signed-in
+  identity now clears it, on plain CGI and in the pool, and that response is not stored.
+  A visitor without the marker gets no Set-Cookie, so cached public pages stay cacheable.
+  A stale provider session keeps its marker for its renewal.
+
 ## 0.16.10 - EDGE: a new Hestia site is one command, the container image carries git, a manager cannot widen an OpenID Connect group map, and the compliance records cover the release (2026-11-10)
 
 - SM1420 (a7886c55) **The shipped docs pass their own `lazysite check`.** Eight shipped
