@@ -598,7 +598,7 @@ sub _target_for_docroot {
     fail('--docroot needs a directory') unless length $given;
     fail("not a directory: $given")     unless -d $given;
     my $docroot = abs_path($given) // $given;
-    my $sites = read_registry();
+    my $sites   = read_registry();
     my ($hit) = grep { ( abs_path( $_->{docroot} ) // $_->{docroot} ) eq $docroot } @$sites;
     return [$hit] if $hit;
     my $cgibin = dirname($docroot) . '/cgi-bin';
