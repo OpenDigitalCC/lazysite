@@ -5984,3 +5984,43 @@ verdict
   the rest changes what a listing, a refusal and a page body carry. 0.16.9 is edge, not
   security-critical (ruling 226): it fixes no known vulnerability (SM1417 and T-115 are
   hardenings; OBLIGATIONS.md, the vulnerability-handling row).
+
+### 2026-11-10 - SM1422 (PENDING): a manager cannot point a new OIDC map entry at a capability group
+
+Assessment drafted by the developer agent (n801), for the release manager's
+confirmation. Found proving SM1351 against a local authentik (ruling 227).
+
+what changed
+: `Lazysite::Ext::OIDC::validate_group_map`, the settings form's check of a provider's
+  group map (ruling 214, Q129), kept for a caller who is not the operator every site
+  group the stored map already named, whatever provider group it came from. With the
+  operator's `staff = staff` saved, a `manage_config` holder saved `members = staff`, and
+  a person in the provider's `members` group alone signed in audited `groups granted:
+  readers,staff`. It now keeps an entry only as saved: the provider group and the site
+  group together. A new entry to a capability group, or the operator's moved to another
+  provider group, is refused `forbidden`; the operator's saves are unchanged.
+
+threat delta
+: Elevation of privilege, narrowed: before the fix a `manage_config` holder could widen
+  who holds a capability group's capabilities (operators included, once the operator had
+  mapped any provider group to it) to any group at the provider, which ruling 214 keeps
+  to the operator. No ADR 0007 trigger fires: no new interface, sign-in method,
+  dependency or processing of restricted data; it restores the control SM1351's entry
+  records ("only the operator saves a map entry whose target carries capabilities").
+
+controls
+: t/unit/manager/743 through the manager API: the editor's new entry to a capability
+  group the map names, and the operator's entry moved, are refused 403 and nothing is
+  written; the editor keeps the operator's entry while adding a plain one; the operator
+  may add the entry. It fails with the old comparison put back. t/unit/manager/582 still
+  passes.
+
+residual risk
+: An entry a manager saved before the fix stays in the map until the operator removes
+  it; the audit trail's `extension-save` rows name who saved each map, and every
+  sign-in's `login-grant` row names the groups it granted.
+
+verdict
+: accepted, for the release manager's confirmation: a fix to a control 0.16.9 shipped
+  (SM1351, ruling 214). 0.16.9 is edge; whether this makes the fix a security release
+  is the release manager's call.

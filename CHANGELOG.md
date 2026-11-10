@@ -71,6 +71,14 @@ Archive
   awaiting your decision" and looked like a no-op. It now reads "1 awaiting your
   decision (2 changes applied)". The repair also shows its own report as one block
   once the fix has run, where it streamed.
+- SM1422 (PENDING) **auth: a manager cannot point a new OIDC map entry at a capability
+  group.** Ruling 214 lets only the operator save a map entry whose site group carries
+  capabilities. The check kept any entry whose site group the stored map already named,
+  so with the operator's `staff = staff` saved, a `manage_config` holder could add
+  `members = staff` and the provider's whole `members` group signed in holding the
+  capability (found against a local authentik, n801). The operator's entries are now
+  kept as saved, the provider group and the site group together; a new one, or one
+  moved to another provider group, is refused `forbidden`. t/unit/manager/743.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 
