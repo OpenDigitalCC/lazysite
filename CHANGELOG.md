@@ -53,25 +53,27 @@ Archive
 
 ## Unreleased
 
-- SM1420 (PENDING) **The shipped docs pass their own `lazysite check`.** Eight shipped
+## 0.16.10 - EDGE: a new Hestia site is one command, the container image carries git, a manager cannot widen an OpenID Connect group map, and the compliance records cover the release (2026-11-10)
+
+- SM1420 (a7886c55) **The shipped docs pass their own `lazysite check`.** Eight shipped
   pages shared four titles in pairs (Authentication, Forms, Manager, Payment: the full
   guide and its short summary under features/) and two had no description. Each now has a
   title that says what it is, the two have a subtitle, and no page moved. A test runs the
   check over the whole shipped docs tree.
-- SM1421 (PENDING) **`lazysite check` over a sound DB_File counter prints nothing on
+- SM1421 (28dec8ce) **`lazysite check` over a sound DB_File counter prints nothing on
   STDERR.** The upload-rate and login-rate counter checks kept the object `tie`
   returns while they ran `untie`, so Perl printed "untie attempted while 1 inner
   references still exist" twice into every check and repair over a healthy site. The
   reference is dropped first. No other `untie` in `tools/` or `lib/` keeps one.
-- SM1421 (PENDING) **A check message quotes its apostrophe.** The engine-tree line
+- SM1421 (28dec8ce) **A check message quotes its apostrophe.** The engine-tree line
   read "front end`s deny rules"; it reads "front end's".
-- SM1421 (PENDING) **The repair's tally says when it applied changes.** A site with a
+- SM1421 (28dec8ce) **The repair's tally says when it applied changes.** A site with a
   warning left counts as awaiting your decision, as it always has (a warning is one the
   repair never settles); after "--fix applied 2 change(s)" the line read "0 repaired, 1
   awaiting your decision" and looked like a no-op. It now reads "1 awaiting your
   decision (2 changes applied)". The repair also shows its own report as one block
   once the fix has run, where it streamed.
-- SM1422 (PENDING) **auth: a manager cannot point a new OIDC map entry at a capability
+- SM1422 (e009d6b4) **auth: a manager cannot point a new OIDC map entry at a capability
   group.** Ruling 214 lets only the operator save a map entry whose site group carries
   capabilities. The check kept any entry whose site group the stored map already named,
   so with the operator's `staff = staff` saved, a `manage_config` holder could add
@@ -79,16 +81,16 @@ Archive
   capability (found against a local authentik, n801). The operator's entries are now
   kept as saved, the provider group and the site group together; a new one, or one
   moved to another provider group, is refused `forbidden`. t/unit/manager/743.
-- SM1426 (PENDING) **`lazysite-common` recommends `git`.** Content history runs `git`, and
+- SM1426 (dd7db01a) **`lazysite-common` recommends `git`.** Content history runs `git`, and
   the container image installs it (SM1423); the Debian package did not say so. It is
   Recommends, not Depends: history is off until a site turns it on. t/lint/593 reads
   the stanza and fails without the change.
-- SM1426 (PENDING) **The sign-in's `lzs_session` marker has one writer.** The sign-in
+- SM1426 (1a9ccf71) **The sign-in's `lzs_session` marker has one writer.** The sign-in
   wrapper printed its own copy of the marker line, beside the helper SM1425 gave the
   renewals. It now prints `Lazysite::Auth::Session::session_marker_header`'s line, with
   the same attributes. t/lint/592 holds the line to that one writer and fails without the
   change.
-- SM1425 (PENDING) **A session renewed in place sets the signed-in marker again.**
+- SM1425 (0911a6ad) **A session renewed in place sets the signed-in marker again.**
   After Require sign-in again (ruling 214) the verifier's stale answer clears the
   `lzs_session` display marker, and the renewal that followed kept the session but did
   not set the marker, so the page script showed "Sign in" to a person who was signed in.
@@ -97,7 +99,7 @@ Archive
   it, through one helper (`Lazysite::Auth::Session::session_marker_header`) that the
   sign-in's cookie pair uses too. Tests t/unit/extensions/170 and t/unit/odoo/135 assert
   it and fail without the change.
-- SM1423 (PENDING) **The container image carries `git`, so content history works in it,
+- SM1423 (efd8ff3a) **The container image carries `git`, so content history works in it,
   and the move from the 0.16.1 Docker recipe is written out.** Neither image installed
   `git`, so content history could not be turned on in the container. The Dockerfile now
   installs Debian's `git`; the history stays off until a site turns it on, with the one
@@ -110,31 +112,31 @@ Archive
   model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
   refused the moved site); t/tools/581.
 
-- SM1424 (PENDING) **`lazysite check` and `validate_page` say a `description:` key is not
+- SM1424 (2f310882) **`lazysite check` and `validate_page` say a `description:` key is not
   read.** A page with `description:` in its front matter was listed as having no
   description, with a remedy that named only `subtitle:` and `meta_desc:`. The engine reads
   `meta_desc`, else `subtitle`, and nothing reads `description`, so no third spelling is
   added: the check's line says the key is not read by the engine and names the pages that
   carry it, and `validate_page` warns `description-not-read` (t/tools/591).
-- SM1424 (PENDING) **A change refused by an address rule says what the rule limits.** A
+- SM1424 (2115bd75) **A change refused by an address rule says what the rule limits.** A
   save, delete or move refused because the page's folder rule names an address profile
   and the caller is outside it answered "This page is not available from your address.",
   the sentence for a reader. It now says the access rule on the path limits changes to its
   allowed addresses and that the change must be made from an allowed address, naming no
   address and no profile; `kind: address` and `retryable: false` are unchanged, and a read
   keeps its sentence (t/integration/281, t/unit/mcp/258).
-- SM1424 (PENDING) **The upgrade note says when `analysts` and `lead-readers` arrive.**
+- SM1424 (ece3459c) **The upgrade note says when `analysts` and `lead-readers` arrive.**
   The 0.16.9 note said opening the Groups page adds them on an older site, without the
   conditions the adoption holds to. It now says: an operator group and at least one
   shipped bundle group, a role the site lacks and has not had, none where the operator
   group carries the `seeded` mark, and no members; a site without the bundle layer gets
   neither (t/unit/users/317).
-- SM1424 (PENDING) **The Unknown Odoo writes link is said to be on the page that has the card.**
+- SM1424 (361780c4) **The Unknown Odoo writes link is said to be on the page that has the card.**
   The Odoo capability's description and the generated capability map said the link sits
   "on its card on Extensions"; the cards are on Extensions - configure
   (`/manager/extension-config`), and a tester looked for the link on the enable/disable
   page. Both now name it (t/unit/extensions/381).
-- SM1427 (PENDING) **A new Hestia site is one command, the first operator included.**
+- SM1427 (747496c2) **A new Hestia site is one command, the first operator included.**
   `lazysite-hestia-deploy.sh USER DOMAIN [STAGE_DIR] [--sysop NAME] [--channel C]` now
   finishes a first-time site: it applies the `lazysite-proxy` template when Hestia has it
   (and names the copy command when it does not), sets `site_url: https://DOMAIN` through the
@@ -146,7 +148,7 @@ Archive
   says the site has no operator. `--all` on the fleet verbs is the registry's sites and
   the Hestia list's together, merged by docroot with the registry winning, so registering one
   site no longer hides the rest. t/tools/621-625.
-- SM1429 (PENDING) **docs: the compliance records cover 0.16.10.** OBLIGATIONS.md and
+- SM1429 (625152db) **docs: the compliance records cover 0.16.10.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.10 line (`git log 64d5c3c11..17a681a71`,
   23 commits) and stamped 0.16.10; the two defects the walk found are fixed in their own commits (the repair's shell use, the deploy's USER and DOMAIN). Drafted at the walk and confirmed by the release manager on 2026-11-10 (ruling 233): SM1422's register entry, whose verdict adds ruling 229 (it
   ships in 0.16.10, not security-critical, with no advisory, because the code is only in
@@ -157,14 +159,14 @@ Archive
   the signed-in marker's one writer, output and docs); one STRIDE row for the root-run
   Hestia deploy; a 0.16.10 section in docs/architecture/security.md. SBOM: strict, exit 0,
   495 components; 1,797 test files. 0.16.10 is edge, not security-critical (ruling 229).
-- SM1429 (PENDING) **`lazysite repair` runs the doctor without a shell.** Found at the
+- SM1429 (68f2f9b4) **`lazysite repair` runs the doctor without a shell.** Found at the
   0.16.10 walk: the check before the repair, the `--fix` run and the check after ran as one
   string through the shell with the docroot and cgi-bin unquoted, so a path holding a shell
   metacharacter was read as a command (the paths come from the root-written registry or
   Hestia's list). The three runs are now list-form pipes (`_capture`), their output read as
   before. The other `qx` calls in the CLI already quote every word. t/tools/626 repairs a
   docroot named with `;touch MARK` and `$(touch MARK2)` and fails without the change.
-- SM1429 (PENDING) **The Hestia deploy checks USER and DOMAIN before it touches
+- SM1429 (e16ba10d) **The Hestia deploy checks USER and DOMAIN before it touches
   anything.** Found at the 0.16.10 walk: both became path parts and the registry file's
   name and were checked only by the docroot existing. DOMAIN must now be a plain host name
   (letters, digits, dots and hyphens; no slash, no space, no leading dot or hyphen), USER a

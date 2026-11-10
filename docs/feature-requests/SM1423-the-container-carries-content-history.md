@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "release manager, ruling 227 (the 0.16.1-recipe migration walk)"
 area: docker
-status-note: "SHIPPED (PENDING): the image installs Debian's git; content history is off until turned on, one command in the README. The README's new section moves a 0.16.1 site in eight steps: volume names, create, copy as www-data, site_url, add, history. UPGRADE.md points at it. The upgrade sets declared modes on every declared directory (form-events was 2755). t/lint/563, t/tools/581."
+status-note: "SHIPPED (0.16.10): the image installs Debian's git; content history is off until turned on, one command in the README. The README's new section moves a 0.16.1 site in eight steps: volume names, create, copy as www-data, site_url, add, history. UPGRADE.md points at it. The upgrade sets declared modes on every declared directory (form-events was 2755). t/lint/563, t/tools/581."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "release manager, the 0.16.9 repair on edge"
 area: check
-status-note: "SHIPPED (PENDING): the upload-rate and login-rate counter checks drop the tie object before untie, so STDERR stays empty; \"front end`s\" reads \"front end's\"; a site left awaiting a decision after changes were applied reads \"awaiting your decision (2 changes applied)\". t/tools/562-564."
+status-note: "SHIPPED (0.16.10): the upload-rate and login-rate counter checks drop the tie object before untie, so STDERR stays empty; \"front end`s\" reads \"front end's\"; a site left awaiting a decision after changes were applied reads \"awaiting your decision (2 changes applied)\". t/tools/562-564."
 ---
 
 # What happened

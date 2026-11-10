@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "release manager, from n801's OpenID Connect proof against a real provider"
 area: auth
-status-note: "SHIPPED (PENDING): a successful renewal, by OpenID Connect or by the Odoo endpoint's renew, sets lzs_session again with a sign-in's attributes, through the one helper the sign-in's cookie pair uses. Tests t/unit/extensions/170 and t/unit/odoo/135 fail without it."
+status-note: "SHIPPED (0.16.10): a successful renewal, by OpenID Connect or by the Odoo endpoint's renew, sets lzs_session again with a sign-in's attributes, through the one helper the sign-in's cookie pair uses. Tests t/unit/extensions/170 and t/unit/odoo/135 fail without it."
 ---
 
 # What happened

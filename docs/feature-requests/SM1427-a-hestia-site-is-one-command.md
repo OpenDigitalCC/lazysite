@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "release manager, a new site on a Hestia host, tarball 0.16.9"
 area: install
-status-note: "SHIPPED (PENDING): lazysite-hestia-deploy.sh USER DOMAIN [--sysop NAME] [--channel C] applies lazysite-proxy, sets site_url (install.pl --site-url), writes the registry entry, runs setup-sysop as the site user, ends with one summary. Installer group message, repair/probe --docroot, setup-sysop notice fixed. t/tools/621-624."
+status-note: "SHIPPED (0.16.10): lazysite-hestia-deploy.sh USER DOMAIN [--sysop NAME] [--channel C] applies lazysite-proxy, sets site_url (install.pl --site-url), writes the registry entry, runs setup-sysop as the site user, ends with one summary. Installer group message, repair/probe --docroot, setup-sysop notice fixed. t/tools/621-624."
 ---
 
 # What happened

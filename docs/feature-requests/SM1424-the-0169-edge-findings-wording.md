@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "the 0.16.9 edge run (Z10, Z19, O-1), read by the lazysite developer agent on n804"
 area: docs
-status-note: "SHIPPED (PENDING): panel link said to be on Extensions - configure; UPGRADE note holds to the layer roles' conditions; a write refused by an address rule says the rule limits changes; check and validate_page say description: is not read. t/unit/extensions/381, users/317, mcp/258, tools/591, integration/281."
+status-note: "SHIPPED (0.16.10): panel link said to be on Extensions - configure; UPGRADE note holds to the layer roles' conditions; a write refused by an address rule says the rule limits changes; check and validate_page say description: is not read. t/unit/extensions/381, users/317, mcp/258, tools/591, integration/281."
 ---
 
 # What was asked

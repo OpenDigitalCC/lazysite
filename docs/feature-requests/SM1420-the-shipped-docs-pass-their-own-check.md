@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: the 0.16.9 deploy to edge, which ran lazysite check (release manager)
 area: docs, check
-status-note: "SHIPPED (PENDING): eight shipped docs pages retitled so no two share a title, and site-migration and update-channel given a description; no page merged, moved or deleted. t/tools/552 runs lazysite check itself over the shipped docs tree, so either rule breaking again fails the suite."
+status-note: "SHIPPED (0.16.10): eight shipped docs pages retitled so no two share a title, and site-migration and update-channel given a description; no page merged, moved or deleted. t/tools/552 runs lazysite check itself over the shipped docs tree, so either rule breaking again fails the suite."
 ---
 
 # What was observed

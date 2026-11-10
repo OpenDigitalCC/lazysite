@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "release manager, the 0.16.10 restack"
 area: auth
-status-note: "SHIPPED (PENDING): lazysite-auth.pl sets the sign-in's lzs_session marker through Lazysite::Auth::Session::session_marker_header, same attributes (t/lint/592). lazysite-common Recommends git, which content history runs (t/lint/593). Both tests fail without the change."
+status-note: "SHIPPED (0.16.10): lazysite-auth.pl sets the sign-in's lzs_session marker through Lazysite::Auth::Session::session_marker_header, same attributes (t/lint/592). lazysite-common Recommends git, which content history runs (t/lint/593). Both tests fail without the change."
 ---
 
 # What happened

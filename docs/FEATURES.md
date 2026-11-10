@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.9"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.10"
 brand: plain
 ---
 
@@ -2048,6 +2048,15 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.10** (2026-11-10, edge) - **A new Hestia site is one command, the
+  container image carries git, a manager cannot widen an OpenID Connect group
+  map, and the compliance records cover the release.** a new Hestia site is one
+  command, the first operator included, and --all merges the registry with
+  Hestia's list (SM1427); the container image carries git and the move from the
+  0.16.1 recipe is written out (SM1423); a manager who is not the operator
+  cannot point a new OpenID Connect map entry at a capability group (SM1422); a
+  renewed session sets the signed-in marker again (SM1425, SM1426); lazysite
+  repair runs without a shell and the deploy checks USER and DOMAIN (SM1429)
 - **0.16.9** (2026-11-10, edge) - **A broken store refuses and is made fixable,
   Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys
   arrive, and one container serves many sites.** an extension declares an
