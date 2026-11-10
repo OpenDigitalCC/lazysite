@@ -48,7 +48,7 @@ my ($lists) = $u =~ /(^\[ "\$\{#SKIPPED\[\@\]\}" -gt 0 \].*?"\$\{UNSERVICEABLE\[
 my ($summary) = $u =~ /(^_chk_clean=0; _chk_warn=0; _vh_rebuild=0\n.*?^\s*"\$_chk_clean" "\$_chk_warn"[^\n]*$)/ms;
 my ($verdict) = $u =~ /(\n# SM344:.*)\z/s;
 my ($irc)     = $d =~ /(^if \[ "\$IRC" = 3 \]; then\n.*?^fi$)/ms;
-my ($final) = $d =~ /(^set \+e\nperl "\$DOM\/tools\/lazysite-check\.pl" --docroot "\$DOC" --cgibin "\$CGI" --fix\n.*?\z)/ms;
+my ($final) = $d =~ /(^set \+e\nperl "\$DOM\/tools\/lazysite-check\.pl" --docroot "\$DOC" --cgibin "\$CGI" --fix\n.*?(?=^# n807: the first operator|\z))/ms;
 for ( [ helpers => $helpers ], [ in_list => $in_list ], [ 'deploy loop' => $loop ], [ 'the lists' => $lists ],
     [ summary => $summary ], [ verdict => $verdict ], [ "deploy's install verdict" => $irc ],
     [ "deploy's final check" => $final ] )

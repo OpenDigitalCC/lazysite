@@ -27,7 +27,7 @@ my $u         = slurp($updater);
 my $d         = slurp($deploy);
 my ($helpers) = $u =~ /(^TBL_FMT=.*?^run_quiet\(\) \{.*?^\}$)/ms;
 my ($irc)     = $d =~ /(^if \[ "\$IRC" = 3 \]; then\n.*?^fi$)/ms;
-my ($final) = $d =~ /(^set \+e\nperl "\$DOM\/tools\/lazysite-check\.pl" --docroot "\$DOC" --cgibin "\$CGI" --fix\n.*?\z)/ms;
+my ($final) = $d =~ /(^set \+e\nperl "\$DOM\/tools\/lazysite-check\.pl" --docroot "\$DOC" --cgibin "\$CGI" --fix\n.*?(?=^# n807: the first operator|\z))/ms;
 ok( $helpers && $irc && $final, 'found in the scripts' ) or BAIL_OUT('the scripts changed shape');
 
 my $dir = site_tempdir();

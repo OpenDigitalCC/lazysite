@@ -1,5 +1,5 @@
 #!/bin/bash
-# lazysite-hestia-deploy USER DOMAIN [STAGE_DIR]
+# lazysite-hestia-deploy USER DOMAIN [STAGE_DIR] [--sysop NAME] [--channel C]
 #
 # One-command lazysite install/upgrade for a HestiaCP domain. RUN AS ROOT.
 # It folds the whole INSTALL-RUNBOOK into a single invocation:
@@ -14,6 +14,24 @@
 #      reason a plain `install.pl` as the domain user can't do it alone -
 #      it can't write the locked domain root or chgrp to www-data);
 #   4. drop the Hestia placeholder index.html so index.md renders.
+#
+# A FIRST-TIME deploy also finishes a working site (n807, SM1427), so a new site is
+# this one command and nothing chained after it:
+#   - the lazysite-proxy nginx template is applied with lazysite-app, when Hestia
+#     has it (when it does not, the script says so and names the command that
+#     copies it);
+#   - site_url is set to https://DOMAIN when lazysite.conf holds no absolute one
+#     (through install.pl --site-url), so a claim link made on the command line
+#     is a full URL;
+#   - /etc/lazysite/sites.d/DOMAIN is written (docroot, cgibin, owner, channel,
+#     policy=manual - the format `lazysite provision` writes) unless one exists;
+#   - --channel C is the site's update channel (default edge in the registry; the
+#     conf is set only when it is given, as `lazysite provision` does);
+#   - --sysop NAME, once the health check passes, runs setup-sysop for NAME as the
+#     site user and prints the claim link as a full https://DOMAIN/claim?... URL.
+#     Without it the script says how to add one. A rerun on a site that already has
+#     accounts does what setup-sysop does there, and says so.
+# It ends with one summary: the URLs, the claim link, the registry entry, the probe.
 #
 # Exit status (read by lazysite-hestia-update-all.sh; Q16f):
 #   0  installed, and the site passed the health check after the repair
@@ -48,9 +66,30 @@ lazysite_dir() {
     if [ -d "$d-lazysite" ]; then printf '%s\n' "$d-lazysite"; else printf '%s\n' "$d/lazysite"; fi
 }
 
-U="$1"; DOMAIN="$2"
-STAGE="${3:-$(cd "$(dirname "$0")/../.." && pwd)}"
-[ -n "$U" ] && [ -n "$DOMAIN" ] || { echo "usage: $0 USER DOMAIN [STAGE_DIR]" >&2; exit 2; }
+USAGE="usage: $0 USER DOMAIN [STAGE_DIR] [--sysop NAME] [--channel edge|beta|stable|certified]"
+SYSOP=""; CHANNEL=""; POS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --sysop)      [ $# -ge 2 ] || { echo "$0: --sysop needs a name" >&2; echo "$USAGE" >&2; exit 2; }
+                  SYSOP="$2"; shift 2 ;;
+    --sysop=*)    SYSOP="${1#--sysop=}"; shift ;;
+    --channel)    [ $# -ge 2 ] || { echo "$0: --channel needs a value" >&2; echo "$USAGE" >&2; exit 2; }
+                  CHANNEL="$2"; shift 2 ;;
+    --channel=*)  CHANNEL="${1#--channel=}"; shift ;;
+    -*)           echo "$0: unknown option '$1'" >&2; echo "$USAGE" >&2; exit 2 ;;
+    *)            POS+=("$1"); shift ;;
+  esac
+done
+U="${POS[0]:-}"; DOMAIN="${POS[1]:-}"; STAGE_ARG="${POS[2]:-}"
+STAGE="${STAGE_ARG:-$(cd "$(dirname "$0")/../.." && pwd)}"
+[ -n "$U" ] && [ -n "$DOMAIN" ] && [ "${#POS[@]}" -le 3 ] || { echo "$USAGE" >&2; exit 2; }
+# Refused before anything is touched: a name or channel the tools would refuse after
+# the install has run.
+case "$CHANNEL" in ""|edge|beta|stable|certified) ;;
+  *) echo "$0: --channel must be edge, beta, stable or certified (got '$CHANNEL')" >&2; exit 2 ;; esac
+if [ -n "$SYSOP" ] && ! printf '%s' "$SYSOP" | grep -Eq '^[A-Za-z0-9_.-]+$'; then
+  echo "$0: --sysop NAME may hold letters, digits, '.', '_' and '-' only (got '$SYSOP')" >&2; exit 2
+fi
 [ "$(id -u)" = 0 ] || { echo "$0: must run as root (it sets ownership/perms)" >&2; exit 1; }
 # SM892 D4: install.sh is now a signpost that refuses everything, so this
 # script drives install.pl - the implementation - directly, with an explicit
@@ -74,6 +113,134 @@ DOC="$DOM/public_html"
 CGI="$DOM/cgi-bin"
 [ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
 LZ="$(lazysite_dir "$DOC")"
+
+# n807: functions begin (t/tools/624 sources this block with stubs)
+# Each reads the script's variables (U DOMAIN DOM DOC CGI LZ STAGE HESTIA CHANNEL
+# SYSOP LZS_CLI) and prints what it did.
+
+# lazysite-proxy is the nginx template that hands a protected section's static files
+# back to Apache. Hestia has it only once the template is copied in.
+apply_proxy_template() {
+  if [ -f "$HESTIA/data/templates/web/nginx/lazysite-proxy.tpl" ]; then
+    echo "==> applying lazysite-proxy nginx template (first-time setup)"
+    "$HESTIA/bin/v-change-web-domain-proxy-tpl" "$U" "$DOMAIN" lazysite-proxy \
+      || echo "  (could not apply lazysite-proxy - run: $HESTIA/bin/v-change-web-domain-proxy-tpl $U $DOMAIN lazysite-proxy)"
+  else
+    echo "==> lazysite-proxy is not installed in Hestia, so the nginx front end keeps its stock proxy"
+    echo "    (static files in a protected section are then served before lazysite sees the request)."
+    echo "    Copy it in, then apply it:"
+    echo "      cp $STAGE/installers/hestia/lazysite-proxy.tpl $STAGE/installers/hestia/lazysite-proxy.stpl $HESTIA/data/templates/web/nginx/"
+    echo "      $HESTIA/bin/v-change-web-domain-proxy-tpl $U $DOMAIN lazysite-proxy"
+  fi
+}
+
+# site_url: an absolute address, set through install.pl when the conf has none.
+# `${REQUEST_SCHEME}://${SERVER_NAME}` (the seeded template) is not one: only a web
+# request can expand it, so a claim link made here had no host.
+set_site_url() {
+  local conf="$LZ/lazysite.conf" cur
+  [ -f "$conf" ] || return 0
+  cur="$(sed -n 's/^site_url:[[:space:]]*//p' "$conf" | head -1)"
+  case "$cur" in
+    *'$'*) ;;
+    http://*|https://*) echo "==> site_url is already $cur - left as it is"; return 0 ;;
+  esac
+  echo "==> setting site_url to https://$DOMAIN"
+  sudo -u "$U" perl "$STAGE/install.pl" --site-url "https://$DOMAIN" --docroot "$DOC" \
+    || echo "  (could not set site_url - run: sudo -u $U perl $STAGE/install.pl --site-url https://$DOMAIN --docroot $DOC)"
+}
+
+# --channel C is the site's update channel; `lazysite provision` sets the conf key
+# only when it is given, and so does this.
+set_site_channel() {
+  [ -n "$CHANNEL" ] || return 0
+  echo "==> update channel: $CHANNEL"
+  sudo -u "$U" perl "$STAGE/install.pl" --channel "$CHANNEL" --docroot "$DOC" \
+    || echo "  (could not set the channel - run: sudo -u $U perl $STAGE/install.pl --channel $CHANNEL --docroot $DOC)"
+}
+
+# The registry entry `lazysite provision` writes (registry_record in
+# tools/lazysite-cli.pl: docroot, cgibin, owner, channel, policy, in that order).
+# That verb refuses root and this script is root, so the five lines are written here;
+# t/tools/624 holds the order to the CLI's. An existing entry is never overwritten.
+write_registry() {
+  local dir="${LAZYSITE_REGISTRY_DIR:-/etc/lazysite/sites.d}" tmp
+  REGISTRY_PATH="$dir/$DOMAIN"
+  if [ -e "$REGISTRY_PATH" ]; then
+    REGISTRY_NOTE="already present, left unchanged"
+    return 0
+  fi
+  mkdir -p "$dir"
+  tmp="$REGISTRY_PATH.tmp.$$"
+  {
+    echo "docroot=$DOC"
+    echo "cgibin=$CGI"
+    echo "owner=$U"
+    echo "channel=${CHANNEL:-edge}"
+    echo "policy=manual"
+  } > "$tmp"
+  chmod 0644 "$tmp"
+  mv -n "$tmp" "$REGISTRY_PATH"
+  rm -f "$tmp"
+  REGISTRY_NOTE="written"
+}
+
+# setup-sysop NAME as the site user, after the health check passed. Sets CLAIM_URL to
+# the full https://DOMAIN/claim?... link. On a site that already has accounts it
+# does what setup-sysop does there and says so.
+run_setup_sysop() {
+  local out rc path
+  CLAIM_URL=""
+  if [ -s "$LZ/auth/users" ]; then
+    echo "==> this site already has accounts. setup-sysop makes '$SYSOP' an operator here too"
+    echo "    and issues a new single-use link; if '$SYSOP' already exists, their password is"
+    echo "    cleared until they follow it."
+  else
+    echo "==> setup-sysop for '$SYSOP' (as $U)"
+  fi
+  set +e
+  out="$(sudo -u "$U" perl "$DOM/tools/lazysite-users.pl" --docroot "$DOC" setup-sysop --user "$SYSOP" 2>&1)"
+  rc=$?
+  set -e
+  printf '%s\n' "$out"
+  if [ "$rc" != 0 ]; then
+    echo "ERROR: setup-sysop for '$SYSOP' failed (exit $rc). The site is deployed; run it by hand:" >&2
+    echo "  sudo -u $U perl $DOM/tools/lazysite-users.pl --docroot $DOC setup-sysop --user $SYSOP" >&2
+    return 1
+  fi
+  path="$(printf '%s\n' "$out" | grep -o '/claim?[^[:space:]]*' | head -1 || true)"
+  [ -n "$path" ] && CLAIM_URL="https://$DOMAIN$path"
+  return 0
+}
+
+# One summary at the end: where the site is, how to get in, what was registered, and
+# how to probe the front end.
+print_summary() {
+  local reg
+  echo
+  echo "==> $DOMAIN is deployed"
+  echo "    site:      https://$DOMAIN/"
+  echo "    manager:   https://$DOMAIN/manager/"
+  if [ -n "$SYSOP" ] && [ -n "${CLAIM_URL:-}" ]; then
+    echo "    claim:     $CLAIM_URL"
+    echo "               (single-use link for '$SYSOP' to set their own password)"
+  elif [ -n "$SYSOP" ]; then
+    echo "    claim:     none - setup-sysop for '$SYSOP' did not finish (see above)"
+  else
+    echo "    claim:     none - no sysop yet; rerun with:  $0 $U $DOMAIN${STAGE_ARG:+ $STAGE_ARG} --sysop NAME"
+  fi
+  reg="${LAZYSITE_REGISTRY_DIR:-/etc/lazysite/sites.d}/$DOMAIN"
+  if [ -n "${REGISTRY_NOTE:-}" ]; then
+    echo "    registry:  $reg ($REGISTRY_NOTE)"
+  elif [ -e "$reg" ]; then
+    echo "    registry:  $reg (present, unchanged: only a first-time deploy writes it)"
+  else
+    echo "    registry:  none for this site (only a first-time deploy writes one)"
+  fi
+  echo "    probe:     curl -sI https://$DOMAIN/ | grep -i x-lazysite-front        # X-Lazysite-Front: hestia-proxy/acl"
+  echo "               grep -n X-Forwarded-For $HESTIA/data/templates/web/nginx/lazysite-proxy.*tpl   # trusted_proxies: the front end must overwrite it"
+}
+# n807: functions end
 
 # Update-channel pre-check, BEFORE we touch anything. If this site is on the
 # 'stable' channel and the build is 'edge', the upgrade will be skipped - so bail
@@ -107,6 +274,7 @@ STATE_FILE="$LZ/.install-state.json"
 if [ -n "${LAZYSITE_APPLY_TEMPLATE:-}" ] || [ ! -f "$STATE_FILE" ]; then
   echo "==> applying lazysite-app web template (first-time setup)"
   "$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
+  apply_proxy_template
 else
   echo "==> existing lazysite install - leaving the Hestia web template unchanged"
   echo "    (set LAZYSITE_APPLY_TEMPLATE=1 to re-apply lazysite-app + rebuild the vhost)"
@@ -213,6 +381,14 @@ if ! sudo -u "$U" perl "$STAGE/install.pl" --verify --docroot "$DOC" --cgibin "$
   exit 1
 fi
 
+# n807: a first-time deploy finishes a working site: its address, its channel, its
+# registry entry. Before the permission pass, so the pass covers what they wrote.
+if [ "$MODE" = provision ]; then
+  set_site_url
+  set_site_channel
+  write_registry
+fi
+
 echo "==> permissions (CGI runs as www-data)"
 # The compiled-template cache (lazysite/cache/tt) is regenerated on demand and
 # mirrors absolute paths in deeply-nested directories; on a long-running site it
@@ -276,7 +452,7 @@ fi
 # run. (The old sentinel grepped the conf for manager_groups:, which SM138
 # retired in 0.6.5 - it never matched again, so setup-manager re-ran on every
 # deploy; harmless because it self-heals, but wrong.)
-if [ ! -f "$LZ/auth/groups-settings.json" ]; then
+if [ ! -f "$LZ/auth/groups-settings.json" ] && [ -z "$SYSOP" ]; then
   # SM864: THIS USED TO RUN `setup-manager`, WHICH SM659 DELETED WITH NO ALIAS.
   #
   # The tool answered "unknown command" and exited 2, correctly - and this script
@@ -302,6 +478,8 @@ if [ ! -f "$LZ/auth/groups-settings.json" ]; then
   echo "           --docroot $DOC setup-sysop --user <name>"
   echo "    It issues a single-use link for them to set their own password, so no"
   echo "    password is chosen for them or sent to them. There is no default login."
+  echo "    Or rerun this deploy with --sysop NAME, which does the same and prints the link:"
+  echo "      $0 $U $DOMAIN${STAGE_ARG:+ $STAGE_ARG} --sysop <name>"
 fi
 
 # SM757: THE PERSISTENT RUNTIME, PROVISIONED HERE, EVERY TIME. This script is the
@@ -426,3 +604,11 @@ fi
 if [ "${INSTALL_UNSERVICEABLE:-0}" = 1 ]; then
   echo "==> the install-time health check failure was cleared by the permission pass and the repair; the final check passes"
 fi
+
+# n807: the first operator, once the site is known to be serviceable.
+SYSOP_RC=0
+if [ -n "$SYSOP" ]; then
+  run_setup_sysop || SYSOP_RC=1
+fi
+print_summary
+exit "$SYSOP_RC"

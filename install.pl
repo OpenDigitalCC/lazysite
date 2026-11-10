@@ -152,6 +152,11 @@ Optional:
                       `lazysite upgrade --all` (cron-driven fleet upgrades)
                       touch this site; 'manual' (the default) leaves it to
                       the sysop.
+  --site-url URL      Set the site's address (site_url in lazysite.conf) and
+                      exit - no install. An absolute http(s) URL with no
+                      ${...} placeholder: the address a link sent from the
+                      command line (a claim link, a notice) is built on. The
+                      Hestia deploy sets it on a new site.
   --restore-full FILE Restore a full-system backup (manager "full" backup) into
                       --docroot, optionally rewriting the site domain with
                       --domain NAME. The temp -> final domain migration path.
@@ -262,6 +267,7 @@ Getopt::Long::GetOptions(
     'channel-check'  => \$opt{channel_check},
     'channel=s'      => \$opt{channel},
     'policy=s'       => \$opt{policy},
+    'site-url=s'     => \$opt{site_url},
     'restore-full=s' => \$opt{restore_full},
     'force'          => \$opt{force},
     # SM1307: the Hestia fleet updater's --force-security reaches a site here.
@@ -378,6 +384,16 @@ if ( defined $opt{channel} ) {
 if ( defined $opt{policy} ) {
     _usage_error('--policy requires --docroot') unless $opt{docroot};
     exit cmd_set_policy( $opt{docroot}, $opt{policy} );
+}
+
+# --site-url URL: set the site's site_url in lazysite.conf (n807). The same standalone
+# maintenance-op shape as --channel and --policy. A new site's conf holds the
+# ${REQUEST_SCHEME}://${SERVER_NAME} template, which only a web request can expand,
+# so a link built on the command line (a claim link) had no address; the Hestia
+# deploy sets it to the domain it was given.
+if ( defined $opt{site_url} ) {
+    _usage_error('--site-url requires --docroot') unless $opt{docroot};
+    exit cmd_set_site_url( $opt{docroot}, $opt{site_url} );
 }
 
 # --restore-full: restore a full-system backup (from the manager's "full" backup)
@@ -632,6 +648,23 @@ sub cmd_set_policy {
 
     audit_policy_set( $docroot, $value );
     info("Update policy set to '$value' for $docroot");
+    return 0;
+}
+
+# --site-url: set site_url in the site's lazysite.conf. Only an absolute http(s) URL
+# with no placeholder and no path is taken: the value is the origin a link is built on.
+sub cmd_set_site_url {
+    my ( $docroot, $value ) = @_;
+    $value =~ s{/+\z}{};
+    unless ( $value =~ m{\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]+)?\z} ) {
+        warn "--site-url must be an absolute http(s) address with no path, such as https://example.com (got '$value')\n";
+        return 2;
+    }
+    my $rc = set_conf_line( $docroot, 'site_url', $value );
+    return $rc if $rc;
+
+    audit_append( $docroot, 'site-url-set', "site_url: $value" );
+    info("Site address set to '$value' for $docroot");
     return 0;
 }
 
@@ -3804,6 +3837,16 @@ to fleet-wide C<lazysite upgrade --all> runs (e.g. cron-driven); C<manual> (the
 default when the key is absent) means only a deliberate per-site upgrade - or
 C<upgrade --all --force>/C<--force-security> - touches it. Recorded in the audit
 log as C<policy-set>.
+
+=item B<--site-url> I<URL>
+
+Set the site's address (the C<site_url:> key in C<lazysite.conf>) and exit - a
+standalone maintenance operation, no install. The value is an absolute C<http> or
+C<https> origin with no path and no C<${...}> placeholder, such as
+C<https://example.com>. A new site's conf holds the
+C<${REQUEST_SCHEME}://${SERVER_NAME}> template, which only a web request can
+expand; the address set here is the one a link made on the command line (a claim
+link) is built on. Recorded in the audit log as C<site-url-set>.
 
 =item B<--restore-full> I<FILE>
 
