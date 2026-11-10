@@ -101,6 +101,13 @@ Archive
   model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
   refused the moved site); t/tools/581.
 
+- SM1424 (PENDING) **A change refused by an address rule says what the rule limits.** A
+  save, delete or move refused because the page's folder rule names an address profile
+  and the caller is outside it answered "This page is not available from your address.",
+  the sentence for a reader. It now says the access rule on the path limits changes to its
+  allowed addresses and that the change must be made from an allowed address, naming no
+  address and no profile; `kind: address` and `retryable: false` are unchanged, and a read
+  keeps its sentence (t/integration/281, t/unit/mcp/258).
 - SM1424 (PENDING) **The upgrade note says when `analysts` and `lead-readers` arrive.**
   The 0.16.9 note said opening the Groups page adds them on an older site, without the
   conditions the adoption holds to. It now says: an operator group and at least one

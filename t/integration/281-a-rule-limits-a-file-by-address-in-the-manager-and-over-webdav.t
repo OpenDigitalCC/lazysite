@@ -19,6 +19,9 @@ use ManagerSession qw(new_site);
 
 my $root = repo_root();
 my $SENTENCE = 'This page is not available from your address.';
+# n804 (SM1424): a refused WRITE says the rule limits changes to its allowed addresses and
+# where to make them from; it names no address and no profile. A read keeps $SENTENCE.
+my $WRITE_SENTENCE = 'The access rule on this path limits changes to its allowed addresses; make the change from an allowed address.';
 
 sub spit { my ( $p, $t ) = @_; make_path( $p =~ s{/[^/]+\z}{}r ); open my $fh, '>', $p or die "$p: $!"; print {$fh} $t; close $fh; return }
 sub slurp { my ($p) = @_; open my $fh, '<', $p or return undef; local $/; my $t = <$fh>; close $fh; return $t }
@@ -120,6 +123,9 @@ subtest 'the manager API refuses a file under the rule to an address outside it'
         boss( 'save', { content => "---\ntitle: A\n---\nTampered.\n" }, 'action=save&path=internal/a.md' );
     };
     ok( !$w->{ok}, 'a write from outside is refused too' );
+    is( $w->{kind}, 'address', 'as an address refusal' );
+    is( $w->{error}, $WRITE_SENTENCE, 'saying the rule limits changes and where to make them from' );
+    unlike( $w->{error}, qr/\Q$OUTSIDE\E|office|blocked/, 'and naming no address and no profile' );
     unlike( slurp("$d/internal/a.md"), qr/Tampered/, 'and the file is unchanged' );
     my $log = slurp("$d/lazysite/logs/audit.log") // '';
     my @rows = grep { /\| address-refused \| \/internal\/a\.md \|/ } split /\n/, $log;

@@ -1033,14 +1033,22 @@ sub address_chain {
     return [ @own, @stem, ( sort { length $b->{key} <=> length $a->{key} } @above ), @site ];
 }
 
+my $ADDRESS_READ_REFUSAL = 'This page is not available from your address.';
+my $ADDRESS_WRITE_REFUSAL =
+    'The access rule on this path limits changes to its allowed addresses; make the change from an allowed address.';
+
 # undef when the address admits, else the refusal a caller returns: { ok => 0,
 # kind => 'address', error => the ruled sentence }. Not asked outside a web request
 # (no REMOTE_ADDR: the users tool, a script) - there is no visitor to limit - and
 # there is NO operator bypass: a rule that limits a file to the office limits the
 # operator too (the group form of this, an operator group held to one network, is
 # slice C's). A refusal is audited once per target per address per hour.
+# n804 (SM1424): $mode is 'write' when the caller is changing the file (a save, a
+# delete, a move): the refusal then says the rule limits changes to its allowed
+# addresses and where to make them from, naming no address and no profile. A
+# read, and the page itself, keep the ruled sentence.
 sub address_denial {
-    my ( $rel, $origin ) = @_;
+    my ( $rel, $origin, $mode ) = @_;
     return undef unless defined $ENV{REMOTE_ADDR} && length $ENV{REMOTE_ADDR};
     return undef unless defined $rel              && length $rel;
     my $map = load_acls();
@@ -1065,7 +1073,7 @@ sub address_denial {
             profiles     => [ @{ $l->{allow} }, @{ $l->{deny} } ],
             origin       => ( $origin // 'api' ),
         );
-        return { ok => 0, kind => 'address', error => 'This page is not available from your address.' };
+        return { ok => 0, kind => 'address', error => ( ( $mode // '' ) eq 'write' ? $ADDRESS_WRITE_REFUSAL : $ADDRESS_READ_REFUSAL ) };
     }
     return undef;
 }
@@ -1080,7 +1088,7 @@ sub _acl_denied {
         ( $rel, $mode ) = ( $page, 'write' );
     }
     # SM1139: the visitor's address, before the bypass - see address_denial.
-    if ( my $by_address = address_denial($rel) ) { return $by_address }
+    if ( my $by_address = address_denial( $rel, undef, $mode ) ) { return $by_address }
     # Ruling 206 (withdrawing SM1024's operator exception): a broken store is
     # refused BEFORE the bypass, so the operator is refused with everyone else
     # and the repair is made from the command line.
