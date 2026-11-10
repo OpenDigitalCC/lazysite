@@ -359,6 +359,10 @@ subtest 'ruling 214 (Q128): require sign-in again' => sub {
     is( $c->{status}, 302, 'the person signs in again' ) or diag $c->{body}, $c->{log};
     is( $c->{location}, '/members', '...and is returned to the page they asked for' );
     ok( !cookie_value( $c, 'lazysite_auth' ), '...keeping the session they had' );
+    # SM1425: the stale answer cleared the display marker; the renewal sets it as a sign-in does.
+    my @renewal_marker = grep { /\Alzs_session=/ } @{ $c->{cookies} };
+    is( scalar @renewal_marker, 1, '...and sets the signed-in marker again' );
+    like( $renewal_marker[0] // '', qr{\Alzs_session=1; SameSite=Lax; Path=/; Max-Age=[1-9]\d*\z}, '...as a live marker' );
     ($id) = verify($P1);
     is( $id->{user},   'oidc-p1:user-123', 'the same session is an identity again' );
     is( $id->{groups}, 'staff',            '...with the groups read afresh' );
@@ -376,6 +380,8 @@ subtest 'ruling 214 (Q128): require sign-in again' => sub {
     my $other = cookie_value( $c, 'lazysite_auth' );
     ok( $other, 'another person signing in at the prompt gets a new session' );
     is( ( verify( $other // '' ) )[0]{user}, 'oidc-p1:user-999', '...as themselves' );
+    is_deeply( [ grep { /\Alzs_session=/ } @{ $c->{cookies} } ], \@renewal_marker,
+        '...and the renewal\'s marker is the sign-in\'s, attribute for attribute' );
     is( ( verify($P1) )[1], 'oidc-p1-stale', '...and the marked session is not renewed for them' );
     set_mode( 'p1', 'good' );
     $s = cgi( QUERY_STRING => 'renew=1&next=/members', HTTP_COOKIE => "lazysite_auth=$P1" );

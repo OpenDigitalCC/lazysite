@@ -29,7 +29,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(generate_csrf_token verify_csrf_token
     verify_session_cookie request_session account_disabled load_user_groups session_revoked session_store_fault
-    mint_provider_session renew_provider_session session_cookie_headers session_clear_headers
+    mint_provider_session renew_provider_session session_cookie_headers session_marker_header session_clear_headers
     provider_login_of require_provider_reauth SESSION_COOKIE_NAME SESSION_COOKIE_MAX);
 
 # One name, one lifetime, stated once. lazysite-auth.pl mints with these and
@@ -1015,14 +1015,23 @@ sub _verify_provider_session {
         undef );
 }
 
-# The two cookies a sign-in sets: the HttpOnly session and the display-only marker
-# (SM099), as the wrapper sets them.
+# The display-only marker (SM099) a sign-in sets, and a renewal sets again (SM1425): the
+# verifier's stale answer clears it, so a session renewed in place needs it back.
+sub session_marker_header {
+    my (%o) = @_;
+    my $max = session_lifetime( $o{dir} );
+    my $sec = $o{secure} ? '; Secure' : '';
+    return "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$max$sec";
+}
+
+# The two cookies a sign-in sets: the HttpOnly session and the display-only marker,
+# as the wrapper sets them.
 sub session_cookie_headers {
     my ( $cookie, %o ) = @_;
     my $max = session_lifetime( $o{dir} );
     my $sec = $o{secure} ? '; Secure' : '';
     return ( "Set-Cookie: ${\ SESSION_COOKIE_NAME()}=$cookie; HttpOnly; SameSite=Lax; Path=/; Max-Age=$max$sec",
-        "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$max$sec" );
+        session_marker_header(%o) );
 }
 
 sub session_clear_headers {

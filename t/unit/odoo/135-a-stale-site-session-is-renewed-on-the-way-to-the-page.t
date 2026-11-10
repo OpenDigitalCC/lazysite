@@ -212,6 +212,10 @@ subtest 'a stale session on a protected page is renewed and returns to the page'
     is( $r->{location}, '/members', '...back to the page' );
     ok( scalar @{ $http->posts } > $posts, 'Odoo was asked' );
     ok( ( grep { /\Alzs_renewed=1;.*Max-Age=60/ } @{ $r->{cookies} } ), 'the loop guard is set, for a minute' );
+    # SM1425: the stale answer cleared the display marker; the renewal sets it as the sign-in does.
+    my @marker = grep { /\Alzs_session=/ } @{ $r->{cookies} };
+    is( scalar @marker, 1, 'the renewal sets the signed-in marker again' );
+    like( $marker[0] // '', qr{\Alzs_session=1; SameSite=Lax; Path=/; Max-Age=[1-9]\d*\z}, '...as a live marker' );
     jar_take( $r->{cookies} );
     is( verdict(), 'ok', 'the site session is renewed' );
     like( page( '/members', "lazysite_auth=$JAR{lazysite_auth}; lzs_session=1; lzs_renewed=1" )->{out},
@@ -246,6 +250,7 @@ subtest '?action=session renews the same way' => sub {
     my $r = request( 'GET', 'renew=1&answer=session', undef, HTTP_COOKIE => jar() );
     is( $r->{status}, 200, 'the step answers' );
     is_deeply( $r->{body}, { ok => JSON::PP::true(), signed_in => JSON::PP::true() }, 'signed in, renewed' );
+    ok( ( grep { /\Alzs_session=1;.*Max-Age=[1-9]/ } @{ $r->{cookies} } ), 'the marker is set again with the answer' );
     jar_take( $r->{cookies} );
     is( verdict(), 'ok', 'the session holds again' );
     my $again = ask_session("lazysite_auth=$JAR{lazysite_auth}; lzs_session=1");

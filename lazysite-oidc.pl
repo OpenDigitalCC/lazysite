@@ -203,9 +203,11 @@ sub main {
             ua     => substr( $ENV{HTTP_USER_AGENT} // '', 0, 120 ) );
         return reply( $r->{status}, $r->{error} ) unless $r->{ok};
         require Lazysite::Auth::Session;
-        # A session renewed in place keeps the cookie it has.
-        push @EXTRA, Lazysite::Auth::Session::session_cookie_headers( $r->{cookie}, secure => $secure, dir => $lz )
-            unless $r->{renewed};
+        # A session renewed in place keeps the cookie it has, and gets the display marker
+        # back: the verifier's stale answer cleared it (SM1425).
+        push @EXTRA, $r->{renewed}
+            ? Lazysite::Auth::Session::session_marker_header( secure => $secure, dir => $lz )
+            : Lazysite::Auth::Session::session_cookie_headers( $r->{cookie}, secure => $secure, dir => $lz );
         return redirect( Lazysite::Util::sanitise_next( $r->{next} ) );
     }
 

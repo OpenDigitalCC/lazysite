@@ -830,6 +830,11 @@ sub _renew {
         renewed => $renewed, why => $why );
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
     push @EXTRA, "Set-Cookie: lzs_renewed=1; Path=/; Max-Age=60; HttpOnly; SameSite=Lax$secure";
+    if ($renewed) {
+        # SM1425: the stale answer cleared the marker; a renewal sets it again.
+        require Lazysite::Auth::Session;
+        push @EXTRA, Lazysite::Auth::Session::session_marker_header( secure => ( $ENV{HTTPS} ? 1 : 0 ), dir => $lz );
+    }
     if ( ( $q->{answer} // '' ) eq 'session' ) {
         push @EXTRA, "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure" unless $renewed;
         return reply( '200 OK', { ok => JSON::PP::true(), signed_in => $renewed ? JSON::PP::true() : JSON::PP::false() } );

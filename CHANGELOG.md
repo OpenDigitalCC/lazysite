@@ -79,6 +79,15 @@ Archive
   capability (found against a local authentik, n801). The operator's entries are now
   kept as saved, the provider group and the site group together; a new one, or one
   moved to another provider group, is refused `forbidden`. t/unit/manager/743.
+- SM1425 (PENDING) **A session renewed in place sets the signed-in marker again.**
+  After Require sign-in again (ruling 214) the verifier's stale answer clears the
+  `lzs_session` display marker, and the renewal that followed kept the session but did
+  not set the marker, so the page script showed "Sign in" to a person who was signed in.
+  A successful renewal, through OpenID Connect (`lazysite-oidc.pl`) and through the Odoo
+  endpoint's own renew, now sets `lzs_session` again with the attributes a sign-in gives
+  it, through one helper (`Lazysite::Auth::Session::session_marker_header`) that the
+  sign-in's cookie pair uses too. Tests t/unit/extensions/170 and t/unit/odoo/135 assert
+  it and fail without the change.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 
