@@ -145,8 +145,13 @@ subtest 'it falls back to the host\'s own site list (SM333)' => sub {
 
     like( $src, qr/sub _discover_hestia_sites/,
         'the CLI can consult the Hestia site list' );
-    like( $src, qr/\$sites = _discover_hestia_sites\(\) unless \@\$sites/,
-        'and does so only when the registry is empty - the registry still wins' );
+    # n807 (SM1427): the list was read ONLY when the registry was empty, so one registered
+    # site hid the rest. With no registry it is the list alone; with one, the two are merged
+    # by docroot and the registry entry still wins (t/tools/625 runs it).
+    like( $src, qr/return _discover_hestia_sites\(\) unless \@\$reg/,
+        'with no registry the Hestia list is the answer' );
+    like( $src, qr/_discover_hestia_sites\( quiet => 1 \)/,
+        'with a registry it is merged in, best effort and silent' );
     like( $src, qr/--plain --template-only/,
         'using the template-only listing, which is the authoritative one' );
 
