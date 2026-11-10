@@ -1611,6 +1611,40 @@ Walked on 2026-11-10 (SM1419); the register entries are confirmed by the release
   body has `| json` and a filter it lacks is refused on save. None moves a control
   (docs/SECURITY.md, the 2026-11-10 entry).
 
+## A map entry, the signed-in marker, a Hestia deploy and the fleet's sites (0.16.10)
+
+Walked on 2026-11-10 (SM1429); edge, not security-critical (ruling 229). The register
+entries are drafted for the release manager's confirmation.
+
+- **A manager cannot point a new OIDC map entry at a capability group** (SM1422, ruling
+  229). `Lazysite::Ext::OIDC::validate_group_map` keeps, for a caller who is not the
+  operator, an entry only as the operator saved it, the provider group and the site
+  group together; a new entry to a capability group, or one moved to another provider
+  group, is refused `forbidden`. It restores the rule ruling 214 states.
+- **The signed-in marker has one writer** (SM1425, SM1426). `lzs_session` is display
+  only and carries no authority: the server only sets or clears it, and the HttpOnly
+  session cookie stays the gate. `Auth::Session::session_marker_header` writes it for
+  the sign-in wrapper, `session_cookie_headers` and the OIDC and Odoo renewals, so a
+  session renewed in place sets it again.
+- **A first Hestia deploy finishes a site** (SM1427). `lazysite-hestia-deploy.sh`, run
+  as root from the tarball, writes `/etc/lazysite/sites.d/DOMAIN` from its own
+  arguments and only when none exists, sets `site_url` through `install.pl --site-url`
+  and runs `setup-sysop` as the site user (`sudo -u`), printing the single-use claim
+  link. `_all_sites` makes `--all` the registry's sites and the Hestia list's together,
+  the registry winning by docroot; `upgrade --all` still skips a site whose
+  `update_policy` is not `auto`.
+- **The upgrade sets the declared mode on declared directories** (SM1423).
+  `install.pl`'s `align_store_modes` sets the mode, never an owner, group or content,
+  on the install model's directories and the runtime paths marked `on_upgrade: repair`,
+  below the docroot or the `lazysite/` tree, never through a link, and only on an
+  upgrade. The container image installs `git` for content history, which stays off
+  until a site turns it on; the Debian package Recommends it.
+- **Smaller** (SM1420, SM1421, SM1424). The shipped docs pass their own `lazysite check`;
+  the check and repair print what they mean; a change refused by an address rule says
+  the rule limits changes to its allowed addresses, and a `description:` key is said
+  not to be read. None moves a control (docs/SECURITY.md, the 2026-11-10 entry for
+  0.16.10).
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

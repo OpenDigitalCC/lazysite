@@ -68,7 +68,7 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.16.10)
+## The container image carries git, a new Hestia site is one command, and the rest of 0.16.10
 
 **The container image now carries `git` (SM1423).** The 0.16.1 and 0.16.9 images
 installed no `git`, so content history could not be turned on in the container. The
@@ -94,6 +94,26 @@ entry winning for a site in both (its channel and policy). Until now the Hestia 
 only when the registry was empty, so registering one site hid the rest; with no registry
 nothing changes. Also, `lazysite repair` and `lazysite probe` now take `--docroot D`, as their
 usage always said.
+
+**Smaller changes, nothing to do.**
+
+- A manager who is not the operator can no longer add an OpenID Connect map entry that
+  points a provider group at a capability group (SM1422). On a site that ran 0.16.9 with
+  the `oidc` extension on, read the provider's group map once for an entry a manager added
+  and remove any; the operator's own entries are kept as saved.
+- The `lazysite-common` Debian package now Recommends `git` (SM1426), which content history
+  runs; apt installs it unless Recommends are switched off, and history stays off until a
+  site turns it on.
+- After Require sign-in again, the page no longer shows "Sign in" to a person who is
+  signed in (SM1425, SM1426): a renewal sets the display marker again, and one function
+  now writes it for every sign-in and renewal.
+- A change refused by an address rule says the rule limits changes to its allowed addresses
+  and that the change must be made from one (SM1424). `lazysite check` and `validate_page`
+  say a `description:` front-matter key is not read; use `subtitle:` or `meta_desc:`.
+- `lazysite check` over a sound DB_File counter prints nothing on STDERR, a check message
+  quotes its apostrophe, and `lazysite repair` says how many changes it applied beside its
+  "awaiting your decision" count (SM1421). The shipped docs pages have distinct titles
+  (SM1420).
 
 ## A broken store now refuses, Odoo's sign-in becomes an identity provider, and the rest of 0.16.9
 

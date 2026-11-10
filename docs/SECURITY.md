@@ -183,6 +183,7 @@ Information disclosure | An account's phone number leaving the site, or set for 
 Spoofing | An identity written into the data endpoint's environment, by the client or the web server or the process, believed by the endpoint's readers (SM297, boundary 2) | The endpoint holds the verified identity as a value (`local $Lazysite::Auth::Identity::HELD`), its readers are answered that and read nothing from `%ENV` while it is held, and it writes no `X-Remote-*` header; a session whose store cannot be read is refused 503 | 0.16.9 (t/unit/auth/177, t/integration/478, 479; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM297 entry, confirmed on 2026-11-10 (ruling 225)): the manager API in the pool keeps its relay and the header contract until 0.17.0 (ruling 217)
 Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
+Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625; row written at the 0.16.10 walk, drafted for the release manager's confirmation, SM1429): the claim link is printed to the terminal of whoever runs the deploy; USER and DOMAIN are checked only by the docroot existing
 ```
 
 ## Five priority entries (from the review)
@@ -6022,5 +6023,132 @@ residual risk
 
 verdict
 : accepted, for the release manager's confirmation: a fix to a control 0.16.9 shipped
-  (SM1351, ruling 214). 0.16.9 is edge; whether this makes the fix a security release
-  is the release manager's call.
+  (SM1351, ruling 214). Ruling 229 (2026-11-10) rules how it ships: in 0.16.10, not
+  security-critical, with no advisory, because the code is only in 0.16.9 (edge), off by
+  default (the `oidc` extension is off until an operator turns it on), in no stable
+  release, and fixed before the beta. Not marked confirmed yet; the release manager
+  confirms this entry at the 0.16.10 sign-off.
+
+### 2026-11-10 - SM1420, SM1421, SM1423, SM1424, SM1425, SM1426, SM1427 (0.16.10): the rest of 0.16.10, with no trigger
+
+Assessment drafted by the developer agent at the 0.16.10 compliance walk (SM1429), for the
+release manager's confirmation; not confirmed yet.
+The walk read the CHANGELOG's `## Unreleased` section and `git log 64d5c3c11..17a681a71`
+(23 commits). SM1422 has its own entry above. The rest of 0.16.10 moves no control and
+fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or
+processing of restricted data). Each item below was checked against the code it names.
+
+what changed
+: SM1427 (n807). `installers/hestia/lazysite-hestia-deploy.sh` runs as root on a host
+  that runs lazysite from the tarball. On a first-time deploy it now also applies the
+  `lazysite-proxy` template when Hestia has it, sets `site_url` through the new
+  `install.pl --site-url` (run as the site user), writes `/etc/lazysite/sites.d/DOMAIN`,
+  and with `--sysop NAME`, once the health check passes, runs `setup-sysop` as the site
+  user and prints the claim link as a full URL. `--all` on the fleet verbs (check,
+  repair, probe, upgrade, users, sites) is now the registry's sites and the Hestia
+  list's together, merged by docroot with the registry entry winning
+  (`_all_sites`, ruling 231); `repair` and `probe` take `--docroot D`, as their usage
+  line said; the installer's group message and `setup-sysop`'s wording are fixed
+  (t/tools/621-625).
+: SM1423 (n803). The container image installs Debian's `git`, so content history can be
+  turned on in it; the move from the 0.16.1 Docker recipe is written out as numbered
+  commands in `installers/docker/README.md`. On an upgrade, `align_store_modes` also sets
+  the declared mode (mode only) on every directory the install model declares
+  (`install_dirs`) and on the runtime paths marked `on_upgrade: repair` (t/lint/563,
+  t/tools/581).
+: SM1424 (n804). Wording only. A change (save, delete or move) refused by an address
+  rule says the rule limits changes to its allowed addresses and that the change must
+  be made from one (`address_denial`'s `write` mode); `kind: address` and
+  `retryable: false` are unchanged and a read keeps its sentence. `lazysite check` and
+  `validate_page` say a `description:` front-matter key is not read (the engine reads
+  `meta_desc`, else `subtitle`; `description-not-read`). The 0.16.9 upgrade note says
+  when `analysts` and `lead-readers` arrive; the Odoo capability's description and the
+  capability map name Extensions - configure as the page that has the card.
+: SM1425 (n805), SM1426 (n806). The display-only `lzs_session` marker, which carries no
+  authority, is written by one function, `Lazysite::Auth::Session::session_marker_header`.
+  The sign-in wrapper (`_land_signed_in`), `session_cookie_headers`, the OIDC endpoint's
+  and the Odoo endpoint's renewals all call it, so a session renewed in place sets the
+  marker again (the verifier's stale answer had cleared it) with the attributes a
+  sign-in gives it (t/lint/592, t/unit/extensions/170, t/unit/odoo/135).
+: SM1426 (n806). `debian/control` lists `git` in `lazysite-common`'s Recommends,
+  beside the image's own install (t/lint/593).
+: SM1420, SM1421 (n799, n800). Output and docs only. Eight shipped docs pages get titles
+  that say what they are and two get a subtitle, so the shipped docs pass their own
+  `lazysite check` (t/tools/552). `lazysite check` over a sound DB_File counter prints
+  nothing on STDERR, a check message quotes its apostrophe, and `lazysite repair` says
+  how many changes it applied beside the "awaiting your decision" count and shows its
+  report as one block (t/tools/562-564).
+
+threat delta
+: None of the four triggers fired. The questions are these.
+: SM1427, Elevation of privilege: a root-run script writing into `/etc/lazysite` and
+  acting on a site tree the site user owns. Nothing it writes into the registry comes
+  from the site tree: the five fields (docroot, cgibin, owner, channel, policy) are
+  built from the command line's USER and DOMAIN, the entry is written only when none
+  exists (tested with `-e`, written to a temporary file and moved with `mv -n`), mode
+  0644, in the order `lazysite provision` writes (t/tools/624). The one thing it reads
+  from the site tree as root is `site_url` in `lazysite.conf`, matched in a `case` and
+  never run. `install.pl --site-url` and `setup-sysop` run as the site user through
+  `sudo -u`, not as root, and the site user already writes that configuration file
+  and that tool. The sign-in method is `setup-sysop`'s existing single-use claim link
+  (24 hours, `$CLAIM_TTL`), made by the person running the deploy as root; nothing new
+  signs anyone in. The fleet merge widens which sites a root-run `--all` names, but
+  `upgrade --all` still skips a site whose `update_policy` is not `auto`
+  (`site_update_policy`, read from the site's own conf, `manual` when unset) unless
+  forced, and a host with an empty registry already took the Hestia list alone.
+: SM1423, Tampering: `git` in the image, and a mode set on upgrade. `git` was already a
+  declared optional host binary (dist/config/sbom-deps.json, SM085), invoked list-form
+  and never through a shell; the image installs it from Debian unpinned and content
+  history stays off until a site turns it on. The upgrade sets only the mode, never an
+  owner, group or content, only below the docroot or the `lazysite/` tree, never
+  through a link, and only on an upgrade, never on a provision or reinstall; the
+  declared modes are 0755, 2770 and 2775 (no world-writable directory), the ones
+  `lazysite check` already fails a directory for missing.
+: SM1424, Information disclosure: the write refusal tells a caller that a rule limits
+  changes by address; the read sentence it replaces implied the same, and it names no
+  address and no profile. `description-not-read` and the check line name the pages that
+  carry the key to an operator who can already list them.
+: SM1425 and SM1426, Spoofing: a marker set when no session exists shows a signed-in
+  control to a visitor. No server code reads `lzs_session` (a search of `lib/`, the
+  `lazysite-*.pl` scripts, the processor, the extensions and `tools/` finds it only set
+  or cleared); the HttpOnly session cookie, verified by `verify_session_cookie` and
+  `request_session` on every request, stays the gate, and the renewals set the marker
+  only after a successful renewal (`$renewed`). The attributes are the sign-in's:
+  `SameSite=Lax; Path=/`, `Max-Age` from `session_lifetime`, `Secure` under https, and
+  deliberately not HttpOnly (SM099).
+: SM1426, deb Recommends: `git` on a host that did not have it. It is a Recommends and
+  history is off until a site turns it on.
+: SM1420, SM1421: none. Titles and wording, and the text a verb prints.
+
+controls
+: SM1427: t/tools/621-625 (the group message, the options a verb takes, `setup-sysop`'s
+  wording, a first deploy with its registry entry, site address, claim link and refusals
+  before anything is touched, and `--all` over the registry and the Hestia list
+  together). `--sysop NAME` is held to letters, digits, `.`, `_` and `-` and `--channel`
+  to the four channels before the script touches anything. `install.pl --site-url`
+  takes an absolute http or https origin with no path and no placeholder, and records
+  `site-url-set` in the audit log. SM1423: t/lint/563 (the image installs the programs
+  the engine runs), t/tools/581 (an upgrade sets the declared mode on a directory the
+  0.16.1 recipe left wrong). SM1424: t/tools/591, t/unit/extensions/381, t/unit/mcp/258,
+  t/integration/281, t/unit/users/317. SM1425/SM1426: t/unit/extensions/170,
+  t/unit/odoo/135, t/lint/592 (one writer, fails without the change), t/lint/593.
+  SM1420/SM1421: t/tools/552, 562-564.
+
+residual risk
+: SM1427: USER and DOMAIN are the root operator's own arguments and are checked only by
+  the docroot existing at `/home/USER/web/DOMAIN/public_html`; the claim link is printed
+  to the terminal of whoever runs the deploy and is a credential until used or 24 hours
+  pass, so a deploy whose output is logged logs it; the output of `setup-sysop`, which
+  runs as the site user, is printed as it came. SM1421: `lazysite repair --fix` is now
+  run through the shell, as the check call beside it already was, with the docroot and
+  cgi-bin from the registry or the Hestia list unquoted; a path with a shell
+  metacharacter would be read by both calls. The paths are written by root or by Hestia.
+  SM1423: a directory a sysop had tightened below its declared mode is set back to it
+  at the next upgrade.
+
+verdict
+: accepted, for the release manager's confirmation. No trigger fired; recorded because
+  the Hestia deploy now acts as root on a site and writes the registry, the fleet verbs
+  name more sites, and the upgrade sets modes. 0.16.10 is edge, not security-critical
+  (ruling 229): it fixes no vulnerability that reached a stable release (SM1422 is
+  its own entry).
