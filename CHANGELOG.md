@@ -101,6 +101,11 @@ Archive
   model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
   refused the moved site); t/tools/581.
 
+- SM1424 (PENDING) **The Unknown Odoo writes link is said to be on the page that has the card.**
+  The Odoo capability's description and the generated capability map said the link sits
+  "on its card on Extensions"; the cards are on Extensions - configure
+  (`/manager/extension-config`), and a tester looked for the link on the enable/disable
+  page. Both now name it (t/unit/extensions/381).
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 
 - SM297 (0bc5e7c9) **Identity is a value: the data endpoint holds who is calling and
