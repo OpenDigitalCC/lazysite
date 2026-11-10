@@ -68,6 +68,16 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased (0.16.10)
+
+**The container image now carries `git` (SM1423).** The 0.16.1 and 0.16.9 images
+installed no `git`, so content history could not be turned on in the container. The
+image now installs Debian's `git`. Rebuild the image to have it; no site changes. Content
+history stays off until a site turns it on, and `installers/docker/README.md`, "Content
+history", has the command. A site whose `lazysite.conf` already says
+`git_history: enabled` with no history behind it (it was enabled where `git` was
+missing) is repaired by the same command.
+
 ## A broken store now refuses, Odoo's sign-in becomes an identity provider, and the rest of 0.16.9
 
 **A broken store or setting now refuses (SM1417, ruling 206).** Until 0.16.8 a site with a
@@ -183,13 +193,12 @@ still carry Odoo and lay it out as before. Nothing a site configures changes.
 **The Docker recipe now serves many sites from one container (SM1361, rulings 201, 205,
 208, 210).** The 0.16.1 recipe had one site in three volumes, and its volume layout has
 changed: the new recipe keeps every site as a folder in one volume, listed in
-`sites.conf`. Moving a site from the old recipe is a by-hand step. With both
-containers stopped, copy into a new folder `NAME/` in the new volume:
-- the old docroot volume (without its `lazysite/`) to `NAME/html`;
-- the old `lazysite/` volume to `NAME/html-lazysite`;
-- the old private store to `NAME/html-lazysite-private`.
-
-Then start the new container and run `lazysite-sites add NAME DOMAIN`.
+`sites.conf`. Moving a site from the old recipe is a by-hand step, written out with its exact
+commands in `installers/docker/README.md`, "Moving a site from the 0.16.1 recipe":
+build the new image, stop the old container, create the new volume, copy the three
+old volumes into `NAME/` as `www-data`, set `site_name` and `site_url` in the copied
+`lazysite.conf` (the upgrade leaves them as the old recipe wrote them), then start the
+new container and run `lazysite-sites add NAME DOMAIN [ALIAS...]`.
 
 In the new container:
 - the engine runs from the image, and every site runs as `www-data`;

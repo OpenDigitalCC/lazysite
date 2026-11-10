@@ -94,6 +94,137 @@ backups. For each upgraded site run `lazysite-sites restore NAME BACKUP`, then
 set the old tag and run `docker compose up -d`. A site left unrestored is
 refused by the old image, and is named.
 
+## Content history
+
+The image carries `git`, so a site can record a version of every change. It is
+off in a new site, and in a site moved from an older recipe. To turn it on
+(this also takes the first snapshot of the site):
+
+```bash
+docker compose exec lazysite perl /usr/share/lazysite/extensions/content-history.pl \
+    --docroot /srv/sites/example/html --action enable
+```
+
+Ticking **Content history** on the manager's Extensions page does the same.
+`docker compose exec lazysite lazysite-sites check example` then reports the
+content-history lines as `ok`. A site that has `git_history: enabled` in its
+`lazysite.conf` but no history behind it (it was enabled where `git` was
+missing) is reported `inconsistent` by the extension's Status; the same
+command repairs it.
+
+## Moving a site from the 0.16.1 recipe
+
+The 0.16.1 recipe kept one site in three volumes. These steps copy them into a
+folder of the new volume. Nothing writes to the old volumes: they stay as they
+are until you remove them, and are the way back. The steps use the site name
+`example` and the host names `example.com` and `www.example.com`; use your own.
+
+1. Find the old volumes and note what the old site is called. The project name
+   is `lazysite` (the `name:` line of `compose.yaml`), so the volumes are
+   `lazysite_lazysite-docroot`, `lazysite_lazysite-settings` and
+   `lazysite_lazysite-private`; a project started with `-p` or
+   `COMPOSE_PROJECT_NAME` has that name in place of the first `lazysite`. In the
+   old recipe's folder, while its container is still running:
+
+   ```bash
+   docker volume ls --filter name=lazysite
+   docker compose exec lazysite grep -E '^(site_name|site_url):' /srv/lazysite/html/lazysite/lazysite.conf
+   ```
+
+2. Unpack the new release and build its image under its own tag, so the old
+   image stays:
+
+   ```bash
+   tar xzf lazysite-X.Y.Z.tar.gz
+   cd lazysite-X.Y.Z/installers/docker
+   echo 'LAZYSITE_IMAGE=lazysite:X.Y.Z' > .env
+   docker compose build
+   ```
+
+3. Stop the old container and remove it, keeping its volumes. In the old
+   recipe's folder (never with `-v`, which deletes the volumes):
+
+   ```bash
+   docker compose down
+   ```
+
+4. Create the new volume. In the new folder, `docker compose create` makes the
+   container, not started, and the volume `lazysite_lazysite-sites`, which the
+   copy needs to exist:
+
+   ```bash
+   docker compose create
+   ```
+
+5. Copy the three old volumes into the folder `example` of the new volume,
+   running as `www-data` from the new image (the image's own user; do not add
+   `--user root`). `www-data` owns what it extracts, which is what the site
+   needs, and `tar -p` keeps every file's mode. The docroot's own `lazysite/`
+   (where the settings volume was mounted) is left out, because the settings
+   go to `example/html-lazysite`:
+
+   ```bash
+   docker run --rm --entrypoint bash \
+       -v lazysite_lazysite-docroot:/old/docroot:ro \
+       -v lazysite_lazysite-settings:/old/settings:ro \
+       -v lazysite_lazysite-private:/old/private:ro \
+       -v lazysite_lazysite-sites:/srv/sites \
+       lazysite:X.Y.Z -c '
+           set -eo pipefail
+           mkdir -p /srv/sites/example/html /srv/sites/example/html-lazysite /srv/sites/example/html-lazysite-private
+           tar -C /old/docroot --exclude=./lazysite -cf - . | tar -C /srv/sites/example/html -xpf -
+           tar -C /old/settings -cf - . | tar -C /srv/sites/example/html-lazysite -xpf -
+           tar -C /old/private -cf - . | tar -C /srv/sites/example/html-lazysite-private -xpf -
+       '
+   ```
+
+6. Set the site's name in the copied `lazysite.conf`. The old recipe wrote
+   `site_name` and `site_url` from `LAZYSITE_DOMAIN` when it first started, and
+   neither the copy nor the upgrade changes them. Make them name the site's
+   main host, the first one you give `lazysite-sites add` in step 7 (leave
+   `site_url` alone if it is already right, for example an `https://` one you
+   set yourself):
+
+   ```bash
+   docker run --rm --entrypoint sed \
+       -v lazysite_lazysite-sites:/srv/sites \
+       lazysite:X.Y.Z -i \
+       -e 's#^site_name:.*#site_name: example.com#' \
+       -e 's#^site_url:.*#site_url: ${REQUEST_SCHEME}://example.com#' \
+       /srv/sites/example/html-lazysite/lazysite.conf
+   ```
+
+7. Start the new container and add the site. `add` takes the folder name, then
+   every host name the site answers to: the first is the main one (the name
+   `lazysite-sites status` probes), the rest are aliases of the same site. They
+   are the names your proxy forwards in `Host`. The site's install state is
+   older than the image, so it is upgraded as it starts, and a backup is taken
+   first (`example/html-lazysite/backups/lazysite-backup-*-pre-X.Y.Z.tar.gz`):
+
+   ```bash
+   docker compose up -d
+   docker compose exec lazysite lazysite-sites add example example.com www.example.com
+   docker compose exec lazysite lazysite-sites status
+   ```
+
+   `status` exits 0 and shows `example` as `serving`.
+
+8. Turn on content history, which the old image could not run (see Content
+   history above), and check it:
+
+   ```bash
+   docker compose exec lazysite perl /usr/share/lazysite/extensions/content-history.pl \
+       --docroot /srv/sites/example/html --action enable
+   docker compose exec lazysite lazysite-sites check example
+   ```
+
+   The check's content-history lines read `ok`. Saves are recorded from now on.
+
+When the site has run well, remove the three old volumes
+(`docker volume rm lazysite_lazysite-docroot lazysite_lazysite-settings lazysite_lazysite-private`).
+Until then, the way back is `docker compose down`, the old recipe's folder and
+`docker compose up -d`.
+
 ## Faults, health and logs
 
 A site whose install fails, whose state is damaged, or whose health check names

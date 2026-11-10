@@ -88,6 +88,16 @@ Archive
   it, through one helper (`Lazysite::Auth::Session::session_marker_header`) that the
   sign-in's cookie pair uses too. Tests t/unit/extensions/170 and t/unit/odoo/135 assert
   it and fail without the change.
+- SM1423 (PENDING) **The container image carries `git`, so content history works in it,
+  and the move from the 0.16.1 Docker recipe is written out.** Neither image installed
+  `git`, so content history could not be turned on in the container. The Dockerfile now
+  installs Debian's `git`; the history stays off until a site turns it on, with the one
+  command in `installers/docker/README.md`. The same README now has the move from the
+  0.16.1 recipe as eight numbered steps with exact commands: the project-prefixed volume
+  names, `docker compose create` for the new volume, the copy as `www-data` keeping modes,
+  `site_name` and `site_url` in the copied `lazysite.conf`, and the host names given to
+  `lazysite-sites add`. t/lint/563 holds the Dockerfile's packages to the programs the
+  engine runs.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 

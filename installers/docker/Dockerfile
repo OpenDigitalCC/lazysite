@@ -25,11 +25,15 @@ ARG DEBIAN_FRONTEND=noninteractive
 # The engine's hard requirements and the modules behind the stock manager
 # features are the debian/control Depends and Recommends of lazysite-common;
 # libfcgi-perl and libfcgi-procmanager-perl are the pool. curl is the
-# healthcheck's and `lazysite-sites status`'s.
+# healthcheck's and `lazysite-sites status`'s; git is content history's
+# (Lazysite::Git, SM085): without it the feature cannot be turned on, so the
+# image installs it, Debian's own, unpinned. t/lint/563 holds the list to the
+# programs the engine runs.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        git \
         libarchive-zip-perl \
         libcryptx-perl \
         libfcgi-perl \
