@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1419); release manager, ruling 229 (2026-11-10)"
 area: release
-status-note: "SHIPPED (0.16.10) on n808. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.10; SM1422's entry (ruling 229) and the walk's entry (SM1420, SM1421, SM1423 to SM1427) drafted, no trigger, not yet confirmed; one STRIDE row; UPGRADE.md's one 0.16.10 section; no code changes."
+status-note: "SHIPPED (0.16.10) on n808. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.10; SM1422's entry (ruling 229) and the walk's entry (SM1420, SM1421, SM1423 to SM1427) drafted, no trigger, not yet confirmed; one STRIDE row; UPGRADE.md's one 0.16.10 section; two defects found at the walk fixed (repair's shell use, the deploy's USER and DOMAIN), t/tools/626, 627."
 ---
 
 # What was asked
@@ -37,7 +37,7 @@ manager's ruling 229 (2026-11-10) rules how SM1422 ships.
   (strict, exit 0, 495 components, none more than at 0.16.9), fired-trigger and
   vulnerability-handling rows; one sentence on the SM1351 operate-side row; the "what a
   person must confirm" section for 0.16.10. docs/compliance/TECHNICAL-FILE.md, stamped
-  0.16.10: the risk assessment current to 0.16.10, 1,795 test files. docs/POLICY.md:
+  0.16.10: the risk assessment current to 0.16.10, 1,797 test files. docs/POLICY.md:
   walked to 0.16.10.
 - docs/architecture/security.md: a 0.16.10 section, with the cited functions and
   constants checked against the code.
@@ -48,13 +48,19 @@ manager's ruling 229 (2026-11-10) rules how SM1422 ships.
 
 - 0.16.10 is edge, not security-critical (ruling 229 for SM1422; the rest fixes no
   vulnerability).
-- `lazysite repair --fix` (SM1421) is now run through the shell, as the check call beside
-  it already was, with the docroot and cgi-bin from the registry or the Hestia list
-  unquoted. Recorded as residual risk in the walk's entry; no code was changed here.
-- SM1427's deploy prints the claim link to the terminal of whoever runs it; a deploy
-  whose output is logged logs a credential that lasts 24 hours or one use. Recorded, not
-  changed.
+- `lazysite repair` ran the doctor (the check, the `--fix` run, the check again) as one
+  string through the shell with the docroot and cgi-bin unquoted. Fixed in its own
+  commit: list-form pipes (`_capture`); t/tools/626 repairs a docroot named with
+  `;touch MARK` and `$(touch MARK2)` and fails without the change.
+- The Hestia deploy checked USER and DOMAIN only by the docroot existing. Fixed in its
+  own commit: DOMAIN a plain host name, USER a plain name and a user Hestia holds
+  (`v-list-user`), exit 2 before anything is touched; t/tools/627 fails without the
+  change.
+- SM1427's deploy prints the claim link to the terminal of whoever runs it, as
+  `setup-sysop` does by hand; it is a credential for 24 hours or one use. Left as it is
+  and recorded as residual risk; the summary now says not to paste it into a ticket or a
+  log.
 
 # Tests
 
-None: docs only.
+t/tools/626 and t/tools/627, each failing without its change. The rest is docs.

@@ -101,6 +101,9 @@ usage always said.
   points a provider group at a capability group (SM1422). On a site that ran 0.16.9 with
   the `oidc` extension on, read the provider's group map once for an entry a manager added
   and remove any; the operator's own entries are kept as saved.
+- `lazysite-hestia-deploy.sh` refuses, with exit 2, a DOMAIN that is not a plain host name
+  and a USER that is not a Hestia user, before it touches anything; its summary says the
+  claim link is a credential for 24 hours.
 - The `lazysite-common` Debian package now Recommends `git` (SM1426), which content history
   runs; apt installs it unless Recommends are switched off, and history stays off until a
   site turns it on.

@@ -1630,7 +1630,9 @@ entries are drafted for the release manager's confirmation.
   as root from the tarball, writes `/etc/lazysite/sites.d/DOMAIN` from its own
   arguments and only when none exists, sets `site_url` through `install.pl --site-url`
   and runs `setup-sysop` as the site user (`sudo -u`), printing the single-use claim
-  link. `_all_sites` makes `--all` the registry's sites and the Hestia list's together,
+  link. USER must be a plain name and a user Hestia holds (`check_hestia_user`) and DOMAIN
+  a plain host name, refused with exit 2 before anything is touched. `lazysite repair`
+  runs the doctor through list-form pipes (`_capture`), never a shell. `_all_sites` makes `--all` the registry's sites and the Hestia list's together,
   the registry winning by docroot; `upgrade --all` still skips a site whose
   `update_policy` is not `auto`.
 - **The upgrade sets the declared mode on declared directories** (SM1423).

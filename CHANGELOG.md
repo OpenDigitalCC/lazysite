@@ -148,7 +148,7 @@ Archive
   site no longer hides the rest. t/tools/621-625.
 - SM1429 (PENDING) **docs: the compliance records cover 0.16.10.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.10 line (`git log 64d5c3c11..17a681a71`,
-  23 commits) and stamped 0.16.10; no code changes. Drafted at the walk, for the release
+  23 commits) and stamped 0.16.10; the two defects the walk found are fixed in their own commits (the repair's shell use, the deploy's USER and DOMAIN). Drafted at the walk, for the release
   manager's confirmation: SM1422's register entry, whose verdict adds ruling 229 (it
   ships in 0.16.10, not security-critical, with no advisory, because the code is only in
   0.16.9, off by default); an entry for SM1420, SM1421, SM1423, SM1424, SM1425, SM1426 and
@@ -157,7 +157,7 @@ Archive
   list, `git` in the image and the package, the declared modes the upgrade sets, wording,
   the signed-in marker's one writer, output and docs); one STRIDE row for the root-run
   Hestia deploy; a 0.16.10 section in docs/architecture/security.md. SBOM: strict, exit 0,
-  495 components; 1,795 test files. 0.16.10 is edge, not security-critical (ruling 229).
+  495 components; 1,797 test files. 0.16.10 is edge, not security-critical (ruling 229).
 - SM1429 (PENDING) **`lazysite repair` runs the doctor without a shell.** Found at the
   0.16.10 walk: the check before the repair, the `--fix` run and the check after ran as one
   string through the shell with the docroot and cgi-bin unquoted, so a path holding a shell

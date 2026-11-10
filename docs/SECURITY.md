@@ -183,7 +183,7 @@ Information disclosure | An account's phone number leaving the site, or set for 
 Spoofing | An identity written into the data endpoint's environment, by the client or the web server or the process, believed by the endpoint's readers (SM297, boundary 2) | The endpoint holds the verified identity as a value (`local $Lazysite::Auth::Identity::HELD`), its readers are answered that and read nothing from `%ENV` while it is held, and it writes no `X-Remote-*` header; a session whose store cannot be read is refused 503 | 0.16.9 (t/unit/auth/177, t/integration/478, 479; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM297 entry, confirmed on 2026-11-10 (ruling 225)): the manager API in the pool keeps its relay and the header contract until 0.17.0 (ruling 217)
 Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
-Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625; row written at the 0.16.10 walk, drafted for the release manager's confirmation, SM1429): the claim link is printed to the terminal of whoever runs the deploy; USER and DOMAIN are checked only by the docroot existing
+Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, drafted for the release manager's confirmation, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
 ```
 
 ## Five priority entries (from the review)
@@ -6037,6 +6037,8 @@ The walk read the CHANGELOG's `## Unreleased` section and `git log 64d5c3c11..17
 (23 commits). SM1422 has its own entry above. The rest of 0.16.10 moves no control and
 fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or
 processing of restricted data). Each item below was checked against the code it names.
+Two defects the walk found were fixed in the same branch, one commit each, with a test
+that fails without it (see "what changed").
 
 what changed
 : SM1427 (n807). `installers/hestia/lazysite-hestia-deploy.sh` runs as root on a host
@@ -6072,6 +6074,15 @@ what changed
   sign-in gives it (t/lint/592, t/unit/extensions/170, t/unit/odoo/135).
 : SM1426 (n806). `debian/control` lists `git` in `lazysite-common`'s Recommends,
   beside the image's own install (t/lint/593).
+: Fixed at the walk (SM1429). `lazysite repair` ran the check before the repair, the
+  `--fix` run and the check after as one string through the shell with the docroot and
+  cgi-bin unquoted; they are now list-form pipes (`_capture`), the output read as before
+  (t/tools/626: a docroot named with `;touch MARK` and `$(touch MARK2)` is repaired and
+  no file appears; it fails without the change). The deploy now refuses, with exit 2 before
+  anything is touched, a DOMAIN that is not a plain host name (letters, digits, dots and
+  hyphens, no slash or space, no leading dot or hyphen), a USER that is not a plain name,
+  and a USER Hestia does not hold (`v-list-user`); its summary says the claim link is a
+  credential for 24 hours (t/tools/627, which fails without the change).
 : SM1420, SM1421 (n799, n800). Output and docs only. Eight shipped docs pages get titles
   that say what they are and two get a subtitle, so the shipped docs pass their own
   `lazysite check` (t/tools/552). `lazysite check` over a sound DB_File counter prints
@@ -6121,7 +6132,7 @@ threat delta
 : SM1420, SM1421: none. Titles and wording, and the text a verb prints.
 
 controls
-: SM1427: t/tools/621-625 (the group message, the options a verb takes, `setup-sysop`'s
+: SM1427: t/tools/621-625 and 627 (the group message, the options a verb takes, `setup-sysop`'s
   wording, a first deploy with its registry entry, site address, claim link and refusals
   before anything is touched, and `--all` over the registry and the Hestia list
   together). `--sysop NAME` is held to letters, digits, `.`, `_` and `-` and `--channel`
@@ -6132,18 +6143,16 @@ controls
   0.16.1 recipe left wrong). SM1424: t/tools/591, t/unit/extensions/381, t/unit/mcp/258,
   t/integration/281, t/unit/users/317. SM1425/SM1426: t/unit/extensions/170,
   t/unit/odoo/135, t/lint/592 (one writer, fails without the change), t/lint/593.
-  SM1420/SM1421: t/tools/552, 562-564.
+  SM1420/SM1421: t/tools/552, 562-564. The walk's two fixes: t/tools/626, 627.
 
 residual risk
-: SM1427: USER and DOMAIN are the root operator's own arguments and are checked only by
-  the docroot existing at `/home/USER/web/DOMAIN/public_html`; the claim link is printed
-  to the terminal of whoever runs the deploy and is a credential until used or 24 hours
-  pass, so a deploy whose output is logged logs it; the output of `setup-sysop`, which
-  runs as the site user, is printed as it came. SM1421: `lazysite repair --fix` is now
-  run through the shell, as the check call beside it already was, with the docroot and
-  cgi-bin from the registry or the Hestia list unquoted; a path with a shell
-  metacharacter would be read by both calls. The paths are written by root or by Hestia.
-  SM1423: a directory a sysop had tightened below its declared mode is set back to it
+: SM1427: the claim link is printed to the terminal of whoever runs the deploy, as
+  `setup-sysop` prints it by hand, and is a credential until used or 24 hours pass, so a
+  deploy whose output is logged logs it; the summary now says not to paste it into a
+  ticket or a log, and the behaviour is left as it is. The output of `setup-sysop`, which
+  runs as the site user, is printed as it came. USER and DOMAIN are validated (fixed at
+  the walk, above), so the earlier residual risk that they were checked only by the
+  docroot existing is closed; the repair's shell use (SM1421) is fixed too. SM1423: a directory a sysop had tightened below its declared mode is set back to it
   at the next upgrade.
 
 verdict
@@ -6151,4 +6160,6 @@ verdict
   the Hestia deploy now acts as root on a site and writes the registry, the fleet verbs
   name more sites, and the upgrade sets modes. 0.16.10 is edge, not security-critical
   (ruling 229): it fixes no vulnerability that reached a stable release (SM1422 is
-  its own entry).
+  its own entry); the two defects fixed at the walk were a shell use of a path (the check
+  calls predate 0.16.10, the `--fix` call is its own) and 0.16.10's own deploy; neither
+  reached a stable release, and each needs a path or argument the root operator supplies.

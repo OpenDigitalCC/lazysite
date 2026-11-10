@@ -128,7 +128,13 @@ still stand.
   boundary 15, the assets line and the not-yet-code line are unchanged by 0.16.10.
 - 0.16.10 is edge, not security-critical (ruling 229): it fixes no vulnerability that
   reached a stable release (the vulnerability-handling row).
-- SBOM: strict, exit 0, 495 components, none more than at 0.16.9; 1,795 test files.
+- Two defects found at the walk are fixed in their own commits, each with a test that
+  fails without it: `lazysite repair` ran the doctor through the shell with unquoted
+  paths (now list-form pipes), and the Hestia deploy checked USER and DOMAIN only by the
+  docroot existing (now plain names, USER a Hestia user, exit 2 before anything is
+  touched). The claim link the deploy prints is left as `setup-sysop`'s own behaviour and
+  recorded as residual risk.
+- SBOM: strict, exit 0, 495 components, none more than at 0.16.9; 1,797 test files.
 - No operate-side row was added. The SM1351 row (an outside sign-in provider's group map)
   gains one sentence: on a site that ran 0.16.9 with `oidc` on, the operator reads the
   map once for entries a manager added.
