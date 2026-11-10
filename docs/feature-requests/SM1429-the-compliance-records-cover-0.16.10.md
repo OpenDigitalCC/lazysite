@@ -1,14 +1,14 @@
 ---
 id: SM1429
 title: "SM1429: the compliance records cover 0.16.10"
-subtitle: "The gate's compliance check refuses 0.16.10 with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.9. Both are walked against the 0.16.10 line and stamped 0.16.10; SM1422's entry and the walk's own are drafted for the release manager."
+subtitle: "The gate's compliance check refuses 0.16.10 with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.9. Both are walked against the 0.16.10 line and stamped 0.16.10; SM1422's entry and the walk's own are confirmed by the release manager (ruling 233)."
 brand: plain
 standard-margins: true
 status: shipped
 raised: 2026-11-10
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1419); release manager, ruling 229 (2026-11-10)"
 area: release
-status-note: "SHIPPED (0.16.10) on n808. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.10; SM1422's entry (ruling 229) and the walk's entry (SM1420, SM1421, SM1423 to SM1427) drafted, no trigger, not yet confirmed; one STRIDE row; UPGRADE.md's one 0.16.10 section; two defects found at the walk fixed (repair's shell use, the deploy's USER and DOMAIN), t/tools/626, 627."
+status-note: "SHIPPED (0.16.10) on n808. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.10; SM1422's entry (ruling 229) and the walk's entry (SM1420, SM1421, SM1423 to SM1427) no trigger, confirmed (ruling 233); one STRIDE row; UPGRADE.md's one 0.16.10 section; two defects found at the walk fixed (repair's shell use, the deploy's USER and DOMAIN), t/tools/626, 627."
 ---
 
 # What was asked
@@ -24,9 +24,9 @@ manager's ruling 229 (2026-11-10) rules how SM1422 ships.
 
 - docs/SECURITY.md, SM1422's entry: the verdict adds ruling 229's answer. It ships in
   0.16.10, not security-critical, with no advisory, because the code is only in 0.16.9
-  (edge), off by default and in no stable release. It is not marked confirmed.
+  (edge), off by default and in no stable release. It is confirmed by the release manager on 2026-11-10 (ruling 233).
 - docs/SECURITY.md, a new entry dated 2026-11-10 for SM1420, SM1421, SM1423, SM1424,
-  SM1425, SM1426 and SM1427, drafted for confirmation, no trigger. Each item was read
+  SM1425, SM1426 and SM1427, no trigger, confirmed by the release manager on 2026-11-10 (ruling 233). Each item was read
   against the code it names: the Hestia deploy (the registry entry, `install.pl
   --site-url`, `setup-sysop` as the site user, the fleet verbs' `--all`, ruling 231);
   `git` in the image and in the package's Recommends, and the declared modes the upgrade

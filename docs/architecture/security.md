@@ -1613,8 +1613,7 @@ Walked on 2026-11-10 (SM1419); the register entries are confirmed by the release
 
 ## A map entry, the signed-in marker, a Hestia deploy and the fleet's sites (0.16.10)
 
-Walked on 2026-11-10 (SM1429); edge, not security-critical (ruling 229). The register
-entries are drafted for the release manager's confirmation.
+Walked on 2026-11-10 (SM1429); edge, not security-critical (ruling 229). The register entries are confirmed by the release manager on 2026-11-10 (ruling 233).
 
 - **A manager cannot point a new OIDC map entry at a capability group** (SM1422, ruling
   229). `Lazysite::Ext::OIDC::validate_group_map` keeps, for a caller who is not the

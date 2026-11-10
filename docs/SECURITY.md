@@ -183,7 +183,7 @@ Information disclosure | An account's phone number leaving the site, or set for 
 Spoofing | An identity written into the data endpoint's environment, by the client or the web server or the process, believed by the endpoint's readers (SM297, boundary 2) | The endpoint holds the verified identity as a value (`local $Lazysite::Auth::Identity::HELD`), its readers are answered that and read nothing from `%ENV` while it is held, and it writes no `X-Remote-*` header; a session whose store cannot be read is refused 503 | 0.16.9 (t/unit/auth/177, t/integration/478, 479; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM297 entry, confirmed on 2026-11-10 (ruling 225)): the manager API in the pool keeps its relay and the header contract until 0.17.0 (ruling 217)
 Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
-Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, drafted for the release manager's confirmation, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
+Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, confirmed by the release manager on 2026-11-10 (ruling 233), with the walk's entry and the claim-link residual risk, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
 ```
 
 ## Five priority entries (from the review)
@@ -5988,8 +5988,7 @@ verdict
 
 ### 2026-11-10 - SM1422 (PENDING): a manager cannot point a new OIDC map entry at a capability group
 
-Assessment drafted by the developer agent (n801), for the release manager's
-confirmation. Found proving SM1351 against a local authentik (ruling 227).
+Assessment drafted by the developer agent (n801); confirmed by the release manager on 2026-11-10 (ruling 233). Found proving SM1351 against a local authentik (ruling 227).
 
 what changed
 : `Lazysite::Ext::OIDC::validate_group_map`, the settings form's check of a provider's
@@ -6021,18 +6020,15 @@ residual risk
   it; the audit trail's `extension-save` rows name who saved each map, and every
   sign-in's `login-grant` row names the groups it granted.
 
-verdict
-: accepted, for the release manager's confirmation: a fix to a control 0.16.9 shipped
+verdict : accepted, confirmed by the release manager on 2026-11-10 (ruling 233): a fix to a control 0.16.9 shipped
   (SM1351, ruling 214). Ruling 229 (2026-11-10) rules how it ships: in 0.16.10, not
   security-critical, with no advisory, because the code is only in 0.16.9 (edge), off by
   default (the `oidc` extension is off until an operator turns it on), in no stable
-  release, and fixed before the beta. Not marked confirmed yet; the release manager
-  confirms this entry at the 0.16.10 sign-off.
+  release, and fixed before the beta. 0.16.10 is edge, not security-critical, with no advisory (ruling 229, ruling 233).
 
 ### 2026-11-10 - SM1420, SM1421, SM1423, SM1424, SM1425, SM1426, SM1427 (0.16.10): the rest of 0.16.10, with no trigger
 
-Assessment drafted by the developer agent at the 0.16.10 compliance walk (SM1429), for the
-release manager's confirmation; not confirmed yet.
+Assessment drafted by the developer agent at the 0.16.10 compliance walk (SM1429); confirmed by the release manager on 2026-11-10 (ruling 233).
 The walk read the CHANGELOG's `## Unreleased` section and `git log 64d5c3c11..17a681a71`
 (23 commits). SM1422 has its own entry above. The rest of 0.16.10 moves no control and
 fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or
@@ -6155,8 +6151,7 @@ residual risk
   docroot existing is closed; the repair's shell use (SM1421) is fixed too. SM1423: a directory a sysop had tightened below its declared mode is set back to it
   at the next upgrade.
 
-verdict
-: accepted, for the release manager's confirmation. No trigger fired; recorded because
+verdict : accepted, confirmed by the release manager on 2026-11-10 (ruling 233). No trigger fired; recorded because
   the Hestia deploy now acts as root on a site and writes the registry, the fleet verbs
   name more sites, and the upgrade sets modes. 0.16.10 is edge, not security-critical
   (ruling 229): it fixes no vulnerability that reached a stable release (SM1422 is
