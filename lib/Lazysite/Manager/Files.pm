@@ -2987,7 +2987,7 @@ sub _address_profile_refusal {
     return undef unless @missing;
     my @n = map { $_->[1] } @missing;
     return { ok => 0, kind => 'invalid', field => $missing[0][0], missing => \@n,
-        error => 'This rule names ' . ( @n == 1 ? 'an address profile' : 'address profiles' )
+        error => ( @n == 1 ? 'This rule names an address profile' : 'This rule names address profiles' )
             . ' the store does not hold: ' . join( ', ', @n )
             . '. Create ' . ( @n == 1 ? 'it' : 'them' )
             . ' first (Access, Address profiles), or correct the name. Nothing was changed.' };
