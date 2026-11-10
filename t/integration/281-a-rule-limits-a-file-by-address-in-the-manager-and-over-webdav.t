@@ -79,18 +79,15 @@ subtest 'a rule changed for another reason keeps its address profiles; an empty 
     boss( 'acl-set', { owner => 'boss', addresses => ['office'] }, 'action=acl-set&path=internal/' );
 };
 
-subtest 'a name is validated; an unknown list is accepted with a warning that says why' => sub {
+subtest 'a name is validated; a profile the store does not hold is refused, naming it' => sub {
     my $bad = boss( 'acl-set', { owner => 'boss', addresses => ['Not A Name'] }, 'action=acl-set&path=other/' );
     ok( !$bad->{ok}, 'a name that cannot be a list name is refused' );
     like( $bad->{error}, qr/not an address profile name/, 'saying so' );
     ok( !exists acls()->{other}, 'and nothing was written' );
     my $r = boss( 'acl-set', { owner => 'boss', addresses => ['later'] }, 'action=acl-set&path=other/' );
-    ok( $r->{ok}, 'a list the store does not hold yet is accepted' ) or diag( explain $r );
-    is_deeply( acls()->{other}{addresses}, ['later'], 'and stored as written' );
-    my ($w) = grep { /does not hold yet: later/ } @{ $r->{warnings} || [] };
-    ok( $w, 'with a warning' ) or diag( explain $r->{warnings} );
-    like( $w // '', qr/may be created later/, 'that says a list may be created later' );
-    like( $w // '', qr/admits NO address/,    'and what the rule does until it is' );
+    ok( !$r->{ok}, 'a profile the store does not hold is refused (n812)' ) or diag( explain $r );
+    like( $r->{error}, qr/does not hold: later\./, 'naming it' );
+    ok( !exists acls()->{other}, 'and nothing was written' );
     # SM1343: a profile has no kind; one denied on internal/ may be allowed elsewhere.
     my $other = boss( 'acl-set', { owner => 'boss', addresses => ['blocked'] }, 'action=acl-set&path=elsewhere/' );
     ok( $other->{ok}, 'a profile denied on one rule is allowed on another' ) or diag( explain $other );

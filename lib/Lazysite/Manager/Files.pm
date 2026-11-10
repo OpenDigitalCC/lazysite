@@ -2941,7 +2941,7 @@ sub _acl_set_many {
 # SM1139: the names in an `addresses` / `addresses_deny` value - an array, or a
 # comma-separated string as the other lists arrive from a form or the MCP schema.
 # ( \@names, undef ) or ( undef, why ). Only the SHAPE is checked here (the
-# store's own name rule); whether the profile exists is a warning, not a refusal.
+# store's own name rule); whether the profile exists is _address_profile_refusal's.
 sub _address_profile_names {
     my ( $v, $field ) = @_;
     my @in = ref $v eq 'ARRAY' ? @$v : ref $v ? () : split( /\s*,\s*/, $v );
@@ -2961,26 +2961,36 @@ sub _address_profile_names {
     return ( \@names, undef );
 }
 
-# The warnings for a rule's address profiles: [ field, name ] pairs.
-sub _address_profile_warnings {
+# n812 (O-2): A RULE THAT NAMES AN ADDRESS PROFILE THE STORE DOES NOT HOLD IS
+# REFUSED, naming the missing profiles, and nothing is written. [ field, name ]
+# pairs in; a refusal or undef out. It was accepted with a warning, and the rule
+# then refused every write to the path (a missing profile allowed admits nobody)
+# while the call answered ok. A store that cannot be read is a fault, named:
+# whether the profile exists is not known, so the rule is not written.
+sub _address_profile_refusal {
     my ($pairs) = @_;
-    return () unless @$pairs;
+    return undef unless @$pairs;
     require Lazysite::Auth::AddressProfiles;
     no warnings 'once';
     local $Lazysite::Auth::AddressProfiles::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
     my $profiles = Lazysite::Auth::AddressProfiles::profiles();
-    my @unknown;
+    if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
+        return { ok => 0, kind => 'invalid', field => $pairs->[0][0],
+            error => 'Whether the address profiles this rule names exist cannot be told: '
+                . Lazysite::Auth::AddressProfiles::fault_text($fault) . '. Nothing was changed.' };
+    }
+    my ( %u, @missing );
     for my $p (@$pairs) {
         my ( $f, $n ) = @$p;
-        push @unknown, "$n ($f)" unless $profiles->{$n};
+        push @missing, [ $f, $n ] unless $profiles->{$n} || $u{$n}++;
     }
-    my @w;
-    push @w, 'this rule names address profiles the store does not hold yet: ' . join( ', ', @unknown )
-        . '. They are accepted, because a profile may be created later. Until it exists, a missing '
-        . 'profile allowed admits NO address (the path is refused to everyone) and a missing profile '
-        . 'denied blocks none.'
-        if @unknown;
-    return @w;
+    return undef unless @missing;
+    my @n = map { $_->[1] } @missing;
+    return { ok => 0, kind => 'invalid', field => $missing[0][0], missing => \@n,
+        error => 'This rule names ' . ( @n == 1 ? 'an address profile' : 'address profiles' )
+            . ' the store does not hold: ' . join( ', ', @n )
+            . '. Create ' . ( @n == 1 ? 'it' : 'them' )
+            . ' first (Access, Address profiles), or correct the name. Nothing was changed.' };
 }
 
 sub action_acl_set {
@@ -3056,9 +3066,8 @@ sub action_acl_set {
     # (SM1343). Like `draft`, absent means "leave as it is" - this record is rebuilt
     # from scratch, so an existing rule's profiles would otherwise be erased by an
     # unrelated change - and an empty list clears. A name must be a valid profile
-    # name (the store's own rule); a name the store does not know YET is accepted
-    # and WARNED about below, because a profile may be created later (the same
-    # ruling as SM901's unknown account), not refused.
+    # name (the store's own rule), and a profile the store does not hold is refused
+    # (n812), as `lazysite check` reports one a rule names.
     my @addr_names;
     for my $f (qw(addresses addresses_deny)) {
         my $given = ref $opts eq 'HASH' ? $opts->{$f} : undef;
@@ -3072,6 +3081,7 @@ sub action_acl_set {
             $rec{$f} = [ @{ $existing->{$f} } ];
         }
     }
+    if ( my $no = _address_profile_refusal( \@addr_names ) ) { return $no }
 
     # SM901: EVERY NAME IN A LIST IS CHECKED AGAINST THE STORE.
     #
@@ -3381,12 +3391,6 @@ sub action_acl_set {
             . 'the day the name exists; until then it matches nobody. A group '
             . 'is spelt @name.';
     }
-
-    # SM1139: the address profiles this rule names that the store does not hold.
-    # Accepted, because a profile may be created later; said, because until it
-    # exists allowing it admits nobody (the path is refused to every address) and
-    # denying it blocks nobody.
-    push @warnings, _address_profile_warnings( \@addr_names );
 
     # SM912 P4: said in the same place, for the same reason. A rule written
     # against a store that knows nobody is stored as typed and checked against

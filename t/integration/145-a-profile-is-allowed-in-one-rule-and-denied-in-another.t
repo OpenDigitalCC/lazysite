@@ -49,7 +49,7 @@ subtest 'acl-set: office allowed on one folder and denied on another' => sub {
     ok( $c->{ok}, 'a profile used to deny elsewhere may be allowed beside one denied' ) or diag explain $c;
     unlike( encode_json($c), qr/kind/i, 'and nothing is said about a kind' );
     my $later = boss( 'acl-set', { owner => 'boss', addresses_deny => ['later'] }, 'action=acl-set&path=other/' );
-    ok( $later->{ok}, 'a profile the store does not hold yet is still accepted' ) or diag explain $later;
+    ok( !$later->{ok}, 'a profile the store does not hold is refused (n812)' ) or diag explain $later;
 };
 
 subtest 'group-set: either key takes any profile' => sub {

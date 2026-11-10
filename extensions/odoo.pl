@@ -215,7 +215,8 @@ sub hooks {
                     . 'their own run without this. Declared by the Odoo extension.',
                 grants => 'Decide, for a change Odoo cannot be asked about, whether it was made, on a run anyone '
                     . 'made, and dismiss an unsettled run so it is no longer offered. Every decision and every '
-                    . 'dismissal is one call record and one audit line naming who. Held by the operator group by default.',
+                    . 'dismissal is one call record and one audit line naming who. The panel is the Unknown Odoo '
+                    . 'writes page, linked from its card on Extensions - configure. Held by the operator group by default.',
                 unlocks => { ui => ['the Unknown Odoo writes page of the Odoo extension (/manager/odoo-unknown-writes, linked from its card on Extensions - configure, /manager/extension-config)'] },
             },
         },

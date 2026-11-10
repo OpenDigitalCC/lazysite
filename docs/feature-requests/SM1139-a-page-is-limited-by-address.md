@@ -127,9 +127,9 @@ list admits nobody and in a deny list blocks nobody.
 an array or comma-separated names. Absent leaves the rule's lists as they are
 (the record is rebuilt on each write, so this matters), an empty list clears.
 Each name must be a valid list name or the call is refused and nothing is
-changed. **A name the store does not hold yet is accepted with a warning**, since
-a list may be created later; the warning says that, and that until the list
-exists an allow list naming it admits no address and a deny list blocks none. A
+changed. **A name the store does not hold is refused, naming it** (n812; it was accepted
+with a warning), and nothing is written, since an allow rule naming a missing
+profile admits no address. A
 deny list named under `addresses` (or the reverse) is accepted and warned about as
 the wrong kind. `acl-get` returns the fields, and with `address_lists` (name and
 kind only, never entries) so the Files page can offer them; the listing carries

@@ -1716,7 +1716,7 @@ my %TOOLS = (
                 draft => { type => 'boolean',
                     description => 'Hide this path outright: 404 to the public and absent from the sitemap, feeds and every listing, previewable by a signed-in editor. Omit to leave the current setting alone; false clears it and publishes.' },
                 addresses => { type => 'string',
-                    description => 'Comma-separated names of the address profiles to ALLOW: the path is served only to a visitor whose address is in one of them (and every enclosing folder rule that names profiles says the same). A profile has no kind of its own: the same profile may be allowed here and denied elsewhere. A name the store does not hold yet is accepted with a warning. Omit to leave the current setting alone; empty clears it.' },
+                    description => 'Comma-separated names of the address profiles to ALLOW: the path is served only to a visitor whose address is in one of them (and every enclosing folder rule that names profiles says the same). A profile has no kind of its own: the same profile may be allowed here and denied elsewhere. A name the store does not hold is refused, naming it. Omit to leave the current setting alone; empty clears it.' },
                 addresses_deny => { type => 'string',
                     description => 'Comma-separated names of the address profiles to DENY: a visitor whose address is in one of them is refused, whatever else allows it. Omit to leave the current setting alone; empty clears it.' },
                 history => { type => 'boolean',
