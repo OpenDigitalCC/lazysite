@@ -1431,6 +1431,22 @@ sub _site_url {
     return "https://$s->{name}/";
 }
 
+# n808: run a command WITHOUT a shell and return its output, stderr merged into stdout, with
+# $? set as qx sets it (-1 when it could not start). A docroot or cgi-bin is a path, and a
+# path is an argument, never shell text.
+sub _capture {
+    my (@cmd) = @_;
+    my $pid = open( my $fh, '-|' );
+    return do { $? = -1; '' } unless defined $pid;
+    if ( !$pid ) {
+        open STDERR, '>&', \*STDOUT or exit 127;
+        exec { $cmd[0] } @cmd or exit 127;
+    }
+    my $out = do { local $/; <$fh> };
+    close $fh;
+    return $out // '';
+}
+
 # Run the doctor, repair what it finds, then CHECK AGAIN.
 #
 # The re-check is the point. This project's recurring defect is a control
@@ -1470,7 +1486,7 @@ sub cmd_repair {
         my @base = ( '--docroot', $s->{docroot} );
         push @base, '--cgibin', $s->{cgibin} if length( $s->{cgibin} // '' );
 
-        my $before = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
+        my $before = _capture( $^X, _lib_arg(), $tool, @base );
         my @issues = grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $before;
         unless (@issues) { push @clean, $s->{name}; next }
 
@@ -1488,7 +1504,7 @@ sub cmd_repair {
         print "  -> repairing\n";
         # The repair's own report is read as well as shown: it says how many
         # changes it applied, which the tally below repeats (n800).
-        my $fixed = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} --fix 2>&1);
+        my $fixed = _capture( $^X, _lib_arg(), $tool, @base, '--fix' );
         $? == -1 ? warn "  could not run the repair\n" : print $fixed;
         my ($applied) = $fixed =~ /^\(--fix applied (\d+) change/m;
 
@@ -1508,7 +1524,7 @@ sub cmd_repair {
                 . ( defined $last ? " - $last" : '' ) . "\n";
         }
 
-        my $after = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
+        my $after = _capture( $^X, _lib_arg(), $tool, @base );
         my @left = grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $after;
 
         # Split by SEVERITY, from the doctor's own marker. A FAIL after a repair

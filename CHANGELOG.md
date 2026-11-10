@@ -158,6 +158,13 @@ Archive
   the signed-in marker's one writer, output and docs); one STRIDE row for the root-run
   Hestia deploy; a 0.16.10 section in docs/architecture/security.md. SBOM: strict, exit 0,
   495 components; 1,795 test files. 0.16.10 is edge, not security-critical (ruling 229).
+- SM1429 (PENDING) **`lazysite repair` runs the doctor without a shell.** Found at the
+  0.16.10 walk: the check before the repair, the `--fix` run and the check after ran as one
+  string through the shell with the docroot and cgi-bin unquoted, so a path holding a shell
+  metacharacter was read as a command (the paths come from the root-written registry or
+  Hestia's list). The three runs are now list-form pipes (`_capture`), their output read as
+  before. The other `qx` calls in the CLI already quote every word. t/tools/626 repairs a
+  docroot named with `;touch MARK` and `$(touch MARK2)` and fails without the change.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 
