@@ -53,6 +53,12 @@ Archive
 
 ## Unreleased
 
+- SM1420 (PENDING) **The shipped docs pass their own `lazysite check`.** Eight shipped
+  pages shared four titles in pairs (Authentication, Forms, Manager, Payment: the full
+  guide and its short summary under features/) and two had no description. Each now has a
+  title that says what it is, the two have a subtitle, and no page moved. A test runs the
+  check over the whole shipped docs tree.
+
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 
 - SM297 (0bc5e7c9) **Identity is a value: the data endpoint holds who is calling and

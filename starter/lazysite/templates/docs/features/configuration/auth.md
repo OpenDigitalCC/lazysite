@@ -1,5 +1,5 @@
 ---
-title: Authentication
+title: "Authentication: protecting a page"
 subtitle: Protect pages with login requirements and group-based access control.
 tags:
   - configuration

@@ -1,5 +1,5 @@
 ---
-title: Payment
+title: "Payment: protecting a page"
 subtitle: Gate content behind x402 payments with optional member bypass.
 tags:
   - configuration

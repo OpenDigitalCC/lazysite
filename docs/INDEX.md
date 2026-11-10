@@ -208,7 +208,7 @@ SHIPPED. The engine's /docs manual, installed into every site's engine tree and 
 | [`api.md`](api.md) - API and raw mode | JSON endpoints, content fragments, and query string variables. |
 | [`app.md`](app.md) - Installing a site as an app | A site, or one section of it, installs on a phone or tablet as a progressive web app, from a few settings. |
 | [`auth-upgrade.md`](auth-upgrade.md) - Upgrading to external auth | Replace built-in auth with Authentik, Authelia, or another proxy. |
-| [`auth.md`](auth.md) - Authentication | Protect pages with built-in auth or an external proxy. |
+| [`auth.md`](auth.md) - Authentication: the full guide | Protect pages with built-in auth or an external proxy. |
 | [`authoring.md`](authoring.md) - Authoring | How to create and edit pages - the short version. |
 | [`behind-an-identity-provider.md`](behind-an-identity-provider.md) - Behind an identity provider | Let a proxy in front of the site sign visitors in, and say who may do what with the groups it sends. |
 | [`configuration.md`](configuration.md) - Configuration | Layouts, navigation, site variables, forms, auth, and extensions. |
@@ -217,16 +217,16 @@ SHIPPED. The engine's /docs manual, installed into every site's engine tree and 
 | [`development.md`](development.md) - Development | Local development server, build tools, and troubleshooting. |
 | [`forms-helpers.md`](forms-helpers.md) - Form helpers | Write custom dispatch targets for lazysite forms. |
 | [`forms-smtp.md`](forms-smtp.md) - SMTP configuration | Configure email delivery for lazysite forms. |
-| [`forms.md`](forms.md) - Forms | Add contact forms and data collection to any page. |
+| [`forms.md`](forms.md) - Forms: the full guide | Add contact forms and data collection to any page. |
 | [`frontmatter.md`](frontmatter.md) - Front matter | The YAML metadata block at the top of every page. |
 | [`index.md`](index.md) - Documentation | Everything this site publishes about how lazysite works, and which question each page answers. |
 | [`install.md`](install.md) - Installation | Requirements, server setup, and getting started. |
 | [`layouts.md`](layouts.md) - Layouts and Themes | How lazysite wraps page content in HTML layouts. |
-| [`manager.md`](manager.md) - Manager | Web-based admin and content manager for lazysite. |
+| [`manager.md`](manager.md) - Manager: the full guide | Web-based admin and content manager for lazysite. |
 | [`odoo.md`](odoo.md) - The Odoo extension | Pages, forms, the schedule and agents run named Odoo operations through a connection user whose rights are set in Odoo. |
 | [`onboard-ai-agent.md`](onboard-ai-agent.md) - Onboard an AI agent | Give an AI assistant a scoped account to manage your site - in a few steps, fully under your control. |
 | [`onboarding-brief-template.md`](onboarding-brief-template.md) - Onboarding brief template (operator) | This is the operator's template for the out-of-band onboarding brief. |
-| [`payment.md`](payment.md) - Payment | Gate content behind x402 payments with member bypass. |
+| [`payment.md`](payment.md) - Payment: the full guide | Gate content behind x402 payments with member bypass. |
 | [`reference.md`](reference.md) - Reference | Front matter keys, TT variables, configuration keys, and file locations. |
 | [`remote-content.md`](remote-content.md) - Remote content | Using JSON indexes and .url files for remote-sourced pages. |
 | [`troubleshooting.md`](troubleshooting.md) - Troubleshooting & migrating | Diagnosing problems, and moving content in from other tools. |

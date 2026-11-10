@@ -1,5 +1,5 @@
 ---
-title: Authentication
+title: "Authentication: the full guide"
 subtitle: Protect pages with built-in auth or an external proxy.
 register:
   - sitemap.xml

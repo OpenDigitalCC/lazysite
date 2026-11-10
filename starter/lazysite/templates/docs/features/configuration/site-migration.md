@@ -1,5 +1,6 @@
 ---
 title: Move a site (site packages / content migration)
+subtitle: Hand a site to another instance or domain as a portable package of its content, menu, theme and settings.
 ---
 
 A **site package** is a portable snapshot of one domain's site. Use it to hand an

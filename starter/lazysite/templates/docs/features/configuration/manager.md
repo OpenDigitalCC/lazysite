@@ -1,5 +1,5 @@
 ---
-title: Manager
+title: "Manager: enabling and configuring"
 subtitle: Web-based content manager with file browser, live preview, and theme manager.
 tags:
   - configuration

@@ -1,5 +1,5 @@
 ---
-title: Payment
+title: "Payment: the full guide"
 subtitle: Gate content behind x402 payments with member bypass.
 register:
   - sitemap.xml

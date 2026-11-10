@@ -1,5 +1,6 @@
 ---
 title: Update channel (the edge < beta < stable < certified ladder)
+subtitle: Choose the least mature release a site accepts, so an untested release stays off customer sites.
 ---
 
 A site can choose **which lazysite upgrades it accepts**, so a not-yet-certified

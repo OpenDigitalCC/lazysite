@@ -1,5 +1,5 @@
 ---
-title: Forms
+title: "Forms: the form block in brief"
 subtitle: Add contact forms with built-in anti-spam and configurable dispatch.
 tags:
   - authoring

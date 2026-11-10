@@ -1,5 +1,5 @@
 ---
-title: Forms
+title: "Forms: the full guide"
 subtitle: Add contact forms and data collection to any page.
 register:
   - sitemap.xml

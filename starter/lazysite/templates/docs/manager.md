@@ -1,5 +1,5 @@
 ---
-title: Manager
+title: "Manager: the full guide"
 subtitle: Web-based admin and content manager for lazysite.
 register:
   - sitemap.xml
