@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.8"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.9"
 brand: plain
 ---
 
@@ -2048,6 +2048,19 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.9** (2026-11-10, edge) - **A broken store refuses and is made fixable,
+  Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys
+  arrive, and one container serves many sites.** an extension declares an
+  identity provider, the Odoo site sign-in is the first, and its endpoint,
+  services, checks, manager page and secrets are its declaration (SM1369 X4,
+  X5, X6); Odoo is its own package, lazysite-odoo (SM1369 X7); a person signs
+  in through an outside OpenID Connect provider, with its groups (SM1351), or
+  with a passkey (SM1352); notices go by web push and by webhook (SM1363); a
+  table reads its rows from another system's API (SM1364); a damaged store or a
+  broken setting refuses and is made fixable (SM1417, SM297); the FastCGI pool
+  runs the site's own engine (SM1416); one container serves many sites on a
+  read-only engine (SM1361); the XMPP notice account is a usable contact
+  (SM1418)
 - **0.16.8** (2026-11-08, edge) - **Odoo's actions, sources and assets become
   the extension's own, a form mails only whom a notify handler names, and a row
   keeps its history with undo.** Odoo's actions, capabilities, page sources,

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-09
 raised-by: "release manager, ruling 221"
 area: notifications
-status-note: "SHIPPED (PENDING): while connected for a send to a person, Notify approves a subscribe from the configured recipient only, asks for its own once (roster both/to/pending: no repeat); a room gets none; a failed presence step is logged and the send goes on. Plaintext, no OMEMO. t/unit/lib/322; /docs/forms."
+status-note: "SHIPPED (0.16.9): while connected for a send to a person, Notify approves a subscribe from the configured recipient only, asks for its own once (roster both/to/pending: no repeat); a room gets none; a failed presence step is logged and the send goes on. Plaintext, no OMEMO. t/unit/lib/322; /docs/forms."
 ---
 
 # What happened

@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM297 (PENDING) **Identity is a value: the data endpoint holds who is calling and
+## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
+
+- SM297 (0bc5e7c9) **Identity is a value: the data endpoint holds who is calling and
   writes no trust header (the first surface converted).** One accessor:
   `Lazysite::Auth::Identity::request_identity` answers a value held for the request
   (`$Lazysite::Auth::Identity::HELD`, set with `local`) and reads nothing from `%ENV`
@@ -64,14 +66,14 @@ Archive
   refused there with a 503 naming the store (ruling 206), where it was served as
   anonymous. The manager API in the pool keeps its relay (fork, the contract written
   from the value, exec) and the CGI wrapper its header contract.
-- SM297 (PENDING) **A signed-in page on a session store that cannot be read is refused,
+- SM297 (7f652595) **A signed-in page on a session store that cannot be read is refused,
   not rendered as anonymous (ruling 217).** The auth wrapper and the pool's front door
   answer a session cookie whose store (`user-settings.json`, `revoked.json`, `users`)
   cannot be read or decoded with a 503 - the engine's one refusal for a store it cannot
   tell, which names no file to the visitor (rulings 216, 217) - and the log names the
   store and the repair. No cookie, an expired cookie or a removed account is served as
   before.
-- SM1369 (PENDING) **X4: an extension declares an identity provider, and the Odoo site
+- SM1369 (b973ddac) **X4: an extension declares an identity provider, and the Odoo site
   sign-in is the first (H-1; rulings 178, 186).** `owns.hooks.identity_provider` gives
   core a provider's `on`, `still_valid`, `groups`, `login_option` and `banner`, its
   `renew` path, its `signin_page` and whether its groups may `grant`. Core keeps the
@@ -88,7 +90,7 @@ Archive
   group holding `manage_connectors`. The handler and schedule actions open, on every door, for a
   capability a declared handler type names (ruling 192), so `manage_odoo` alone manages
   Odoo bindings and their schedules, and no other kind of handler.
-- SM1369 (PENDING) **X5, H-4: an extension's endpoint reads its body and checks the token
+- SM1369 (fedb3460) **X5, H-4: an extension's endpoint reads its body and checks the token
   of a POST through core's request kit.** `Lazysite::Endpoint` caps a body before it is
   read, parses a multipart one, holds the visitor key (moved from the Odoo extension:
   the same cookie, secret and signatures, so no visitor in the field is lost; each
@@ -101,7 +103,7 @@ Archive
   per call; the browser helper always sends a token and fetches fresh ones once on a
   `csrf` refusal.
 
-- SM1369 (PENDING) **X5, H-5: an extension declares the services lazysited runs for it,
+- SM1369 (ee812b17) **X5, H-5: an extension declares the services lazysited runs for it,
   and which of its endpoints is warm.** `hooks.services` (`name`, `wanted`, `run`,
   `reason`) goes live: the supervisor lists, gates, starts, stops and reports each one an
   enabled extension declares, through the hook loader, and names none itself. An
@@ -111,7 +113,7 @@ Archive
   list in place of a list core kept. The Odoo extension declares oomd and its
   endpoint's parent as services, unchanged in behaviour.
 
-- SM1369 (PENDING) **X6, H-6: `lazysite check` runs what an enabled extension checks of
+- SM1369 (eddf719b) **X6, H-6: `lazysite check` runs what an enabled extension checks of
   itself.** `hooks.checks` goes live: each function answers findings (`level`, `text`,
   `fix`) that the check prints with its own `report()`; one that dies is a WARN naming
   the extension and the run goes on; an extension installed and off is one line,
@@ -119,7 +121,7 @@ Archive
   it loads, oomd, the Odoo sign-in's group map, read bindings at the old form default)
   move into it and print the same lines while it is on; with it off they no longer run.
 
-- SM1369 (PENDING) **X6, H-8 (ruling 188): an extension's panel is a manager page it
+- SM1369 (8446600d) **X6, H-8 (ruling 188): an extension's panel is a manager page it
   ships.** `hooks.panels` (`page`, `label`, `cap`) goes live: the page is a file in the
   extension's payload (`manager/<name>.md`), served at `/manager/<id>-<name>` to a manager
   holding `cap` (one of the extension's own capabilities; 403 otherwise), and linked from
@@ -128,14 +130,14 @@ Archive
   `/manager/odoo-unknown-writes`, under `settle_odoo_writes`; the extension-config page
   names no extension.
 
-- SM1369 (PENDING) **X6, H-11: one secrets store.** `Lazysite::Secrets` is the store the
+- SM1369 (c4e2a14f) **X6, H-11: one secrets store.** `Lazysite::Secrets` is the store the
   connectors and the Odoo extension both use, and any extension by its id: one secret
   per file, `lazysite/<owner>/keys/<name>.key`, written atomically, `0600` in a `0700`
   directory, never listed, and "cannot tell" when it cannot be read. The Odoo keys were
   already laid out so and are read where they are. A connector's secret moves from
   `connectors/secrets.json` into the store when it is next set; until then the map is
   read, so every secret set before the change stays readable.
-- SM1364 (PENDING) **data: a table reads its rows from another system's API.** A
+- SM1364 (9a07a823) **data: a table reads its rows from another system's API.** A
   descriptor's `source:` names a GET connector, the schedule entry that refreshes it,
   where the list is in the answer and a map from each item's fields to its columns. The
   refresh is the existing chain (schedule -> connector handler -> connector), and an
@@ -150,7 +152,7 @@ Archive
   daemon and an on-demand refresh, the daemon merging only its own entries; the Data
   page shows a sourced table's age and last outcome with Refresh now.
   t/unit/data/110, t/unit/manager/512, t/unit/manager/513, t/unit/daemon/38.
-- SM1351 (PENDING) **auth: sign in through an outside OpenID Connect provider, with its
+- SM1351 (b36ee5e7) **auth: sign in through an outside OpenID Connect provider, with its
   groups.** A new extension, `oidc` (OpenID Connect sign-in), with its endpoint
   `/cgi-bin/lazysite-oidc.pl`: the code flow with PKCE against any number of providers
   named in `lazysite/oidc.conf`, each with its issuer, client id, scopes, group claim,
@@ -180,7 +182,7 @@ Archive
   its provider is asked again, so the next request goes through the provider's `renew`
   path - for OIDC, a new sign-in that renews the same session with its groups read afresh
   and returns to `next`; no token is stored. A local session is signed out.
-- SM1352 (PENDING) **CryptX is recommended, for passkeys and web push (ruling 187).** The
+- SM1352 (bd2eed75) **CryptX is recommended, for passkeys and web push (ruling 187).** The
   Debian package (`lazysite-common`) and the Docker image's install list add
   `libcryptx-perl`. It is lazy-required only by passkeys (SM1352) and web push (SM1363),
   through one question (`Lazysite::Crypto::cryptx_missing`); without it those two say
@@ -189,7 +191,7 @@ Archive
   notice by `webpush`. One ADR 0007 dependency entry in docs/SECURITY.md,
   confirmed by the release manager (ruling 225) (t/unit/tools/118).
 
-- SM1352 (PENDING) **Passkeys (ruling 187).** A person signs in with their phone's or
+- SM1352 (3101346c) **Passkeys (ruling 187).** A person signs in with their phone's or
   computer's passkey: "Sign in with a passkey" on the sign-in page (and so in the
   installed app), an answer to a one-use challenge (`?action=passkey-challenge`) posted
   to `?action=passkey-login`, which passes the password sign-in's address limits, rate
@@ -212,7 +214,7 @@ Archive
   new-authentication-method entry in docs/SECURITY.md, confirmed (ruling 225) (t/unit/auth/107-109,
   t/unit/account/36).
 
-- SM1363 (PENDING) **Notices by web push and by webhook (rulings 187, 188).** `webpush`
+- SM1363 (3e576e13) **Notices by web push and by webhook (rulings 187, 188).** `webpush`
   and `webhook` are routes in `notify.conf`'s `route.<type>` table, beside `xmpp` and
   `email`, and reach the account a notice names when its record chooses them:
   `notify_routes`, beside `notify_email`. Web push sends an empty POST, VAPID-signed with
@@ -230,7 +232,7 @@ Archive
   body (ruling 196); and every attempt is a log line
   with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md,
   confirmed (ruling 225) (t/unit/notify/41, t/unit/account/38).
-- SM1407 (PENDING) **The Groups page adopts the layer roles, and a listing shows the
+- SM1407 (b77750bf) **The Groups page adopts the layer roles, and a listing shows the
   mark.** On the 0.16.8 edge run `analysts` and `lead-readers` did not arrive after the
   Groups page was opened: the adoptions run where the users tool seeds, and the Users
   page's read seeded while the Groups page's (`group-settings-get`) did not. It does now.
@@ -238,14 +240,14 @@ Archive
   deletes it. The groups listing (`list_groups`, the control API's `groups`) carries each
   group's `seeded` mark, so an operator can see whether the operator group has it.
 
-- SM1404 (PENDING) **The operator's Files listing is MCP's listing.** The manager API's
+- SM1404 (6a82074a) **The operator's Files listing is MCP's listing.** The manager API's
   `list` still carried the permissions editor's address-profile choices beside the
   entries (SM1404 kept them there for the Files page), so an operator's listing of a
   folder under a rule naming a profile showed an entry named after it, where MCP
   `list_files` did not. No listing carries them now; the Files page reads them with the
   other picker lists, from `principals`, and `acl-get` carries them as before.
 
-- SM1398 (PENDING) **A page body has `| json`, and a filter it lacks is refused on save.**
+- SM1398 (668b3e61) **A page body has `| json`, and a filter it lacks is refused on save.**
   `[% page_url_raw | json %]` in a page body left the whole body as written: `json` was a
   layout's and a component's filter only. The page-body render now has it. A filter a
   page body does not have (anything beyond Template Toolkit's own, `json` and
@@ -253,14 +255,14 @@ Archive
   the control API, MCP's write_file - and named by validate_page with its line, whether
   or not its branch runs.
 
-- SM1357 (PENDING) **check: a title is shared within one domain, not across two.**
+- SM1357 (8e05f683) **check: a title is shared within one domain, not across two.**
   `lazysite check`'s shared-title and missing-description checks read each domain's own
   public page set - the one its sitemap and `llms.txt` list (ruling 174), from the
   processor - instead of walking the whole docroot, so two domains' home pages with the
   same title are no longer a duplicate. Each warning names the page's address, and its
   domain on a site of several (ruling 199); a folder ruling 171 leaves out is not
   counted, and an alias without a content root of its own shares the primary's pages.
-- SM1418 (PENDING) **the XMPP notice account is a usable contact.** Adding the site's
+- SM1418 (25cfc23c) **the XMPP notice account is a usable contact.** Adding the site's
   account in a chat client left the presence subscription one-way (the sender only
   connected, sent and left), so Conversations showed an unusable "Trust OMEMO
   Fingerprints" dialogue. While connected for a send to a person, the delivery now
@@ -270,14 +272,14 @@ Archive
   notice is still sent. Messages stay plain-body (chat for a person, groupchat for a
   room); nothing is published under OMEMO. The test notification reports a `presence`
   stage. t/unit/lib/322; /docs/forms.
-- SM1416 (PENDING) **The FastCGI pool runs the site's own engine (ruling 203).** The pool
+- SM1416 (89f35877) **The FastCGI pool runs the site's own engine (ruling 203).** The pool
   launcher exec'd the package's processor while the manager, auth and DAV CGIs ran the
   site's own copy, so after a package upgrade one site ran two engine versions. It now
   runs the site's own processor (from `CGIBIN=`, else the docroot's sibling cgi-bin) and
   lib. A site whose engine copy is missing or unreadable gets 503 and a log line, never
   the package's engine, and `lazysite check` names the fault and its remedy (ruling 206).
   A shared read-only engine keeps running the image's. t/integration/458.
-- SM1417 (PENDING) **A broken access store or setting refuses; it is never worked
+- SM1417 (617f7abe) **A broken access store or setting refuses; it is never worked
   around (rulings 206 and 207, items 1-8).** A site that was silently carrying on now
   refuses until the fault is repaired from the command line; `lazysite check` and the
   log name each fault and its remedy, and an absent store is still "nothing
@@ -297,7 +299,7 @@ Archive
   invalid password_min_length every password set, instead of the default. New check
   lines for 3, 4, 6, 7 and 8. UPGRADE.md says what an operator sees and how to fix it.
   Register entry confirmed by the release manager (ruling 225).
-- SM1417 (PENDING) **a damaged store refuses writes and sends, and lazysite check names
+- SM1417 (1f4cdb73) **a damaged store refuses writes and sends, and lazysite check names
   it (ruling 206, survey items 9-21).** A store that exists and cannot be told is a
   fault: the engine refuses and leaves the file as found, and `lazysite check` and the
   log name the store and the repair (one wording, `Lazysite::Util::store_fault`).
@@ -311,7 +313,7 @@ Archive
   an undecodable groups-settings.json, a forgot-password request the host cannot match
   answers `error=unavailable`, and an undecodable install state or an unreadable notice
   template is logged. Absent stores are unchanged. See UPGRADE.
-- SM1369 (PENDING) **X7: Odoo ships in its own deb, `lazysite-odoo`, and the installer
+- SM1369 (5a20e368) **X7: Odoo ships in its own deb, `lazysite-odoo`, and the installer
   lays it out when it is present (rulings 188, 205).** The deb is built from the same
   source for the same release. It Depends on `lazysite-common` (same version) and on
   `libodoo-oom-perl`. lazysite-common no longer carries `extensions/odoo*` or the
@@ -323,7 +325,7 @@ Archive
     package to install.
   - There is no `--with odoo` flag. The Odoo tests stay in `t/`.
 
-- SM1361 (PENDING) **One container serves many sites, on the image's read-only engine
+- SM1361 (5a20e368) **One container serves many sites, on the image's read-only engine
   (rulings 201, 205, 206, 208, 210).**
   - `installers/docker`: the image carries the engine and its extensions, read-only.
     Each site is a folder in one volume, listed in `sites.conf`, with its own FastCGI
@@ -356,7 +358,7 @@ Archive
     - the auth consume lock and a store's sidecar lock are created 0660, whatever the
       umask.
 
-- SM1419 (PENDING) **docs: the compliance records cover 0.16.9.** OBLIGATIONS.md and
+- SM1419 (fc58a641) **docs: the compliance records cover 0.16.9.** OBLIGATIONS.md and
   TECHNICAL-FILE.md are walked against the 0.16.9 stack (`git log
   8a2806723..63e8f1970`, 102 commits) and stamped 0.16.9. The sixteen register entries
   the branches wrote are confirmed by the release manager (ruling 225). Seven fire a

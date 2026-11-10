@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-09
 raised-by: "release manager, rulings 206, 207, 211 and 212"
 area: auth
-status-note: "SHIPPED (PENDING): all 21 survey items refuse (cannot-tell) on a store that exists and cannot be told, never on an absent one, and lazysite check names each with its repair. Items 1-8 (access) on n789, 9-21 (writes, sends, display) on n790; one wording, Util::store_fault. docs/SECURITY.md, UPGRADE (0.16.9)."
+status-note: "SHIPPED (0.16.9): all 21 survey items refuse (cannot-tell) on a store that exists and cannot be told, never on an absent one, and lazysite check names each with its repair. Items 1-8 (access) on n789, 9-21 (writes, sends, display) on n790; one wording, Util::store_fault. docs/SECURITY.md, UPGRADE (0.16.9)."
 ---
 
 # What was ruled
