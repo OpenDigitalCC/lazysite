@@ -101,6 +101,12 @@ Archive
   model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
   refused the moved site); t/tools/581.
 
+- SM1424 (PENDING) **`lazysite check` and `validate_page` say a `description:` key is not
+  read.** A page with `description:` in its front matter was listed as having no
+  description, with a remedy that named only `subtitle:` and `meta_desc:`. The engine reads
+  `meta_desc`, else `subtitle`, and nothing reads `description`, so no third spelling is
+  added: the check's line says the key is not read by the engine and names the pages that
+  carry it, and `validate_page` warns `description-not-read` (t/tools/591).
 - SM1424 (PENDING) **A change refused by an address rule says what the rule limits.** A
   save, delete or move refused because the page's folder rule names an address profile
   and the caller is outside it answered "This page is not available from your address.",

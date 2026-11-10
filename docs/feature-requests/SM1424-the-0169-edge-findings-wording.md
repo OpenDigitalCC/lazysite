@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "the 0.16.9 edge run (Z10, Z19, O-1), read by the lazysite developer agent on n804"
 area: docs
-status-note: "SHIPPED (PENDING): the panel link is said to be on Extensions - configure; the UPGRADE note holds to _adopt_layer_roles' conditions; a write refused by an address rule says the rule limits changes. t/unit/extensions/381, t/unit/users/317, t/integration/281, t/unit/mcp/258."
+status-note: "SHIPPED (PENDING): panel link said to be on Extensions - configure; UPGRADE note holds to the layer roles' conditions; a write refused by an address rule says the rule limits changes; check and validate_page say description: is not read. t/unit/extensions/381, users/317, mcp/258, tools/591, integration/281."
 ---
 
 # What was asked
@@ -36,3 +36,6 @@ shipped bundle group (`_adopt_layer_roles`); an address rule has no operator byp
 - A change refused by an address rule says the rule limits changes to its allowed
   addresses and the change must be made from one. It names no address and no profile;
   `kind: address`, `retryable: false` and the read sentence are unchanged.
+- A page with `description:` is told, by `lazysite check` and `validate_page`, that the key
+  is not read (the engine reads `meta_desc`, else `subtitle`) and which two are. No third
+  spelling is added.

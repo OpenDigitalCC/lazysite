@@ -60,7 +60,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     active-artifact-refused db-binding-unchecked db-table-not-published
 
     api-page-is-a-document document-in-page chrome-in-page style-block-in-page
-    raw-html-page hand-authored hand-authored-form no-title
+    raw-html-page hand-authored hand-authored-form no-title description-not-read
     front-matter-unterminated fence-close-unmatched component-fence-unmatched
     form-mailto form-third-party form-unbound form-unnamed
     unknown-form-rule pattern-will-not-compile

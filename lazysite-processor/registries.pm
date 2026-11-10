@@ -259,6 +259,15 @@ sub _registry_scan_root {
     return $sv{alias_host} ? undef : $DOCROOT;
 }
 
+# n804 (SM1424): one page of the set. A `description:` key is read by nothing; the
+# check says so, so the entry carries whether the page wrote one.
+sub _page_set_entry {
+    my ($p) = @_;
+    my %e = ( url => $p->{url}, title => $p->{meta_title}, description => $p->{meta_desc} );
+    $e{ignored_description} = 1 if !ref $p->{description} && length( $p->{description} // '' );
+    return \%e;
+}
+
 # n785 (SM1357): THIS HOST'S PUBLIC PAGE SET, as `lazysite check` reads it for its
 # title and description checks - the pages the host's sitemap and llms.txt list,
 # from the same scan and the same set, so the check counts per domain what each
@@ -272,7 +281,7 @@ sub _public_page_set_listing {
     my @pages = defined $root ? _public_page_set( scan_pages($root) ) : ();
     return {
         root => $root,
-        pages => [ map { +{ url => $_->{url}, title => $_->{meta_title}, description => $_->{meta_desc} } } @pages ],
+        pages => [ map { _page_set_entry($_) } @pages ],
     };
 }
 

@@ -502,6 +502,11 @@ sub _check_front_matter {
     }
     push @$warnings, { kind => 'no-title', message => 'page has no title in front matter' }
         unless length( $h->{title} // '' );
+    # n804 (SM1424): `description:` is read by nothing; the description a page publishes
+    # is meta_desc, else subtitle. Say so, rather than adding a third spelling.
+    push @$warnings, { kind => 'description-not-read',
+        message => 'front matter key description: is not read by the engine; use subtitle: or meta_desc: for the page description' }
+        if length( $h->{description} // '' );
 
     # SM228: a raw/api page declaring a script-capable content_type is refused at
     # write time and downgraded to text/plain at serve time (ADR 0006). Pages

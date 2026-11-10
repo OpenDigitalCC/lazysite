@@ -3413,15 +3413,16 @@ sub report_page_titles {
             next;
         }
         next unless defined $set->{root} && !$seen{ $set->{root} }++;
-        my ( @untitled, @undescribed, %by_title );
+        my ( @untitled, @undescribed, @ignored, %by_title );
         for my $p ( @{ $set->{pages} || [] } ) {
             $n++;
             my $title = $p->{title} // '';
             push @untitled,    $p->{url} unless length $title;
             push @undescribed, $p->{url} unless length( $p->{description} // '' );
+            push @ignored, $p->{url} if $p->{ignored_description} && !length( $p->{description} // '' );
             push @{ $by_title{ lc $title } }, $p->{url} if length $title;
         }
-        push @read, [ $label, \@untitled, \@undescribed, \%by_title ];
+        push @read, [ $label, \@untitled, \@undescribed, \%by_title, \@ignored ];
     }
     # Ruling 199: a site with one domain is not told which domain it is.
     for my $r (@read) {
@@ -3451,7 +3452,8 @@ sub _page_set_of {
 
 # The three findings for one domain; true when there was any.
 sub _report_page_titles_of {
-    my ( $label, $untitled, $undescribed, $by_title ) = @_;
+    my ( $label, $untitled, $undescribed, $by_title, $ignored ) = @_;
+    $ignored //= [];
     my $on   = length $label ? "$label: " : '';
     my $list = sub {
         my @show = sort @_;
@@ -3465,7 +3467,10 @@ sub _report_page_titles_of {
         if @$untitled;
     report( 'WARN', $on . scalar(@$undescribed) . ' public page(s) have no description: ' . $list->(@$undescribed)
             . ' - a search result and the AI-readable summary (llms.txt) show nothing under the title',
-        'give each a subtitle: or a meta_desc: of a sentence or two' )
+        'give each a subtitle: or a meta_desc: of a sentence or two'
+            . ( @$ignored
+            ? ' - description: is not read by the engine (' . $list->(@$ignored) . ' carry it); subtitle: and meta_desc: are'
+            : '' ) )
         if @$undescribed;
     my @dup = grep { @{ $by_title->{$_} } > 1 } sort keys %$by_title;
     report( 'WARN', $on . scalar(@dup) . ' title(s) are shared by more than one public page: '
