@@ -15,7 +15,7 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_child);
+use TestHelper qw(repo_root run_child site_tempdir);
 
 my $root = repo_root();
 my $cli  = "$root/tools/lazysite-cli.pl";
@@ -37,7 +37,7 @@ PL
 
 my $work = tempdir( CLEANUP => 1 );
 my $reg  = tempdir( CLEANUP => 1 );
-my $base = tempdir( CLEANUP => 1 );
+my $base = site_tempdir();
 my $d    = "$base/a;touch MARK;b \$(touch MARK2)";
 make_path("$d/lazysite/auth");
 spit( "$d/lazysite/lazysite.conf", "site_name: T\n" );
