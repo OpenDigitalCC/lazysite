@@ -17,7 +17,12 @@ person's Odoo session (0.15.5), and, since the visitor log names the signed-in
 account (0.16.1, SM1219), account names in the log. From 0.16.8: rows' earlier values
 in the data store's row history, kept for each table's period (SM1355), and, where
 the offline kit is on, a person's kept reads and queued changes in their own browser
-under a label of their login (SM1396).
+under a label of their login (SM1396). From 0.16.9: an account's passkeys, public keys
+only (SM1352), its web-push endpoints and optional phone number (SM1363), the site's
+own web-push signing key and an outside sign-in provider's client secret, the last in
+the one secrets store (SM1351, SM1369 X6), and, in a table that names a source, the
+rows another system's API sends (SM1364). Restated at the 0.16.9 walk, a draft for the
+release manager's confirmation.
 
 Trust boundaries (each is where an attacker's input crosses into trusted code):
 
@@ -107,15 +112,26 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     sources and the handler catalogue and the timer run its handler types (X3), and
     the processor serves its asset files and renders its components and template
     variables (X5's asset part); Odoo is the first extension declaring each, and the
-    offline kit (SM1396) the second asset consumer. What crosses is the extension's declaration, the
+    offline kit (SM1396) the second asset consumer. From 0.16.9 it has more callers
+    (restated at the 0.16.9 walk, a draft for the release manager's confirmation): the
+    session code asks an extension's identity provider for its `on`,
+    `still_valid` and `groups` (SM1369 X4; the `oidc` extension is the second provider,
+    SM1351), an extension's endpoint runs after core's request kit has capped the body
+    and checked the token (X5), the supervisor runs the services it declares (X5),
+    `lazysite check` runs the checks it declares (X6), and the processor serves a page it
+    ships under `/manager/` to a holder of its capability (X6). The secrets store is
+    core's, not a caller: an extension passes its own id. On an engine carrying
+    `SHARED-ENGINE` (SM1361, X7) the loader finds an extension only in the engine's own
+    directory and refuses anything in the site's. What crosses is the extension's declaration, the
     index the manager writes from it (`lazysite/extensions.index.json`) and the module
     files it names; each is checked at the build and again at the call. See
     `architecture/security.md` - "Extension hooks, agent roles and the primary's reach".
 
-Not yet code, so not yet boundaries: SM1128's native OIDC relying party and directory
-groups (phases 2-3). The visitor log's signed-in account (SM1219) and the maintenance
-capability (SM1118), held out of the 0.16.0 stable, are in 0.16.1; see
-`architecture/security.md` and the register.
+Not yet code, so not yet boundaries: SM1128's directory groups. Its native OpenID
+Connect relying party is code in 0.16.9, as the `oidc` extension (SM1351), reached
+through boundary 15 and the new-external-interface its entry records. The visitor log's
+signed-in account (SM1219) and the maintenance capability (SM1118), held out of the
+0.16.0 stable, are in 0.16.1; see `architecture/security.md` and the register.
 
 ## STRIDE assessment
 
@@ -157,6 +173,15 @@ Elevation of privilege | A group deleted while an access rule, a page, a domain,
 Elevation of privilege | A member - an account without `ui`, perhaps one of hundreds - writing through the manager API's cookie door once `write_content` opens it (SM1414): a path no rule governs, a file whose rule names someone else, the engine's `lazysite/` tree, another domain's content or the primary's, an action outside the content verbs, a rule widened | The door admits a `write_content` holder only for the six actions declared `member_content` (read, list, save, mkdir, move, delete), checked at load; a write needs the governing rule's write list to name the account or its group, so an ungoverned path and a rule naming others are refused; paths are refused climbing, NUL, backslash or reserved, and resolved inside the session's domain's content root, another domain's root refused; a listing shows only entries a rule lets the member read; acl-set is outside the set; CSRF and the audit row are the door's | 0.16.8 (t/integration/377; row written at the 0.16.8 walk, confirmed by the release manager on 2026-11-08 (ruling 182), with the SM1414 entry confirmed by ruling 177): a folder rule naming a members' group lets any member overwrite or delete another's file under it, which is what the rule says; a listing does not ask the address rules per entry
 Information disclosure | A person's earlier values kept after the table no longer holds them (SM1355): a row's values before a change, and a deleted row's, in the row history (`_row_changes`), read back by someone who may not read the table or for longer than the site means to keep them | The history is read only with `manage_data` under the table's read rule; it is kept for the table's period (90 days by default, `row_history_days` otherwise) and pruned after each recorded write and daily by the daemon's `row-history-prune` job, which needs only `run_jobs` and is audited each run (rulings 170, 175); an undo past the period is refused | 0.16.8 (t/unit/data/81, 82; t/unit/daemon/05; row written at the 0.16.8 walk, confirmed by the release manager on 2026-11-08 (ruling 182), with the SM1355 entry, which fires new-processing-of-restricted-data, confirmed contained by ruling 177): where the daemon does not run, a store nobody writes to keeps expired changes until its next write; the store is in the site's backups as the table is
 Information disclosure | The offline kit's kept reads and queued changes in a browser (SM1396) shown to, or sent as, the next person at a shared device, or kept for nobody and sent as whoever signs in next | What is kept is stored under the owner label `?csrf=1` names (a hash of the login, on a site whose Odoo sign-in is the site sign-in), shown and sent only while that owner is signed in; nothing is kept with no owner; the kit's wrapper of the Odoo helper's sign-out empties that owner's kept reads; a queued change is sent once with its `Idempotency-Key`; no token, cookie or password is stored | 0.16.8 (t/unit/extensions/78; t/unit/odoo/28, 41, 63; row written at the 0.16.8 walk, confirmed by the release manager on 2026-11-08 (ruling 182), with the SM1396 entry, which fires new-processing-of-restricted-data, confirmed contained by ruling 177): a session that ends without the helper's sign-out leaves the kept reads under the owner's label, readable in that browser's storage by whoever uses its profile; a queued change waits for its owner by design; both are kept as built (ruling 183)
+Spoofing | An extension's identity provider minting a session under another provider's id or a local name, outliving its provider, or handing a group that carries a capability (SM1369 X4, H-1) | Only core signs: `mint_provider_session` and `renew_provider_session` are the provider's only way to a session; the provider is read from the index and never from the cookie, whose `<id>=` prefix cannot be a local name; the extension must be on at every check; a group that carries a capability is dropped unless the provider declares `grants`, and a provider function that fails is no session | 0.16.9 (t/unit/extensions/80; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the X4 entry, confirmed on 2026-11-10 (ruling 225)): a provider is the extension's own code under boundary 15's contract, not a sandbox
+Spoofing | A forged, replayed or misdirected answer from an outside OpenID Connect provider (SM1351): a login-CSRF answer, a code started in another browser, an ID token for another issuer, client or time, a provider named inside another's family | A state in an HttpOnly, SameSite=Lax cookie must match the answer and name a single-use pending record that lasts ten minutes; the code is exchanged over TLS with PKCE (S256) and the client's secret; the ID token must name the configured issuer, this client (`azp` with several audiences) and the nonce sent, and not have expired; every call is https (http only to this host), follows no redirect, is capped at 256 KB and times out at 10 s; core refuses another extension's provider inside an instances provider's family | 0.16.9 (t/unit/extensions/170; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1351 entry, confirmed on 2026-11-10 (ruling 225)): the ID token's signature is not checked (ruling 185), so the trust rests on TLS to the token endpoint
+Elevation of privilege | A provider's group claim making a manager here (SM1351, ruling 186): a group mapped to operators or any capability group, whoever controls that group at the provider | A person in no mapped group is not signed in and no account is made; the record's groups are re-read against the current map at every request; every sign-in and renewal writes a `login-grant` or `renew-grant` audit row naming the groups granted; only the operator saves a map entry whose target carries capabilities (ruling 214); the Sessions page can mark a session stale so the provider is asked again (`session-reauth`) | 0.16.9 (t/unit/extensions/170, t/unit/manager/582; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1351 entry, confirmed on 2026-11-10 (ruling 225) and ruling 186's first use): membership is read at sign-in only, so a person removed at the provider keeps the group until the session ends, is revoked or is marked stale; the map is for a provider whose membership the site controls
+Spoofing | A passkey sign-in accepted for a signature the site did not ask for, one made for another site, a replayed or cloned answer, or a passkey planted in another person's account (SM1352) | A challenge is 32 random bytes, answerable for five minutes, issued for one purpose and spent by the first answer; the origin and the RP ID hash must be this host's and user presence and user verification both set; the signature is checked with the key and algorithm stored at enrolment over bytes the engine builds, a counter that does not advance is refused; the sign-in passes the password sign-in's address scope, rate limiter and account gates; a passkey is added only by its own account, and a manager can only wipe them all | 0.16.9 (t/unit/auth/107-109, t/unit/account/36; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1352 entry, confirmed on 2026-11-10 (ruling 225)): attestation is `none`, so the authenticator's make is not checked; the challenge directory holds at most 1000 for five minutes, so a flood can delay passkey sign-ins
+Tampering | A web-push endpoint an account registered pointing the site at an internal address, or a notice's content leaving by a push or a webhook (SM1363) | An endpoint is stored only as https, 1024 characters at most, a bounded number per account, and at send passes `Fetch::is_safe_url`, follows no redirect and is read to 4 KB in ten seconds; a push carries no payload; the webhook body is the notice's kind, title, login and link, never its content; `webhook.per_hour` and `mail.per_hour` bound the sends; only the account adds or removes its own device | 0.16.9 (t/unit/notify/41, t/unit/account/38; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1363 entry, confirmed on 2026-11-10 (ruling 225)): a name that re-resolves between the check and the connect could still reach a private address, the window `Fetch` has
+Information disclosure | An account's phone number leaving the site, or set for a stranger's (SM1363, ruling 196) | The number is carried in the webhook route's connector call alone, not in a push, a mail, the bell record or the log; the route reaches an account only where an operator set `notify_routes: webhook`, under its own bound and the connector's call record; the form is checked in the users tool | 0.16.9 (t/unit/notify/41, t/unit/account/39; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1363 phone entry, confirmed on 2026-11-10 (ruling 225), which fires new-processing-of-restricted-data): a member whose account was given the webhook route can set any number in the right form; the number is at rest with the rest of the record
+Spoofing | An identity written into the data endpoint's environment, by the client or the web server or the process, believed by the endpoint's readers (SM297, boundary 2) | The endpoint holds the verified identity as a value (`local $Lazysite::Auth::Identity::HELD`), its readers are answered that and read nothing from `%ENV` while it is held, and it writes no `X-Remote-*` header; a session whose store cannot be read is refused 503 | 0.16.9 (t/unit/auth/177, t/integration/478, 479; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM297 entry, confirmed on 2026-11-10 (ruling 225)): the manager API in the pool keeps its relay and the header contract until 0.17.0 (ruling 217)
+Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
+Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row drafted at the 0.16.9 walk, for the release manager's confirmation, with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
 ```
 
 ## Five priority entries (from the review)
@@ -4794,8 +4819,8 @@ verdict
 
 ### 2026-11-08 - SM1369 X4 (0.16.9, PENDING): a sign-in method changed - the Odoo site sign-in is an identity provider an extension declares
 
-Assessment drafted by the developer agent (n781), for the release manager's
-confirmation. Ruling 55; the design is the extension-hooks proposal, H-1 (G-1, G-2, G-3,
+Assessment drafted by the developer agent (n781); confirmed by the release manager on
+2026-11-10 (ruling 225). Ruling 55; the design is the extension-hooks proposal, H-1 (G-1, G-2, G-3,
 G-9; risk R-1, "X4 ships alone with a sabotage test per guarantee"); rulings 178, 181,
 184 and 186. ADR 0007's sign-in-method trigger fires.
 
@@ -4890,17 +4915,18 @@ residual risk
   handlers or schedule entries.
 
 verdict
-: drafted as contained, for the release manager's confirmation. The trigger fires and
-  is contained: the sign-in path is SM1160's, generalised, with the guarantees core held
-  for Odoo now held for any provider, each sabotaged; no capability reaches a provider
-  session unless a provider declares `grants`, which nothing does in this release. No
-  ahead-of-schedule third-party engagement proposed beyond the one ADR 0007 already
-  requires; the OIDC entry (SM1351) is where ruling 186's widening is first used.
+: accepted, contained, confirmed by the release manager on 2026-11-10 (ruling 225). The
+  trigger fires and is contained: the sign-in path is SM1160's, generalised, with the
+  guarantees core held for Odoo now held for any provider, each sabotaged; no capability
+  reaches a provider session unless a provider declares `grants`, which only the OIDC
+  extension does in this release (SM1351, the entry that follows). No ahead-of-schedule
+  third-party engagement beyond the one ADR 0007 already requires; the OIDC entry
+  (SM1351) is where ruling 186's widening is first used.
 
 ### 2026-11-08 - SM1369 X5, H-4 and H-5 (0.16.9, PENDING): an extension endpoint's request kit, and its declared services and warm endpoint
 
-Assessment drafted by the developer agent (n782) for the release manager's confirmation.
-Ruling 55; the design is the extension-hooks proposal's H-4 and H-5, G-4, and the 0.16.9
+Assessment drafted by the developer agent (n782); confirmed by the release manager on
+2026-11-10 (ruling 225). Ruling 55; the design is the extension-hooks proposal's H-4 and H-5, G-4, and the 0.16.9
 simplicity notes (rulings 181, 184).
 
 what changed
@@ -4965,14 +4991,14 @@ residual risk
   one a lint accepts; it is not a sandbox.
 
 verdict
-: drafted as accepted, for the release manager's confirmation: no trigger fires;
-  recorded because the CSRF and body checks of an extension's endpoint move into core
-  and the supervisor now runs services an extension declares.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225): no trigger
+  fires; recorded because the CSRF and body checks of an extension's endpoint move into
+  core and the supervisor now runs services an extension declares.
 
 ### 2026-11-08 - SM1369 X6, H-6, H-8 and H-11 (0.16.9, PENDING): an extension's checks, its manager pages, and one secrets store
 
-Assessment drafted by the developer agent (n782) for the release manager's confirmation.
-Ruling 55, ruling 188 (panels are pages); the design is the extension-hooks proposal's
+Assessment drafted by the developer agent (n782); confirmed by the release manager on
+2026-11-10 (ruling 225). Ruling 55, ruling 188 (panels are pages); the design is the extension-hooks proposal's
 H-6, H-8 and H-11, G-7, and the 0.16.9 simplicity notes.
 
 what changed
@@ -5032,14 +5058,16 @@ residual risk
   sandbox.
 
 verdict
-: drafted as accepted, for the release manager's confirmation: H-8's new manager path is
-  assessed under new-external-interface and judged within the existing manager surface;
-  no other trigger fires; recorded because credentials move to one store and the manager
-  serves pages an extension ships.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225): H-8's new
+  manager path is assessed under new-external-interface and confirmed within the existing
+  manager surface (the `/manager/` path is that surface); no other trigger fires;
+  recorded because credentials move to one store and the manager serves pages an
+  extension ships.
 
 ### 2026-11-08 - SM1364 (0.16.9, PENDING): a table reads its rows from another system's API
 
-Assessment drafted by the developer agent (n783); the trigger ruled by the release manager (ruling 190).
+Assessment drafted by the developer agent (n783); the trigger ruled by the release
+manager (ruling 190); confirmed by the release manager on 2026-11-10 (ruling 225).
 
 what changed
 : A data table's descriptor may name a `source:` - a GET connector, the schedule entry
@@ -5108,12 +5136,13 @@ verdict
 : accepted, ruled by the release manager (ruling 190): ADR 0007's
   new-processing-of-restricted-data trigger fires and is contained by the connector's
   callers, the table's read rules and the read-only mapping, so the ADR 0007 waiver
-  stands. The other three triggers do not fire. Drafted by the developer agent (n783).
+  stands. The other three triggers do not fire. Drafted by the developer agent (n783);
+  stays as ruling 190 has it, confirmed by the release manager on 2026-11-10 (ruling 225).
 
 ### 2026-11-09 - SM1351 (0.16.9, PENDING): a new sign-in method - an outside OpenID Connect provider, whose groups may grant
 
-Assessment drafted by the developer agent (n792), for the release manager's
-confirmation. Rulings 185, 186 and 206; built on H-1 (SM1369 X4, n781). ADR 0007's
+Assessment drafted by the developer agent (n792); confirmed by the release manager on
+2026-11-10 (ruling 225). Rulings 185, 186 and 206; built on H-1 (SM1369 X4, n781). ADR 0007's
 sign-in-method trigger fires, with ruling 186's widening exercised for the first time.
 Its new-external-interface trigger fires too: a new endpoint, and outbound calls to the
 providers the operator configures.
@@ -5201,17 +5230,18 @@ residual risk
   older than ten minutes are swept at each start.
 
 verdict
-: drafted as contained, for the release manager's confirmation. The sign-in-method and
-  new-external-interface triggers fire and are contained: the session is core's H-1
-  session, the answer is bound to the browser and to this client, and the widening is a
-  declaration that is audited at every sign-in. No ahead-of-schedule third-party
-  engagement proposed beyond the one ADR 0007 already requires; whether ruling 186's
-  first use warrants one is the release manager's call.
+: accepted, contained, confirmed by the release manager on 2026-11-10 (ruling 225). The
+  sign-in-method and new-external-interface triggers fire and are contained: the session
+  is core's H-1 session, the answer is bound to the browser and to this client, and the
+  widening is a declaration that is audited at every sign-in. No early third-party
+  review: the OIDC grant mapping (ruling 186's first use) is named in the scope of the
+  engagement ADR 0007 already requires (docs/compliance/OBLIGATIONS.md, the first
+  third-party penetration test).
 
 ### 2026-11-09 - SM297 (0.16.9, PENDING): identity is a value - the data endpoint stops writing its own trust headers
 
-Assessment drafted by the developer agent (n793), for the release manager's
-confirmation. The filing is SM297; the brief converts one surface at a time, on X4
+Assessment drafted by the developer agent (n793); confirmed by the release manager on
+2026-11-10 (ruling 225). The filing is SM297; the brief converts one surface at a time, on X4
 (SM1369). Ruling 206 (a fault refuses). The trust boundary changes (boundary 2).
 
 what changed
@@ -5277,13 +5307,14 @@ residual risk
   change reverted, and a widening to every signed-out request fails the controls.
 
 verdict
-: drafted as accepted, for the release manager's confirmation. No trigger fires; the
-  change removes a channel and adds a held value whose scope is the request. No
-  ahead-of-schedule third-party engagement proposed.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225). No trigger
+  fires; the change removes a channel and adds a held value whose scope is the request.
+  No ahead-of-schedule third-party engagement proposed.
 
 ### 2026-11-08 - SM1352, SM1363 (0.16.9, PENDING): CryptX, one Recommends for passkeys and web push
 
-Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+Assessment drafted by the developer agent (n784); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : CryptX (Debian `libcryptx-perl`) joins the deb's Recommends (ruling 187). It is
@@ -5320,13 +5351,15 @@ residual risk
   package simply has neither feature.
 
 verdict
-: drafted for the release manager: accepted, one dependency for two features, loaded
-  only by them, and refusing when absent. No ahead-of-schedule third-party engagement
-  beyond the one ADR 0007 already requires.
+: accepted, contained, confirmed by the release manager on 2026-11-10 (ruling 225): the
+  new-dependency-with-authentication-logic trigger fires; one dependency for two
+  features, loaded only by them, and refusing when absent. No ahead-of-schedule
+  third-party engagement beyond the one ADR 0007 already requires.
 
 ### 2026-11-08 - SM1352 (0.16.9, PENDING): passkeys
 
-Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+Assessment drafted by the developer agent (n784); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : A second interactive sign-in method beside the password: a passkey (WebAuthn). The
@@ -5403,15 +5436,17 @@ residual risk
   authenticator's own claim (its flag), as WebAuthn defines it.
 
 verdict
-: drafted for the release manager: accepted, contained. The method reuses the
-  password sign-in's gates and session, adds no secret to the store, and its
-  enrolment is the account's alone. No ahead-of-schedule third-party engagement beyond
-  the one ADR 0007 already requires; the passkey paths should be in that engagement's
-  scope.
+: accepted, contained, confirmed by the release manager on 2026-11-10 (ruling 225). The
+  method reuses the password sign-in's gates and session, adds no secret to the store,
+  and its enrolment is the account's alone. No early third-party review: the passkey
+  paths (the two unauthenticated wrapper actions, the account's enrolment and the
+  `passkey_only` check) are named in the scope of the engagement ADR 0007 already
+  requires (docs/compliance/OBLIGATIONS.md, the first third-party penetration test).
 
 ### 2026-11-08 - SM1363 (0.16.9, PENDING): notices by web push and by webhook
 
-Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+Assessment drafted by the developer agent (n784); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : Two new routes in Notify's existing route table, `webpush` and `webhook`, for a notice
@@ -5473,14 +5508,16 @@ residual risk
   410 and is removed (ruling 199), through the users tool, as turning it off would be.
 
 verdict
-: drafted for the release manager: accepted, contained. The new outbound path carries
+: accepted, contained, confirmed by the release manager on 2026-11-10 (ruling 225): the
+  new-external-interface trigger fires and is contained. The new outbound path carries
   no content, is held to the SSRF guard's rules and a shared bound, and its other half is
   the existing connector path. No ahead-of-schedule third-party engagement beyond the one
   ADR 0007 already requires.
 
 ### 2026-11-09 - SM1363 (0.16.9, PENDING, ruling 196): an account's phone number
 
-Assessment drafted by the developer agent (n784) for the release manager's confirmation.
+Assessment drafted by the developer agent (n784); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : Accounts gain an optional `phone` (international form, `+` and 8 to 15 digits), kept
@@ -5515,13 +5552,15 @@ residual risk
   account: it goes when the account or the field is removed.
 
 verdict
-: drafted for the release manager: accepted, contained - one optional field, one
-  destination the operator chose, bounded. To be listed in the site's personal-data
+: accepted, contained, confirmed by the release manager on 2026-11-10 (ruling 225): the
+  new-processing-of-restricted-data trigger fires and is contained - one optional field,
+  one destination the operator chose, bounded. To be listed in the site's personal-data
   records with the address.
 
 ### 2026-11-08 - SM1357 (0.16.9, PENDING): the processor lists a domain's public page set for `lazysite check`
 
-Assessment drafted by the developer agent (n785); the release manager confirms.
+Assessment drafted by the developer agent (n785); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : `lazysite-processor.pl --page-set` prints, as JSON, the public page set of the
@@ -5550,12 +5589,13 @@ residual risk
   conf and writes nothing (its log lines go to standard error, which the check discards).
 
 verdict
-: drafted as accepted, for the release manager's confirmation: no trigger fired;
-  recorded because the processor gains an entry point outside a request.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225): no trigger
+  fired; recorded because the processor gains an entry point outside a request.
 
 ### 2026-11-09 - SM1416 (0.16.9, PENDING): the FastCGI pool runs the site's own engine (ruling 203)
 
-Assessment drafted by the developer agent (n791), for the release manager's confirmation.
+Assessment drafted by the developer agent (n791); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : A version-consistency hardening. The pool launcher (`tools/lazysite-pool.pl`, run by
@@ -5597,12 +5637,13 @@ residual risk
   `upgrade --all --force-security`.
 
 verdict
-: drafted; for the release manager's confirmation.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225): no trigger
+  fires; a version-consistency hardening.
 
 ### 2026-11-09 - SM1417, ruling 206 items 1-8 (0.16.9, PENDING): a broken store or setting refuses access
 
-Assessment drafted by the developer agent (n789) for the release manager's confirmation.
-A hardening: eight places that worked around a damaged access store or setting now
+Assessment drafted by the developer agent (n789); confirmed by the release manager on
+2026-11-10 (ruling 225). A hardening: eight places that worked around a damaged access store or setting now
 refuse (cannot-tell, 503 or the sign-in page's "unavailable"), and `lazysite check` and
 the log name each fault and its remedy, repaired from the command line (rulings 206,
 207). An absent store is still "nothing configured" in every case.
@@ -5660,13 +5701,14 @@ residual risk
   refuses sign-in until it is installed or the extension is switched off.
 
 verdict
-: drafted as accepted, for the release manager's confirmation. No trigger fired;
-  recorded because it changes what eight access decisions answer on a damaged host.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225). No trigger
+  fired; recorded because it changes what eight access decisions answer on a damaged
+  host.
 
 ### 2026-11-09 - SM1417 (0.16.9, PENDING): a damaged store refuses writes and sends, and says so (ruling 206, survey items 9-21), a hardening
 
-Assessment drafted by the developer agent (n790) for the release manager's confirmation.
-Items 1-8 of the same survey (access) are n789's, under the same number.
+Assessment drafted by the developer agent (n790); confirmed by the release manager on
+2026-11-10 (ruling 225). Items 1-8 of the same survey (access) are n789's, under the same number.
 
 what changed
 : Ruling 206: a store that exists and cannot be told is a fault; the engine refuses
@@ -5719,11 +5761,13 @@ residual risk
   appends past a bad line (an append loses nothing and the read refuses).
 
 verdict
-: drafted, for the release manager's confirmation. A hardening; no trigger fires.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225). A hardening; no
+  trigger fires.
 
 ### 2026-11-09 - SM1361, SM1369 X7 (0.16.9, PENDING): the shared read-only engine's loader rule
 
-Assessment drafted by the developer agent (n788), for the release manager's confirmation.
+Assessment drafted by the developer agent (n788); confirmed by the release manager on
+2026-11-10 (ruling 225).
 
 what changed
 : A volume-hosted site runs the image's read-only engine (rulings 200, 201, 205). The
@@ -5772,11 +5816,13 @@ residual risk
   end user takes it over moves to a dedicated service (Hestia, or a container of its own).
 
 verdict
-: drafted; for the release manager's confirmation.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225): no trigger
+  fires; the code-loading boundary is touched and recorded.
 
 ### 2026-11-09 - T-115 (0.16.9, PENDING): the account and form stores on a site whose engine tree is beside its docroot
 
-Assessment drafted by the developer agent (n788), for the release manager's confirmation. A hardening.
+Assessment drafted by the developer agent (n788); confirmed by the release manager on
+2026-11-10 (ruling 225). A hardening.
 
 what changed
 : On the beside layout (SM293/SM850: `<docroot>-lazysite`, which `lazysite
@@ -5828,4 +5874,115 @@ residual risk
   for the same repair.
 
 verdict
-: drafted; for the release manager's confirmation.
+: accepted, confirmed by the release manager on 2026-11-10 (ruling 225): no trigger
+  fires; a hardening.
+
+### 2026-11-10 - SM1418, SM1407 (T-112), SM1404 (T-113), SM1398 (T-114), the container's tooling and the restack's wording (0.16.9): the rest of 0.16.9, with no trigger
+
+Assessment drafted by the developer agent at the 0.16.9 compliance walk (SM1419), for the
+release manager's confirmation; ruling 225 (2026-11-10) puts n794 (SM1418) in this list.
+The walk read the CHANGELOG's `## Unreleased` section and `git log
+8a2806723..63e8f1970` (102 commits). The rest of 0.16.9 moves no control:
+SM1418 (n794) makes the XMPP notice account answer a presence subscribe from the
+configured recipient only, and ask for its own subscription once; SM1407 (T-112) runs
+the layer-role adoptions from the Groups page as the Users page already ran them, and a
+groups listing carries each group's `seeded` mark; SM1404 (T-113) takes the permissions
+editor's address-profile choices out of the manager API's `list`, so the operator's
+listing is MCP's; SM1398 (T-114) gives a page body the `| json` filter and refuses on
+save a filter a body lacks; the shared container's tooling, `lazysite-sites`, the
+per-site pools, the 503 for a refused site and the supervisor's refusals (SM1361's
+commits after the loader rule, rulings 206, 208, 218, 220) is operator packaging inside
+the container; the restack's wording (rulings 212, 216, 217, 223) says a limiter that
+cannot count is a fault, in one refusal, for the Odoo sign-in, the OIDC start and the
+front door's status; the rest is lint and test fix-ups and renumbering; SM1419 is this
+walk. The other changes of 0.16.9 have their own entries, confirmed by the release
+manager on 2026-11-10 (ruling 225): SM1369 X4 (firing the sign-in-method trigger,
+contained), X5, X6 and X7, SM1351 (firing the sign-in-method and new-external-interface
+triggers, contained), SM1352 passkeys (firing new-authentication-method and
+new-external-interface) and the CryptX dependency (firing
+new-dependency-with-authentication-logic), SM1363 web push and webhook (firing
+new-external-interface) and the phone number (firing
+new-processing-of-restricted-data), SM1364 (firing new-processing-of-restricted-data,
+ruling 190), SM297, SM1357, SM1416, SM1417 (items 1-8 and 9-21), SM1361 and T-115.
+
+what changed
+: SM1418 (n794). `Notify`'s XMPP delivery connected, sent and left, so the account never
+  answered a presence subscribe and a chat client showed an unusable contact. While
+  connected for a send to a person, it approves a `subscribe` whose bare JID is the
+  configured recipient's and no one else's, and asks for its own subscription once
+  (not when the roster says `to`, or one is pending). A group chat gets no step; a
+  presence step that fails is logged and the notice is still sent; messages stay plain
+  body and nothing is published under OMEMO (t/unit/lib/322).
+: SM1407 (T-112). The Groups page's read did not run the adoptions the users tool runs
+  where it seeds, so `analysts` and `lead-readers` did not arrive until the Users page
+  was opened. It runs them (t/unit/users/116); each role is adopted once with no
+  members and stays deleted after an operator deletes it, as SM1407's 0.16.8 entry
+  assessed. The groups listing carries each group's `seeded` mark.
+: SM1404 (T-113). The manager API's `list` still carried the address-profile choices
+  beside the entries, so an operator's listing of a folder under a rule naming a profile
+  showed an entry named after it where MCP `list_files` did not; the Files page reads
+  them with the other picker lists, from `principals`, and `acl-get` carries them as
+  before (t/unit/manager/532).
+: SM1398 (T-114). `[% page_url_raw | json %]` in a page body was left as written: `json`
+  was a layout's and a component's filter only. The page-body render has it, and a
+  filter a body lacks (beyond Template Toolkit's own, `json` and `url_safe`) fails the
+  body at render, so it is refused on save and named by `validate_page`
+  (t/unit/processor/228). The guard reads Template Toolkit's standard filter names from
+  `Template::Filters`, a module of the dependency already declared, now declared in
+  sbom-deps.json.
+: The container's tooling. `lazysite-sites` runs inside the container, by whoever holds
+  `docker compose exec` on the host, and talks to the supervisor by SIGHUP; a site that
+  fails or is newer than the image is refused, answers 503 and is named while the others
+  serve; the run directory belongs to www-data and the supervisor refuses what it cannot
+  supervise (t/tools/393, 395, 396).
+: The restack's wording. The Odoo sign-in and the OIDC start answer a limiter that
+  cannot count as cannot-tell (503), where they said "too many attempts"; over the cap
+  a working limiter still answers 429 (t/unit/odoo/260, t/unit/extensions/200). A damaged
+  store gets the engine's one refusal, which names no file to a visitor (t/integration/498,
+  499).
+
+threat delta
+: None of ADR 0007's four triggers fired: no new interface (the delivery makes the
+  connection it already made; the container's tooling has no request path), no new
+  sign-in method, no new dependency and no new restricted data. The questions are these.
+: SM1418: Spoofing, by someone else's presence request approved as the recipient's. The
+  comparison is the bare JID of the sender against the configured recipient's, and any
+  other sender is not answered. Information disclosure: the account's presence now
+  reaches the recipient, who already receives the notices. The account asks to
+  subscribe to a recipient it already sends to.
+: SM1407: none. The adoption is the one SM1407's 0.16.8 entry assessed, run from one more
+  door, with no member and no capability granted by it.
+: SM1404: Information disclosure, narrowed: the operator's listing no longer carries the
+  site's address-profile names, which only the permissions editor reads.
+: SM1398: Tampering and Elevation of privilege, none: `json` encodes a value for output
+  and gives a page body no data a body could not name; refusing an unknown filter on
+  save narrows what a body may contain.
+: The container's tooling: Elevation of privilege, none beyond the loader rule's own entry
+  (SM1361, SM1369 X7): it is reached by the host's operator, acts with the container's
+  rights, and no visitor's request reaches it.
+: The restack's wording: Denial of service by design, as ruling 206 chose, and
+  Repudiation narrowed, since a visitor and the log are told it is a fault, not a rate.
+
+controls
+: SM1418: t/unit/lib/322 (a subscribe from the recipient is approved, one from another
+  is not, the account asks once, a failed step still sends). SM1407: t/unit/users/116.
+  SM1404: t/unit/manager/532. SM1398: t/unit/processor/228. The container: t/tools/393,
+  395, 396. The restack: t/unit/odoo/260, t/unit/extensions/200, t/integration/498.
+
+residual risk
+: SM1418: the approval holds only while the account is connected for a send, so a request
+  the recipient makes between sends waits for the next send. SM1407: a role an
+  operator deleted stays deleted. SM1398: a page body
+  already saved with a filter it lacks is refused when it next renders and when it is
+  next saved. The container: the loader rule's entry carries its residual risk (every
+  site runs as www-data).
+
+verdict
+: drafted at the 0.16.9 compliance walk, for the release manager's confirmation. No
+  trigger fired; recorded because SM1418 makes the notice account answer a presence
+  request and the rest changes what a listing, a refusal and a page body carry. Whether
+  0.16.9 is security-critical is the release manager's call at the cut: the register
+  records hardenings (SM1417 closes paths that read a damaged store as empty or as
+  permissive; T-115 closes world bits on a beside site's seeds and form configs) and
+  names no vulnerability that was exploited, and the walk states the channel as edge
+  (OBLIGATIONS.md, the vulnerability-handling row).

@@ -68,7 +68,50 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.16.9)
+## A broken store now refuses, Odoo's sign-in becomes an identity provider, and the rest of 0.16.9
+
+**A broken store or setting now refuses (SM1417, ruling 206).** Until 0.16.8 a site with a
+damaged access store or an invalid setting carried on, guessing an answer. From 0.16.9
+it refuses until the fault is repaired. Run `lazysite check --docroot <docroot>` after
+the upgrade: every case below is a FAIL line there, naming the file and the repair. A
+site where the check shows none of them sees no change.
+
+| Fault | What people see | Repair |
+| --- | --- | --- |
+| `lazysite/auth/acls.json` does not decode, or cannot be read | Every file and table-row check is refused (503, "cannot tell"), the operator's included; every rule change and file copy is refused, and the file is left untouched | Repair the JSON, or restore it from a backup |
+| `lazysite/auth/.consume.lock` cannot be opened or locked | Every account change, password reset and invitation is refused ("cannot change the account store safely"); the CLI exits non-zero with the same sentence | `chown`/`chmod` as the check line says (`--fix` applies it) |
+| The login rate limiter cannot count: DB_File missing, or `lazysite/auth/.login-rate.db` not openable or not a database | Every sign-in is refused: the sign-in page says sign-in is unavailable; token doors, the Odoo sign-in and an OIDC sign-in start answer 503 | Install DB_File (`perl-DB_File` on RHEL); fix the counter's ownership as the check says; or remove a counter that is not a database (it holds only recent attempt counts). Switching the extension off is still a choice |
+| `lazysite/auth/groups-settings.json` does not decode, or cannot be read | Every signed-in page is refused (503: "the site cannot read part of its configuration"); anonymous pages are unchanged | Repair the JSON, or restore it from a backup |
+| `lazysite/auth/groups` cannot be read by the web server | Every sign-in is refused (unavailable) and every signed-in visitor is treated as signed out | `chown`/`chmod` as the check line says (`--fix` applies it) |
+| A `content_root:` or `alias.<host>.content_root:` the engine rejects (missing folder, unsafe path, outside the docroot, inside the engine tree) | Every request to that host is refused (503); it used to serve the docroot root's pages under that host's name. Other hosts are unaffected | Correct the line in `lazysite.conf`, or create the folder |
+| `session_lifetime:` not a whole number from 300 to 31536000 (e.g. `0`, `1h`) | Every sign-in is refused (unavailable) and every existing session is signed out | Set a value in range, or remove the line for the 24-hour default |
+| `password_min_length:` not a whole number from 8 to 128 | Every password set or reset is refused ("the site's password policy setting is invalid"); signing in with an existing password still works | Set a value in range, or remove the line for the default of 12 |
+
+The log carries a WARN for each refusal naming the file and the check, so a site that
+starts refusing after the upgrade says why in the site log. An absent file is not a
+fault: a fresh site with no rules, groups or counter yet behaves as before.
+
+**A damaged store now stops what it guards (SM1417, ruling 206).** Before 0.16.9 these
+were carried past in silence; now each refuses and leaves the file as it was found.
+Run `lazysite check --docroot <docroot>` after the upgrade: each one is a FAIL that
+names the file and the repair. A store that does not exist yet is not a fault.
+
+| What an operator sees | The file | The repair |
+|---|---|---|
+| Every upload refused (503, "cannot accept this upload") | `lazysite/manager/.upload-rate.db` | remove it; it holds only this hour's counts |
+| The notify-outbox job reports "nothing was sent"; queued notices wait | `lazysite/notify/ledger.jsonl` or `notify/suppressed.jsonl` | repair the line the check names; never remove `suppressed.jsonl`, it records who unsubscribed |
+| A form's acknowledgement, a notice mail, or a capped connector call refused by its cap | `lazysite/forms/submitter-mail.jsonl`, `logs/notice-mail.jsonl`, `connectors/calls.jsonl` | repair or remove the line the check names |
+| No scheduled job runs | `lazysite/daemon/scheduler-runs.json` | remove it; every job runs once at the next tick |
+| The daemon starts no service and stays down until the file is repaired (exit 4, which `lazysited@.service` no longer restarts; the timer's five-minute run refuses again); Status says `failed` | `lazysite/daemon/<service>.state.json` | make sure no copy of the service runs, remove the file, restart `lazysited@<domain>` |
+| A data migration, rebuild or import refused ("could not be queried") | `lazysite/db/data.sqlite` | the check runs SQLite's quick_check; restore from a backup if it fails |
+| The manager says "This page cannot be served right now" (503) to a signed-in person | `lazysite/auth/groups-settings.json` | repair the JSON (the check already names it) |
+| Forgot-password answers `?error=unavailable` | `lazysite/auth/user-settings.json` | repair the JSON (the check already names it) |
+
+Three only say so: the notify status (`notify/status.json`) is no longer written over
+(remove it), the installed version reads unknown with a WARN when
+`.install-state.json` does not decode (run the upgrade again), and an unreadable notice
+template under `notify-templates/` is logged while the built-in wording is used (make it
+readable). Nothing to do on a site whose check is clean.
 
 **A signed-in page refuses a session it cannot check (SM297, ruling 217).** A page
 request carrying a session cookie, while `lazysite/auth/user-settings.json`,
@@ -84,6 +127,79 @@ store (`lazysite/auth/user-settings.json`, `revoked.json` or `users`) could not 
 It now answers 503 with `kind: cannot-tell`, naming the store, and logs it; `lazysite
 check` names the same fault. Repair the store from the command line and the same session
 is served again. Nothing changes for an anonymous visitor or a store that reads.
+
+**An unreadable group store now refuses password sign-in (SM1352, ruling 206).** If
+`lazysite/auth/groups-settings.json` exists and the web server cannot read or decode
+it, every password sign-in is refused, the operator's included, until it is repaired:
+the engine cannot tell whether a group says passkey only. Run `lazysite check` before
+and after the upgrade; it names the file, and the fix is at the command line (its
+ownership and mode, or a restore from a backup).
+
+**A site whose engine tree sits beside its docroot gets its store's modes put right
+by the upgrade; run `lazysite repair` for what it leaves (T-115, ruling 215).** This
+covers a site moved with `lazysite migrate-engine-tree`, or any site with
+`<docroot>-lazysite`. On such a site, earlier upgrades laid the auth and forms example
+files, `forms/smtp.conf` and the form configs world-readable. The `auth/` and `forms/`
+directories kept others out, except where `forms/` had world access. This upgrade lays
+every file it ships there at its private mode, and sets the declared mode on each of
+these, edited or not, changing no content:
+- the user store, the group list and the ACLs: 0660;
+- the auth and forms examples: 0640;
+- the two directories: 2770.
+
+The auth code's lock files are created 0660. `lazysite check` names any of these modes
+that drifts later, along with a world-readable user store, group list or ACL file, and
+a path owned by another account, which the upgrade cannot change. Run `lazysite repair
+--domain DOMAIN` (or `lazysite check --docroot DOCROOT --fix`) to set each to its
+declared mode. A site whose engine tree is inside its docroot is not affected.
+
+**A pool site keeps its own engine until it runs `upgrade` (SM1416, ruling 203).** The FastCGI
+pool (`lazysite@<site>`) now runs the site's own processor, from its cgi-bin, and its own
+lib, as the manager, auth and DAV CGIs already did. It used to run the package's, so
+after a package upgrade the pool rendered with the new engine while the rest of the site
+ran the old one. Now, after a package upgrade, a pool site keeps its own version until
+`lazysite upgrade --docroot ...` (or `upgrade --all`) moves it, and then the pool's
+restart picks it up. Nothing to do on upgrade beyond the usual restart. A site whose
+engine copy is missing or unreadable is answered 503 and logged, never served by the
+package's engine; `lazysite check` names it (`pool engine: ...`) and the remedy:
+`lazysite reinstall` (or `upgrade`), then `systemctl restart lazysite@<site>`. A pool
+conf whose `CGIBIN=` points somewhere other than the site's cgi-bin must be corrected.
+
+**Install CryptX for passkeys and web push (SM1352, SM1363, ruling 187).** The Debian
+package now recommends `libcryptx-perl`, so `apt` installs it with the upgrade unless
+recommends are turned off; a tarball host installs it by hand
+(`apt install libcryptx-perl`, RHEL `perl-CryptX`, Alpine `perl-cryptx`). Without it
+nothing changes, the two new features are simply unavailable, and `lazysite check` says
+so.
+
+**Odoo is its own package, `lazysite-odoo` (SM1369 X7, rulings 188, 205).** On a deb host
+that uses Odoo, install `lazysite-odoo` with the upgrade. It brings `libodoo-oom-perl`
+with it, so the host needs the repository that carries that package. If a site has Odoo
+on and the package is missing, `lazysite upgrade` refuses that site before changing
+anything, and names the package. A site with Odoo off just has the extension's old copies
+removed; a copy you edited is kept, with its orphan warning. Tarball and Hestia installs
+still carry Odoo and lay it out as before. Nothing a site configures changes.
+
+**The Docker recipe now serves many sites from one container (SM1361, rulings 201, 205,
+208, 210).** The 0.16.1 recipe had one site in three volumes, and its volume layout has
+changed: the new recipe keeps every site as a folder in one volume, listed in
+`sites.conf`. Moving a site from the old recipe is a by-hand step. With both
+containers stopped, copy into a new folder `NAME/` in the new volume:
+- the old docroot volume (without its `lazysite/`) to `NAME/html`;
+- the old `lazysite/` volume to `NAME/html-lazysite`;
+- the old private store to `NAME/html-lazysite-private`.
+
+Then start the new container and run `lazysite-sites add NAME DOMAIN`.
+
+In the new container:
+- the engine runs from the image, and every site runs as `www-data`;
+- only the image's own extensions run. `lazysite check` names a site's own extension
+  file as refused;
+- a site whose end user takes it over moves to a dedicated service: Hestia, or a
+  container of its own.
+
+`installers/docker/README.md` covers upgrade by tag, rollback by `lazysite-sites restore`,
+and the canary as a second container.
 
 **The Odoo site sign-in is an identity provider (SM1369, X4).** A site whose sign-in is
 the Odoo login (`odoo_site_signin: on`) keeps working as it did: the same `lazysite_auth`
@@ -150,20 +266,6 @@ Nothing a site configures changes, and nothing needs doing; what an operator see
   next set; until then it is read from the old file, which goes when the last entry
   leaves it. A backup or a copy of `lazysite/` carries both, as it carried the one.
 
-**A table may read its rows from another system (SM1364).** Nothing changes for an
-existing table: a descriptor without `source:` behaves as before. To use it, see
-[Data tables](/docs/data-tables): a GET connector, a `connector` handler for it, a
-schedule entry, and `source:` in the descriptor naming the connector and the entry -
-the descriptor is the one link, so the connector needs no `answer_table`. Two things to
-know. A connector whose `answer_table` names a table with a `source:` no longer
-appends a call row there - the answer becomes the table's rows, and a failed call adds
-nothing; a connector whose `answer_table` names an ordinary table keeps appending. And the schedule's run record
-(`lazysite/daemon/schedule-runs.json`) gains `last_ok` per entry, written from the first
-run after the upgrade; until an entry delivers once, a sourced table's age reads "never
-refreshed". The record is now written under a lock file beside it,
-`schedule-runs.json.lock`, which the daemon and the manager share; both users must be
-able to write `lazysite/daemon/` for an on-demand refresh to count in the age.
-
 **Signing in through an OpenID Connect provider (SM1351).** A new extension, off until
 you enable it: people sign in at a provider the site trusts and its groups become site
 groups. Nothing changes on a site that does not enable it. To use it, see
@@ -181,13 +283,6 @@ OIDC provider's link to work when the page carries a `next`. The Sessions page g
 **Require sign-in again** for the selected sessions: a provider's session (OIDC or Odoo)
 signs in again through its provider at its next request, and a local one is signed out.
 
-**Install CryptX for passkeys and web push (SM1352, SM1363, ruling 187).** The Debian
-package now recommends `libcryptx-perl`, so `apt` installs it with the upgrade unless
-recommends are turned off; a tarball host installs it by hand
-(`apt install libcryptx-perl`, RHEL `perl-CryptX`, Alpine `perl-cryptx`). Without it
-nothing changes, the two new features are simply unavailable, and `lazysite check` says
-so.
-
 **Passkeys arrive on the sign-in, setup-link and account pages (SM1352).** Nothing is
 needed: the shipped `/login`, `/claim` and `/account` system pages offer a passkey to a
 browser that can use one. A site that wrote its own `login.md`, `claim.md` or
@@ -196,13 +291,6 @@ engine's page (the `data-ls-account="passkey-signin"`, `"passkey-claim"` and
 `::: account-passkeys` parts). A layout that overrides `components/account-*.tt` gains
 `account-passkeys.tt` from the engine. To make a group sign in by passkey only:
 `lazysite users --docroot <docroot> group-set <group> passkey_only on`.
-
-**An unreadable group store now refuses password sign-in (SM1352, ruling 206).** If
-`lazysite/auth/groups-settings.json` exists and the web server cannot read or decode
-it, every password sign-in is refused, the operator's included, until it is repaired:
-the engine cannot tell whether a group says passkey only. Run `lazysite check` before
-and after the upgrade; it names the file, and the fix is at the command line (its
-ownership and mode, or a restore from a backup).
 
 **Two hourly notice bounds (SM1363, rulings 195 and 199).** `mail.per_hour` in
 `lazysite/notify.conf` counted notice mail; it now counts every route but webhook -
@@ -215,15 +303,6 @@ message" in `/docs/forms`. A site whose own `account.md` should offer app notice
 `::: account-push`, and `::: account-phone` for the phone text notices go to (ruling
 196); an operator can also set an account's phone on the Users page.
 
-- The Groups page adds the two roles too (SM1407, as 0.16.8 said it would): opening it
-  now adds `analysts` and `lead-readers` on an older site, as the Users page already did.
-  The groups listing (MCP `list_groups`, the control API's `groups`) says for each group
-  whether it shipped with the engine (`seeded`).
-- A page whose body names a filter a page body does not have (anything beyond Template
-  Toolkit's own, `json` and `url_safe` - `markdown` is a layout's) is refused on save and
-  reported by `validate_page`; such a page already rendered with its whole body as
-  written. `| json` now works in a page body (SM1398).
-
 **The XMPP notice account answers a subscribe from its recipient (SM1418).** No
 setting changes and nothing to migrate. On the first notice after the upgrade to a
 person (not a room) the account asks the recipient to subscribe and approves their
@@ -233,120 +312,37 @@ clients, taps the padlock in the chat and chooses Unencrypted (see
 `/docs/forms`, "Configuring chat delivery"). While the subscription is incomplete a
 notice to a person waits up to a second for a pending request.
 
-**A pool site keeps its own engine until it runs `upgrade` (SM1416, ruling 203).** The FastCGI
-pool (`lazysite@<site>`) now runs the site's own processor, from its cgi-bin, and its own
-lib, as the manager, auth and DAV CGIs already did. It used to run the package's, so
-after a package upgrade the pool rendered with the new engine while the rest of the site
-ran the old one. Now, after a package upgrade, a pool site keeps its own version until
-`lazysite upgrade --docroot ...` (or `upgrade --all`) moves it, and then the pool's
-restart picks it up. Nothing to do on upgrade beyond the usual restart. A site whose
-engine copy is missing or unreadable is answered 503 and logged, never served by the
-package's engine; `lazysite check` names it (`pool engine: ...`) and the remedy:
-`lazysite reinstall` (or `upgrade`), then `systemctl restart lazysite@<site>`. A pool
-conf whose `CGIBIN=` points somewhere other than the site's cgi-bin must be corrected.
+**A table may read its rows from another system (SM1364).** Nothing changes for an
+existing table: a descriptor without `source:` behaves as before. To use it, see
+[Data tables](/docs/data-tables): a GET connector, a `connector` handler for it, a
+schedule entry, and `source:` in the descriptor naming the connector and the entry -
+the descriptor is the one link, so the connector needs no `answer_table`. Two things to
+know. A connector whose `answer_table` names a table with a `source:` no longer
+appends a call row there - the answer becomes the table's rows, and a failed call adds
+nothing; a connector whose `answer_table` names an ordinary table keeps appending. And the schedule's run record
+(`lazysite/daemon/schedule-runs.json`) gains `last_ok` per entry, written from the first
+run after the upgrade; until an entry delivers once, a sourced table's age reads "never
+refreshed". The record is now written under a lock file beside it,
+`schedule-runs.json.lock`, which the daemon and the manager share; both users must be
+able to write `lazysite/daemon/` for an on-demand refresh to count in the age.
 
-**A broken store or setting now refuses (SM1417, ruling 206).** Until 0.16.8 a site with a
-damaged access store or an invalid setting carried on, guessing an answer. From 0.16.9
-it refuses until the fault is repaired. Run `lazysite check --docroot <docroot>` after
-the upgrade: every case below is a FAIL line there, naming the file and the repair. A
-site where the check shows none of them sees no change.
+**Smaller changes, nothing to do.**
 
-| Fault | What people see | Repair |
-| --- | --- | --- |
-| `lazysite/auth/acls.json` does not decode, or cannot be read | Every file and table-row check is refused (503, "cannot tell"), the operator's included; every rule change and file copy is refused, and the file is left untouched | Repair the JSON, or restore it from a backup |
-| `lazysite/auth/.consume.lock` cannot be opened or locked | Every account change, password reset and invitation is refused ("cannot change the account store safely"); the CLI exits non-zero with the same sentence | `chown`/`chmod` as the check line says (`--fix` applies it) |
-| The login rate limiter cannot count: DB_File missing, or `lazysite/auth/.login-rate.db` not openable or not a database | Every sign-in is refused: the sign-in page says sign-in is unavailable; token doors, the Odoo sign-in and an OIDC sign-in start answer 503 | Install DB_File (`perl-DB_File` on RHEL); fix the counter's ownership as the check says; or remove a counter that is not a database (it holds only recent attempt counts). Switching the extension off is still a choice |
-| `lazysite/auth/groups-settings.json` does not decode, or cannot be read | Every signed-in page is refused (503: "the site cannot read part of its configuration"); anonymous pages are unchanged | Repair the JSON, or restore it from a backup |
-| `lazysite/auth/groups` cannot be read by the web server | Every sign-in is refused (unavailable) and every signed-in visitor is treated as signed out | `chown`/`chmod` as the check line says (`--fix` applies it) |
-| A `content_root:` or `alias.<host>.content_root:` the engine rejects (missing folder, unsafe path, outside the docroot, inside the engine tree) | Every request to that host is refused (503); it used to serve the docroot root's pages under that host's name. Other hosts are unaffected | Correct the line in `lazysite.conf`, or create the folder |
-| `session_lifetime:` not a whole number from 300 to 31536000 (e.g. `0`, `1h`) | Every sign-in is refused (unavailable) and every existing session is signed out | Set a value in range, or remove the line for the 24-hour default |
-| `password_min_length:` not a whole number from 8 to 128 | Every password set or reset is refused ("the site's password policy setting is invalid"); signing in with an existing password still works | Set a value in range, or remove the line for the default of 12 |
-
-The log carries a WARN for each refusal naming the file and the check, so a site that
-starts refusing after the upgrade says why in the site log. An absent file is not a
-fault: a fresh site with no rules, groups or counter yet behaves as before.
-
-**A damaged store now stops what it guards (SM1417, ruling 206).** Before 0.16.9 these
-were carried past in silence; now each refuses and leaves the file as it was found.
-Run `lazysite check --docroot <docroot>` after the upgrade: each one is a FAIL that
-names the file and the repair. A store that does not exist yet is not a fault.
-
-| What an operator sees | The file | The repair |
-|---|---|---|
-| Every upload refused (503, "cannot accept this upload") | `lazysite/manager/.upload-rate.db` | remove it; it holds only this hour's counts |
-| The notify-outbox job reports "nothing was sent"; queued notices wait | `lazysite/notify/ledger.jsonl` or `notify/suppressed.jsonl` | repair the line the check names; never remove `suppressed.jsonl`, it records who unsubscribed |
-| A form's acknowledgement, a notice mail, or a capped connector call refused by its cap | `lazysite/forms/submitter-mail.jsonl`, `logs/notice-mail.jsonl`, `connectors/calls.jsonl` | repair or remove the line the check names |
-| No scheduled job runs | `lazysite/daemon/scheduler-runs.json` | remove it; every job runs once at the next tick |
-| The daemon starts no service and stays down until the file is repaired (exit 4, which `lazysited@.service` no longer restarts; the timer's five-minute run refuses again); Status says `failed` | `lazysite/daemon/<service>.state.json` | make sure no copy of the service runs, remove the file, restart `lazysited@<domain>` |
-| A data migration, rebuild or import refused ("could not be queried") | `lazysite/db/data.sqlite` | the check runs SQLite's quick_check; restore from a backup if it fails |
-| The manager says "This page cannot be served right now" (503) to a signed-in person | `lazysite/auth/groups-settings.json` | repair the JSON (the check already names it) |
-| Forgot-password answers `?error=unavailable` | `lazysite/auth/user-settings.json` | repair the JSON (the check already names it) |
-
-Three only say so: the notify status (`notify/status.json`) is no longer written over
-(remove it), the installed version reads unknown with a WARN when
-`.install-state.json` does not decode (run the upgrade again), and an unreadable notice
-template under `notify-templates/` is logged while the built-in wording is used (make it
-readable). Nothing to do on a site whose check is clean.
-
-**A site whose engine tree sits beside its docroot: run `lazysite repair` after the
-upgrade (T-115).** This covers a site moved with `lazysite migrate-engine-tree`, or any
-site with `<docroot>-lazysite`. On such a site, earlier upgrades laid the auth and
-forms example files, `forms/smtp.conf` and the form configs world-readable. The
-`auth/` and `forms/` directories kept others out, except where `forms/` had world
-access. This upgrade lays every file it ships there at its private mode. A file you
-edited is kept with its old mode, and `lazysite check` now names it, along with a
-world-readable user store, group list or ACL file. Run `lazysite repair --domain
-DOMAIN` (or `lazysite check --docroot DOCROOT --fix`) once, and it sets each to its
-declared mode. A site whose engine tree is inside its docroot is not affected.
-
-**A site whose engine tree sits beside its docroot gets its store's modes put right
-by the upgrade itself (T-115).** This covers a site moved with
-`lazysite migrate-engine-tree`, or any site with `<docroot>-lazysite`. On such a site,
-earlier upgrades left these world-readable:
-- the auth and forms example files;
-- `forms/smtp.conf` and the form configs.
-
-The `auth/` and `forms/` directories kept others out, except where `forms/` had world
-access.
-
-This upgrade sets the declared mode on each of these, edited or not, and changes no
-content:
-- the user store, the group list and the ACLs: 0660;
-- the auth and forms examples: 0640;
-- the two directories: 2770.
-
-The auth code's lock files are created 0660. `lazysite check` names any of these
-modes that drifts later; `lazysite repair --domain DOMAIN` (or
-`lazysite check --docroot DOCROOT --fix`) fixes it.
-
-**Odoo is its own package, `lazysite-odoo` (SM1369 X7, rulings 188, 205).** On a deb host
-that uses Odoo, install `lazysite-odoo` with the upgrade. It brings `libodoo-oom-perl`
-with it, so the host needs the repository that carries that package. If a site has Odoo
-on and the package is missing, `lazysite upgrade` refuses that site before changing
-anything, and names the package. A site with Odoo off just has the extension's old copies
-removed; a copy you edited is kept, with its orphan warning. Tarball and Hestia installs
-still carry Odoo and lay it out as before. Nothing a site configures changes.
-
-**The Docker recipe now serves many sites from one container (SM1361, rulings 201, 205,
-208, 210).** The 0.16.1 recipe had one site in three volumes, and its volume layout has
-changed: the new recipe keeps every site as a folder in one volume, listed in
-`sites.conf`. Moving a site from the old recipe is a by-hand step. With both
-containers stopped, copy into a new folder `NAME/` in the new volume:
-- the old docroot volume (without its `lazysite/`) to `NAME/html`;
-- the old `lazysite/` volume to `NAME/html-lazysite`;
-- the old private store to `NAME/html-lazysite-private`.
-
-Then start the new container and run `lazysite-sites add NAME DOMAIN`.
-
-In the new container:
-- the engine runs from the image, and every site runs as `www-data`;
-- only the image's own extensions run. `lazysite check` names a site's own extension
-  file as refused;
-- a site whose end user takes it over moves to a dedicated service: Hestia, or a
-  container of its own.
-
-`installers/docker/README.md` covers upgrade by tag, rollback by `lazysite-sites restore`,
-and the canary as a second container.
+- The Groups page adds the two roles too (SM1407, as 0.16.8 said it would): opening it
+  now adds `analysts` and `lead-readers` on an older site, as the Users page already did.
+  The groups listing (MCP `list_groups`, the control API's `groups`) says for each group
+  whether it shipped with the engine (`seeded`).
+- A page whose body names a filter a page body does not have (anything beyond Template
+  Toolkit's own, `json` and `url_safe` - `markdown` is a layout's) is refused on save and
+  reported by `validate_page`; such a page already rendered with its whole body as
+  written. `| json` now works in a page body (SM1398).
+- The operator's Files listing is MCP's listing (SM1404): the manager API's `list` no
+  longer carries the permissions editor's address-profile choices beside the entries.
+  The Files page reads them from `principals`, and `acl-get` carries them as before.
+- `lazysite check`'s shared-title and missing-description warnings read each domain's
+  own public pages (SM1357), so two domains' home pages with the same title are no
+  longer reported as a duplicate; each warning names the page's address, and its domain
+  on a site of several.
 
 ## Odoo's actions become the extension's, owner_contact is retired, and the rest of 0.16.8
 

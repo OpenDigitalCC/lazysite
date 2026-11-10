@@ -1497,6 +1497,120 @@ only over TLS. No Odoo is in it.
   no mixed pair; an import that stages no account keeps nothing; the editor takes its
   lock with a POST, and a lint keeps every manager page's mutating fetch a POST.
 
+## Identity providers, OIDC, passkeys, notices, API-backed tables and the damaged-store refusals (0.16.9)
+
+Walked on 2026-11-10 (SM1419); the register entries are confirmed by the release manager
+(ruling 225).
+
+- **An extension declares an identity provider; core keeps the session** (SM1369 X4,
+  rulings 178, 186, 192, 193; trust boundary 15). `owns.hooks.identity_provider` gives
+  `on`, `still_valid`, `groups`, `login_option`, `banner`, a `renew` path, a
+  `signin_page` and `grants`. Core signs the `<id>=` cookie
+  (`Auth::Session::mint_provider_session`), reads the record and the revocation, asks
+  `still_valid` and `groups`, refuses an unsecured site, and reads the provider from
+  its index and never from the cookie. A group a provider answers that carries a
+  capability is dropped (`Auth::Settings::group_carries_capability`) unless the
+  provider declares `grants`, and every sign-in and renewal through a `grants` provider
+  writes a `login-grant` or `renew-grant` audit row naming the groups. A function that
+  cannot be loaded, dies or answers outside its contract is a refusal. Odoo's site
+  sign-in is the first provider; nobody is signed out by the upgrade.
+- **Sign-in through an outside OpenID Connect provider** (SM1351, rulings 185, 186, 206,
+  213, 214; the `oidc` extension and `/cgi-bin/lazysite-oidc.pl`). The authorisation
+  code flow with PKCE (S256): a state in an HttpOnly, SameSite=Lax cookie scoped to the
+  endpoint and a single-use pending record that lives ten minutes. The ID token from the
+  token endpoint must name the configured issuer, this client (and `azp` with several
+  audiences), the nonce sent, and an unexpired time; its signature is not checked
+  (ruling 185). Every call is https (http only to this host), follows no redirect, is
+  capped at 256 KB and times out at ten seconds; a provider may name its own CA bundle.
+  The client secret is in the secrets store, never in `oidc.conf` and never read back.
+  The provider is declared with `grants`, instances `oidc-<name>`: a provider group may
+  map to a capability group, operators included (ruling 186), and a person in no mapped
+  group is not signed in. Only the operator saves a map entry whose target carries
+  capabilities (ruling 214). Each start counts against the sign-in limiter, and a
+  limiter that cannot count answers cannot-tell (rulings 213, 223). The Sessions page
+  can mark a provider's session stale (`session-reauth`): the next request goes to the
+  provider again and renews the same session for the same subject. A provider whose
+  config, secret or discovery is broken is refused with the others untouched, and
+  `lazysite check` names the fault and the remedy.
+- **An extension's endpoint, services, checks, panels and secrets** (SM1369 X5, X6,
+  rulings 188, 194). `Lazysite::Endpoint` caps a body before it reads it, parses a
+  multipart one, holds the visitor key per extension and checks a POST for the session's
+  or the visitor's token before the extension's code runs (`post_guard`); a lint holds
+  every declared endpoint to it. The supervisor lists, gates, starts and reports the
+  services an enabled extension declares, through the hook loader. `lazysite check`
+  prints the findings of an enabled extension's declared checks. An extension's panel
+  is a manager page in its payload, served at `/manager/<id>-<name>` inside the manager
+  gate to a holder of the capability it declares. `Lazysite::Secrets` is the one secrets
+  store: one file per secret under `lazysite/<owner>/keys/`, written under a 077 umask
+  and renamed, 0600 in a 0700 directory, never listed.
+- **Passkeys** (SM1352, rulings 187, 198, 199, 206; CryptX, ruling 187). A second
+  interactive sign-in method beside the password, on the auth wrapper's two actions
+  (`passkey-challenge`, `passkey-login`) and the account's own cookie-only actions. A
+  challenge is 32 random bytes, answerable for five minutes, issued for one purpose and
+  spent by the first answer (a rename); at most 1000 wait at once. The origin and the
+  RP ID hash must be this host's, user presence and user verification are both required,
+  the signature is checked with the key and algorithm stored at enrolment over bytes the
+  engine builds, and a counter that does not advance is refused. A passkey sign-in passes
+  the password sign-in's address scope, rate limiter and account gates and mints the
+  same session. A passkey is added only by its own account (a manager can only wipe
+  them all, which ends the account's sessions); a `passkey_only` group refuses its
+  members' passwords; a group store that cannot be read refuses every password sign-in,
+  the operator's included. CryptX is lazy-loaded by passkeys and web push alone, and
+  without it they refuse.
+- **Notices by web push and webhook, and an account's phone** (SM1363, rulings 187, 188,
+  195, 196, 199). Two routes in Notify's route table. Web push sends an empty,
+  VAPID-signed POST to endpoints the account's browser handed over (https, 1024
+  characters at most, a bounded number per account, checked by `Fetch::is_safe_url` at
+  send, no redirect, a 4 KB read, ten seconds); nothing of a notice's content travels. The
+  webhook calls the operator's named connector in scheduled mode with the notice's kind,
+  title, login and link, never its content. An account's optional `phone` (a +, then 8
+  to 15 digits) is carried in that webhook body alone. `mail.per_hour` bounds every route
+  but the webhook, which has `webhook.per_hour` (20); `notify_routes` is set by an
+  operator, not by the person.
+- **A table reads its rows from another system's API** (SM1364, rulings 189-191). A
+  descriptor's `source:` names a GET connector and a map from the answer's fields to
+  columns. The connector's answer is written through `import_rows` into the one table
+  that names it, all or nothing, and a row the source stops sending is removed as a
+  recorded, undoable change only when the answer is a non-empty list. Mapped columns
+  are read-only at every door; `data-table-refresh` (`manage_data`) makes the call on
+  demand, as the caller, and the connector's own callers rule still decides. The
+  connector's egress, cap and call record are unchanged. It fires
+  new-processing-of-restricted-data, contained (ruling 190).
+- **Identity is a value** (SM297, rulings 206, 216, 217). `Auth::Identity::request_identity`
+  answers a value held for the request (`local $HELD`) and reads nothing from `%ENV`
+  while one is held. The data endpoint holds its caller's identity and writes no
+  `X-Remote-*` header, so a forged or later-written header has no effect. The header
+  contract remains across an exec: the CGI wrapper's, and the pool's relay to the manager
+  API (ruling 217 moves that to 0.17.0). A session cookie whose store cannot be read is
+  refused 503 on the data endpoint and on pages.
+- **A damaged store is a fault, and the engine refuses** (SM1417, ruling 206 and its
+  survey items 1-21; rulings 207, 211, 212, 216, 217, 223). A damaged `acls.json`, auth
+  store lock, login rate counter, groups file, `content_root`, `session_lifetime` or
+  `password_min_length` refuses the action it guards, the operator included, and a rule
+  is never written over a file that would not read. An upload counter, a notice ledger
+  or unsubscribe store, a send record, the scheduler's run record, the daemon's service
+  state, a query in a migration or import, and the install state refuse or leave the
+  file as found and start nothing. The refusal is one wording
+  (`Lazysite::Util::store_fault`), names no file to a visitor, and `lazysite check` and
+  the log name the store and the remedy. An absent store is still nothing configured.
+- **One shared container engine** (SM1361, SM1369 X7, rulings 200-210, 218, 220). The
+  image carries a read-only engine marked `SHARED-ENGINE`; on such an engine every
+  extension is the engine's own copy, anything in a site's extensions directory is
+  refused by name and named by the check, and a site payload module that an engine
+  extension's lib holds is refused. The marker is read from the engine's root, never a
+  site's. Every process runs as www-data (ruling 210), so the separation between sites
+  is the engine's confinement of a request to its docroot. A site that fails is refused
+  and answers 503 while the others serve. Odoo ships in its own package, and an upgrade
+  from a payload without it refuses a site that has it on. The FastCGI pool runs the
+  site's own engine, not the package's (SM1416, ruling 203). On a docroot with its
+  engine tree beside it the install sets each declared store mode, and `lazysite check`
+  fails a world bit (T-115, ruling 215).
+- **Smaller** (SM1418, SM1407 T-112, SM1404 T-113, SM1398 T-114). The notice account on
+  XMPP approves a presence subscribe from the configured recipient only; the Groups
+  page adopts the layer roles; the operator's Files listing is MCP's listing; a page
+  body has `| json` and a filter it lacks is refused on save. None moves a control
+  (docs/SECURITY.md, the 2026-11-10 entry).
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

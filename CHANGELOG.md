@@ -186,8 +186,8 @@ Archive
   through one question (`Lazysite::Crypto::cryptx_missing`); without it those two say
   they need it and nothing else changes. `lazysite check` says whether it is installed,
   and warns when it is not and an account holds a passkey or `notify.conf` routes a
-  notice by `webpush`. One ADR 0007 dependency entry in docs/SECURITY.md
-  (t/unit/tools/118).
+  notice by `webpush`. One ADR 0007 dependency entry in docs/SECURITY.md,
+  confirmed by the release manager (ruling 225) (t/unit/tools/118).
 
 - SM1352 (PENDING) **Passkeys (ruling 187).** A person signs in with their phone's or
   computer's passkey: "Sign in with a passkey" on the sign-in page (and so in the
@@ -209,7 +209,7 @@ Archive
   (ruling 206, withdrawing ruling 197's exception).
   Attestation `none`, the key from `getPublicKey()` (SPKI DER), ES256, RS256 and
   Ed25519; only public keys are stored, in the account's record. ADR 0007
-  new-authentication-method entry in docs/SECURITY.md (t/unit/auth/107-109,
+  new-authentication-method entry in docs/SECURITY.md, confirmed (ruling 225) (t/unit/auth/107-109,
   t/unit/account/36).
 
 - SM1363 (PENDING) **Notices by web push and by webhook (rulings 187, 188).** `webpush`
@@ -228,8 +228,8 @@ Archive
   or 410 is removed (ruling 199); an account may carry a `phone` (international form,
   set on `/account` with `me-phone` or on the Users page), carried only in the webhook
   body (ruling 196); and every attempt is a log line
-  with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md
-  (t/unit/notify/41, t/unit/account/38).
+  with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md,
+  confirmed (ruling 225) (t/unit/notify/41, t/unit/account/38).
 - SM1407 (PENDING) **The Groups page adopts the layer roles, and a listing shows the
   mark.** On the 0.16.8 edge run `analysts` and `lead-readers` did not arrive after the
   Groups page was opened: the adoptions run where the users tool seeds, and the Users
@@ -277,7 +277,6 @@ Archive
   lib. A site whose engine copy is missing or unreadable gets 503 and a log line, never
   the package's engine, and `lazysite check` names the fault and its remedy (ruling 206).
   A shared read-only engine keeps running the image's. t/integration/458.
-- SM1024 (PENDING) **A broken access store or setting refuses; it is never worked
 - SM1417 (PENDING) **A broken access store or setting refuses; it is never worked
   around (rulings 206 and 207, items 1-8).** A site that was silently carrying on now
   refuses until the fault is repaired from the command line; `lazysite check` and the
@@ -297,7 +296,7 @@ Archive
   docroot root. (8) An invalid session_lifetime refuses sign-in and sessions, and an
   invalid password_min_length every password set, instead of the default. New check
   lines for 3, 4, 6, 7 and 8. UPGRADE.md says what an operator sees and how to fix it.
-  Register entry drafted for the release manager.
+  Register entry confirmed by the release manager (ruling 225).
 - SM1417 (PENDING) **a damaged store refuses writes and sends, and lazysite check names
   it (ruling 206, survey items 9-21).** A store that exists and cannot be told is a
   fault: the engine refuses and leaves the file as found, and `lazysite check` and the
@@ -356,6 +355,25 @@ Archive
       (ruling 215);
     - the auth consume lock and a store's sidecar lock are created 0660, whatever the
       umask.
+
+- SM1419 (PENDING) **docs: the compliance records cover 0.16.9.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.9 stack (`git log
+  8a2806723..63e8f1970`, 102 commits) and stamped 0.16.9. The sixteen register entries
+  the branches wrote are confirmed by the release manager (ruling 225). Seven fire a
+  trigger, each contained: SM1369 X4 and SM1351 (sign-in method; SM1351 with
+  new-external-interface), SM1352 passkeys (new-authentication-method and
+  new-external-interface), CryptX (new-dependency-with-authentication-logic), SM1363 web
+  push and webhook (new-external-interface), SM1363's phone number and SM1364
+  (new-processing-of-restricted-data); the other nine fire none. There is no early
+  third-party review: the OIDC grant mapping and the passkey paths are named in the scope
+  of the engagement ADR 0007 already requires. Drafted at the walk, for confirmation: an
+  entry for SM1418 (the XMPP notice account answers a subscribe from its recipient only),
+  SM1407, SM1404, SM1398, the container's tooling and the restack's wording, which names
+  the rest of 0.16.9 and why each moves no control; trust boundary 15 and the assets
+  line restated; nine STRIDE rows; five operate-side rows; a 0.16.9 section in
+  docs/architecture/security.md. The SBOM strict check exits 0 with 495 components. The
+  channel and whether 0.16.9 is security-critical are the release manager's at the cut.
+  UPGRADE.md's 0.16.9 notes are one section. Docs only; nothing is signed.
 
 ## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
 
