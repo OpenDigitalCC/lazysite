@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read store_fault path_owner_name unreadable_note backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read store_fault path_owner_name web_door unreadable_note unreadable_clause backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
 
 our $COMPONENT = 'lazysite';
 
@@ -187,6 +187,26 @@ sub path_owner_name {
     return undef;
 }
 
+# Is this process answering a web request (the manager API, MCP, any CGI door)? A
+# refusal shown through a web door names no unix user (ruling 243): it says "the web
+# server's user" and "the owner of the file". The CLI tools name the users. This is the
+# one switch; unreadable_note and unreadable_clause read it.
+sub web_door {
+    return ( defined $ENV{REQUEST_METHOD} || defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
+}
+
+# "could not be read ..." for a store's refusal text: who could not read it, and the owner.
+# $err is the system's reason. The CLI names the user it ran as and the file's owner; a web
+# door says the web server's user and the owner of the file.
+sub unreadable_clause {
+    my ( $path, $err ) = @_;
+    return "could not be read by the web server's user ($err)" if web_door();
+    my ($me) = getpwuid($>);
+    my $owner = path_owner_name($path);
+    return "could not be read as '" . ( $me // "uid $>" ) . "' ($err"
+        . ( defined $owner ? "; the file is owned by '$owner'" : '' ) . ')';
+}
+
 # '' when this process opens $path (the fault, if any, is not about who ran it);
 # otherwise a sentence naming the user it ran as, the user that owns the file,
 # and the command to run as that user.
@@ -196,10 +216,12 @@ sub unreadable_note {
     return '' if open my $fh, '<', $path;
     my $why = "$!";
     return '' if $!{ENOENT};
+    ( my $short = $path ) =~ s{\A.*/(lazysite/)}{$1}s;
+    return " The web server's user cannot read $short ($why). Run the command on the host as the owner of the file (`lazysite check` names the fix)."
+        if web_door();
     my ($me) = getpwuid($>);
     $me //= "uid $>";
     my $owner = path_owner_name($path);
-    ( my $short = $path ) =~ s{\A.*/(lazysite/)}{$1}s;
     return " This ran as unix user '$me', which cannot read $short ($why)."
         . ( !defined $owner ? ' Run it as the user the web server runs the site as, which owns the auth store.'
         : $owner eq $me ? ' That user owns it, so its permissions are the fault: `lazysite check` names the fix.'

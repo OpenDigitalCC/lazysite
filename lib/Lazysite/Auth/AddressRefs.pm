@@ -54,13 +54,11 @@ sub _json {
     my ( $path, $what, $faults ) = @_;
     open my $fh, '<:raw', $path or do {
         unless ( $!{ENOENT} ) {
-           # n818 (SM1440): name the unix user this ran as and the one that owns the file.
+            # n818 (SM1440): who could not read it, and the owner: unix users to the CLI, the
+            # web server's user and "the owner of the file" through a web door (ruling 243).
             my $err = "$!";
             require Lazysite::Util;
-            my ($me) = getpwuid($>);
-            my $owner = Lazysite::Util::path_owner_name($path);
-            push @{$faults}, "$what could not be read as '" . ( $me // "uid $>" ) . "' ($err"
-                . ( defined $owner ? "; the file is owned by '$owner'" : '' ) . ')';
+            push @{$faults}, "$what " . Lazysite::Util::unreadable_clause( $path, $err );
         }
         return undef;
     };
