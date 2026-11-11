@@ -1646,6 +1646,31 @@ Walked on 2026-11-10 (SM1429); edge, not security-critical (ruling 229). The reg
   not to be read. None moves a control (docs/SECURITY.md, the 2026-11-10 entry for
   0.16.10).
 
+## Address profiles chosen from those that exist, and a stale marker cleared (0.16.11, beta)
+
+Walked on 2026-11-11 (SM1436); the beta (ruling 236), not security-critical. Drafted by the
+developer agent for the release manager's confirmation.
+
+- **A rule names only address profiles that exist** (SM1435, rulings 234, 235). A name no
+  profile carries matches no address, so an allow naming it admitted nobody and a deny
+  naming it excluded nobody. `Manager::Common::address_profiles_missing` is the one lookup,
+  and every door that writes a rule asks it: `Files::action_acl_set` (the manager API's
+  `acl-set`, MCP `set_permissions`, `lazysite acl set`), a group's address limit in the users
+  tool's `group-settings-set`, and a page's `addresses:` / `addresses_deny:` through
+  `Files::_content_write_refusal` (the manager save, the control API, MCP `write_file`,
+  `create_page` and `preview_page`) and WebDAV `PUT`. A store that cannot be read refuses
+  and is named (ruling 206). A profile a rule names cannot be deleted at any door; the force
+  path is gone. A rule already on disk that names a missing profile is unchanged and is
+  named by `lazysite check`.
+- **A page response clears a stale signed-in marker** (SM1430). `output_page` clears the
+  display-only `lzs_session` marker when the request carries it and has no signed-in
+  identity (the wrapper's verified session, the pool's held value or a listed proxy's
+  user); the response is `no-store, private`, and a session refused only as stale keeps its
+  marker for its renewal. The marker carries no authority and the HttpOnly cookie stays
+  the gate. The server reads the marker only to clear it.
+- **Smaller** (SM1435). The Groups page says where the settle panel is. None moves a
+  control (docs/SECURITY.md, the 2026-11-11 entries).
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a

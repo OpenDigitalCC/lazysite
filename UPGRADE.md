@@ -68,17 +68,39 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased: address profiles are chosen from those that exist (SM1435)
+## Address profiles are chosen from those that exist, and the rest of 0.16.11 (the beta)
 
-A rule, or a group's address limit, that names an address profile the store does not hold
-is now refused when it is saved (ruling 234); before, it was stored with a warning. A rule
-saved earlier that already names a missing profile still stands (and still refuses
-everyone it guards, as before); it is refused on its next save until the name is cleared
-or the profile is created, and `lazysite check` names it now. `address-profile-delete` has
-no `--force` and the API no `force`: a profile a rule names cannot be deleted, and may be
-changed. A script that passed `--force` fails with "unknown option". A page whose front
-matter names a missing profile is refused on its next save, by every content door, and
-`lazysite check` still warns of it.
+0.16.11 is the beta (ruling 236): 0.16.10 plus the two changes below, on the beta channel, and
+the release the 0.17.0 stable is promoted from. It is not security-critical, so it reaches
+only the sites that take beta builds. The feature freeze starts at this cut: only fixes follow it.
+
+**A rule names only address profiles that exist (SM1435, rulings 234 and 235).** A rule, a
+group's address limit, or a page's `addresses:` or `addresses_deny:` that names an address
+profile the store does not hold is now refused when it is saved, naming the profile; before,
+it was stored with a warning. A name no profile carries matches no address, so an allow naming
+it admitted nobody and a **deny naming it excluded nobody**: a deny list that meant to keep an
+address out kept nothing out. The refusal is at every door: the manager API's `acl-set`, MCP
+`set_permissions` and `lazysite acl set`; the Groups page and the users
+tool's `group-settings-set`; and, for a page, the manager save, the control API, MCP `write_file` and
+`create_page`, and WebDAV, with `validate_page` reporting it as an issue. A rule or page saved
+earlier that already names a missing profile still stands, as it did; run `lazysite check`,
+which names each one, and create the profile or set the name to Not used. Such a rule is
+refused on its next save until the name is cleared, and a page naming one is refused on its next
+save by every content door.
+
+**A profile a rule names cannot be deleted (SM1435, ruling 234).** `address-profile-delete`
+has no `--force` and the API no `force`: a profile a rule names cannot be deleted, and may be
+changed. A script that passed `--force` fails with "unknown option". The Address profiles page
+no longer offers "Delete anyway"; it shows the refusal, naming the rules.
+
+**Smaller changes, nothing to do.**
+
+- After Require sign-in again, a revoked session or a removed account, public pages no longer
+  draw "Sign out" from a signed-in marker the session left (SM1430): a page response to a request
+  that carries the display marker and no signed-in identity clears it, and that one response is
+  not stored. A visitor without the marker is unaffected.
+- The Groups page says where the settle panel is: the Unknown Odoo writes page, linked from its
+  card on Extensions - configure (SM1435).
 
 ## The container image carries git, a new Hestia site is one command, and the rest of 0.16.10
 

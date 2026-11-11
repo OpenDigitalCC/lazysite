@@ -81,7 +81,9 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     every address rule sits behind this boundary.
 11. **The address rule** (SM1134, 0.15.10; SM1343, 0.16.5) -> named address profiles
     that pages, folders and groups allow or deny; it narrows what other rules grant
-    and never widens it.
+    and never widens it. From 0.16.11 (SM1435, ruling 234; the walk's draft, for the
+    release manager's confirmation) a rule names only profiles that exist, refused at
+    save at every door, and a profile a rule names cannot be deleted.
 12. **The Odoo extension** (SM747, 0.15.5; SM1160, 0.15.10) -> an outbound
     connection to an ERP on the operator's URL, a connection user's key, a person's
     own Odoo session, an anonymous visitor's bounded write path, and (opt-in) the
@@ -184,6 +186,7 @@ Spoofing | An identity written into the data endpoint's environment, by the clie
 Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
 Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, confirmed by the release manager on 2026-11-10 (ruling 233), with the walk's entry and the claim-link residual risk, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
+Elevation of privilege | A deny rule that names an address profile the store lacks, which excludes nobody and says so only in a log line; an allow rule that names one, which admits nobody; a profile deleted while a rule names it (SM1139's accept-with-warning, SM1141's force) | A rule, a group's address limit and a page's `addresses:` / `addresses_deny:` are refused at every door when they name a profile the store does not hold, naming it, with nothing written; the names a rule already carries are checked on its next save; a profile a rule names cannot be deleted, at any door, with no force; a store that cannot be read refuses and is named (ruling 206); `lazysite check` names a rule or a page already on disk that names a missing profile | 0.16.11 (t/integration/730 and 731, t/unit/mcp/489 and 490, t/unit/users/548 and 53, t/unit/manager/974; row written at the 0.16.11 walk, SM1436, for the release manager's confirmation, with the SM1435 entry): a rule or page saved before 0.16.11 that names a missing profile stands until it is changed, a file edited on disk outside a door is not refused, and the runtime's treatment of an unknown name is unchanged
 ```
 
 ## Five priority entries (from the review)
@@ -6158,3 +6161,123 @@ verdict : accepted, confirmed by the release manager on 2026-11-10 (ruling 233).
   its own entry); the two defects fixed at the walk were a shell use of a path (the check
   calls predate 0.16.10, the `--fix` call is its own) and 0.16.10's own deploy; neither
   reached a stable release, and each needs a path or argument the root operator supplies.
+
+### 2026-11-11 - SM1435 (PENDING): address profiles are chosen from those that exist
+
+Assessment drafted by the developer agent (n812, with the 0.16.11 compliance walk, SM1436) for the release manager's confirmation. Ruling 234 (the release manager, 2026-11-11) reverses SM1139's accept-with-warning; ruling 235 (a developer call, which the release manager may overrule) extends it to a page's front matter.
+
+what changed
+: Before, a rule could name an address profile the store did not hold. An `acl-set` answered
+  `ok: true` with a warning, and the rule was stored. A name no profile carries matches no
+  address (`Lazysite::Auth::AddressProfiles`, logged once per name per process), so a rule
+  that allowed it admitted nobody and a rule that **denied** it excluded nobody: a deny list
+  naming a profile that was misspelt, not yet created or since deleted failed open, and the
+  save said nothing a person had to read. Address profiles are now predefined and selectable
+  only, and a save that names a missing one is refused, naming each, with nothing written.
+: The doors, all of them (`Manager::Common::address_profiles_missing` is the one lookup):
+  a rule on a path, through `Files::action_acl_set`, which the manager API's `acl-set`, MCP
+  `set_permissions` and `lazysite acl set` all run (a list of paths is refused whole, and the
+  names the rule already carries are checked too, so a rule left naming a profile removed by
+  hand is refused on its next save until the name is cleared); a group's address limit
+  (`addresses`, `addresses_deny`, `address_limit` in `group-settings-set`, the Groups page and
+  the users tool); a page's front matter `addresses:` and `addresses_deny:` (ruling 235)
+  through the content write choke point (`Files::_content_write_refusal`: the manager save,
+  the control API, MCP `write_file` and `create_page`, and `preview_page`'s draft check) and
+  WebDAV `PUT`, which asks the same function before its rename; `validate_page` reports it as
+  an issue, and `lazysite check` keeps warning of a page already on disk.
+: A profile a rule names cannot be deleted. `address-profile-delete` had a force path (the
+  users tool's `--force`, the API's `force`, the page's "Delete anyway") that deleted a profile
+  a rule still named and left that rule refusing everyone (an allow) or excluding nobody (a
+  deny). It is gone at every door: `--force` is an unknown option, `force` is not read and
+  no longer declared, and the Address profiles page shows the refusal, naming the rules. A
+  profile in use may still be changed, and MCP exposes no delete.
+
+threat delta
+: Elevation of privilege and information disclosure, narrowed. The fail-open case is the one
+  that mattered: an operator who meant to keep an address range out of a path wrote a deny
+  list the engine honoured as empty. It is now refused where it is written. No ADR 0007
+  trigger fires: no new interface, sign-in method or dependency, and no new processing of
+  restricted data (a profile's entries are read and written as before). The refusal adds a
+  read of the profile store at save time, from the process that already reads it to decide.
+
+controls
+: t/integration/730 (acl-set through the manager API and `lazysite acl set`, a list of paths,
+  a carried name, a store that cannot be read), t/integration/731 (a page at every content
+  door, WebDAV included), t/unit/mcp/489 and 490, t/unit/users/548 (a group's limit),
+  t/unit/users/53, t/unit/manager/395 and 974 (a profile in use, no force). Each is recorded
+  by n812 as failing with the change reverted. A store that cannot be read is a fault: the save
+  is refused and the fault named, never read as "no profile" (ruling 206).
+
+residual risk
+: A rule or page saved before 0.16.11 that already names a missing profile stands and
+  behaves as before (an allow admits nobody, a deny excludes nobody); `lazysite check` names
+  each rule and each page, and the Files page's permissions card marks the name "no such profile" so
+  it can be set to Not used. A person who edits the stores or a page file on disk, outside a
+  door, is not refused. The runtime's treatment of an unknown name is unchanged. The refusal
+  of a rule's carried names means a path's rule cannot be changed for an unrelated reason
+  until a stale name is cleared; that is intended.
+
+verdict : drafted for the release manager's confirmation. A hardening of the operator's own
+  mistakes, not a fix to a vulnerability that reached a stable release: the fail-open needed an
+  operator to write a name no profile held. 0.16.11 is the beta (ruling 236) and, with this
+  entry, not security-critical.
+
+### 2026-11-11 - SM1430, SM1435 (the rest) (0.16.11): the beta's other changes, with no trigger
+
+Assessment drafted by the developer agent at the 0.16.11 compliance walk (SM1436) for the release manager's confirmation. 0.16.11 is the **beta** (ruling 236): cut with `--beta` from 0.16.10 plus n811 (SM1430) and n812 (SM1435), the code 0.17.0 is promoted from (rulings 227, 228), and the feature freeze on main starts at this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log bc1d27efd..d0b0ddd8e` (9 commits). SM1435's address-profile hardening has its own entry above. The rest moves no control and fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or processing of restricted data). Each item below was checked against the code it names.
+
+what changed
+: SM1430 (n811). `output_page`, which every page response passes through, now clears the
+  display-only `lzs_session` marker (SM099) when the request carries it and has no signed-in
+  identity: the wrapper's verified session on plain CGI, the front door's held value in the
+  pool, or a listed proxy's user. A revoked session, a "Require sign-in again" on a local
+  session and a removed account no longer leave public pages drawing "Sign out". The header
+  is `Lazysite::Auth::Session::session_marker_clear_header`, the clearing twin of
+  `session_marker_header`, which `session_clear_headers` uses too. That one response is sent
+  `Cache-Control: no-store, private`; a visitor without the marker gets no Set-Cookie and a
+  cached public page keeps its own Cache-Control. A session refused only as stale (SM1381)
+  keeps its marker for its renewal (`_session_renew_verdict`, split out of
+  `_session_renewal`, which still answers as before). The HttpOnly session cookie is left
+  alone (t/integration/720, t/unit/odoo/135).
+: SM1435 (n812). The Groups page's text for `settle_odoo_writes` names where the panel is, the
+  Unknown Odoo writes page linked from its card on Extensions - configure; the Odoo
+  declaration is the one source and a test holds the phrase equal in `grants`, `unlocks` and
+  the capability map (t/unit/extensions/612). The Address profiles page, the CLI help, the
+  MCP descriptions and the docs say to choose an existing profile; the users tool's statement
+  count in the bench baseline moves from 4344 to 4348.
+: The record, not the code. This walk stamps OBLIGATIONS.md and TECHNICAL-FILE.md 0.16.11,
+  channel beta, and adds docs/architecture/security.md's 0.16.11 section; it changes no
+  engine file.
+
+threat delta
+: None of the four triggers fired. The questions are these.
+: SM1430, Spoofing: the marker is display only and carries no authority. A request that
+  sets one by hand gets, at most, a response clearing it. The page script's "Sign out" was
+  drawn from the marker alone, so it showed a state the session no longer had; the HttpOnly
+  cookie, verified on every request, stays the gate and is not touched. The server now reads
+  the marker once, to clear it, never to admit anyone. Where the identity reader cannot answer
+  (`_request_identity` returns no answer), nothing is cleared: unknown is not signed out.
+: SM1430, Denial of service and cache: the response that clears the marker is not stored, and
+  a visitor without the marker gets no Set-Cookie, so no cached public page loses its
+  cacheability. The cost is one identity read on a request that carries the marker and no
+  session, which a request with a valid session already pays.
+: SM1435 (wording): none. A page's text and a test.
+
+controls
+: SM1430: t/integration/720 (plain CGI through the wrapper and the pool's worker: a revoked
+  session, an unknown account and a marker alone each clear it; a live session keeps it; no
+  cookies, and a revoked cookie without the marker, get no Set-Cookie and keep
+  `public, max-age`, fresh and cached) and t/unit/odoo/135 (a stale Odoo session keeps its
+  marker, and clears once Odoo has ended it). SM1435 wording: t/unit/extensions/612.
+
+residual risk
+: SM1430: the marker is still not an authority, and a browser that never loads a page keeps
+  it until it does. A provider session refused as stale keeps its marker until its renewal
+  succeeds or the provider ends the session, as designed.
+
+verdict : drafted for the release manager's confirmation. No trigger fired; recorded because
+  every page response now reads the signed-in identity once when the marker is present, and
+  one response's cache header changes. 0.16.11 is the beta (ruling 236) and is not
+  security-critical: no change in it fixes a known vulnerability (SM1435 is a hardening,
+  its own entry above). It is the release the stable promotion is drawn from; the feature
+  freeze (ruling 228) starts at this cut.
