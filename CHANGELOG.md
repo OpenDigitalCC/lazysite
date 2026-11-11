@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1440 (PENDING) **Field findings from the 0.16.11 pass: a refusal names the user to run
+  as, and the check says ok only about what it read.** `lazysite acl set` as root now names
+  the unix user that owns `lazysite/auth/` and spells the command with it (the handlers tool
+  likewise). A command that cannot read an auth store (`acl set`, `address-profile-delete`,
+  the manager's profile refusals) says which user it ran as and who owns the file, and keeps
+  "Nothing was changed". The check no longer prints "every address profile a rule names is
+  in the store" or "every rule names its address profile in the slot ..." when acls.json
+  could not be read: it says it could not check, naming the file, the user and the owner.
+  The "re-run with --fix" hint shows only when `--fix` has a repair to apply. A
+  `group-settings-set` address limit on a group that does not exist says the group does not
+  exist, not that a profile is missing.
+
 - SM1439 (PENDING) **A full restore gives a site that serves.** `install.pl --restore-full`
   (and `lazysite backups --restore-full`) extracted the docroot only, so the restored site
   had no cgi-bin entry points and no serving group, and ended on "Check file
