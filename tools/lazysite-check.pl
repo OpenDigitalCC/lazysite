@@ -2062,6 +2062,9 @@ print "(--fix applied $fixes_applied change(s)"
     . ( $not_taken ? ", $not_taken not taken - see the \"not fixed\" lines above" : '' )
     . "; this report reflects the post-fix state)\n"
     if $fixes_applied || $not_taken;
+
+# n814 (SM1437): --fix that changed nothing says so, in one line.
+print "--fix: nothing to change\n" if $opt{fix} && !$fixes_applied && !$not_taken;
 print "\n";
 for my $r (@results) {
     $fails++ if $r->{level} eq 'FAIL';
