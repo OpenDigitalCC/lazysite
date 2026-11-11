@@ -1783,6 +1783,22 @@ sub set_owner {
     return $ok && $s[4] == $uid && $s[5] == $gid ? 1 : 0;
 }
 
+# n818 (SM1440, O-5): would --fix change anything? The hint "re-run with --fix" is
+# shown only when the run queued a repair that --fix applies; a run whose only
+# findings are things a human decides has nothing for --fix to do.
+sub fix_available {
+    return 1 if @stale_registries || $tt_cache_bad || $git_fix_root || $git_shared_fix
+        || $store_create_needed || $store_repair_needed || $chown_needed;
+    for my $f (@chmod_fixes) {
+        my ( $mode, $path, $how ) = @{$f};
+        my @s   = stat $path or next;
+        my $cur = $s[2] & 07777;
+        $mode |= $cur if ( $how // '' ) eq 'add';
+        return 1      if $mode != $cur;
+    }
+    return 0;
+}
+
 sub apply_fixes {
     my $fixed = 0;
 
@@ -2072,9 +2088,10 @@ for my $r (@results) {
     printf "[%s] %s\n", $icon{ $r->{level} }, $r->{msg};
     printf "         -> %s\n", $r->{hint} if $r->{hint} && $r->{level} ne 'OK';
 }
+my $fix_available = fix_available();
 printf "\n%d ok, %d warning(s), %d failure(s)%s\n",
     scalar( grep { $_->{level} eq 'OK' } @results ), $warns, $fails,
-    ( !$opt{fix} && ( $fails || $warns ) ? "  (re-run with --fix to apply the chmod/chown fixes)" : "" );
+    ( !$opt{fix} && $fix_available ? "  (re-run with --fix to apply the chmod/chown fixes)" : "" );
 exit( $fails ? 1 : 0 );
 
 # --- helpers -----------------------------------------------------------------
