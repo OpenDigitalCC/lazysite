@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1442 (PENDING) **tests: t/tools/158 proves a killed cover is not a test failure in a quarter
+  of a second, not 270 s.** The 0.16.12 gate failed on 158 alone, killed at the suite's 300 s
+  per-test deadline. Before its report step `tools/coverage.sh` digests every input that decides
+  coverage (`tools/coverage-inputs.pl`, PPI over the tree); that costs 238 s of CPU on a cold
+  cache, and the gate's staged tree has none. 158 now runs the real coverage.sh from a fixture
+  root that has no coverage-inputs.pl, so the digest is empty and the stage goes straight to the
+  cover step the test is about. Every assertion is kept; the deadline is unchanged. Test-only; no
+  shipped code changes.
+
 ## 0.16.12 - BETA: a full restore gives a site that serves, and a refusal names the user to run as (2026-11-11)
 
 - SM1441 (ba1afef5) **docs: the compliance records cover 0.16.12, the second beta.** OBLIGATIONS.md

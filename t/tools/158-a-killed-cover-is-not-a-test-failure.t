@@ -6,6 +6,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
+use File::Copy qw(copy);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root run_cmd);
@@ -18,6 +19,19 @@ delete @ENV{ grep { /^LAZYSITE_(?:STAGE_|PF_|HEAVY_|COVER_|NIGHTLY_)/ } keys %EN
 my $tmp = tempdir( CLEANUP => 1 );
 mkdir "$tmp/bin";
 mkdir "$tmp/db";
+
+# SM1442: coverage.sh runs from a fixture root, not the real tree. It takes its
+# root from its own path, and before the report step it digests every input that
+# decides coverage (tools/coverage-inputs.pl, PPI over ~1,100 files): 262 s of
+# CPU on a cold cache, against the suite's 300 s per-test deadline, for a claim
+# about one exit code. In a root with no coverage-inputs.pl the digest is empty
+# and the stage goes on to the report step, which is all this file is about.
+# The three scripts are the real ones, copied.
+mkdir "$tmp/fx";
+mkdir "$tmp/fx/tools";
+for my $s (qw(coverage.sh heavy-lock.sh preflight.sh)) {
+    copy( "$root/tools/$s", "$tmp/fx/tools/$s" ) or die "copy $s: $!";
+}
 for my $rc ( 143, 137, 1 ) {
     open my $f, '>', "$tmp/bin/cover" or die;
     print {$f} "#!/bin/sh\nexit $rc\n";
@@ -28,7 +42,7 @@ for my $rc ( 143, 137, 1 ) {
     local $ENV{LAZYSITE_COVER_FORCE}       = 1;
     local $ENV{LAZYSITE_COVER_DB}          = "$tmp/db";
     local $ENV{LAZYSITE_COVER_SUITE_LOG}   = "$tmp/x-suite.txt";
-    my $o = run_cmd( 'bash', "$root/tools/coverage.sh", '--check' );
+    my $o = run_cmd( 'bash', "$tmp/fx/tools/coverage.sh", '--check' );
     my $x = $? >> 8;
     if ( $rc == 1 ) {
         like( $o, qr/THE REPORT STEP FAILED/, 'an ordinary cover failure is still the report-step failure' );
