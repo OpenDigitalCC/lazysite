@@ -53,6 +53,22 @@ Archive
 
 ## Unreleased
 
+- SM1437 (PENDING) **`lazysite check` says when it could not read the pages.** Run as the
+  site user, the page check printed "0 public page(s), each with a title and a description
+  of its own" for a docroot that had 17 undescribed pages as root: the page walk skipped a
+  directory it could not open and said nothing. It now names each path it could not read and
+  the user, says its count covers the rest of the site only, says to run as root or the site's
+  owner, and does not print the ok line (t/tools/582).
+- SM1437 (PENDING) **The /docs shadow check covers every domain's content root.** A domain's
+  own copies of /docs pages under its content root (`sites/<name>/docs/`) shadowed the
+  engine's manual and the check never looked. It runs for the primary and each declared
+  content root, and names the domain on its line (t/tools/583).
+- SM1437 (PENDING) **`check --fix` says what it did.** With nothing to change it printed the
+  same report as `check` with only the hint gone. It now prints `--fix: nothing to change`
+  (t/tools/584).
+- SM1437 (PENDING) **`repair` says "nothing to repair" when it applied no change.** It
+  printed "-> repaired. Left for you to decide, not a fault:" beside a tally of "0 repaired".
+  The tally is as it was (t/tools/585).
 - SM1430 (PENDING) **auth: a public page clears the signed-in marker a dead session left.**
   After "Require sign-in again" on a local session, a revoked session or a removed
   account, public pages still drew "Sign out" from the `lzs_session` marker until a visit
