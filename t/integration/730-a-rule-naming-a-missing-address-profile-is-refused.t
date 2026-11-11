@@ -6,7 +6,7 @@
 # missing profile allowed admits nobody). Every door that writes a rule funnels
 # through Files::action_acl_set: the manager API (here, a path and a list of
 # paths), the CLI `lazysite acl set` (here), and MCP set_permissions
-# (t/unit/mcp/309). A profile deleted after a rule names it is the check's to
+# (t/unit/mcp/489). A profile deleted after a rule names it is the check's to
 # report (t/unit/tools/82) and the users tool refuses the delete while a rule
 # names it; this file holds the save.
 #
@@ -74,6 +74,21 @@ subtest 'the CLI refuses it, naming it, and writes nothing' => sub {
     isnt( $? >> 8, 0, 'a non-zero exit' );
     like( $out, qr/zz92-allow/, 'naming the profile' );
     ok( !exists acls()->{'b'}, 'nothing written' );
+};
+
+subtest 'ruling 234: a name the rule already carries is checked on every save' => sub {
+    spit( "$d/lazysite/auth/address-profiles.json", encode_json( { office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] }, extra => { entries => [ { cidr => '198.51.100.0/24', note => '' } ] } } ) );
+    my $r = boss( 'acl-set', { owner => 'boss', addresses => ['extra'] }, 'action=acl-set&path=b/' );
+    ok( $r->{ok}, 'a rule naming a held profile is saved' ) or diag explain $r;
+    # The profile leaves the store by hand (the users tool would refuse the delete).
+    spit( "$d/lazysite/auth/address-profiles.json", encode_json( { office => { entries => [ { cidr => '203.0.113.0/24', note => '' } ] } } ) );
+    my $u = boss( 'acl-set', { owner => 'boss', read => [] }, 'action=acl-set&path=b/' );
+    ok( !$u->{ok}, 'an unrelated change to that rule is refused' ) or diag explain $u;
+    like( $u->{error} // '', qr/extra/, 'naming the missing profile the rule carries' );
+    is_deeply( acls()->{'b'}{addresses}, ['extra'], 'and the stored rule is as it was' );
+    my $fix = boss( 'acl-set', { owner => 'boss', addresses => [] }, 'action=acl-set&path=b/' );
+    ok( $fix->{ok}, 'clearing the list is the way out' ) or diag explain $fix;
+    ok( !exists acls()->{'b'}{addresses}, 'and it clears' );
 };
 
 done_testing;

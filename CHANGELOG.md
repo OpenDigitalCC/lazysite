@@ -60,6 +60,18 @@ Archive
   identity now clears it, on plain CGI and in the pool, and that response is not stored.
   A visitor without the marker gets no Set-Cookie, so cached public pages stay cacheable.
   A stale provider session keeps its marker for its renewal.
+- SM1435 (PENDING) **The Groups page says where the settle panel is.** Its "What this
+  grants" for `settle_odoo_writes` ended "Held by the operator group by default" and named no
+  page; n804's wording was in `unlocks`, which that page does not draw. It now says the panel
+  is the Unknown Odoo writes page, linked from its card on Extensions - configure
+  (t/unit/extensions/612).
+- SM1435 (PENDING) **A rule that names an address profile the store lacks is refused on
+  save.** `set_permissions` with `addresses: ["zz92-allow"]` answered `ok: true` with no such
+  profile, and the rule then refused every write to the path. The manager API's `acl-set`,
+  MCP `set_permissions` and `lazysite acl set` now refuse it, naming each missing profile,
+  and write nothing; a list of paths is refused whole. It was a warning before. A profile
+  store that cannot be read refuses too. `lazysite check` already reports a profile deleted
+  after a rule names it. t/integration/730 and t/unit/mcp/489 fail without the change.
 
 ## 0.16.10 - EDGE: a new Hestia site is one command, the container image carries git, a manager cannot widen an OpenID Connect group map, and the compliance records cover the release (2026-11-10)
 
@@ -182,18 +194,6 @@ Archive
   exit 2 before the template, the install or the registry is touched. The summary says the
   claim link is a credential for 24 hours and must not be pasted into a ticket or a log.
   t/tools/627 fails without the change.
-- SM1435 (PENDING) **The Groups page says where the settle panel is.** Its "What this
-  grants" for `settle_odoo_writes` ended "Held by the operator group by default" and named no
-  page; n804's wording was in `unlocks`, which that page does not draw. It now says the panel
-  is the Unknown Odoo writes page, linked from its card on Extensions - configure
-  (t/unit/extensions/310).
-- SM1435 (PENDING) **A rule that names an address profile the store lacks is refused on
-  save.** `set_permissions` with `addresses: ["zz92-allow"]` answered `ok: true` with no such
-  profile, and the rule then refused every write to the path. The manager API's `acl-set`,
-  MCP `set_permissions` and `lazysite acl set` now refuse it, naming each missing profile,
-  and write nothing; a list of paths is refused whole. It was a warning before. A profile
-  store that cannot be read refuses too. `lazysite check` already reports a profile deleted
-  after a rule names it. t/integration/608 and t/unit/mcp/309 fail without the change.
 
 ## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
 

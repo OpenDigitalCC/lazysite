@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "the 0.16.10 edge run (Y10, O-2), read by the lazysite developer agent on n812"
 area: access
-status-note: "SHIPPED (PENDING): the Groups page's label for settle_odoo_writes names its card on Extensions - configure; a rule naming an address profile the store lacks is refused on every door, naming it. t/unit/extensions/310, t/unit/mcp/309, t/integration/608; 145 and 281 updated."
+status-note: "SHIPPED (PENDING): the Groups page's label for settle_odoo_writes names its card on Extensions - configure; a rule naming an address profile the store lacks is refused on every door, naming it. t/unit/extensions/612, t/unit/mcp/489, t/integration/730; 145 and 281 updated."
 ---
 
 # What happened

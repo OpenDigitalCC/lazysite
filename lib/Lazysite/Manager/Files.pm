@@ -3079,6 +3079,8 @@ sub action_acl_set {
         }
         elsif ( $existing && ref $existing->{$f} eq 'ARRAY' && @{ $existing->{$f} } ) {
             $rec{$f} = [ @{ $existing->{$f} } ];
+            # ruling 234: the names the rule already carries are checked too.
+            push @addr_names, map { [ $f, $_ ] } grep { defined && !ref } @{ $existing->{$f} };
         }
     }
     if ( my $no = _address_profile_refusal( \@addr_names ) ) { return $no }

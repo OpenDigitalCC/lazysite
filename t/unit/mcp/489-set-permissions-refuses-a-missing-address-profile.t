@@ -3,7 +3,7 @@
 # profile the store does not hold, naming it, and writes nothing. It answered
 # ok: true for addresses: ["zz92-allow"] with no such profile, and the rule then
 # refused every write to the path. The same function as the manager API and the
-# CLI (Files::action_acl_set; t/integration/608 holds those doors).
+# CLI (Files::action_acl_set; t/integration/730 holds those doors).
 #
 # Sabotage: restore the warning in place of _address_profile_refusal's call in
 # Files::action_acl_set and the refusal subtest fails.
