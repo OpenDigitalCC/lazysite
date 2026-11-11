@@ -748,7 +748,7 @@ sub cmd_restore_full {
     my $plan = compute_plan( $engine, undef, \%subs );
     my $engine_files;
     my $laid = eval {
-        ( $engine_files ) = execute_plan($plan);
+        ($engine_files) = execute_plan($plan);
         link_extension_endpoints( $o->{cgibin}, \%subs );
         1;
     };
@@ -797,8 +797,8 @@ sub cmd_restore_full {
     my $state_path = state_path($docroot);
     my $old        = load_state($state_path) || {};
     $main::NO_STARTER = 1 if ( $old->{starter} // '' ) eq 'none';
-    %main::DIRS_LEFT = ref $old->{dirs_left} eq 'HASH' ? %{ $old->{dirs_left} } : ();
-    my @once  = ref $old->{once} eq 'ARRAY' ? @{ $old->{once} } : ();
+    %main::DIRS_LEFT  = ref $old->{dirs_left} eq 'HASH' ? %{ $old->{dirs_left} } : ();
+    my @once = ref $old->{once} eq 'ARRAY' ? @{ $old->{once} } : ();
     my %files = ( %{ ref $old->{files} eq 'HASH' ? $old->{files} : {} }, %{ $engine_files || {} } );
     write_state( $state_path, $manifest->{version}, \%files, \@once );
 
