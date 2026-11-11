@@ -461,7 +461,7 @@ our %ACTION = (
 # token (SM991), so they are cookie-only. A profile decides who may reach a page, a group or
 # the manager, so it changes access the way a file's rule does. A profile has no kind:
 # `kind` is declared because the dispatch reads it, to refuse it by name (ruling 108).
-    'address-profile-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'force', in => 'body' } ] },
+    'address-profile-delete' => { mutates => 1, destructive => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 } ] },
     'address-profile-set' => { mutates => 1, changes_access => 1, instance_wide => 1, cookie_cap => 'manage_users', cookie_only_reason => 'address profiles are the operator\'s, and the operator is never a token (SM991, SM1138)', params => [ { name => 'name', in => 'body', required => 1 }, { name => 'kind', in => 'body' }, { name => 'entries', in => 'body' } ] },
     'address-profiles' => { mcp => 'list_address_profiles', cookie_cap => 'manage_users', params => [] },
     'aliases-list' => { params => [ { name => 'host', in => 'query' }, { name => 'path', in => 'query' } ] },

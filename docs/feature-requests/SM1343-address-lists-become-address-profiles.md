@@ -55,7 +55,7 @@ SM1229 for lists) and 58 (the Odoo binding's key is already `address_profile`).
   `address-profiles`, `address-profile-set`, `address-profile-delete`; the MCP tool
   is `list_address_profiles`; the users tool's commands are `address-profiles`,
   `address-profile-set NAME [--entry CIDR[=note] ...]` and
-  `address-profile-delete NAME [--force]`; the reply's key is `profiles`. A caller
+  `address-profile-delete NAME` (`--force` went with ruling 234); the reply's key is `profiles`. A caller
   still sending an old action, tool or command is answered "unknown ... use
   'address-profile-set' (SM1343)". A `kind` sent is refused by name, `field: kind`,
   by the manager API (ruling 108; the action declares it, as lint 58 asks, in order to
@@ -63,7 +63,8 @@ SM1229 for lists) and 58 (the Odoo binding's key is already `address_profile`).
   believes they made an allow or a deny list. The docs,
   the briefing pages, the manager guide and the generated references say profile.
 - **Ruling 57.** A profile a rule names is refused deletion naming where, as
-  before; `force` deletes it after a second confirmation.
+  before; `force` deleted it after a second confirmation. *Ruling 234 (SM1435)
+  removed `force` at every door: a profile in use cannot be deleted.*
 - **Unconverted fails closed.** A site where `address-lists.json` is still there
   with no profile store is a store fault (`unconverted`): every rule naming a
   profile refuses, the writer refuses to start a profile store beside it, and

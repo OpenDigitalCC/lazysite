@@ -52,8 +52,9 @@ Do
 : Delete a profile that a page or rule still names.
 
 Expect
-: The delete is refused, naming where the profile is used. Delete anyway asks a
-  second time and then deletes it; the audit row names what still refers to it.
+: The delete is refused, naming the rules that use the profile. There is no way
+  past the refusal (ruling 234): take the profile out of those rules first. A
+  profile in use may still be changed.
 
 ## A profile store that cannot be read
 

@@ -1,12 +1,11 @@
 #!/usr/bin/perl
 # SM1141 (slice D of SM1134): address-profile-delete refuses to delete a list that a
-# rule still names, and says WHERE; --force (CLI) / force:true (API) deletes it
-# anyway and the audit names what still refers to it.
+# rule still names, and says WHERE. n812 (ruling 234): there is no way past it - the
+# CLI's --force is an unknown option and the API's force is not read.
 #   - unreferenced: deleted as before
 #   - named by a page, an access rule, a group, or either manager conf key: refused
 #     (kind in-use), the store untouched, every place named in the refusal
-#   - --force / force:true: deleted; the audit row (CLI) and the change line (API,
-#     which the manager's audit row carries) name what still refers to it
+#   - --force and force:true: refused all the same, the store untouched
 #   - a rule store that cannot be read refuses too (it cannot say nothing names it)
 #   - a rule naming a DIFFERENT list is not in the way
 use strict;
@@ -97,7 +96,7 @@ for my $c (
         my $d = site(%$o);
         my $out = cli( $d, 'address-profile-delete', 'office' );
         like $out, qr/still named by .*$re/, 'refused, naming where';
-        like $out, qr/--force/, 'and how to override';
+        unlike $out, qr/--force|anyway/, 'and offers no override';
         is_deeply( [ names($d) ], [ 'office', 'other' ], 'the store is untouched' );
         my $r = api( $d, { action => 'address-profile-delete', name => 'office' } );
         ok !$r->{ok} && $r->{kind} eq 'in-use', 'the API refuses with kind in-use';
@@ -106,22 +105,18 @@ for my $c (
     };
 }
 
-subtest 'a forced delete goes through and is audited naming what still refers to it' => sub {
+subtest 'there is no force (ruling 234): a profile a rule names is not deleted, at any door' => sub {
     my $d = site( page => 'office', acl => 'office' );
     my $out = cli( $d, 'address-profile-delete', 'office', '--force' );
-    like $out, qr/deleted \(1 entries, forced\); still named by .*page staff\.md.*access rule for \/intranet\//,
-        'the CLI says it was forced and what still names it';
-    is_deeply( [ names($d) ], ['other'], 'gone' );
-    my ($row) = audit_rows($d);
-    like( $row // '', qr/forced.*still named by .*page staff\.md/, 'the audit row names what still refers to it' );
-
-    my $d2 = site( group => 'office' );
-    my $r = api( $d2, { action => 'address-profile-delete', name => 'office', force => JSON::PP::true } );
-    ok $r->{ok}, 'force:true over the API' or diag $r->{error};
-    like $r->{change}, qr/forced\); still named by group operators/, 'the change line (the manager audit row carries it) names the group';
+    like $out, qr/unknown option '--force'/, 'the CLI has no --force';
+    is_deeply( [ names($d) ], [ 'office', 'other' ], 'and the store is untouched' );
+    my $r = api( $d, { action => 'address-profile-delete', name => 'office', force => JSON::PP::true } );
+    ok !$r->{ok} && $r->{kind} eq 'in-use', 'force:true over the API is refused as in-use';
+    like $r->{error}, qr/page staff\.md.*access rule for \/intranet\//, 'naming the rules that use it';
+    is_deeply( [ names($d) ], [ 'office', 'other' ], 'and the store is untouched' );
 };
 
-subtest 'a rule store that cannot be read refuses, and force overrides' => sub {
+subtest 'a rule store that cannot be read refuses, and nothing overrides it' => sub {
     my $d = site();
     open my $a, '>', "$d/lazysite/auth/acls.json" or die $!;
     print {$a} '{ nope';
@@ -129,7 +124,17 @@ subtest 'a rule store that cannot be read refuses, and force overrides' => sub {
     my $out = cli( $d, 'address-profile-delete', 'office' );
     like $out, qr/could not check: acls\.json does not decode/, 'refused: it cannot say nothing names the list';
     ok( ( grep { $_ eq 'office' } names($d) ), 'still there' );
-    like cli( $d, 'address-profile-delete', 'office', '--force' ), qr/forced\); still named by could not check/, 'forced goes through';
+    like cli( $d, 'address-profile-delete', 'office', '--force' ), qr/unknown option '--force'/, 'and --force does not go through';
+    ok( ( grep { $_ eq 'office' } names($d) ), 'still there' );
+};
+
+subtest 'a profile in use may still be modified (ruling 234)' => sub {
+    my $d = site( page => 'office', acl => 'office' );
+    like cli( $d, 'address-profile-set', 'office', '--entry', '198.51.100.0/24' ), qr/office/, 'its entries are replaced';
+    my $r = api( $d, { action => 'address-profiles-get' } );
+    is_deeply( [ map { $_->{cidr} } @{ $r->{profiles}{office}{entries} || [] } ], ['198.51.100.0/24'], 'and the change is stored' )
+        or diag explain $r;
+    is_deeply( [ names($d) ], [ 'office', 'other' ], 'and the profile is still there' );
 };
 
 done_testing();

@@ -79,16 +79,14 @@ group record, `manager_addresses` / `manager_addresses_deny`) it warns:
 
 `address-list-delete NAME` (users tool CLI and API, and so the manager action and
 its API) refuses while any rule names the list, with kind `in-use`, saying where:
-page paths, acl paths, group names, the conf key. `--force` (CLI) / `force: true`
-(API; the delete is already the operator's) deletes it anyway and the audit row
-(CLI) or change line (the manager's audit row) reads `deleted (N entries, KIND,
-forced); still named by ...`. A rule store that cannot be read refuses too,
-because it cannot say nothing names the list.
+page paths, acl paths, group names, the conf key. *Superseded by ruling 234
+(n812, SM1435): there is no `--force` and no `force: true` at any door; a list a
+rule names cannot be deleted, and may be changed.* A rule store that cannot be
+read refuses too, because it cannot say nothing names the list.
 
 The Address lists page shows the in-use refusal in the server's words (where the
-list is named) with **Delete anyway** and **Keep the list**, to the operator only.
-Delete anyway confirms a second time, saying an allow rule naming a deleted list
-admits nobody, and then sends `force: true` for that list (t/unit/manager/361).
+list is named) with **Close**; it has no **Delete anyway** (ruling 234;
+t/unit/manager/974).
 
 `lib/Lazysite/Auth/AddressRefs.pm` is the one reader of where the rules are; the
 check and the guard both use it, so they cannot disagree about "in use". It reads

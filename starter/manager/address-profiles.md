@@ -20,14 +20,12 @@ search: false
 <div class="mg-card-body">
 <div class="mg-list" id="profiles"><div class="mg-empty">Loading...</div></div>
 <div class="mg-toolbar"><button class="mg-btn mg-btn-primary" id="new-btn" data-impact="commit" hidden>New profile</button></div>
-<!-- SM1141 (finished when the SM1134 slices were stacked): a profile a rule still names
-     is refused with where it is named; the operator may delete it anyway, after a
-     second confirmation, and the server audits what still refers to it. -->
+<!-- SM1141, ruling 234: a profile a rule still names cannot be deleted; the refusal
+     says where it is named, and there is no way past it. It may be changed. -->
 <div class="mg-note mg-note-warn" id="in-use" hidden>
 <p id="in-use-text"></p>
 <div class="mg-toolbar">
-<button class="mg-btn mg-btn-danger" id="force-btn" data-impact="destroy" onclick="forceDelete()">Delete anyway</button>
-<button class="mg-btn" id="keep-btn" data-impact="inert" onclick="hideInUse()">Keep the profile</button>
+<button class="mg-btn" id="keep-btn" data-impact="inert" onclick="hideInUse()">Close</button>
 </div>
 </div>
 </div>
@@ -212,16 +210,16 @@ function saveProfile() {
 var inUse = '';     // the profile the server refused to delete because a rule names it
 
 function deleteProfile(name) {
-  if (!confirm('Delete the address profile ' + name + '? A rule that names it will find no such profile.')) return;
-  sendDelete(name, false);
+  if (!confirm('Delete the address profile ' + name + '? A profile a rule names cannot be deleted.')) return;
+  sendDelete(name);
 }
 
-// The server's in-use refusal says where the profile is named. Only the operator
-// (canEdit) is offered the way past it; the server holds force to the operator too.
+// The server's in-use refusal says where the profile is named. There is no way
+// past it (ruling 234): remove the profile from those rules first.
 function showInUse(name, error) {
   inUse = name;
   document.getElementById('in-use-text').textContent = error;
-  document.getElementById('in-use').hidden = !canEdit;
+  document.getElementById('in-use').hidden = false;
 }
 
 function hideInUse() {
@@ -229,17 +227,8 @@ function hideInUse() {
   document.getElementById('in-use').hidden = true;
 }
 
-function forceDelete() {
-  var name = inUse;
-  if (!name) return;
-  if (!confirm('Delete ' + name + ' anyway? A rule that still allows it will admit nobody, '
-    + 'so what it guards closes to every address.')) return;
-  sendDelete(name, true);
-}
-
-function sendDelete(name, force) {
+function sendDelete(name) {
   var body = { name: name };
-  if (force) body.force = true;
   fetch(API + '?action=address-profile-delete', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
@@ -247,7 +236,7 @@ function sendDelete(name, force) {
   })
     .then(function(res) { return res.json(); })
     .then(function(d) {
-      if (!d.ok && d.kind === 'in-use' && !force) { showInUse(name, d.error || 'The profile is still in use.'); return; }
+      if (!d.ok && d.kind === 'in-use') { showInUse(name, d.error || 'The profile is still in use.'); return; }
       if (!d.ok) { fail(d.error || 'The profile was not deleted.'); return; }
       hideInUse();
       if (editing === name) { editing = ''; document.getElementById('editor').hidden = true; }

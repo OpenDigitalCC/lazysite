@@ -706,8 +706,7 @@ if ($API_MODE) {
                 ( exists $req->{kind} ? ( kind => $req->{kind} ) : () ) );
         }
         elsif ( $action eq 'address-profile-delete' ) {
-            $result = cmd_address_profile_delete( $req->{name}, actor => $req->{actor},
-                force => ( $req->{force} ? 1 : 0 ) );
+            $result = cmd_address_profile_delete( $req->{name}, actor => $req->{actor} );
         }
         elsif ( $action eq 'settings-get' ) {
             my %users = read_users();
@@ -6761,28 +6760,23 @@ sub cmd_address_profile_delete {
     # SM1141, SM1343 (ruling 57): A PROFILE A RULE NAMES IS NOT DELETED BY ACCIDENT.
     # A deleted profile is not an empty one: a rule allowing it admits nobody
     # (SM1138), so the page, folder, group or manager behind it would shut with
-    # nothing said. The refusal says WHERE, so the operator edits those first;
-    # --force / force:true deletes anyway and the audit row names what still refers
-    # to it. A rule store that cannot be read cannot say nothing refers to the
-    # profile, so it refuses too.
+    # nothing said. The refusal says WHERE, so the operator edits those first. n812,
+    # ruling 234: a profile a rule names CANNOT be deleted - there is no force, at any
+    # door - and one in use may still be modified. A rule store that cannot be read
+    # cannot say nothing refers to the profile, so it refuses too.
     my $refs   = Lazysite::Auth::AddressRefs::rules($DOCROOT);
     my @named  = grep { $_->{name} eq $name } @{ $refs->{rules} };
     my @cannot = @{ $refs->{faults} };
-    my $left   = '';
     if ( @named || @cannot ) {
         my $where = Lazysite::Auth::AddressRefs::describe(@named);
         $where .= ( length $where ? '; ' : '' ) . 'could not check: ' . join( ', ', @cannot ) if @cannot;
-        unless ( $o{force} ) {
-            return { ok => 0, kind => 'in-use', references => [ map { { %$_ } } @named ],
-                error => "Address profile '$name' is still named by $where. Remove it from those "
-                    . 'first, or delete it anyway with --force (API: force) - a rule allowing a '
-                    . 'deleted profile admits nobody.' };
-        }
-        $left = "; still named by $where";
+        return { ok => 0, kind => 'in-use', references => [ map { { %$_ } } @named ],
+            error => "Address profile '$name' is still named by $where. Remove it from those "
+                . 'first; a profile a rule names cannot be deleted (it may be changed).' };
     }
     delete $raw->{$name};
     Lazysite::Auth::AddressProfiles::write_profiles($raw);
-    my $change = "deleted ($n entries" . ( length $left ? ', forced' : '' ) . ")$left";
+    my $change = "deleted ($n entries)";
     log_event( 'INFO', $name, 'address profile deleted', change => $change );
     cli_audit( 'address-profile-delete', $name, $change );
     return { ok => 1, name => $name, change => $change };
@@ -6813,15 +6807,14 @@ sub cmd_address_profile_set_cli {
 
 sub cmd_address_profile_delete_cli {
     my @a = @_;
-    my ( $name, $force );
+    my ($name);
     for my $x (@a) {
-        if    ( $x eq '--force' ) { $force = 1 }
-        elsif ( $x =~ /\A--/ )    { die "address-profile-delete: unknown option '$x'\n" }
-        elsif ( !defined $name )  { $name = $x }
-        else                      { die "address-profile-delete: unexpected '$x'\n" }
+        if    ( $x =~ /\A--/ )   { die "address-profile-delete: unknown option '$x' (a profile a rule names cannot be deleted)\n" }
+        elsif ( !defined $name ) { $name = $x }
+        else                     { die "address-profile-delete: unexpected '$x'\n" }
     }
-    die "Usage: address-profile-delete NAME [--force]\n" unless defined $name && length $name;
-    my $r = cmd_address_profile_delete( $name, force => $force );
+    die "Usage: address-profile-delete NAME\n" unless defined $name && length $name;
+    my $r = cmd_address_profile_delete($name);
     die "$r->{error}\n"                             unless $r->{ok};
     print "Address profile '$name' $r->{change}.\n" unless $API_MODE;
     return $r;
@@ -6915,9 +6908,9 @@ Commands:
                               single address or a CIDR range (IPv4 or IPv6) with an
                               optional note; the entries given are the whole profile.
                               Names are a-z, 0-9, _ and -, up to 64 characters.
-  address-profile-delete NAME [--force]
-                              Delete an address profile; refused, naming where, while a
-                              page, folder, group or the manager still names it
+  address-profile-delete NAME
+                              Delete an address profile; refused, naming the rules, while a
+                              page, folder, group or the manager still names it (no override)
   group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
                               webdav, api, mcp, manage_content, manage_nav,
                               manage_forms, manage_themes, manage_layouts,

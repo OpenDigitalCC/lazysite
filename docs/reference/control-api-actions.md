@@ -52,7 +52,7 @@ tone: medium
 `acl-remove` | manage_content | path (query)
 `acl-set` | manage_content | path (query_or_body), read (body), write (body), owner (body), draft (body), addresses (body), addresses_deny (body), history (body), paths (body)
 `actions-list` | any authenticated |  
-`address-profile-delete` | cookie only | name (body), force (body)
+`address-profile-delete` | cookie only | name (body)
 `address-profile-set` | cookie only | name (body), kind (body), entries (body)
 `address-profiles` | manage_users |  
 `aliases-list` | manage_content | host (query), path (query)

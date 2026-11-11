@@ -19,7 +19,7 @@
 #   - allowed once nothing names it (the binding edited), and a different list,
 #     a handler that is not an Odoo binding, or a disabled binding's other list
 #     is not in the way
-#   - force still deletes, and says what still named it
+#   - force deletes nothing (ruling 234): refused all the same
 #   - a handlers.conf that cannot be read refuses (it cannot say nothing names it)
 use strict;
 use warnings;
@@ -109,7 +109,7 @@ for my $c (
         my $d   = site( handlers => binding(%$b) );
         my $out = cli( $d, 'address-profile-delete', $list );
         like $out, qr/still named by .*handler stock/, 'refused, naming the binding';
-        like $out, qr/--force/,                             'and how to override';
+        unlike $out, qr/--force|anyway/,                    'and offers no override';
         is_deeply( [ names($d) ], [ 'bad', 'office', 'other' ], 'the store is untouched' );
         my $r = api( $d, { action => 'address-profile-delete', name => $list } );
         ok !$r->{ok} && $r->{kind} eq 'in-use', 'the API refuses with kind in-use';
@@ -158,12 +158,12 @@ subtest 'what is not a binding naming the list is not in the way' => sub {
     like cli( $d3, 'address-profile-delete', 'office' ), qr/Address profile 'office' deleted/, 'no handlers.conf at all';
 };
 
-subtest 'a forced delete goes through and says the binding still named it' => sub {
+subtest 'force deletes nothing (ruling 234)' => sub {
     my $d = site( handlers => binding( allow => 'office' ) );
     my $r = api( $d, { action => 'address-profile-delete', name => 'office', force => JSON::PP::true } );
-    ok $r->{ok}, 'force:true' or diag $r->{error};
-    like $r->{change}, qr/forced\); still named by .*handler stock/, 'the change line names the binding';
-    is_deeply( [ names($d) ], [ 'bad', 'other' ], 'gone' );
+    ok !$r->{ok} && $r->{kind} eq 'in-use', 'force:true is refused as in-use' or diag $r->{error};
+    like $r->{error}, qr/handler stock/, 'naming the binding';
+    is_deeply( [ names($d) ], [ 'bad', 'office', 'other' ], 'the store is untouched' );
 };
 
 subtest 'a handlers.conf that cannot be read refuses' => sub {
