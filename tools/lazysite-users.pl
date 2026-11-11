@@ -6822,7 +6822,7 @@ sub cmd_address_profile_delete_cli {
     my @a = @_;
     my ($name);
     for my $x (@a) {
-        if    ( $x =~ /\A--/ )   { die "address-profile-delete: unknown option '$x' (a profile a rule names cannot be deleted)\n" }
+        if ( $x =~ /\A--/ ) { die "address-profile-delete: unknown option '$x' (a profile a rule names cannot be deleted)\n" }
         elsif ( !defined $name ) { $name = $x }
         else                     { die "address-profile-delete: unexpected '$x'\n" }
     }

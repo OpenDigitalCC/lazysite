@@ -118,7 +118,7 @@ sub address_profile_delete {
     my $r = Lazysite::Manager::Common::users_api( {
             action => 'address-profile-delete',
             name   => $req->{name},
-            actor => $who{actor},
+            actor  => $who{actor},
     } ) || {};
     return $r->{ok} ? $r : { ok => 0, kind => ( $r->{kind} // 'error' ),
         error => ( $r->{error} // 'no answer from user management' ) };
