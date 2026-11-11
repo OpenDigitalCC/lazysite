@@ -76,7 +76,9 @@ saved earlier that already names a missing profile still stands (and still refus
 everyone it guards, as before); it is refused on its next save until the name is cleared
 or the profile is created, and `lazysite check` names it now. `address-profile-delete` has
 no `--force` and the API no `force`: a profile a rule names cannot be deleted, and may be
-changed. A script that passed `--force` fails with "unknown option".
+changed. A script that passed `--force` fails with "unknown option". A page whose front
+matter names a missing profile is refused on its next save, by every content door, and
+`lazysite check` still warns of it.
 
 ## The container image carries git, a new Hestia site is one command, and the rest of 0.16.10
 

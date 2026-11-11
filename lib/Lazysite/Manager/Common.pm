@@ -36,7 +36,7 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond _em
     caller_may_reach_table caller_may_reach_brief brief_reach_refusal
     handler_reach_refusal caller_may_use_handler handler_bind_refusal
     carveout_requirement carveout_refusal path_leads_to_carveout form_conf_name
-    raw_html_page_refusal page_parse_refusal page_parse_issues processor_path brief_write_refusal
+    raw_html_page_refusal page_parse_refusal page_address_profile_refusal address_profiles_missing page_parse_issues processor_path brief_write_refusal
     active_artifact_refusal refusal_detail refusal_status
     domain_active_artifacts
     reset_request_context NO_REQUEST_CONTEXT users_api _users_tool_run _users_tool_path _tool_path _user_caps
@@ -2746,6 +2746,60 @@ sub _page_filter_issues {
         };
     }
     return @issues;
+}
+
+# n812, ruling 234: address profiles are predefined and selectable only, and a page's
+# `addresses:` / `addresses_deny:` is a rule. ( \@missing, undef ) naming the profiles the
+# store does not hold, or ( undef, $fault ) when the store cannot be read (a fault is
+# named, never read as "none": whether they exist is not known). One lookup for the
+# acl-set door (Files::_address_profile_refusal) and the page doors.
+sub address_profiles_missing {
+    my (%o) = @_;
+    my @names = @{ $o{names} || [] };
+    return ( [], undef ) unless @names;
+    require Lazysite::Auth::AddressProfiles;
+    require Lazysite::Auth::Acl;
+    no warnings 'once';
+    local $Lazysite::Auth::AddressProfiles::AUTH_DIR
+        = defined $o{auth_dir} ? $o{auth_dir} : Lazysite::Auth::Acl::settings_dir();
+    my $profiles = Lazysite::Auth::AddressProfiles::profiles();
+    if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
+        return ( undef, Lazysite::Auth::AddressProfiles::fault_text($fault) );
+    }
+    my %u;
+    return ( [ grep { !$profiles->{$_} && !$u{$_}++ } @names ], undef );
+}
+
+# The page write refusal for a page naming an address profile the store lacks, shared by
+# the choke point (the manager save, the control API, MCP write_file and create_page) and
+# WebDAV. A message or undef; in list context ( message, audit detail ).
+sub page_address_profile_refusal {
+    my ( $path, $content ) = @_;
+    return unless defined $path    && $path    =~ /\.md$/i;
+    return unless defined $content && $content =~ /\A---\s*\n/ && $content =~ /^(?:addresses|addresses_deny)\s*:/m;
+    require Lazysite::Auth::AddressRefs;
+    my @names = map { $_->[1] } Lazysite::Auth::AddressRefs::page_names($content);
+    return unless @names;
+    my ( $missing, $fault ) = address_profiles_missing( names => \@names );
+    if ( defined $fault ) {
+        return _refusal(
+            "Whether the address profiles this page names exist cannot be told: $fault. Nothing was written.",
+            'address-profile-refused',
+            "the address profile store cannot be read: $fault",
+            'repair the store (lazysite check names the fault), then save again'
+        );
+    }
+    return unless @$missing;
+    my $n = join ', ', @$missing;
+    return _refusal(
+        'This page names '
+            . ( @$missing == 1 ? 'an address profile' : 'address profiles' )
+            . " the store does not hold: $n. Choose from the existing profiles (Access, Address profiles) "
+            . 'or remove the name from addresses: / addresses_deny:. Nothing was written.',
+        'address-profile-refused',
+        "front matter names address profile $n, which the store does not hold",
+        'name only profiles that exist, or create the profile first'
+    );
 }
 
 # The write-path refusal, shared by both stacks. Returns a message or undef.

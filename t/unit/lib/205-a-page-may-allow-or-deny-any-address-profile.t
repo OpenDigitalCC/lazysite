@@ -51,11 +51,29 @@ sub issues_for {
 
 subtest 'a page may allow or deny any profile, and nothing is said' => sub {
     for my $fm ( "addresses_deny: [mine]\n", "addresses: [blocked]\n", "addresses: [mine]\naddresses_deny: [blocked]\n",
-        "addresses: [blocked]\naddresses_deny: [mine]\n", "addresses: [nosuch]\n" )
+        "addresses: [blocked]\naddresses_deny: [mine]\n" )
     {
         ( my $say = $fm ) =~ s/\n/; /g;
         is_deeply( issues_for($fm), [], "$say no issue" );
     }
+};
+
+# n812 (ruling 234): a profile the store does not hold is the one thing said - an issue,
+# as the save would be refused for it.
+subtest 'a page naming a profile the store lacks is told so' => sub {
+    my $got = issues_for("addresses: [nosuch]\n");
+    is( scalar @$got, 1, 'one issue' ) or diag explain $got;
+    is( $got->[0]{kind}, 'address-profile-missing', 'of that kind' );
+    like( $got->[0]{message}, qr/nosuch/, 'naming the profile' );
+};
+
+
+subtest 'a page already on disk is a warning, not an issue' => sub {
+    my $r = Lazysite::Validate::validate_content(
+        content => "---\ntitle: T\naddresses: [nosuch]\n---\nbody\n", path => "$d/p.md", file => "$d/p.md",
+        docroot => $d, lazysite_dir => "$d/lazysite" );
+    ok( $r->{valid}, 'still valid' ) or diag explain $r;
+    is_deeply( [ map { $_->{kind} } grep { $_->{kind} =~ /address/ } @{ $r->{warnings} } ], ['address-profile-missing'], 'the warning is said' );
 };
 
 done_testing();

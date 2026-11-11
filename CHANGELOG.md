@@ -72,8 +72,12 @@ Archive
   profile, and write nothing; a list of paths is refused whole. The names an existing rule
   already carries are checked too, so a rule left naming a profile removed by hand is refused
   on its next save until the name is cleared. A group's address limit is refused the same
-  way. It was a warning before (SM1139); address profiles are now predefined and selectable
-  only. t/integration/730, t/unit/mcp/489 and t/unit/users/548 fail without the change.
+  way, and so is a page whose front matter `addresses:` or `addresses_deny:` names one, at
+  every content door (the manager save, the control API, MCP `write_file` and `create_page`,
+  WebDAV); `validate_page` reports it as an issue, and `lazysite check` keeps its warning for
+  a page already on disk. It was a warning before (SM1139); address profiles are now
+  predefined and selectable only. t/integration/730 and 731, t/unit/mcp/489 and 490 and
+  t/unit/users/548 fail without the change.
 - SM1435 (PENDING) **A profile a rule names cannot be deleted.** `address-profile-delete`
   had a force path (`--force`, the API's `force`, the page's "Delete anyway") that deleted a
   profile a rule still names and left that rule refusing everything. It is gone at every

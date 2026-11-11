@@ -751,6 +751,21 @@ sub do_put {
             }
         }
     }
+    # n812, ruling 234: a page's `addresses:` names profiles that exist; the same refusal
+    # the choke point makes (Manager::Common::page_address_profile_refusal), before the
+    # rename, so nothing lands.
+    {
+        require Lazysite::Manager::Common;
+        if ( open my $af, '<:encoding(UTF-8)', $tmp ) {
+            my $text = do { local $/; <$af> };
+            close $af;
+            if ( my ( $err, $why ) = Lazysite::Manager::Common::page_address_profile_refusal( $a{rel}, $text ) ) {
+                unlink $tmp;
+                $REFUSAL_DETAIL = $why;
+                return send_status( 415, body => "$err\n" );
+            }
+        }
+    }
     # SM976 Q15e ("Refuse new binding"): a page that newly binds a form this
     # account does not reach is refused, as at the choke point - the same rule
     # (Manager::Common::form_bind_refusal), asked with the account's scopes. A

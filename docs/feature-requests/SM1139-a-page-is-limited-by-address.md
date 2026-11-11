@@ -131,7 +131,9 @@ changed. **A name the store does not hold is refused, naming it**, and nothing i
 since an allow rule naming a missing profile admits no address. This is ruling 234
 (SM1435), which reverses the accept-with-warning above: address profiles are
 predefined and selectable only. The names an existing rule already carries are
-checked on every save too; a profile in use cannot be deleted, and may be changed. A
+checked on every save too; a profile in use cannot be deleted, and may be changed. A page's
+own `addresses:` is a rule as well: saving one naming a missing profile is refused at every
+content door. A
 deny list named under `addresses` (or the reverse) is accepted and warned about as
 the wrong kind. `acl-get` returns the fields, and with `address_lists` (name and
 kind only, never entries) so the Files page can offer them; the listing carries

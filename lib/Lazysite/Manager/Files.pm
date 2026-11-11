@@ -21,7 +21,7 @@ use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Paths ();
 use Lazysite::PageCopy ();    # SM1354: the copies folder's rules
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_save_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal page_address_profile_refusal address_profiles_missing page_parse_refusal brief_write_refusal active_artifact_refusal served_artifact_refusal form_bind_refusal form_bind_tree_refusal page_bytes_refusal text_save_refusal text_as_processor_reads refusal_detail load_upload_limits outside_all_scopes
     %params _json_body); # SM944 S33: acl-set's handler reads the request's parameters and body
 use Lazysite::Auth::Acl
     qw(load_acls save_acls acls_write_refusal _acl_norm _to_list _acl_allows file_rule_bypass
@@ -1065,6 +1065,13 @@ sub _content_write_refusal {
     # that caller; a guard here protects whoever is added next.
     if ( my ( $err, $why ) = page_parse_refusal( $rel, $content ) ) {
         return { ok => 0, error => $err, kind => 'template-parse-refused', audit_detail => $why };
+    }
+
+    # n812, ruling 234: a page's `addresses:` is a rule, and a rule names profiles that
+    # exist. Here, so the manager save, the control API and MCP write_file/create_page
+    # are covered at once; WebDAV asks the same function.
+    if ( my ( $err, $why ) = page_address_profile_refusal( $rel, $content ) ) {
+        return { ok => 0, error => $err, kind => 'address-profile-refused', audit_detail => $why };
     }
 
     # SM504: a .brief write refuses once the briefs extension owns the record on
@@ -2970,23 +2977,16 @@ sub _address_profile_names {
 sub _address_profile_refusal {
     my ($pairs) = @_;
     return undef unless @$pairs;
-    require Lazysite::Auth::AddressProfiles;
-    no warnings 'once';
-    local $Lazysite::Auth::AddressProfiles::AUTH_DIR = Lazysite::Auth::Acl::settings_dir();
-    my $profiles = Lazysite::Auth::AddressProfiles::profiles();
-    if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
+    my ( $names, $fault ) = address_profiles_missing( names => [ map { $_->[1] } @$pairs ] );
+    if ( defined $fault ) {
         return { ok => 0, kind => 'invalid', field => $pairs->[0][0],
-            error => 'Whether the address profiles this rule names exist cannot be told: '
-                . Lazysite::Auth::AddressProfiles::fault_text($fault) . '. Nothing was changed.' };
+            error => "Whether the address profiles this rule names exist cannot be told: $fault. Nothing was changed." };
     }
-    my ( %u, @missing );
-    for my $p (@$pairs) {
-        my ( $f, $n ) = @$p;
-        push @missing, [ $f, $n ] unless $profiles->{$n} || $u{$n}++;
-    }
-    return undef unless @missing;
-    my @n = map { $_->[1] } @missing;
-    return { ok => 0, kind => 'invalid', field => $missing[0][0], missing => \@n,
+    return undef unless @$names;
+    my %gone = map { $_ => 1 } @$names;
+    my ($first) = grep { $gone{ $_->[1] } } @$pairs;
+    my @n = @$names;
+    return { ok => 0, kind => 'invalid', field => $first->[0], missing => \@n,
         error => ( @n == 1 ? 'This rule names an address profile' : 'This rule names address profiles' )
             . ' the store does not hold: ' . join( ', ', @n )
             . '. Create ' . ( @n == 1 ? 'it' : 'them' )

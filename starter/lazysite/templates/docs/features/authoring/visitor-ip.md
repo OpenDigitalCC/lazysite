@@ -123,5 +123,6 @@ the test is only about the visitor if `trusted_proxies` names the front end, and
 
 To limit who may *read* a page by address, name the profiles in its front matter
 instead (`addresses:` allows them, `addresses_deny:` denies them); the test is for
-what a page shows. Name only profiles that exist (Access, Address profiles);
-`lazysite check` warns of a name no profile carries.
+what a page shows. Name only profiles that exist (Access, Address profiles): a save
+naming one that does not is refused, by the manager, MCP and WebDAV alike, and
+`lazysite check` warns of one already on a page.

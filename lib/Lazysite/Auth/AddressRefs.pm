@@ -46,7 +46,7 @@ use Exporter 'import';
 use Lazysite::Paths   ();
 use Lazysite::Private ();
 
-our @EXPORT_OK = qw(rules describe);
+our @EXPORT_OK = qw(rules describe page_names);
 
 my %SLOT = ( addresses => 'allow', addresses_deny => 'deny' );
 
@@ -100,6 +100,10 @@ sub _page_names {
     }
     return @out;
 }
+
+# n812: the profiles a page's front matter names, [ slot, name ] pairs, for the write
+# doors that refuse a page naming one the store lacks (Manager::Common).
+sub page_names { return _page_names(@_) }
 
 sub _conf_names {
     my ($conf) = @_;
