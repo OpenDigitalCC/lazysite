@@ -6222,9 +6222,9 @@ verdict : drafted for the release manager's confirmation. A hardening of the ope
   operator to write a name no profile held. 0.16.11 is the beta (ruling 236) and, with this
   entry, not security-critical.
 
-### 2026-11-11 - SM1430, SM1435 (the rest) (0.16.11): the beta's other changes, with no trigger
+### 2026-11-11 - SM1430, SM1437, SM1435 (the rest) (0.16.11): the beta's other changes, with no trigger
 
-Assessment drafted by the developer agent at the 0.16.11 compliance walk (SM1436) for the release manager's confirmation. 0.16.11 is the **beta** (ruling 236): cut with `--beta` from 0.16.10 plus n811 (SM1430) and n812 (SM1435), the code 0.17.0 is promoted from (rulings 227, 228), and the feature freeze on main starts at this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log bc1d27efd..d0b0ddd8e` (9 commits). SM1435's address-profile hardening has its own entry above. The rest moves no control and fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or processing of restricted data). Each item below was checked against the code it names.
+Assessment drafted by the developer agent at the 0.16.11 compliance walk (SM1436) for the release manager's confirmation. 0.16.11 is the **beta** (ruling 236): cut with `--beta` from 0.16.10 plus n811 (SM1430), n812 (SM1435) and n814 (SM1437), the code 0.17.0 is promoted from (rulings 227, 228), and the feature freeze on main starts at this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log bc1d27efd..17c1edb13` (14 commits). SM1435's address-profile hardening has its own entry above. The rest moves no control and fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or processing of restricted data). Each item below was checked against the code it names.
 
 what changed
 : SM1430 (n811). `output_page`, which every page response passes through, now clears the
@@ -6245,6 +6245,16 @@ what changed
   the capability map (t/unit/extensions/612). The Address profiles page, the CLI help, the
   MCP descriptions and the docs say to choose an existing profile; the users tool's statement
   count in the bench baseline moves from 4344 to 4348.
+: SM1437 (n814). Output of `lazysite check` and `lazysite repair`, which reads and writes
+  nothing new. The page check (`_public_page_set_listing` and `scan_pages`, which take an
+  optional hash of what they could not read) names each directory it could not open and each
+  page it left out, with the user it ran as, reports a WARN and does not print the "ok" line;
+  run as a user who cannot open a directory it said "0 public page(s), each with a title and
+  a description of its own" about a site with 17 undescribed pages (t/tools/582, ruling 206).
+  The `/docs` shadow check runs for the primary's content root and each declared
+  `content_root`, naming the domain on its line (t/tools/583). `check --fix` prints
+  `--fix: nothing to change` when it changed nothing (t/tools/584), and `repair` says
+  "nothing to repair" when it applied no change (t/tools/585).
 : The record, not the code. This walk stamps OBLIGATIONS.md and TECHNICAL-FILE.md 0.16.11,
   channel beta, and adds docs/architecture/security.md's 0.16.11 section; it changes no
   engine file.
@@ -6262,13 +6272,25 @@ threat delta
   cacheability. The cost is one identity read on a request that carries the marker and no
   session, which a request with a valid session already pays.
 : SM1435 (wording): none. A page's text and a test.
+: SM1437, a finding the check did not make, narrowed: a check that could not
+  read part of the site now says so and does not print ok, and names the unread paths and the
+  user it ran as, so an operator is not told a site is clean over pages the check never saw. This
+  is a hardening of what the check reports, not of what the engine does: no request path, store,
+  rule or credential changes. The paths and the user's name it prints go to the person running
+  the check, who can already list them. The shadow check's wider reach reads the `.md` files
+  under each declared content root's `docs/` directory, as it read the primary's, and compares
+  them with the engine's own copies (the same `find_noting` walk the primary's check used, over
+  more roots). None of the four ADR 0007 triggers fires.
 
 controls
 : SM1430: t/integration/720 (plain CGI through the wrapper and the pool's worker: a revoked
   session, an unknown account and a marker alone each clear it; a live session keeps it; no
   cookies, and a revoked cookie without the marker, get no Set-Cookie and keep
   `public, max-age`, fresh and cached) and t/unit/odoo/135 (a stale Odoo session keeps its
-  marker, and clears once Odoo has ended it). SM1435 wording: t/unit/extensions/612.
+  marker, and clears once Odoo has ended it). SM1435 wording: t/unit/extensions/612. SM1437:
+  t/tools/582 (an unreadable directory is named and the ok line is not printed), 583 (a
+  shadow in a declared content root is named with its domain), 584 and 585 (the two
+  summaries).
 
 residual risk
 : SM1430: the marker is still not an authority, and a browser that never loads a page keeps

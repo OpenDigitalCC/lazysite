@@ -1668,8 +1668,12 @@ developer agent for the release manager's confirmation.
   user); the response is `no-store, private`, and a session refused only as stale keeps its
   marker for its renewal. The marker carries no authority and the HttpOnly cookie stays
   the gate. The server reads the marker only to clear it.
-- **Smaller** (SM1435). The Groups page says where the settle panel is. None moves a
-  control (docs/SECURITY.md, the 2026-11-11 entries).
+- **A check says when it could not read** (SM1437). The page check's walk (`scan_pages`,
+  `_public_page_set_listing`) collects the paths it could not open; `lazysite check` names
+  them with the user it ran as, warns, and does not print "ok". The `/docs` shadow check
+  covers each declared content root. Output only: no request path, store or rule changes.
+- **Smaller** (SM1435, SM1437). The Groups page says where the settle panel is; `check --fix`
+  and `repair` say what they did. None moves a control (docs/SECURITY.md, the 2026-11-11 entries).
 
 ## Credential lifecycle and MFA (SM072)
 

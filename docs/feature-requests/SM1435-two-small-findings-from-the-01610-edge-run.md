@@ -54,5 +54,7 @@ reverses SM1139's accept-with-warning.
 
 # Not covered
 
-A page's front matter `addresses:` is a file the author writes; `lazysite check` warns of a
-name no profile carries (t/unit/tools/82). It is not refused on save.
+A page already on disk that names a profile no store holds is not changed: `lazysite check`
+warns of it (t/unit/tools/82). A page naming one is refused on save, at every content door
+(ruling 235; t/integration/731, t/unit/mcp/490), and a file edited on disk outside a door is
+not refused.

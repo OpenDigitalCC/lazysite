@@ -70,7 +70,7 @@ Sections below are per-release notes, newest first. Where an older section says
 
 ## Address profiles are chosen from those that exist, and the rest of 0.16.11 (the beta)
 
-0.16.11 is the beta (ruling 236): 0.16.10 plus the two changes below, on the beta channel, and
+0.16.11 is the beta (ruling 236): 0.16.10 plus the changes below, on the beta channel, and
 the release the 0.17.0 stable is promoted from. It is not security-critical, so it reaches
 only the sites that take beta builds. The feature freeze starts at this cut: only fixes follow it.
 
@@ -99,6 +99,12 @@ no longer offers "Delete anyway"; it shows the refusal, naming the rules.
   draw "Sign out" from a signed-in marker the session left (SM1430): a page response to a request
   that carries the display marker and no signed-in identity clears it, and that one response is
   not stored. A visitor without the marker is unaffected.
+- `lazysite check` says when it could not read part of the site (SM1437): run as a user who
+  cannot open a directory, the page check names each path it could not read and the user it ran
+  as, warns, and no longer says "ok" about the pages it did not see; run it as root or the
+  site's owner. The `/docs` shadow check covers every domain's content root and names the
+  domain; `check --fix` says "--fix: nothing to change" when it changed nothing, and `repair`
+  says "nothing to repair" when it applied no change.
 - The Groups page says where the settle panel is: the Unknown Odoo writes page, linked from its
   card on Extensions - configure (SM1435).
 

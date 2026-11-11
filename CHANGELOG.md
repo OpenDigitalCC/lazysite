@@ -101,14 +101,15 @@ Archive
   shows the refusal, naming the rules, with Close. A profile in use may still be changed.
   t/unit/users/53, t/unit/manager/395 and 974 fail without the change.
 - SM1436 (PENDING) **docs: the compliance records cover 0.16.11, the beta.** OBLIGATIONS.md
-  and TECHNICAL-FILE.md are walked against the 0.16.11 line (`git log bc1d27efd..d0b0ddd8e`,
-  9 commits: SM1430 and SM1435) and stamped 0.16.11, channel beta (ruling 236). 0.16.11 is cut
-  with `--beta` from 0.16.10 plus SM1430 and SM1435; it is not security-critical (no change in
+  and TECHNICAL-FILE.md are walked against the 0.16.11 line (`git log bc1d27efd..17c1edb13`,
+  14 commits: SM1430, SM1435 and SM1437) and stamped 0.16.11, channel beta (ruling 236). 0.16.11 is cut
+  with `--beta` from 0.16.10 plus SM1430, SM1435 and SM1437; it is not security-critical (no change in
   it fixes a known vulnerability) and is the release the 0.17.0 stable is promoted from
   (rulings 227, 228); the feature freeze starts at the cut. Drafted for the release manager's
   confirmation: SM1435's register entry (address profiles chosen from those that exist, at
   every door, and no delete of a profile a rule names; a hardening, no ADR 0007 trigger), the
-  walk's entry (SM1430's display-only marker, SM1435's Groups page wording), one STRIDE row,
+  walk's entry (SM1430's display-only marker, SM1437's check output, SM1435's Groups page
+  wording), one STRIDE row,
   trust boundary 11 restated, and a section in docs/architecture/security.md. An operate-side
   row asks the operator to correct a rule that names a missing profile. UPGRADE.md's 0.16.11
   notes are one section.
