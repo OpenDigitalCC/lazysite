@@ -187,6 +187,7 @@ Elevation of privilege | Code planted in a site's extensions directory run in pl
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
 Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, confirmed by the release manager on 2026-11-10 (ruling 233), with the walk's entry and the claim-link residual risk, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
 Elevation of privilege | A deny rule that names an address profile the store lacks, which excludes nobody and says so only in a log line; an allow rule that names one, which admits nobody; a profile deleted while a rule names it (SM1139's accept-with-warning, SM1141's force) | A rule, a group's address limit and a page's `addresses:` / `addresses_deny:` are refused at every door when they name a profile the store does not hold, naming it, with nothing written; the names a rule already carries are checked on its next save; a profile a rule names cannot be deleted, at any door, with no force; a store that cannot be read refuses and is named (ruling 206); `lazysite check` names a rule or a page already on disk that names a missing profile | 0.16.11 (t/integration/730 and 731, t/unit/mcp/489 and 490, t/unit/users/548 and 53, t/unit/manager/974; row written at the 0.16.11 walk, SM1436, confirmed by the release manager on 2026-11-11 (ruling 237), with the SM1435 entry): a rule or page saved before 0.16.11 that names a missing profile stands until it is changed, a file edited on disk outside a door is not refused, and the runtime's treatment of an unknown name is unchanged
+Elevation of privilege | A full backup restored by `install.pl --restore-full` (SM1439): a tarball bringing code, modes or an owner of its own, or a restore leaving a site that does not serve | The restore is a system-user operation (a full backup carries the auth secrets; no manager or network door); every file of code it writes, every mode and the group come from the release it runs and the operator's `--serving-group`, the extraction takes no owner or mode from the archive (`--no-same-owner`, `--no-same-permissions`) and vets member names for `..`, an engine that cannot be laid refuses before anything is extracted, and the install state is written from what was laid | 0.16.12 (t/tools/628; row written at the 0.16.12 walk, SM1441, for the release manager's confirmation, with the SM1439 entry): the restore follows a symlinked `lazysite/` in the tarball for the setgid chmod and the root ownership repair (not tested; a backup is the root operator's own file), and the backup is still written inside the docroot (SM602)
 ```
 
 ## Five priority entries (from the review)
@@ -6303,3 +6304,171 @@ verdict : accepted, confirmed by the release manager on 2026-11-11 (ruling 237).
   security-critical: no change in it fixes a known vulnerability (SM1435 is a hardening,
   its own entry above). It is the release the stable promotion is drawn from; the feature
   freeze (ruling 228) starts at this cut.
+
+### 2026-11-11 - SM1439 (PENDING): a full restore gives a site that serves
+
+Assessment drafted by the developer agent (n820, with the 0.16.12 compliance walk, SM1441) for the release manager's confirmation. Ruling 239 (the release manager, 2026-11-11) makes `install.pl --restore-full` the whole procedure after the SM1438 rehearsal found it left a site that could not serve.
+
+what changed
+: Before, `--restore-full` extracted the backup's docroot and stopped. The restored site had no
+  cgi-bin entry points and no serving group, and the command ended on "Check file
+  ownership/permissions on the target host". It now does the work an install does: it lays the
+  engine's entry points (the cgi-bin scripts, and the lib, tools and extensions beside the
+  docroot) from the release it runs, by the plan and `execute_plan` that provision uses, narrowed
+  to the engine's entries (`is_engine_entry`); links the extension endpoints
+  (`link_extension_endpoints`); after the extraction creates the runtime paths and applies the
+  group and modes (`apply_site_modes`, split out of `post_install_steps` so an install and a
+  restore run the same code); rewrites `.install-state.json` with `write_state`; and ends with the
+  health check (exit 4 when the site is not serviceable yet). It takes `--cgibin`, required as
+  provision requires it, and `--serving-group`. `lazysite backups --restore-full` passes both
+  and carries the exit status. When the engine cannot be laid (no `--cgibin`, no release manifest,
+  an unwritable cgi-bin) it refuses before extracting anything and names the command to run
+  (ruling 206).
+
+threat delta
+: The trust boundary is the one install and restore already had, and it is unchanged: a full
+  backup carries the auth secrets (the session signing secret, password hashes, TOTP seeds), so
+  `--restore-full` is a system-user operation on the host, in the installer and the CLI, and is
+  not in the manager UI or any network door. What the restore trusts is the tarball the operator
+  names and the release they unpacked, as an install trusts its payload.
+: What now comes from the release, never the tarball: every file of code the restore writes (the
+  cgi-bin entry points, the lib, tools and extensions beside the docroot, the extension endpoint
+  links); every mode and group it sets (the manifest's runtime files, the store modes 0660 and
+  02770 and 0640, the setgid bit on `lazysite/`, the runtime paths), since the extraction passes
+  `--no-same-owner` and `--no-same-permissions` and takes no mode or owner from the archive; and
+  the group (`--serving-group`, the operator's word). What comes from the tarball is data: the
+  docroot's content and its `lazysite/` tree (stores, auth secrets, conf, templates, themes), the
+  domain rewritten by `--domain`, and, in `.install-state.json`, the backup's entries for the
+  seed and content files, its `once` list, its `dirs_left` and its starter mark. The state's
+  engine entries and version are the release's (`write_state` over the backup's), so a later
+  upgrade does not read the laid engine as operator-edited. The `once` list and the starter mark
+  from the tarball decide which one-time upgrade steps a later upgrade runs; a list that says too
+  much skips a step, and `lazysite check` and the upgrade are what name it.
+: The new steps follow the tarball's symlinks where the install's own steps do not, in two
+  places. `apply_site_modes` adds group-write and setgid to `lazysite/` (a `chmod` that follows a
+  link), and `align_ownership`, when run as root, starts its walk at `lazysite/`. A backup in which
+  `lazysite` is a symlink would have the target's mode changed or, for root-owned entries inside it,
+  its owner. Every other mode and ownership step skips a symlink (`-l`), and
+  `create_runtime_paths` refuses one. A full backup is the root operator's own file and could
+  already write anywhere under the docroot, the auth store included, so this adds no capability a
+  tarball did not have; recorded, not changed.
+: No ADR 0007 trigger fires. No new interface (two flags on an existing system-user command, no
+  listener and no network), no new sign-in method, no new dependency (the code is the installer's
+  own), and no new processing of restricted data: the same backup is restored as before. The
+  restore writes more than it did (code and modes), all from the release.
+
+controls
+: t/tools/628 (provisions a scratch site, takes a full backup, destroys the site, restores onto a
+  new docroot with `--serving-group`, and runs the check: no failures, the three entry points
+  present; fails on the code before the change). t/tools/03-install-pl.t and t/lint/149 follow
+  the new flags and the single naming of the install verb. A restore that cannot lay the engine
+  refuses before it extracts (no half-restored docroot); the engine is laid by `execute_plan`,
+  which refuses a symlinked destination (`_refuse_symlink`); the extraction's member vetting
+  (`..`), `--no-same-owner` and `--no-same-permissions` are unchanged (SM268 H16).
+
+residual risk
+: A backup whose `lazysite/` is a symlink, as above. A restore run as root onto a docroot whose
+  owner is not the web server's group relies on `--serving-group` being named; the health check
+  at the end says when it was not. The backup is still written inside the docroot it backs up
+  (SM602, ruling 240: after stable), so a restore needs a copy kept off the box.
+
+verdict : accepted, for the release manager's confirmation. A repair of a restore that left a
+  site unable to serve, found in the field pass (SM1438, ruling 239); not a fix to a
+  vulnerability. No trigger fires. 0.16.12 is the second beta and is not security-critical.
+
+### 2026-11-11 - SM1440 (PENDING): refusals name the user to run as, and the check says ok only about what it read
+
+Assessment drafted by the developer agent (n820, with the 0.16.12 compliance walk, SM1441) for the release manager's confirmation.
+
+what changed
+: Messages and check text, and one refusal. A root refusal of `lazysite acl set`, and of the
+  handlers tool, names the unix user that owns `lazysite/auth/` (`Lazysite::Util::path_owner_name`)
+  and spells the command with it. A refusal for a store the process cannot read (`acl set`, the
+  address-profile refusals of the users tool, the manager's profile list and its address-limit
+  setting) appends `Lazysite::Util::unreadable_note`: the user it ran as, the user that owns the
+  file, and the command to run as that owner; empty when the file opens. `lazysite check` does not
+  print its two address "ok" lines when a store they read could not be read: it warns, naming the
+  file, the user and the owner. The "re-run with --fix" hint shows only when `--fix` has a repair
+  to apply (`fix_available`). All of that is wording and which line is printed; no gate moves.
+: The one behaviour change: `group-settings-set` with `addresses`, `addresses_deny` or
+  `address_limit` on a group that does not exist is refused ("The group 'X' does not exist ...
+  Nothing was changed"), before its profiles are read. Before, a missing profile was named; and
+  where the profile existed, a settings record was written for a group nothing held, so a limit
+  could be laid for a group created later. A group counts as existing when it has members or a
+  settings record. The refusal is the operator's (a sysop only, as before), writes nothing, and
+  narrows what the tool accepts.
+
+threat delta
+: Information disclosure, narrowed and bounded. The notes name the unix user the process ran as
+  and the user that owns an auth-store file, and the file's path under `lazysite/`. On the CLI
+  that goes to the person who ran it and can run `ls` on the same path. Two of the callers answer
+  a signed-in manager over HTTP or MCP (`acls_write_refusal`, reached by the manager API's
+  `acl-set` and MCP `set_permissions`; the manager's address-profile list and address-limit
+  setting), and there the note is added only when the web process itself cannot read the store,
+  which is a fault the refusal already reports; the user named is the one the web server runs as
+  (`www-data` on a stock host), and the file's path was already in the message. What is new is the user's name, to an
+  account that holds `manage_config` or `manage_domains` (or an MCP token with the permissions
+  tool); a name the host's own check prints to its operator. Recorded as a small disclosure for the
+  release manager to confirm, not as a gap.
+: The refusals keep their meaning: the same stores are refused and the same text says "Nothing
+  was changed". The check's change is that it says less (it does not say ok about what it did
+  not read), as SM1437 did for pages. The group refusal is a tightening of one write path, and
+  needs no new capability. No ADR 0007 trigger fires: no new interface, sign-in method or
+  dependency, and no new processing of restricted data.
+
+controls
+: t/tools/630 (a root refusal names the owner and spells the command with it), 631 (the check
+  prints no ok about an unreadable store, and names the file, the user and the owner), 632 (no
+  `--fix` hint with nothing to fix) and 633 (a missing group is named before a missing profile, and
+  no group record is made; a group that exists still gets the missing-profile refusal); each
+  fails on the code before the change. t/unit/users/548 and t/unit/users/60 make their groups with
+  `group-create`, which they had called through a verb that does not exist.
+
+residual risk
+: A message is not a control, and the operator may read "run as OWNER" and use `sudo` on a host
+  where that user has no login; the check's wording still names the repair. A limit laid for a
+  group before it is created now needs the group first (`group-create`).
+
+verdict : accepted, for the release manager's confirmation. Wording of refusals and of the check,
+  with one write path narrowed. No trigger fires. 0.16.12 is the second beta and is not
+  security-critical.
+
+### 2026-11-11 - SM1438, SM1439, SM1440 (0.16.12): the second beta, with no trigger
+
+Assessment drafted by the developer agent at the 0.16.12 compliance walk (SM1441) for the release manager's confirmation. 0.16.12 is the second **beta** (ruling 242): cut with `--beta` from 0.16.11 plus the field-pass fixes, n816 (SM1438), n817 (SM1439) and n818 (SM1440), the code 0.17.0 is promoted from (rulings 227, 242). The feature freeze (ruling 228) holds: only fixes land. The walk read the CHANGELOG's `## Unreleased` section and `git log b050272f9..2920a8f8a` (10 commits). SM1439 and SM1440 have their own entries above. The rest moves no control. Each change was checked against the code it names, and none of ADR 0007's four triggers (new interface, sign-in method, dependency, processing of restricted data) fires.
+
+what changed
+: SM1438 (n816). The restore rehearsal record of 11 Nov 2026 in docs/RELIABILITY.md and its
+  filing: a full cycle against the shipped 0.16.11 tarball, 91 ms, content, auth store and conf
+  intact, and the gap SM1439 closes (no cgi-bin entry points, no serving group). Docs only; it
+  changes no engine file. The OBLIGATIONS restore-rehearsal row stays OPEN: the rehearsal is rerun
+  on the shipped 0.16.12 tarball and the release manager confirms it (rulings 241, 242).
+: SM1439 (n817). `install.pl --restore-full` lays the engine, applies the serving group and the
+  modes, writes the install state and ends with the health check (ruling 239). Its own entry above:
+  a system-user operation on the host, the code and the modes from the release and the data from
+  the tarball; no trigger.
+: SM1440 (n818). Refusals name the unix user to run as; the check says ok only about what it
+  read; no `--fix` hint with nothing to fix; a missing group is named before a missing profile; a
+  `group-settings-set` address key on a group that does not exist is refused. Its own entry above:
+  the one behaviour change is that refusal; no trigger.
+: The record, not the code. This walk stamps OBLIGATIONS.md and TECHNICAL-FILE.md 0.16.12, channel
+  beta, and adds docs/architecture/security.md's 0.16.12 section; it changes no engine file.
+
+threat delta
+: None of the four triggers fired. SM1438: none, a record. SM1439: Elevation of privilege and
+  Tampering, assessed in its entry: the code and modes come from the release; the tarball supplies
+  data, the same data as before; one residual (a symlinked `lazysite/` in a backup) is recorded.
+  SM1440: Information disclosure, narrowed and bounded in its entry; the group refusal narrows one
+  write path.
+
+controls
+: SM1439: t/tools/628. SM1440: t/tools/630 to 633. SM1438: none, a record. One STRIDE row was added
+  at this walk (the full restore), and no trust boundary changed.
+
+residual risk
+: As each entry says. The restore is rerun on the shipped 0.16.12 tarball before 0.17.0 (ruling 242).
+
+verdict : accepted, for the release manager's confirmation. No trigger fired. 0.16.12 is the second
+  beta (ruling 242) and is not security-critical: no change in it fixes a known vulnerability (SM1439
+  repairs a restore that left a site unable to serve, SM1440 is wording and one tightened write).
+  It is the release the stable promotion is drawn from; the feature freeze (ruling 228) holds.

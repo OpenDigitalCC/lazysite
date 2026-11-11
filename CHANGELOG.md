@@ -53,6 +53,21 @@ Archive
 
 ## Unreleased
 
+- SM1441 (PENDING) **docs: the compliance records cover 0.16.12, the second beta.** OBLIGATIONS.md
+  and TECHNICAL-FILE.md are walked against the 0.16.12 line (`git log b050272f9..2920a8f8a`, 10
+  commits: SM1438, SM1439 and SM1440) and stamped 0.16.12, channel beta (ruling 242). 0.16.12 is
+  cut with `--beta` from 0.16.11 plus the beta field-pass fixes; it is not security-critical (no
+  change in it fixes a known vulnerability) and is the release the 0.17.0 stable is promoted from
+  (rulings 227, 242); the feature freeze holds. Drafted for the release manager's confirmation:
+  SM1439's register entry (`install.pl --restore-full` lays the engine and the modes from the
+  release and takes only data from the tarball; a system-user operation; no ADR 0007 trigger),
+  SM1440's (messages and check text, and one tightened write; no trigger), the walk's entry
+  (SM1438's rehearsal record, with each change's assessment), one STRIDE row, and a section in
+  docs/architecture/security.md. An operate-side row asks the operator to give a restore script
+  the new flags. The restore-rehearsal row stays OPEN: the rehearsal is rerun on the shipped
+  0.16.12 tarball and confirmed by the release manager before 0.17.0 (rulings 241, 242).
+  UPGRADE.md's 0.16.12 notes are one section.
+
 - SM1440 (PENDING) **Field findings from the 0.16.11 pass: a refusal names the user to run
   as, and the check says ok only about what it read.** `lazysite acl set` as root now names
   the unix user that owns `lazysite/auth/` and spells the command with it (the handlers tool

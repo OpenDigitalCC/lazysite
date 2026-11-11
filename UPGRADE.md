@@ -68,9 +68,35 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased
+## A full restore gives a site that serves, and the rest of 0.16.12 (the second beta)
 
-A restore script that ran `--restore-full` without `--cgibin` now needs it (and `--serving-group` on a host not serving under `www-data`): the one command lays the cgi-bin entry points, applies the group and modes, and ends with the health check (SM1439).
+0.16.12 is the second beta (ruling 242): 0.16.11 plus the changes below, on the beta channel,
+and the release the 0.17.0 stable is promoted from. It is not security-critical, so it reaches
+only the sites that take beta builds. The feature freeze still holds: only fixes follow it.
+
+**`--restore-full` is one command (SM1439, ruling 239).** `install.pl --restore-full` (and
+`lazysite backups --restore-full`) used to extract the docroot only, so the restored site had no
+cgi-bin entry points and no serving group, and ended on "Check file ownership/permissions on the
+target host". It now lays the engine's entry points from the release it runs, as provision does,
+applies the serving group and the modes, writes the install state, and ends with the health check
+(exit 4 when the site is not serviceable yet). A restore script or runbook now needs `--cgibin`
+(or, for `lazysite backups`, `--installdir`) and, on a host that does not serve under `www-data`,
+`--serving-group`. Without `--cgibin` the command refuses before it extracts anything and prints
+the command to run. Run it from the unpacked release you want on the restored site.
+
+**Smaller changes, nothing to do.**
+
+- A refusal names the unix user to run as (SM1440). `lazysite acl set` as root names the user that
+  owns `lazysite/auth/` and spells the command with it; a command that cannot read an auth store
+  says which user it ran as and who owns the file. "Nothing was changed" stays.
+- `lazysite check` says ok only about what it read (SM1440): when it could not read acls.json it
+  says it could not check the address profiles a rule names, naming the file, the user and the
+  owner, instead of printing "ok". The "re-run with --fix" hint shows only when `--fix` has
+  something to apply.
+- `group-settings-set` with an address limit on a group that does not exist is refused, naming
+  the group (SM1440); before, it said a profile was missing, or wrote a record for the group.
+  Create the group first with `group-create`.
+- The restore rehearsal of 11 Nov 2026 is recorded in docs/RELIABILITY.md (SM1438).
 
 ## Address profiles are chosen from those that exist, and the rest of 0.16.11 (the beta)
 

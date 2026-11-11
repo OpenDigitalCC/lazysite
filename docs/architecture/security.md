@@ -1675,6 +1675,42 @@ developer agent and confirmed by the release manager on 2026-11-11 (ruling 237).
 - **Smaller** (SM1435, SM1437). The Groups page says where the settle panel is; `check --fix`
   and `repair` say what they did. None moves a control (docs/SECURITY.md, the 2026-11-11 entries).
 
+## A full restore that serves, and refusals that name the user (0.16.12, beta)
+
+Walked on 2026-11-11 (SM1441); the second beta (ruling 242), not security-critical. Drafted by
+the developer agent for the release manager's confirmation.
+
+- **A full restore lays the engine and the modes from the release** (SM1439, ruling 239).
+  `install.pl --restore-full` (and `lazysite backups --restore-full`) is a system-user
+  operation: a full backup carries the auth secrets, so it is in the installer and the CLI and in
+  no manager or network door. The tarball carries the docroot only. The restore lays the
+  engine's entry points (the cgi-bin scripts, and the lib, tools and extensions beside the
+  docroot) from the release it runs, by the plan and `execute_plan` that provision uses; sets the
+  group (`--serving-group`) and the modes (`apply_site_modes`, the code an install runs); writes
+  `.install-state.json` with `write_state`; and ends on the health check. Every file of code and
+  every mode comes from the release; the extraction takes no owner or mode from the archive
+  (`--no-same-owner`, `--no-same-permissions`) and the tarball supplies data, with the backup's
+  state entries for seed and content files kept. An engine that cannot be laid refuses before
+  anything is extracted (ruling 206). Residual: the setgid chmod and the root ownership repair
+  follow a `lazysite/` that is a symlink in the tarball (not tested); every other step skips a
+  link.
+- **A refusal names the unix user** (SM1440). A root refusal of `lazysite acl set` and of the
+  handlers tool names the user that owns `lazysite/auth/` and spells the command with it; a
+  command or a manager refusal for an auth store the process cannot read names the user it ran as
+  and the owner (`Lazysite::Util::unreadable_note`). Wording only; the names go to the person
+  running the command, or to a signed-in manager when the web process itself cannot read the
+  store.
+- **The check says ok only about what it read** (SM1440). The two address lines of `lazysite
+  check` warn, naming the file, the user and the owner, when a store they read could not be read;
+  the "re-run with --fix" hint shows only when `--fix` has a repair. Output only.
+- **A group limit on a group that does not exist is refused** (SM1440). `group-settings-set`
+  with `addresses`, `addresses_deny` or `address_limit` looks the group up before its profiles;
+  a group with no members and no settings record is refused and nothing is written. Before, a
+  settings record was made for it.
+- **The rehearsal record** (SM1438). docs/RELIABILITY.md carries the 11 Nov 2026 rehearsal on
+  the shipped 0.16.11 tarball, which found the restore gap SM1439 closes; it is rerun on the
+  shipped 0.16.12 tarball before 0.17.0 (docs/SECURITY.md, the 2026-11-11 entries).
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a
