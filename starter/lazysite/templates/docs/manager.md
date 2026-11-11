@@ -306,11 +306,13 @@ A profile does nothing by itself, and it is neither an allow nor a deny: a rule
 that names it chooses. A page's `addresses:` allows the profiles it names and
 `addresses_deny:` denies them; an access rule on the Files page, a group, the
 manager and sign-in limits do the same, so one `office` profile can let the
-office into one page and keep it out of another. Where an address is in a
-profile allowed and in one denied, deny wins. An address that is not a valid
+office into one page and keep it out of another. A rule names a profile by
+choosing an existing one from a list; a name no profile carries is refused when the
+rule is saved, by the manager, the control API, MCP and the command line alike.
+Where an address is in a profile allowed and in one denied, deny wins. An address that is not a valid
 address, or a profile store the site cannot read, is refused where a rule names
-a profile - the rules fail closed. A profile a rule still names is not deleted
-unless the operator confirms it twice. The same profiles are read over the
+a profile - the rules fail closed. A profile a rule still names cannot be deleted
+(the refusal names the rules); it may be changed. The same profiles are read over the
 control API (`address-profiles`) and MCP (`list_address_profiles`); writing them
 is the manager's. Until 0.16.5 these were *address lists*, each fixed as allow
 or deny; the upgrade made each list a profile of the same name, and every rule

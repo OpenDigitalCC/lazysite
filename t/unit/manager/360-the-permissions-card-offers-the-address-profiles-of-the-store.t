@@ -56,7 +56,7 @@ out({ step: 'block',
       rows: (block.match(/data-addr-profile=/g) || []).length,
       office: shown(block, 'office'), vpn: shown(block, 'vpn'), blocked: shown(block, 'blocked'),
       ghost: shown(block, 'ghost'), both: shown(block, 'both'),
-      ghostMarked: /<label>ghost \(no such profile yet\)<\/label>/.test(block),
+      ghostMarked: /<label>ghost \(no such profile\)<\/label>/.test(block),
       choices: /<option value=""[^>]*>Not used<\/option><option value="allow"[^>]*>Allow<\/option><option value="deny"[^>]*>Deny<\/option>/.test(addressBlock({})),
       impact: (block.match(/data-impact="edit"/g) || []).length });
 ADDRESS_PROFILES = [];

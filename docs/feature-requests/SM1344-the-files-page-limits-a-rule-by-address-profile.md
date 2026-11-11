@@ -26,7 +26,8 @@ kind-filtered pickers."
   (SM1343), so each row offers every choice.
 - A profile the rule allows shows Allow and one it denies shows Deny. A name the
   rule carries that the store does not hold is listed too, keeps its choice and is
-  marked "no such profile yet", so saving the card does not drop it. A name a hand
+  marked "no such profile" (ruling 234: saving a rule that carries it is refused, naming it,
+  until it is set to Not used). A name a hand
   edit both allows and denies shows Deny, which is what decides for it.
 - Saving sends the rows chosen Allow as `addresses` and those chosen Deny as
   `addresses_deny`; a card whose only content is a profile is still an `acl-set`,

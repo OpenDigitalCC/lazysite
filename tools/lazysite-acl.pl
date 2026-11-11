@@ -728,9 +728,11 @@ Options:
                  takes it out, and on the folder stops recording. What was
                  recorded is kept (see purge-history). Off by default.
   --addresses LIST       (SM1139) comma-separated names of address profiles to ALLOW:
-                 the path is served only to an address in one of them. Omit to
-                 leave unchanged; an EMPTY value clears.
-  --addresses-deny LIST  likewise, the profiles to DENY; deny wins.
+                 the path is served only to an address in one of them. Choose
+                 existing profiles (lazysite-users address-profiles lists them);
+                 a name no profile carries is refused. Omit to leave unchanged;
+                 an EMPTY value clears.
+  --addresses-deny LIST  likewise, the existing profiles to DENY; deny wins.
   --json         machine-readable output.
 
 PATH is relative to the document root, NOT to a domain's URL - on a

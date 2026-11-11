@@ -43,6 +43,23 @@ Expect
 : The first page is served only to an address in `office`; the second is
   refused to one. Neither save is refused: a profile has no kind.
 
+## A rule offers only the profiles that exist
+
+Where
+: Files -> a page's permissions card, Limited by address profile; Groups ->
+  a group's Limited by address profile
+
+Do
+: Look at the choices, then send the same rule with a profile name the store does
+  not carry (the control API, MCP `set_permissions`, or `lazysite acl set
+  --addresses nosuchprofile`).
+
+Expect
+: The card has one row per existing profile, each Not used, Allow or Deny, and no
+  field to type a name in. The typed rule is refused, naming the missing profile,
+  and nothing is written. A rule that already carries a profile removed from the
+  store is refused on its next save, naming it, until the name is set to Not used.
+
 ## A profile in use is not deleted by accident
 
 Where

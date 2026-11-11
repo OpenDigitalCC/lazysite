@@ -803,7 +803,7 @@ function groupAddressRows(g, info) {
     var opt = function(v, label) {
       return '<option value="' + v + '"' + (use === v ? ' selected' : '') + '>' + label + '</option>';
     };
-    r += '<label class="mg-chk">' + escHtml(n) + (seen[n] === 'ghost' ? ' (no such profile yet)' : '')
+    r += '<label class="mg-chk">' + escHtml(n) + (seen[n] === 'ghost' ? ' (no such profile)' : '')
        + ' <select data-addr-profile="' + escHtml(n) + '" data-impact="edit"'
        + ' onchange="setGroupAddresses(\'' + ge + '\')">'
        + opt('', 'Not used') + opt('allow', 'Allow') + opt('deny', 'Deny') + '</select></label> ';

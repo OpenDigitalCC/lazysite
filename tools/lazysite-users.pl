@@ -6101,6 +6101,19 @@ sub cmd_group_settings_set {
             }
             $names{$k} ||= [];
         }
+        # n812, ruling 234: address profiles are chosen from those that exist. A group's
+        # limit naming one the store lacks is refused, naming it, and nothing is written.
+        if ( my @asked = map { @{ $names{$_} } } sort keys %names ) {
+            my $have = Lazysite::Auth::AddressProfiles::raw_profiles();
+            if ( my $fault = _address_profile_fault() ) { return $fault }
+            my %u;
+            my @missing = grep { !exists $have->{$_} && !$u{$_}++ } @asked;
+            return { ok => 0, kind => 'invalid', field => ( sort keys %names )[0], missing => \@missing,
+                error => 'This limit names ' . ( @missing == 1 ? 'an address profile' : 'address profiles' )
+                    . ' the store does not hold: ' . join( ', ', @missing )
+                    . '. Choose from the existing profiles (Access, Address profiles). Nothing was changed.' }
+                if @missing;
+        }
         my $gs = read_group_settings();
         $gs->{$group} ||= _new_group_record($group);
         my ( @said, %out );

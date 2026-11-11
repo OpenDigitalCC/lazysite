@@ -68,6 +68,16 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased: address profiles are chosen from those that exist (SM1435)
+
+A rule, or a group's address limit, that names an address profile the store does not hold
+is now refused when it is saved (ruling 234); before, it was stored with a warning. A rule
+saved earlier that already names a missing profile still stands (and still refuses
+everyone it guards, as before); it is refused on its next save until the name is cleared
+or the profile is created, and `lazysite check` names it now. `address-profile-delete` has
+no `--force` and the API no `force`: a profile a rule names cannot be deleted, and may be
+changed. A script that passed `--force` fails with "unknown option".
+
 ## The container image carries git, a new Hestia site is one command, and the rest of 0.16.10
 
 **The container image now carries `git` (SM1423).** The 0.16.1 and 0.16.9 images

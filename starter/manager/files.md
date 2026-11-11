@@ -629,7 +629,7 @@ function addressRows(f) {
       return '<option value="' + v + '"' + (use === v ? ' selected' : '') + '>' + label + '</option>';
     };
     return '<div class="mg-perms-owner"><label>' + escHtml(n)
-      + (seen[n] === 'ghost' ? ' (no such profile yet)' : '') + '</label>'
+      + (seen[n] === 'ghost' ? ' (no such profile)' : '') + '</label>'
       + '<select data-addr-profile="' + escHtml(n) + '" data-impact="edit">'
       +   opt('', 'Not used') + opt('allow', 'Allow') + opt('deny', 'Deny')
       + '</select></div>';

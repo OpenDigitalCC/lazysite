@@ -66,12 +66,20 @@ Archive
   is the Unknown Odoo writes page, linked from its card on Extensions - configure
   (t/unit/extensions/612).
 - SM1435 (PENDING) **A rule that names an address profile the store lacks is refused on
-  save.** `set_permissions` with `addresses: ["zz92-allow"]` answered `ok: true` with no such
-  profile, and the rule then refused every write to the path. The manager API's `acl-set`,
-  MCP `set_permissions` and `lazysite acl set` now refuse it, naming each missing profile,
-  and write nothing; a list of paths is refused whole. It was a warning before. A profile
-  store that cannot be read refuses too. `lazysite check` already reports a profile deleted
-  after a rule names it. t/integration/730 and t/unit/mcp/489 fail without the change.
+  save (ruling 234).** `set_permissions` with `addresses: ["zz92-allow"]` answered `ok: true`
+  with no such profile, and the rule then refused every write to the path. The manager API's
+  `acl-set`, MCP `set_permissions` and `lazysite acl set` now refuse it, naming each missing
+  profile, and write nothing; a list of paths is refused whole. The names an existing rule
+  already carries are checked too, so a rule left naming a profile removed by hand is refused
+  on its next save until the name is cleared. A group's address limit is refused the same
+  way. It was a warning before (SM1139); address profiles are now predefined and selectable
+  only. t/integration/730, t/unit/mcp/489 and t/unit/users/548 fail without the change.
+- SM1435 (PENDING) **A profile a rule names cannot be deleted.** `address-profile-delete`
+  had a force path (`--force`, the API's `force`, the page's "Delete anyway") that deleted a
+  profile a rule still names and left that rule refusing everything. It is gone at every
+  door: `--force` is an unknown option, `force` is not read, and the Address profiles page
+  shows the refusal, naming the rules, with Close. A profile in use may still be changed.
+  t/unit/users/53, t/unit/manager/395 and 974 fail without the change.
 
 ## 0.16.10 - EDGE: a new Hestia site is one command, the container image carries git, a manager cannot widen an OpenID Connect group map, and the compliance records cover the release (2026-11-10)
 

@@ -84,6 +84,8 @@ close $cf;
 run_child( [ $^X, $script, '--docroot', $d, 'setup-sysop', '--user', 'op', 'secretpw1234' ], stderr => 'inherit' );
 run_child( [ $^X, $script, '--docroot', $d, 'add', 'carol', 'pw12345678-long-enough' ], stderr => 'inherit' );
 run_child( [ $^X, $script, '--docroot', $d, 'group-create', 'g-ed' ], stderr => 'inherit' );
+# n812 (ruling 234): a limit names profiles that exist, so the store holds the ones used.
+run_child( [ $^X, $script, '--docroot', $d, 'address-profile-set', $_, '--entry', '203.0.113.0/24' ], stderr => 'inherit' ) for qw(office vpn);
 
 my $set = sub { api( $d, { action => 'group-settings-set', group => 'g-ed', key => $_[0], value => $_[1], actor => 'op' }, @_[ 2 .. $#_ ] ) };
 

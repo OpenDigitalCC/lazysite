@@ -52,7 +52,7 @@ out({ step: 'rows',
       rows: (html.match(/data-addr-profile=/g) || []).length,
       office: shown(html, 'office'), vpn: shown(html, 'vpn'), blocked: shown(html, 'blocked'),
       ghost: shown(html, 'ghost'), both: shown(html, 'both'),
-      ghostMarked: /ghost \(no such profile yet\)/.test(html),
+      ghostMarked: /ghost \(no such profile\)/.test(html),
       choices: /<option value=""[^>]*>Not used<\/option><option value="allow"[^>]*>Allow<\/option><option value="deny"[^>]*>Deny<\/option>/.test(html),
       onchange: (html.match(/onchange="setGroupAddresses\('g-ed'\)"/g) || []).length,
       impact: (html.match(/data-impact="edit"/g) || []).length });
