@@ -53,6 +53,14 @@ Archive
 
 ## Unreleased
 
+- SM1443 (PENDING) **docs: the restore rehearsal is rerun on the shipped 0.16.12 tarball, and
+  a full restore is one command that gives a site that serves.** `install.pl --restore-full`
+  onto a new docroot and cgi-bin took 743 ms; the content, the auth store, `lazysite.conf`, the
+  three cgi-bin entry points and the 0.16.12 install state were present, and `lazysite check
+  --group` reported 0 failures (it was 3 on 0.16.11). A backup whose `lazysite/` is a symlink is
+  refused before anything is changed. SM602 stands. `docs/RELIABILITY.md` has the new row and the
+  0.16.11 row's date is now ISO, so the compliance check reads the newest rehearsal. Docs only;
+  no shipped code changes.
 - SM1442 (PENDING) **tests: t/tools/158 proves a killed cover is not a test failure in a quarter
   of a second, not 270 s.** The 0.16.12 gate failed on 158 alone, killed at the suite's 300 s
   per-test deadline. Before its report step `tools/coverage.sh` digests every input that decides
