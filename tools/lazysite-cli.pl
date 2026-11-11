@@ -1546,7 +1546,10 @@ sub cmd_repair {
         elsif (@left) {
             push @decide, $s->{name};
             $decide_changes += $applied // 0;
-            print "  -> repaired. Left for you to decide, not a fault:\n";
+            # n814 (SM1437): "repaired" only when a change was applied - the
+            # doctor's --fix count or the capability top-up.
+            print( ( $applied || @topup ) ? "  -> repaired. " : "  -> nothing to repair. ",
+                "Left for you to decide, not a fault:\n" );
             print "     $_\n" for @left;
         }
         else {
