@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1438 (PENDING) **The restore rehearsal on the shipped 0.16.11 tarball.** Install,
+  canary content and a sysops account, full backup, docroot destroyed, `install.pl
+  --restore-full --domain` onto a new docroot: 91 ms, content, auth store and
+  `lazysite.conf` intact. Recorded in docs/RELIABILITY.md. The backup still lands inside the
+  docroot (SM602); `lazysite check` on the restored docroot names the cgi-bin entry points
+  that `--restore-full` does not lay. Docs only.
+
 ## 0.16.11 - BETA: address profiles are chosen from those that exist, the signed-in marker clears on a dead session, and the check names what it could not read (2026-11-11)
 
 - SM1437 (480a90ce) **`lazysite check` says when it could not read the pages.** Run as the

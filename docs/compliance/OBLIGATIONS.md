@@ -52,7 +52,7 @@ Annex VII technical file kept current | continuous; complete before CE marking |
 Signed releases (Sigstore/cosign) | before CE marking; cannot be applied retroactively | 2027-12-11 | OPEN | docs/POLICY.md - every unsigned release is permanently unattestable; stays for the certified release (release manager, 20 Oct 2026)
 OpenChain 5230 + 18974 written policies | before CE marking | 2027-12-11 | OPEN | docs/POLICY.md
 Bench baseline re-captured | at each stable cut | next stable | OPEN | dist/config/bench-baseline.json - captured 2026-09-30; re-capture on a quiet host at the stable cut (stable-gate plan P8)
-Restore rehearsal recorded | at least once per stable cycle | next stable | OPEN | docs/RELIABILITY.md - last recorded 2026-08-26, before the last stable cut (0.16.0, 2026-10-22); due before the 0.17.0 stable cut and run by the developer on this host as a scratch rehearsal against the shipped 0.16.11 tarball after the beta build, confirmed by the release manager (rulings 237, 238; 11 Nov 2026); the rehearsal on a scratch copy of a real site at the candidate version is otherwise the operator's (stable-gate plan P6)
+Restore rehearsal recorded | at least once per stable cycle | next stable | OPEN | docs/RELIABILITY.md - run 11 Nov 2026 by the developer on this host as a scratch rehearsal against the shipped 0.16.11 tarball (SM1438; 91 ms restore, content, auth store and conf intact), awaiting the release manager's confirmation (rulings 237, 238); the row before it was 2026-08-26, before the last stable cut (0.16.0, 2026-10-22), and the rehearsal is due before the 0.17.0 stable cut; the rehearsal on a scratch copy of a real site at the candidate version is otherwise the operator's (stable-gate plan P6)
 ```
 
 # Operate-side obligations
