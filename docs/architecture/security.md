@@ -1678,7 +1678,7 @@ developer agent and confirmed by the release manager on 2026-11-11 (ruling 237).
 ## A full restore that serves, and refusals that name the user (0.16.12, beta)
 
 Walked on 2026-11-11 (SM1441); the second beta (ruling 242), not security-critical. Drafted by
-the developer agent for the release manager's confirmation.
+the developer agent and confirmed by the release manager on 11 Nov 2026 (ruling 243).
 
 - **A full restore lays the engine and the modes from the release** (SM1439, ruling 239).
   `install.pl --restore-full` (and `lazysite backups --restore-full`) is a system-user
@@ -1698,8 +1698,9 @@ the developer agent for the release manager's confirmation.
   handlers tool names the user that owns `lazysite/auth/` and spells the command with it; a
   command or a manager refusal for an auth store the process cannot read names the user it ran as
   and the owner (`Lazysite::Util::unreadable_note`). Wording only; the names go to the person
-  running the command, or to a signed-in manager when the web process itself cannot read the
-  store.
+  running the command. Through a web door (the manager API, MCP) the text says "the web server's
+  user" and "the owner of the file" and names no unix user (ruling 243; the one switch is
+  `Lazysite::Util::web_door`).
 - **The check says ok only about what it read** (SM1440). The two address lines of `lazysite
   check` warn, naming the file, the user and the owner, when a store they read could not be read;
   the "re-run with --fix" hint shows only when `--fix` has a repair. Output only.

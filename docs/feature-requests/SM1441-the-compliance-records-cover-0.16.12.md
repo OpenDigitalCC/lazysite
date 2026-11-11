@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1436); release manager, ruling 242 (2026-11-11)"
 area: release
-status-note: "SHIPPED (PENDING) on n820. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.12, channel beta (ruling 242); SM1439's entry, SM1440's entry and the walk's entry (SM1438's record), no trigger, drafted for the release manager's confirmation; one STRIDE row; UPGRADE.md's one 0.16.12 section. The restore-rehearsal row stays OPEN. Docs only."
+status-note: "SHIPPED (PENDING) on n820. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.12, channel beta (ruling 242); SM1439's entry, SM1440's entry and the walk's entry (SM1438's record), no trigger, confirmed by the release manager (ruling 243); one STRIDE row; UPGRADE.md's one 0.16.12 section. The restore-rehearsal row stays OPEN. Docs only."
 ---
 
 # What was asked
@@ -32,17 +32,18 @@ feature freeze holding (ruling 228).
   with the backup's state entries for seed and content files), and the refusal of a backup whose
   `lazysite/` (or `auth/`, `forms/`) is a symlink, before anything is changed (ruling 206). No
   ADR 0007 trigger.
-- docs/SECURITY.md, an entry for SM1440: refusals name the unix user to run as, the check says ok
-  only about what it read, no `--fix` hint with nothing to fix, and the one behaviour change, a
-  group limit on a group that does not exist is refused. A small disclosure (the unix user's
-  name, to a manager when the web process cannot read a store) is named. No trigger.
+- docs/SECURITY.md, an entry for SM1440: the CLI's refusals name the unix user to run as, the check
+  says ok only about what it read, no `--fix` hint with nothing to fix, and the one behaviour
+  change, a group limit on a group that does not exist is refused. Ruling 243: a refusal shown
+  through a web door (the manager API, MCP) names no unix user, and says "the web server's user"
+  and "the owner of the file". No trigger.
 - docs/SECURITY.md, the walk's entry for 0.16.12: SM1438's rehearsal record, with each change's
   assessment; no trigger. One STRIDE row, for the full restore.
 - docs/compliance/OBLIGATIONS.md, stamped 0.16.12: the register, threat-model, SBOM,
   fired-trigger and vulnerability-handling rows; one operate-side row (a restore script needs the
   new flags); the "what a person must confirm" section for 0.16.12. The restore-rehearsal row
   stays OPEN. docs/compliance/TECHNICAL-FILE.md, stamped 0.16.12: the risk assessment current to
-  0.16.12, 1,813 test files. docs/POLICY.md: walked to 0.16.12.
+  0.16.12, 1,814 test files. docs/POLICY.md: walked to 0.16.12.
 - docs/architecture/security.md: a 0.16.12 section.
 - UPGRADE.md: the 0.16.12 notes are one section in 0.16.11's shape, the beta stated first, then
   what to do (a restore script's flags), then "Smaller changes, nothing to do".

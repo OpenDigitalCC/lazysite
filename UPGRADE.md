@@ -90,7 +90,9 @@ restored site.
 
 - A refusal names the unix user to run as (SM1440). `lazysite acl set` as root names the user that
   owns `lazysite/auth/` and spells the command with it; a command that cannot read an auth store
-  says which user it ran as and who owns the file. "Nothing was changed" stays.
+  says which user it ran as and who owns the file. Through the manager API or MCP the same
+  refusal says "the web server's user" and "the owner of the file" and names no unix user.
+  "Nothing was changed" stays.
 - `lazysite check` says ok only about what it read (SM1440): when it could not read acls.json it
   says it could not check the address profiles a rule names, naming the file, the user and the
   owner, instead of printing "ok". The "re-run with --fix" hint shows only when `--fix` has

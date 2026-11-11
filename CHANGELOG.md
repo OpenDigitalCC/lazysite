@@ -58,10 +58,10 @@ Archive
   commits: SM1438, SM1439 and SM1440) and stamped 0.16.12, channel beta (ruling 242). 0.16.12 is
   cut with `--beta` from 0.16.11 plus the beta field-pass fixes; it is not security-critical (no
   change in it fixes a known vulnerability) and is the release the 0.17.0 stable is promoted from
-  (rulings 227, 242); the feature freeze holds. Drafted for the release manager's confirmation:
+  (rulings 227, 242); the feature freeze holds. Confirmed by the release manager on 11 Nov 2026 (ruling 243):
   SM1439's register entry (`install.pl --restore-full` lays the engine and the modes from the
   release and takes only data from the tarball; a system-user operation; no ADR 0007 trigger),
-  SM1440's (messages and check text, and one tightened write; no trigger), the walk's entry
+  SM1440's (messages and check text, and one tightened write; a refusal through a web door names no unix user, the CLI keeps naming them, ruling 243; no trigger), the walk's entry
   (SM1438's rehearsal record, with each change's assessment), one STRIDE row, and a section in
   docs/architecture/security.md. An operate-side row asks the operator to give a restore script
   the new flags. `--restore-full` also refuses, before it changes anything, a backup whose
@@ -75,7 +75,9 @@ Archive
   the unix user that owns `lazysite/auth/` and spells the command with it (the handlers tool
   likewise). A command that cannot read an auth store (`acl set`, `address-profile-delete`,
   the manager's profile refusals) says which user it ran as and who owns the file, and keeps
-  "Nothing was changed". The check no longer prints "every address profile a rule names is
+  "Nothing was changed"; a refusal shown through the manager API or MCP names no unix user: it
+  says the web server's user and the owner of the file, and advises running the command on the
+  host as that owner. The check no longer prints "every address profile a rule names is
   in the store" or "every rule names its address profile in the slot ..." when acls.json
   could not be read: it says it could not check, naming the file, the user and the owner.
   The "re-run with --fix" hint shows only when `--fix` has a repair to apply. A
