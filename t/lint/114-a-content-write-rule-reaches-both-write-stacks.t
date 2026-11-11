@@ -36,6 +36,7 @@ my $common = slurp("$root/lib/Lazysite/Manager/Common.pm");
 my %RULES = (
     raw_html_page_refusal   => 'SM189',
     page_parse_refusal      => 'SM748 / SM729',
+    page_address_profile_refusal => 'n812, ruling 234: a page names only address profiles that exist',
     brief_write_refusal     => 'SM504',
     active_artifact_refusal => 'SM749',
     served_artifact_refusal => 'SM976 F1',

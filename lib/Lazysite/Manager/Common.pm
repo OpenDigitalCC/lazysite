@@ -2775,7 +2775,7 @@ sub address_profiles_missing {
 # WebDAV. A message or undef; in list context ( message, audit detail ).
 sub page_address_profile_refusal {
     my ( $path, $content ) = @_;
-    return unless defined $path    && $path    =~ /\.md$/i;
+    return unless defined $path && $path =~ /\.md$/i;
     return unless defined $content && $content =~ /\A---\s*\n/ && $content =~ /^(?:addresses|addresses_deny)\s*:/m;
     require Lazysite::Auth::AddressRefs;
     my @names = map { $_->[1] } Lazysite::Auth::AddressRefs::page_names($content);

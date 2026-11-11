@@ -525,13 +525,13 @@ sub _check_front_matter {
 # ISSUE; a page already on disk (a file walk) is a WARNING, as `lazysite check` has it.
 sub _check_address_profiles {
     my ( $issues, $warnings, $content, $lz, $on_disk ) = @_;
-    return unless defined $lz && length $lz;
+    return unless defined $lz              && length $lz;
     return unless $content =~ /\A---\s*\n/ && $content =~ /^(?:addresses|addresses_deny)\s*:/m;
     require Lazysite::Auth::AddressRefs;
     my @names = map { $_->[1] } Lazysite::Auth::AddressRefs::page_names($content);
     return unless @names;
     my ( $missing, $fault ) = Lazysite::Manager::Common::address_profiles_missing( names => \@names, auth_dir => "$lz/auth" );
-    return if defined $fault;    # the check names a store fault; a page is not judged by it
+    return if defined $fault;  # the check names a store fault; a page is not judged by it
     return unless @$missing;
     push @{ $on_disk ? $warnings : $issues }, { kind => 'address-profile-missing',
         message => 'front matter names address profile ' . join( ', ', @$missing )
@@ -1048,7 +1048,7 @@ sub validate_content {
 
     _check_front_matter( \@issues, \@warnings, $content, $h );
     _check_access_keys( \@issues, $fm, _page_place( $o{path}, $docroot, $lz ) ); # SM980, SM993
-    _check_address_profiles( \@issues, \@warnings, $content, $lz, defined $o{file} && length $o{file} );    # n812
+    _check_address_profiles( \@issues, \@warnings, $content, $lz, defined $o{file} && length $o{file} ); # n812
     _check_permissions( \@issues, \@warnings, $fm, $lz );    # SM1174, SM1266, SM1294
     _check_fences( \@warnings, $fm, $body );
     # SM900: with the front-matter offset, as _check_fences has always done, so

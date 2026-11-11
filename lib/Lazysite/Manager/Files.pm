@@ -2983,9 +2983,9 @@ sub _address_profile_refusal {
             error => "Whether the address profiles this rule names exist cannot be told: $fault. Nothing was changed." };
     }
     return undef unless @$names;
-    my %gone = map { $_ => 1 } @$names;
+    my %gone    = map { $_ => 1 } @$names;
     my ($first) = grep { $gone{ $_->[1] } } @$pairs;
-    my @n = @$names;
+    my @n       = @$names;
     return { ok => 0, kind => 'invalid', field => $first->[0], missing => \@n,
         error => ( @n == 1 ? 'This rule names an address profile' : 'This rule names address profiles' )
             . ' the store does not hold: ' . join( ', ', @n )

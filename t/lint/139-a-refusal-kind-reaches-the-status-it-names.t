@@ -57,6 +57,7 @@ my %DELIBERATE_400 = map { $_ => 1 } qw(
     extension refused retired csrf anonymous integrity cert-mismatch
     bad-encoding binary template-parse template-parse-refused not-a-cache
     nav-not-here inherits-nav nav-unsafe-url raw-content-refused brief-sidecar-refused
+    address-profile-refused address-profile-missing
     active-artifact-refused db-binding-unchecked db-table-not-published
 
     api-page-is-a-document document-in-page chrome-in-page style-block-in-page
