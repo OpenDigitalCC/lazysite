@@ -831,7 +831,7 @@ sub linked_site_dir {
     while ( my $line = <$fh> ) {
         chomp $line;
         next unless $line =~ /\A[lh]/;
-        my ($name) = $line =~ /\A\S+\s+\S+\s+\d+\s+\S+\s+\S+\s+(.*?)(?: (?:->|link to) .*)?\z/;
+        my ($name) = $line =~ m{ \A \S+ \s+ \S+ \s+ \d+ \s+ \S+ \s+ \S+ \s+ (.*?) (?: [ ] (?: -> | link [ ] to ) [ ] .* )? \z }x;
         next unless defined $name;
         $name =~ s{\A(?:\./|/)+}{};
         $name =~ s{/+\z}{};
