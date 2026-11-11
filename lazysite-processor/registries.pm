@@ -275,14 +275,16 @@ sub _page_set_entry {
 # else the set leaves out are not counted). { root, pages => [ { url, title,
 # description } ] }, title and description as the registries publish them
 # (meta_title else title, meta_desc else subtitle); root is undef, with no pages,
-# for an alias that shares the docroot.
+# for an alias that shares the docroot. n814 (SM1437): `unread` (path => error)
+# is there only when the walk could not read something, so the check says its set
+# is not whole.
 sub _public_page_set_listing {
-    my $root  = _registry_scan_root();
-    my @pages = defined $root ? _public_page_set( scan_pages($root) ) : ();
-    return {
-        root => $root,
-        pages => [ map { _page_set_entry($_) } @pages ],
-    };
+    my $root = _registry_scan_root();
+    my %unread;
+    my @pages = defined $root ? _public_page_set( scan_pages( $root, \%unread ) ) : ();
+    my $set   = { root => $root, pages => [ map { _page_set_entry($_) } @pages ] };
+    $set->{unread} = \%unread if %unread;
+    return $set;
 }
 
 # Ruling 171: A FOLDER THAT LOOKS LIKE ANOTHER SITE'S CONTENT is left out of the
@@ -1422,7 +1424,10 @@ sub scan_pages {
     # SM151: scan a specific content root (default: the docroot). URLs are
     # derived relative to $root so a per-domain registry carries the domain's
     # own '/'-relative links.
-    my ($root) = @_;
+    # n814 (SM1437): $unread, when given, is a hash ref that collects what the walk
+    # could not read - a directory it could not open, a page it left out - as
+    # path => error, so `lazysite check` can say its page set is not whole.
+    my ( $root, $unread ) = @_;
     $root //= $DOCROOT;
     my $excl     = _declared_content_roots();    # §7: other domains' roots
     my $reserved = _front_matter_reserved();     # P12, hoisted as in resolve_scan
@@ -1434,10 +1439,17 @@ sub scan_pages {
     my @queue = ($root);
     # SM1284 (ruling 35): and the engine's /docs pages, on a site that put them
     # in. Otherwise a site's sitemap, feeds and llms.txt are its own content.
-    my $engine = ( _engine_docs_public() && -d $ENGINE_DOCS_DIR ) ? $ENGINE_DOCS_DIR : undef;
+    my $engine;
+    if ( _engine_docs_public() ) {
+        if ( -d $ENGINE_DOCS_DIR ) { $engine = $ENGINE_DOCS_DIR }
+        elsif ( $unread && $!{EACCES} ) { $unread->{$ENGINE_DOCS_DIR} = "$!" }
+    }
     push @queue, $engine if defined $engine;
     while ( my $dir = shift @queue ) {
-        opendir( my $dh, $dir ) or next;
+        opendir( my $dh, $dir ) or do {
+            $unread->{$dir} = "$!" if $unread;
+            next;
+        };
         for my $entry ( sort readdir($dh) ) {
             next if $entry =~ /^\./;
             next if $entry =~ /\.brief$/;    # SM073: briefs never index
@@ -1466,6 +1478,7 @@ sub scan_pages {
                     # P25: a page it cannot open is left out and named.
                     $raw = eval { read_file($path) };
                     unless ( defined $raw ) {
+                        $unread->{$path} = ( $@ || 'unknown' ) =~ s/\s+at \S+ line \d+.*//sr =~ s/\s+\z//r if $unread;
                         _scan_page_unreadable( $path, $@ || 'unknown', 'file', 'opened' );
                         next;
                     }
@@ -1480,6 +1493,7 @@ sub scan_pages {
                 # SM976 Q15h: a page whose reading dies registers nothing, logged.
                 my ($meta) = eval { parse_yaml_front_matter($raw) };
                 if ( my $why = $@ ) {
+                    $unread->{$path} = $why =~ s/\s+at \S+ line \d+.*//sr =~ s/\s+\z//r if $unread;
                     _scan_page_unreadable( $path, $why );
                     next;
                 }

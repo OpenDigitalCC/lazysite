@@ -3402,7 +3402,7 @@ sub report_page_titles {
         map { [ $_, $_ ] } grep { length } map { lc s/^\s+|\s+$//gr } split /,/, conf_value( $conf, 'alias_hosts' ) // '' );
 
     my ( $n,    $bad ) = ( 0, 0 );
-    my ( @read, %seen );
+    my ( @read, %seen, %unread );
     for my $h (@hosts) {
         my ( $host, $label ) = @{$h};
         my $set = _page_set_of( $proc, $d, $host );
@@ -3413,6 +3413,7 @@ sub report_page_titles {
             next;
         }
         next unless defined $set->{root} && !$seen{ $set->{root} }++;
+        %unread = ( %unread, %{ $set->{unread} } ) if ref $set->{unread} eq 'HASH';
         my ( @untitled, @undescribed, @ignored, %by_title );
         for my $p ( @{ $set->{pages} || [] } ) {
             $n++;
@@ -3428,6 +3429,22 @@ sub report_page_titles {
     for my $r (@read) {
         $r->[0] = '' if @read == 1;
         $bad    = 1  if _report_page_titles_of( @{$r} );
+    }
+    # n814 (SM1437), ruling 206: A PAGE SET THAT COULD NOT BE READ WHOLE IS NOT "OK".
+    # Run as a user who cannot open a directory, the walk left it out and this said
+    # "0 public page(s), each with a title..." about a site with 17 undescribed pages.
+    if (%unread) {
+        my @paths = sort keys %unread;
+        my @show  = map { "$_ ($unread{$_})" } @paths;
+        my $more  = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
+        splice @show, 8 if @show > 8;
+        report( 'WARN',
+            'the page title check could not read ' . scalar(@paths) . ' path(s) as ' . _running_as() . ': '
+                . join( ', ', @show ) . $more
+                . ' - the pages there were not looked at, so the public page count and every finding here cover the rest of the site only',
+            'run the check as root (sudo lazysite check ...) or as the user that owns the '
+                . 'site, who can read its engine tree and private store' );
+        $bad = 1;
     }
     report( 'OK', "$n public page(s), each with a title and a description of its own" ) unless $bad;
     return;
