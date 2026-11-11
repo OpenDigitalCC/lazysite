@@ -2233,6 +2233,13 @@ sub report_address_rules {
                 'create the profile (Access -> Address profiles, or lazysite-users address-profile-set), or '
                     . 'correct the name in the rule' );
         }
+        elsif ( @{ $refs->{faults} } ) {
+            # n818 (SM1440): an ok only about what was read.
+            report( 'WARN',
+                'could not check that every address profile a rule names is in the store: '
+                    . join( '; ', @{ $refs->{faults} } ),
+                'run the check as the user that owns lazysite/auth/ (sudo -u USER lazysite check ...), or as root' );
+        }
         else {
             report( 'OK', 'every address profile a rule names is in the store' );
         }
@@ -2271,6 +2278,14 @@ sub report_address_slots_against_old_kinds {
         my $one = "$r->{name} (" . ( $kind eq "allow" ? "an allow" : "a deny" ) . " list before 0.16.5) is " . ( $r->{slot} eq 'allow' ? 'allowed' : 'denied' )
             . ' by ' . Lazysite::Auth::AddressRefs::describe($r);
         push @say, $one unless $u{$one}++;
+    }
+    if ( !@say && @{ $refs->{faults} } ) {
+        # n818 (SM1440): the rules were not all read, so nothing is said to be fine.
+        report( 'WARN',
+            'could not check whether every rule names its address profile in the slot its old list\'s kind meant: '
+                . join( '; ', @{ $refs->{faults} } ),
+            'run the check as the user that owns lazysite/auth/ (sudo -u USER lazysite check ...), or as root' );
+        return;
     }
     unless (@say) {
         report( 'OK', 'every rule names its address profile in the slot its old list\'s kind meant' );

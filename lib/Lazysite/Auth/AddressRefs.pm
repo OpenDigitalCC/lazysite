@@ -53,7 +53,15 @@ my %SLOT = ( addresses => 'allow', addresses_deny => 'deny' );
 sub _json {
     my ( $path, $what, $faults ) = @_;
     open my $fh, '<:raw', $path or do {
-        push @{$faults}, "$what could not be read ($!)" unless $!{ENOENT};
+        unless ( $!{ENOENT} ) {
+           # n818 (SM1440): name the unix user this ran as and the one that owns the file.
+            my $err = "$!";
+            require Lazysite::Util;
+            my ($me) = getpwuid($>);
+            my $owner = Lazysite::Util::path_owner_name($path);
+            push @{$faults}, "$what could not be read as '" . ( $me // "uid $>" ) . "' ($err"
+                . ( defined $owner ? "; the file is owned by '$owner'" : '' ) . ')';
+        }
         return undef;
     };
     my $raw = do { local $/; <$fh> };
