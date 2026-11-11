@@ -53,35 +53,37 @@ Archive
 
 ## Unreleased
 
-- SM1437 (PENDING) **`lazysite check` says when it could not read the pages.** Run as the
+## 0.16.11 - BETA: address profiles are chosen from those that exist, the signed-in marker clears on a dead session, and the check names what it could not read (2026-11-11)
+
+- SM1437 (480a90ce) **`lazysite check` says when it could not read the pages.** Run as the
   site user, the page check printed "0 public page(s), each with a title and a description
   of its own" for a docroot that had 17 undescribed pages as root: the page walk skipped a
   directory it could not open and said nothing. It now names each path it could not read and
   the user, says its count covers the rest of the site only, says to run as root or the site's
   owner, and does not print the ok line (t/tools/582).
-- SM1437 (PENDING) **The /docs shadow check covers every domain's content root.** A domain's
+- SM1437 (480a90ce) **The /docs shadow check covers every domain's content root.** A domain's
   own copies of /docs pages under its content root (`sites/<name>/docs/`) shadowed the
   engine's manual and the check never looked. It runs for the primary and each declared
   content root, and names the domain on its line (t/tools/583).
-- SM1437 (PENDING) **`check --fix` says what it did.** With nothing to change it printed the
+- SM1437 (480a90ce) **`check --fix` says what it did.** With nothing to change it printed the
   same report as `check` with only the hint gone. It now prints `--fix: nothing to change`
   (t/tools/584).
-- SM1437 (PENDING) **`repair` says "nothing to repair" when it applied no change.** It
+- SM1437 (480a90ce) **`repair` says "nothing to repair" when it applied no change.** It
   printed "-> repaired. Left for you to decide, not a fault:" beside a tally of "0 repaired".
   The tally is as it was (t/tools/585).
-- SM1430 (PENDING) **auth: a public page clears the signed-in marker a dead session left.**
+- SM1430 (f1abba5a) **auth: a public page clears the signed-in marker a dead session left.**
   After "Require sign-in again" on a local session, a revoked session or a removed
   account, public pages still drew "Sign out" from the `lzs_session` marker until a visit
   to /manager/. A page response to a request carrying the marker and no signed-in
   identity now clears it, on plain CGI and in the pool, and that response is not stored.
   A visitor without the marker gets no Set-Cookie, so cached public pages stay cacheable.
   A stale provider session keeps its marker for its renewal.
-- SM1435 (PENDING) **The Groups page says where the settle panel is.** Its "What this
+- SM1435 (f8e6d881) **The Groups page says where the settle panel is.** Its "What this
   grants" for `settle_odoo_writes` ended "Held by the operator group by default" and named no
   page; n804's wording was in `unlocks`, which that page does not draw. It now says the panel
   is the Unknown Odoo writes page, linked from its card on Extensions - configure
   (t/unit/extensions/612).
-- SM1435 (PENDING) **A rule that names an address profile the store lacks is refused on
+- SM1435 (f8e6d881) **A rule that names an address profile the store lacks is refused on
   save (ruling 234).** `set_permissions` with `addresses: ["zz92-allow"]` answered `ok: true`
   with no such profile, and the rule then refused every write to the path. The manager API's
   `acl-set`, MCP `set_permissions` and `lazysite acl set` now refuse it, naming each missing
@@ -94,13 +96,13 @@ Archive
   a page already on disk. It was a warning before (SM1139); address profiles are now
   predefined and selectable only. t/integration/730 and 731, t/unit/mcp/489 and 490 and
   t/unit/users/548 fail without the change.
-- SM1435 (PENDING) **A profile a rule names cannot be deleted.** `address-profile-delete`
+- SM1435 (75ed6247) **A profile a rule names cannot be deleted.** `address-profile-delete`
   had a force path (`--force`, the API's `force`, the page's "Delete anyway") that deleted a
   profile a rule still names and left that rule refusing everything. It is gone at every
   door: `--force` is an unknown option, `force` is not read, and the Address profiles page
   shows the refusal, naming the rules, with Close. A profile in use may still be changed.
   t/unit/users/53, t/unit/manager/395 and 974 fail without the change.
-- SM1436 (PENDING) **docs: the compliance records cover 0.16.11, the beta.** OBLIGATIONS.md
+- SM1436 (e3ad72ac) **docs: the compliance records cover 0.16.11, the beta.** OBLIGATIONS.md
   and TECHNICAL-FILE.md are walked against the 0.16.11 line (`git log bc1d27efd..17c1edb13`,
   14 commits: SM1430, SM1435 and SM1437) and stamped 0.16.11, channel beta (ruling 236). 0.16.11 is cut
   with `--beta` from 0.16.10 plus SM1430, SM1435 and SM1437; it is not security-critical (no change in

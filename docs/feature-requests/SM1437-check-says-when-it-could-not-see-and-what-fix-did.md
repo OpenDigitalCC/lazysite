@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the operator's check and repair runs on 0.16.10 (Y5, O-4, O-5, O-6), read by the lazysite developer agent on n814"
 area: check
-status-note: "SHIPPED (PENDING): the page check names what it could not read and the user to run as, and no longer says ok (O-4); the /docs shadow check covers every domain's content root (Y5); --fix prints 'nothing to change' (O-6); repair says 'nothing to repair' (O-5). t/tools/582 to 585."
+status-note: "SHIPPED (0.16.11): the page check names what it could not read and the user to run as, and no longer says ok (O-4); the /docs shadow check covers every domain's content root (Y5); --fix prints 'nothing to change' (O-6); repair says 'nothing to repair' (O-5). t/tools/582 to 585."
 ---
 
 # What happened

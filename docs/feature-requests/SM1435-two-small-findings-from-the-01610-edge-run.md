@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "the 0.16.10 edge run (Y10, O-2), read by the lazysite developer agent on n812"
 area: access
-status-note: "SHIPPED (PENDING): the Groups page names the settle panel's card on Extensions - configure. Ruling 234: a rule, group limit or page naming a missing address profile is refused on every door, its carried names included; a profile a rule names cannot be deleted (no force). t/integration/730, t/unit/users/548, 53, t/unit/manager/974."
+status-note: "SHIPPED (0.16.11): the Groups page names the settle panel's card on Extensions - configure. Ruling 234: a rule, group limit or page naming a missing address profile is refused on every door, its carried names included; a profile a rule names cannot be deleted (no force). t/integration/730, t/unit/users/548, 53, t/unit/manager/974."
 ---
 
 # What happened

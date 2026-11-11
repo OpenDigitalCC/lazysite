@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-10
 raised-by: "edge site agent, 0.16.10 test plan (O-1)"
 area: auth
-status-note: "SHIPPED (PENDING): a page response to a request carrying lzs_session and no signed-in identity clears the marker through session_marker_clear_header and is not stored. A stale provider session keeps it for its renewal. t/integration/720 fails without it."
+status-note: "SHIPPED (0.16.11): a page response to a request carrying lzs_session and no signed-in identity clears the marker through session_marker_clear_header and is not stored. A stale provider session keeps it for its renewal. t/integration/720 fails without it."
 ---
 
 # What happened

@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.10"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.11"
 brand: plain
 ---
 
@@ -2048,6 +2048,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.11** (2026-11-11, beta) - **Address profiles are chosen from those
+  that exist, the signed-in marker clears on a dead session, and the check
+  names what it could not read.** a rule, a group's address limit or a page's
+  addresses: that names a missing address profile is refused at every door, and
+  a profile a rule names cannot be deleted (SM1435); a public page clears the
+  signed-in marker a dead session left (SM1430); lazysite check names the paths
+  it could not read, its /docs shadow check covers every domain, and --fix and
+  repair say what they did (SM1437)
 - **0.16.10** (2026-11-10, edge) - **A new Hestia site is one command, the
   container image carries git, a manager cannot widen an OpenID Connect group
   map, and the compliance records cover the release.** a new Hestia site is one

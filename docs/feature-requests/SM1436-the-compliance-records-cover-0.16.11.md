@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1429); release manager, ruling 236 (2026-11-11)"
 area: release
-status-note: "SHIPPED (PENDING) on n813. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.11, channel beta (ruling 236); SM1435's entry and the walk's entry (SM1430, SM1435's wording) and SM1437's check output, no trigger, confirmed by the release manager (ruling 237); one STRIDE row; trust boundary 11 restated; UPGRADE.md's one 0.16.11 section. Docs only."
+status-note: "SHIPPED (0.16.11) on n813. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.11, channel beta (ruling 236); SM1435's entry and the walk's entry (SM1430, SM1435's wording) and SM1437's check output, no trigger, confirmed by the release manager (ruling 237); one STRIDE row; trust boundary 11 restated; UPGRADE.md's one 0.16.11 section. Docs only."
 ---
 
 # What was asked
