@@ -746,7 +746,12 @@ sub cmd_restore_full {
     load_install_dirs( $manifest, \%subs );
     my $engine = { %$manifest, files => [ grep { is_engine_entry($_) } @{ $manifest->{files} } ] };
     my $plan = compute_plan( $engine, undef, \%subs );
-    my $laid = eval { execute_plan($plan); link_extension_endpoints( $o->{cgibin}, \%subs ); 1 };
+    my $engine_files;
+    my $laid = eval {
+        ( $engine_files ) = execute_plan($plan);
+        link_extension_endpoints( $o->{cgibin}, \%subs );
+        1;
+    };
     unless ($laid) {
         my $err = $@;
         $err =~ s/\s+\z//;
@@ -782,6 +787,20 @@ sub cmd_restore_full {
     # then the group-write bits, store modes and setgid.
     create_runtime_paths( $manifest->{runtime_paths} || [], \%subs, 'fresh' );
     apply_site_modes( $docroot, $manifest, \%subs, 'fresh' );
+
+    # The install state must say what is on disk (ruling 206). The backup's state
+    # records the backup's version and the hashes of ITS engine files, so a later
+    # upgrade would read the engine laid above as edited. The engine entries and the
+    # version are the plan just executed, written by write_state as an install writes
+    # them; the backup's entries for seed and content files stay, so an edited seed is
+    # still never clobbered.
+    my $state_path = state_path($docroot);
+    my $old        = load_state($state_path) || {};
+    $main::NO_STARTER = 1 if ( $old->{starter} // '' ) eq 'none';
+    %main::DIRS_LEFT = ref $old->{dirs_left} eq 'HASH' ? %{ $old->{dirs_left} } : ();
+    my @once  = ref $old->{once} eq 'ARRAY' ? @{ $old->{once} } : ();
+    my %files = ( %{ ref $old->{files} eq 'HASH' ? $old->{files} : {} }, %{ $engine_files || {} } );
+    write_state( $state_path, $manifest->{version}, \%files, \@once );
 
     audit_full_restore( $docroot, $tarball, $domain );
     info('Full restore complete.');

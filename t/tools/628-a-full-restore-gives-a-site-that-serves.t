@@ -112,4 +112,31 @@ subtest 'without the entry points it can lay, it refuses and says what to run' =
     ok( !-d "$tmp/c/public_html/lazysite", 'and nothing was extracted' );
 };
 
+subtest 'the install state records what the restore laid' => sub {
+    require JSON::PP;
+    require Digest::SHA;
+    open my $vf, '<', "$ROOT/VERSION" or die $!;
+    chomp( my $version = <$vf> );
+    close $vf;
+    open my $sf, '<', "$sb/lazysite/.install-state.json" or BAIL_OUT("no install state: $!");
+    my $state = JSON::PP::decode_json( do { local $/; <$sf> } );
+    close $sf;
+    is( $state->{version}, $version, 'it records this release, not the backup\'s' );
+    for my $f (qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl)) {
+        my $p = "$sb_cg/$f";
+        is( $state->{files}{$p}, 'sha256:' . Digest::SHA->new(256)->addfile($p)->hexdigest,
+            "$f is recorded with the hash on disk, so an upgrade does not read it as edited" );
+    }
+
+    # An upgrade-mode pass at the same release finds nothing to do and says
+    # which version the site is at; a reinstall re-lays it without a refusal.
+    my ( $uout, $urc ) = run( $^X, $INSTALL, '--mode', 'upgrade', '--docroot', $sb,
+        '--cgibin', $sb_cg, '--serving-group', $GROUP );
+    is( $urc, 0, 'upgrade at the same release exits 0' ) or diag $uout;
+    like( $uout, qr/already at \Q$version\E/, 'and reports the release\'s version' );
+    my ( $rout, $rrc2 ) = run( $^X, $INSTALL, '--mode', 'reinstall', '--docroot', $sb,
+        '--cgibin', $sb_cg, '--serving-group', $GROUP );
+    isnt( $rrc2, 2, 'reinstall is not refused' ) or diag $rout;
+};
+
 done_testing();

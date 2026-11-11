@@ -31,6 +31,9 @@ ended on "Check file ownership/permissions on the target host".
   provision does;
 - it creates the runtime paths, applies the group and modes, and ends with the health check (exit 4
   when the site is not serviceable yet);
+- it rewrites `.install-state.json` with `write_state`, as an install does: the engine entries and
+  the version from the plan it executed, over the backup's entries for seed and content files, so a
+  later upgrade does not read the laid engine as operator-edited;
 - when the entry points cannot be laid it refuses before extracting anything and says what to run
   (ruling 206). The "Check file ownership" line is gone.
 
