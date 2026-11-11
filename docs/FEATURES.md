@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.11"
+subtitle: "Everything lazysite has and does, and why - as of v0.16.12"
 brand: plain
 ---
 
@@ -2051,6 +2051,14 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.16.12** (2026-11-11, beta) - **A full restore gives a site that serves,
+  and a refusal names the user to run as.** install.pl --restore-full lays the
+  engine from the release, applies the serving group and modes, writes the
+  install state and ends on the health check; it takes --cgibin and
+  --serving-group, and refuses before anything is changed when the engine
+  cannot be laid or the backup's lazysite/, auth/ or forms/ is a symlink
+  (SM1439); a refusal names the user to run as, and lazysite check says ok only
+  about what it read (SM1440)
 - **0.16.11** (2026-11-11, beta) - **Address profiles are chosen from those
   that exist, the signed-in marker clears on a dead session, and the check
   names what it could not read.** a rule, a group's address limit or a page's

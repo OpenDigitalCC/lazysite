@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the 0.16.11 edge field pass (O-1, O-3, O-4, O-5, O-6 of the test plan results), built by the lazysite developer agent on n818"
 area: reliability
-status-note: "SHIPPED (PENDING): a root refusal names the auth store's owner and spells the command with it; a command that cannot read a store names the user it ran as and the owner; check prints no ok about a store it did not read; the --fix hint shows only when --fix has a repair; a missing group is named before a missing profile. t/tools/630-633."
+status-note: "SHIPPED (0.16.12): a root refusal names the auth store's owner and spells the command with it; a command that cannot read a store names the user it ran as and the owner; check prints no ok about a store it did not read; the --fix hint shows only when --fix has a repair; a missing group is named before a missing profile. t/tools/630-633."
 ---
 
 # What happened

@@ -53,7 +53,9 @@ Archive
 
 ## Unreleased
 
-- SM1441 (PENDING) **docs: the compliance records cover 0.16.12, the second beta.** OBLIGATIONS.md
+## 0.16.12 - BETA: a full restore gives a site that serves, and a refusal names the user to run as (2026-11-11)
+
+- SM1441 (ba1afef5) **docs: the compliance records cover 0.16.12, the second beta.** OBLIGATIONS.md
   and TECHNICAL-FILE.md are walked against the 0.16.12 line (`git log b050272f9..2920a8f8a`, 10
   commits: SM1438, SM1439 and SM1440) and stamped 0.16.12, channel beta (ruling 242). 0.16.12 is
   cut with `--beta` from 0.16.11 plus the beta field-pass fixes; it is not security-critical (no
@@ -70,7 +72,7 @@ Archive
   0.16.12 tarball and confirmed by the release manager before 0.17.0 (rulings 241, 242).
   UPGRADE.md's 0.16.12 notes are one section.
 
-- SM1440 (PENDING) **Field findings from the 0.16.11 pass: a refusal names the user to run
+- SM1440 (acbed644) **Field findings from the 0.16.11 pass: a refusal names the user to run
   as, and the check says ok only about what it read.** `lazysite acl set` as root now names
   the unix user that owns `lazysite/auth/` and spells the command with it (the handlers tool
   likewise). A command that cannot read an auth store (`acl set`, `address-profile-delete`,
@@ -84,7 +86,7 @@ Archive
   `group-settings-set` address limit on a group that does not exist says the group does not
   exist, not that a profile is missing.
 
-- SM1439 (PENDING) **A full restore gives a site that serves.** `install.pl --restore-full`
+- SM1439 (2642a1f3) **A full restore gives a site that serves.** `install.pl --restore-full`
   (and `lazysite backups --restore-full`) extracted the docroot only, so the restored site
   had no cgi-bin entry points and no serving group, and ended on "Check file
   ownership/permissions on the target host". It now lays the engine's entry points from the
@@ -93,7 +95,7 @@ Archive
   `--cgibin`, or if the entry points cannot be laid, it refuses before extracting anything
   and says what to run. Docs: OPERATOR, the manager guide and the Backups page.
 
-- SM1438 (PENDING) **The restore rehearsal on the shipped 0.16.11 tarball.** Install,
+- SM1438 (0423b76a) **The restore rehearsal on the shipped 0.16.11 tarball.** Install,
   canary content and a sysops account, full backup, docroot destroyed, `install.pl
   --restore-full --domain` onto a new docroot: 91 ms, content, auth store and
   `lazysite.conf` intact. Recorded in docs/RELIABILITY.md. The backup still lands inside the

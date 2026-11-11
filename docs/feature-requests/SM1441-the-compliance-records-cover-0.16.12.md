@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1436); release manager, ruling 242 (2026-11-11)"
 area: release
-status-note: "SHIPPED (PENDING) on n820. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.12, channel beta (ruling 242); SM1439's entry, SM1440's entry and the walk's entry (SM1438's record), no trigger, confirmed by the release manager (ruling 243); one STRIDE row; UPGRADE.md's one 0.16.12 section. The restore-rehearsal row stays OPEN. Docs only."
+status-note: "SHIPPED (0.16.12) on n820. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.12, channel beta (ruling 242); SM1439's entry, SM1440's entry and the walk's entry (SM1438's record), no trigger, confirmed by the release manager (ruling 243); one STRIDE row; UPGRADE.md's one 0.16.12 section. The restore-rehearsal row stays OPEN. Docs only."
 ---
 
 # What was asked

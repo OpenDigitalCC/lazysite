@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the restore rehearsal on the shipped 0.16.11 tarball (SM1438, n816), ruled on by the release manager (ruling 239); built by the lazysite developer agent on n817"
 area: reliability
-status-note: "SHIPPED (PENDING): --restore-full lays the engine's entry points from the release it runs, by the code provision uses, takes --cgibin and --serving-group, applies the group and modes and ends with the health check; it refuses before extracting when it cannot lay them. t/tools/628."
+status-note: "SHIPPED (0.16.12): --restore-full lays the engine's entry points from the release it runs, by the code provision uses, takes --cgibin and --serving-group, applies the group and modes and ends with the health check; it refuses before extracting when it cannot lay them. t/tools/628."
 ---
 
 # What happened
