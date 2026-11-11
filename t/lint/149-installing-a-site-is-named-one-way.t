@@ -182,7 +182,9 @@ for my $rel (@READERS) {
             $win =~ s/(?<=.)install\.pl.*\z//s;
             next unless $win =~ /--docroot/ && $win =~ /--cgibin/;
             next if $win =~ /--mode\b/;
-            next if $win =~ /--verify\b|--channel-check\b/;
+            # --restore-full is a maintenance operation that also lays the engine
+            # (SM1439), so it takes --cgibin without being an install or an upgrade.
+            next if $win =~ /--verify\b|--channel-check\b|--restore-full\b/;
             push @bad, $win;
         }
         is( scalar @bad, 0, "$rel declares a mode wherever it drives install.pl" )

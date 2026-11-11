@@ -494,9 +494,18 @@ The manager **Backups** page offers two typed kinds:
   manager and restored by a system user from the shell:
 
   ```bash
-  lazysite backups --docroot <docroot> \
-      --restore-full <file>.tar.gz [--domain <new-domain>]
+  lazysite backups --docroot <docroot> --cgibin <cgi-bin> \
+      --restore-full <file>.tar.gz [--domain <new-domain>] [--serving-group <group>]
   ```
+
+  That one command is the whole procedure. A full backup holds the docroot only, so
+  the restore also lays the engine's `cgi-bin` entry points from the release you run it
+  from (hence `--cgibin`, or `--installdir <dir>` for `<dir>/public_html` and
+  `<dir>/cgi-bin`), gives the tree the group and modes an install gives it
+  (`--serving-group` names the web server's group, as on `provision`), and ends with
+  the health check - the site then serves and passes `lazysite check`. Run it from an
+  unpacked release tarball; without `--cgibin`, or if the entry points cannot be laid,
+  it refuses before extracting anything and says what to run.
 
   `--domain` rewrites the site's domain on restore - the path for **migrating a
   site to another domain** (build on a temporary domain, then move content, config

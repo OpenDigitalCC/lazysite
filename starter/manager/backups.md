@@ -70,7 +70,8 @@ and accounts to the final one). Because it carries the auth secrets and its rest
 overwrites accounts and config, <b>restore is a system-user operation from the
 shell</b>, not a button here:
 </p>
-<pre class="mg-code" style="white-space:pre-wrap;">lazysite backups --docroot &lt;path&gt; --restore-full &lt;file&gt; --domain &lt;new-domain&gt;</pre>
+<pre class="mg-code" style="white-space:pre-wrap;">lazysite backups --docroot &lt;path&gt; --cgibin &lt;cgi-bin&gt; --restore-full &lt;file&gt; --domain &lt;new-domain&gt;</pre>
+<p class="mg-muted">That one command also lays the engine's entry points and the group and modes, and ends with the health check.</p>
 <p class="mg-muted">Download one to keep off-site. Anyone who can download a full
 backup effectively holds the site's secrets &mdash; treat it accordingly.</p>
 <div style="margin-bottom:12px;">

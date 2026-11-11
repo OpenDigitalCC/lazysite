@@ -1315,7 +1315,9 @@ version snapshots are managed on the Appearance page. A **full-system** backup c
 site *including* the `lazysite/` infra (config, auth, forms, nav, themes/layouts) -
 only the backups dir and regenerable caches are excluded. Because it carries the
 auth secrets, in-app restore refuses a full backup; a system user restores it with
-`lazysite backups --docroot X --restore-full <file> [--domain Y]`, where `--domain`
+`lazysite backups --docroot X --cgibin C --restore-full <file> [--domain Y]` (one
+command: it also lays the engine's entry points and the group and modes, and ends with
+the health check), where `--domain`
 rewrites the site domain on restore - the **cross-domain migration** path (build on
 a temporary domain, then move content, config and accounts to the final one).
 
@@ -1755,7 +1757,8 @@ Further flags: `--channel edge|beta|stable|certified` sets a site's `update_chan
 audited maintenance op); `--force` upgrades a site past its channel policy
 for a specific out-of-channel build (audited as `upgrade-forced`); and
 `--restore-full <file> [--domain NAME]` restores a full-system backup, optionally
-rewriting the site domain - the cross-domain migration path.
+rewriting the site domain - the cross-domain migration path - and, with `--cgibin`
+and `--serving-group`, leaves a site that serves and passes `lazysite check`.
 
 ## Packaged distribution (SM139)
 

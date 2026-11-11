@@ -68,6 +68,10 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased
+
+A restore script that ran `--restore-full` without `--cgibin` now needs it (and `--serving-group` on a host not serving under `www-data`): the one command lays the cgi-bin entry points, applies the group and modes, and ends with the health check (SM1439).
+
 ## Address profiles are chosen from those that exist, and the rest of 0.16.11 (the beta)
 
 0.16.11 is the beta (ruling 236): 0.16.10 plus the changes below, on the beta channel, and

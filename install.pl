@@ -160,6 +160,10 @@ Optional:
   --restore-full FILE Restore a full-system backup (manager "full" backup) into
                       --docroot, optionally rewriting the site domain with
                       --domain NAME. The temp -> final domain migration path.
+                      One command: it also lays the engine's cgi-bin entry
+                      points from this release (so it needs --cgibin),
+                      applies the group and modes as provision does
+                      (--serving-group), and ends with the health check.
   --invoked-as CMD    How the operator reached the lazysite CLI - `lazysite`
                       when it is on PATH, `perl /path/tools/lazysite-cli.pl`
                       from an unpacked tarball. The CLI sets this; a refusal
@@ -215,6 +219,7 @@ Maintenance modes:
                       running the health check, which compares the tree against
                       this group; it defaults to www-data where that group
                       exists. Name it on a host serving under another group.
+                      --restore-full takes it too.
 
 Exit status:
   0  installed, and the site passed its own health check
@@ -402,7 +407,7 @@ if ( defined $opt{site_url} ) {
 # auth secrets, so this deliberately lives in the installer, not the manager UI.
 if ( defined $opt{restore_full} ) {
     _usage_error('--restore-full requires --docroot') unless $opt{docroot};
-    exit cmd_restore_full( $opt{docroot}, $opt{restore_full}, $opt{domain} );
+    exit cmd_restore_full( \%opt );
 }
 
 # --verify: is the INSTALLED code actually this version? (the deploy-gap detector)
@@ -682,18 +687,76 @@ sub audit_channel_set {
     return;
 }
 
-# --restore-full: extract a full-system backup into the docroot, optionally
-# rewriting the site domain, and clear render caches so pages re-render. This is
-# the temp -> final domain migration path (a system-user operation).
+# --restore-full: restore a full-system backup onto a docroot, optionally
+# rewriting the site domain (the temp -> final domain migration path), and leave
+# a site that serves (SM1439, ruling 239): the engine's entry points laid from
+# the release this runs, the tree's group and modes applied, the render caches
+# cleared, and the health check run. A system-user operation.
+#
+# THE ENGINE IS LAID BY THE CODE PROVISION USES. The tarball carries the docroot
+# only, so cgi-bin/lazysite-processor.pl and its siblings (and the lib, tools and
+# extensions beside the docroot) are not in it. The plan is the install plan,
+# narrowed to the engine's entries (is_engine_entry), run by execute_plan; the
+# extension endpoint links, the runtime paths and the group and modes are the
+# same subs an install calls. It runs BEFORE anything is extracted, so a restore
+# that cannot lay the engine refuses (ruling 206) with the docroot untouched.
 sub cmd_restore_full {
-    my ( $docroot, $tarball, $domain ) = @_;
+    my ($o)     = @_;
+    my $tarball = $o->{restore_full};
+    my $domain  = $o->{domain};
+    my $cli     = length( $o->{invoked_as} // '' ) ? $o->{invoked_as} : 'lazysite';
+
+    my $docroot = $o->{docroot};
+    my $retry   = "$cli backups --docroot $docroot --cgibin CGIBIN --restore-full FILE"
+        . ( ( defined $domain && length $domain ) ? " --domain $domain" : '' );
+    unless ( length( $o->{cgibin} // '' ) ) {
+        print {*STDERR} "install.pl: --restore-full needs --cgibin.\n"
+            . "  The restore lays the engine's entry points (lazysite-processor.pl and the rest)\n"
+            . "  there, as provision does, so that the restored site serves. Nothing was changed.\n"
+            . "  Run:  $retry\n";
+        return 2;
+    }
+
     $tarball = abs_path($tarball) // $tarball;
     die "Backup '$tarball' not found\n" unless -f $tarball;
     make_path($docroot)                 unless -d $docroot;
     $docroot = abs_path($docroot) // $docroot;
+    make_path( $o->{cgibin} ) unless -d $o->{cgibin};
+    $o->{docroot} = $docroot;
+    $o->{cgibin}  = abs_path( $o->{cgibin} ) // $o->{cgibin};
+    $retry =~ s/CGIBIN/$o->{cgibin}/;
 
     info("Restoring full-system backup into $docroot");
     info("  from: $tarball");
+
+    # ---- the engine, from this release ----
+    my $manifest = eval { load_manifest("$STAGE_DIR/release-manifest.json") };
+    my $why      = $@;
+    my $refusal  = select_engine( $o, undef );
+    my %subs     = placeholders( $docroot, $o->{cgibin} );
+    if ( !$manifest || defined $refusal ) {
+        $why =~ s/\s+\z//;
+        print {*STDERR} 'install.pl: cannot lay the engine\'s entry points: '
+            . ( $manifest ? $refusal : "this payload has no usable release manifest ($why)\n" )
+            . "  Nothing was extracted. Run the restore from an unpacked release tarball:\n"
+            . "    $retry\n";
+        return 1;
+    }
+    %ABSENT_EXT = absent_extensions($manifest);
+    load_install_dirs( $manifest, \%subs );
+    my $engine = { %$manifest, files => [ grep { is_engine_entry($_) } @{ $manifest->{files} } ] };
+    my $plan = compute_plan( $engine, undef, \%subs );
+    my $laid = eval { execute_plan($plan); link_extension_endpoints( $o->{cgibin}, \%subs ); 1 };
+    unless ($laid) {
+        my $err = $@;
+        $err =~ s/\s+\z//;
+        print {*STDERR} "install.pl: cannot lay the engine's entry points under $o->{cgibin}: $err\n"
+            . "  Nothing was extracted. Make that directory writable by this user, then run:\n"
+            . "    $retry\n";
+        return 1;
+    }
+    info('  engine:    laid the entry points from this release');
+
     # SM268 H16: was missing --no-same-permissions, so as ROOT this restored
     # setuid bits straight out of the tarball. safe_tar_extract also vets the
     # member names for traversal before writing anything.
@@ -714,9 +777,15 @@ sub cmd_restore_full {
     my $cache = lazysite_dir_for($docroot) . "/cache";
     File::Path::remove_tree($cache) if -d $cache;
 
+    # The tar carries no modes (--no-same-permissions) and leaves out the caches
+    # and backups, so the tree gets what an install gives it: the runtime paths,
+    # then the group-write bits, store modes and setgid.
+    create_runtime_paths( $manifest->{runtime_paths} || [], \%subs, 'fresh' );
+    apply_site_modes( $docroot, $manifest, \%subs, 'fresh' );
+
     audit_full_restore( $docroot, $tarball, $domain );
-    info("Full restore complete. Check file ownership/permissions on the target host.");
-    return 0;
+    info('Full restore complete.');
+    return run_health_check($o);
 }
 
 # Record a full-system restore (origin = install).
@@ -2446,11 +2515,10 @@ sub align_store_modes {
 # The extensions whose script is linked into cgi-bin as an endpoint.
 sub endpoint_links { return qw(form-handler payment-demo) }
 
-sub post_install_steps {
-    my ( $o, $manifest, $subs, $state_files, $mode, $stats ) = @_;
-
-    my $docroot    = $o->{docroot};
-    my $cgibin     = $o->{cgibin};
+# The cgi-bin endpoints that are links to an extension's script. Run by every
+# install and by --restore-full (SM1439), so a restored site has the same ones.
+sub link_extension_endpoints {
+    my ( $cgibin, $subs ) = @_;
     my $extension_dir = resolve_placeholders( '{DOCROOT}/../extensions', $subs );
 
     # --- cgi-bin symlinks for extension endpoints ---
@@ -2481,6 +2549,16 @@ sub post_install_steps {
             info("  installed: $dst (symlink unsupported)");
         }
     }
+
+    return;
+}
+
+sub post_install_steps {
+    my ( $o, $manifest, $subs, $state_files, $mode, $stats ) = @_;
+
+    my $docroot = $o->{docroot};
+    my $cgibin  = $o->{cgibin};
+    link_extension_endpoints( $cgibin, $subs );
 
     # --- manager CSS: now manifest-tracked ---
     #
@@ -2596,6 +2674,16 @@ sub post_install_steps {
         }
     }
 
+    apply_site_modes( $docroot, $manifest, $subs, $mode );
+}
+
+# The group-write bits, the stores' modes, the lazysite/ setgid bit and the root-run
+# ownership alignment: what leaves a site's tree usable by the web server's group.
+# Run by every install (post_install_steps) and by --restore-full, which extracts
+# a tree whose modes the tar did not carry (SM1439).
+sub apply_site_modes {
+    my ( $docroot, $manifest, $subs, $mode ) = @_;
+
     # --- CGI-writable file set: umask-proof the group-write bit ---
     #
     # Every file the www-data CGI must WRITE IN PLACE (the manager saves
@@ -2654,6 +2742,7 @@ sub post_install_steps {
     # owner/group, so the installer is correct on its own regardless of the
     # calling wrapper.
     align_ownership($docroot);
+    return;
 }
 
 # Repair ROOT-OWNED files under the lazysite tree (root runs only): a sudo
@@ -3856,10 +3945,19 @@ site's C<domain:> - the temp-domain to final-domain migration path (build a site
 a temporary domain, then migrate it, content + config + accounts intact, to the
 final domain). A deliberate system-user operation: a full backup carries the auth
 secrets, so restore is not exposed in the manager UI. Recorded as C<full-restore>.
-Review file ownership/permissions on the target host afterwards.
+
+This one command is the whole procedure: a full backup carries the docroot only, so
+it also lays the engine's entry points (the C<cgi-bin> scripts, and the lib, tools
+and extensions beside the docroot) from the release it runs, by the code C<--mode
+provision> uses, gives the tree the group and modes an install gives it, and ends
+with the health check (exit 4 when the site is not serviceable yet, as an install
+does). It needs C<--cgibin>, as provision does, and takes C<--serving-group> for
+the group the web server runs as. When the entry points cannot be laid it refuses
+before extracting anything, and says what to run.
 
     install.pl --restore-full full-20260704T101500Z.tar.gz \
-        --docroot /home/site/public_html --domain www.example.com
+        --docroot /home/site/public_html --cgibin /home/site/cgi-bin \
+        --domain www.example.com --serving-group www-data
 
 =item B<--help>
 

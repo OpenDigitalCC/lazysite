@@ -775,9 +775,15 @@ subtest '--restore-full migrates a full backup to a new domain' => sub {
     system( 'tar', 'czf', $tb, '-C', $src, '.' ) == 0 or die "tar failed";
 
     my $dst = tempdir( 'lazysite-full-dst-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+    # SM1439: the restore lays the engine's entry points, so it is told where.
+    my $dstcgi = tempdir( 'lazysite-full-cgi-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
     my ( $rc, $out ) = run_install(
-        '--restore-full', $tb, '--docroot', $dst, '--domain', 'www.final.com' );
-    is( $rc, 0, '--restore-full exits 0' );
+        '--restore-full', $tb, '--docroot', $dst, '--cgibin', $dstcgi,
+        '--domain', 'www.final.com' );
+    # 0, or 4: the fixture tree is not a whole site, so the health check at the
+    # end may name something. What this subtest pins is the migration itself.
+    ok( $rc == 0 || $rc == 4, '--restore-full restores (exit 0, or 4 for a fixture the check faults)' )
+        or diag $out;
     like( slurp("$dst/lazysite/lazysite.conf"), qr/^domain:\s*www\.final\.com\s*$/m,
         'site domain rewritten to the target (migration)' );
     ok( -f "$dst/lazysite/auth/.secret", 'auth secret restored (full migration carries accounts)' );

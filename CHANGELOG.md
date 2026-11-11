@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1439 (PENDING) **A full restore gives a site that serves.** `install.pl --restore-full`
+  (and `lazysite backups --restore-full`) extracted the docroot only, so the restored site
+  had no cgi-bin entry points and no serving group, and ended on "Check file
+  ownership/permissions on the target host". It now lays the engine's entry points from the
+  release it runs by the code provision uses, takes `--cgibin` and `--serving-group` as
+  provision does, applies the group and modes, and ends with the health check. Without a
+  `--cgibin`, or if the entry points cannot be laid, it refuses before extracting anything
+  and says what to run. Docs: OPERATOR, the manager guide and the Backups page.
+
 - SM1438 (PENDING) **The restore rehearsal on the shipped 0.16.11 tarball.** Install,
   canary content and a sysops account, full backup, docroot destroyed, `install.pl
   --restore-full --domain` onto a new docroot: 91 ms, content, auth store and

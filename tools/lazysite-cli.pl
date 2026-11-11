@@ -159,7 +159,7 @@ Verbs:
         (Not `repair`, which touches no files and fixes ownership,
         modes and missing directories instead.)
   backups --docroot D [--restore [--backup PATH]]
-          [--restore-full FILE [--domain NAME]]
+          [--restore-full FILE [--domain NAME] --cgibin C [--serving-group G]]
         List the backups taken before each upgrade and reinstall, or
         put one back. --restore alone takes the most recent;
         --backup PATH takes that one. Restoring runs as the SITE
@@ -169,7 +169,12 @@ Verbs:
         --domain rewrites the site's domain as it lands - the
         temporary-domain to final-domain migration path. That tarball
         carries the auth secrets, which is why it is a command here
-        and not a button in the manager.
+        and not a button in the manager. It is the whole procedure:
+        it lays the cgi-bin entry points from this release (so it
+        needs --cgibin, or --installdir DIR for DIR/public_html and
+        DIR/cgi-bin), applies the group and modes as provision does
+        (--serving-group names the web server's group), and ends
+        with the health check.
   starter --docroot D (--list | --remove-unmodified [--dry-run])
         lazysite's starter pages on this site - the demos, the sample
         contact and members pages and the starter's welcome page, which a
@@ -1011,16 +1016,24 @@ sub cmd_reinstall {
 # one before every upgrade and reinstall, keeps `backup_retention` of them
 # (default 3), and this reads and restores what it wrote.
 sub cmd_backups {
-    my %o = ( docroot => '', restore => 0, backup => '', restore_full => '', domain => '' );
+    my %o = ( docroot => '', restore => 0, backup => '', restore_full => '', domain => '',
+        cgibin => '', installdir => '', serving_group => '' );
     Getopt::Long::GetOptions(
-        'docroot=s'      => \$o{docroot},
-        'restore'        => \$o{restore},
-        'backup=s'       => \$o{backup},
-        'restore-full=s' => \$o{restore_full},
-        'domain=s'       => \$o{domain},
+        'docroot=s'       => \$o{docroot},
+        'cgibin=s'        => \$o{cgibin},
+        'installdir=s'    => \$o{installdir},
+        'serving-group=s' => \$o{serving_group},
+        'restore'         => \$o{restore},
+        'backup=s'        => \$o{backup},
+        'restore-full=s'  => \$o{restore_full},
+        'domain=s'        => \$o{domain},
     ) or usage(2);
 
-    usage_error('backups needs --docroot') unless length $o{docroot};
+    _paths_from_installdir( \%o, 'backups' );
+    usage_error('backups needs --docroot (or --installdir)') unless length $o{docroot};
+    usage_error('--cgibin, --installdir and --serving-group go with --restore-full, which lays the site')
+        if ( length $o{cgibin} || length $o{installdir} || length $o{serving_group} )
+        && !length $o{restore_full};
     usage_error('--backup names the tarball to restore, so it needs --restore')
         if length $o{backup} && !$o{restore};
     usage_error('--restore-full takes the tarball itself; do not also pass --restore')
@@ -1038,13 +1051,17 @@ sub cmd_backups {
     my $docroot = _resolve_docroot( \%o );
     my @cmd     = ( $^X, payload_root() . '/install.pl', '--docroot', $docroot );
     if ( length $o{restore_full} ) {
-        push @cmd, '--restore-full', $o{restore_full};
-        push @cmd, '--domain',       $o{domain} if length $o{domain};
+        push @cmd, '--restore-full',  $o{restore_full};
+        push @cmd, '--domain',        $o{domain} if length $o{domain};
+        push @cmd, '--cgibin',        _cgibin_for( $docroot, $o{cgibin} );
+        push @cmd, '--serving-group', $o{serving_group} if length $o{serving_group};
+        push @cmd, '--invoked-as',    invoked_as();
+        # SM1439: the restore ends on the health check, so 4 (restored, and not
+        # serviceable yet) is carried out as the status, as the install verbs do.
+        return run_installer(@cmd);
     }
-    else {
-        push @cmd, $o{restore} ? '--restore' : '--list-backups';
-        push @cmd, '--backup', $o{backup} if length $o{backup};
-    }
+    push @cmd, $o{restore} ? '--restore' : '--list-backups';
+    push @cmd, '--backup', $o{backup} if length $o{backup};
     run_or_fail(@cmd);
     return 0;
 }
