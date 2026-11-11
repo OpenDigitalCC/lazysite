@@ -6078,6 +6078,15 @@ sub cmd_group_settings_set {
             error => "Only a sysop may limit a group by address: it decides when '$group' "
                 . 'grants anything at all.' }
             unless $operator;
+        # n818 (SM1440, O-1): the group is looked up before the profiles it names, so a
+        # group that is not there is told as that and not as a missing profile.
+        {
+            my $known   = read_group_settings();
+            my %members = read_groups();
+            return { ok => 0, kind => 'invalid', field => 'group',
+                error => "The group '$group' does not exist. Create it first (group-create), or correct the name. Nothing was changed." }
+                unless $known->{$group} || $members{$group};
+        }
         require Lazysite::Auth::AddressProfiles;
         my %want;
         if ( $key eq 'address_limit' ) {

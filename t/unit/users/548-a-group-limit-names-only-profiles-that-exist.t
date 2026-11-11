@@ -34,7 +34,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: T\n";
 close $cf;
 run_child( [ $^X, $script, '--docroot', $d, 'setup-sysop', '--user', 'op', 'secretpw1234' ], stderr => 'inherit' );
-run_child( [ $^X, $script, '--docroot', $d, 'group-create', 'g-ed' ], stderr => 'inherit' );
+api( $d, { action => 'group-create', group => 'g-ed' } );    # n818: the group exists before a limit is set on it
 run_child( [ $^X, $script, '--docroot', $d, 'address-profile-set', 'office', '--entry', '203.0.113.0/24' ], stderr => 'inherit' );
 
 my $set = sub { api( $d, { action => 'group-settings-set', group => 'g-ed', key => $_[0], value => $_[1], actor => 'op' } ) };
