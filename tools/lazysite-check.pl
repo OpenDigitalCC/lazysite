@@ -3762,31 +3762,60 @@ sub report_shared_manager_account {
 # upgrade that moved the manual kept rather than destroy. Either way the
 # engine's newer version is not what visitors and agents read, and nothing else
 # would ever say so. A copy byte-identical to the engine's shadows nothing.
+#
+# n814 (SM1437, test plan 0.16.10 Y5): EVERY DOMAIN'S CONTENT ROOT, not the
+# primary's alone. A domain with a content_root of its own (alias.<host>.content_root,
+# or the primary's) is served its /docs pages from there, so a stale copy under
+# sites/<name>/docs/ shadowed the manual and the check never looked. Each line names
+# its domain when the site has more than one (ruling 199).
 sub report_shadowed_engine_docs {
     my $engine = "$LZ/templates/docs";
     return unless -d $engine;
-    my @shadow;
-    find_noting( 'the engine-docs shadow check',
-        { no_chdir => 1,
-            wanted => sub {
-                my $p = $File::Find::name;
-                return unless $p =~ /\.md\z/ && -f $p;
-                ( my $rel = $p ) =~ s{\A\Q$engine\E/}{};
-                my $site = "$DOC/docs/$rel";
-                return unless -f $site;
-                push @shadow, "docs/$rel" if _slurp_raw($site) ne _slurp_raw($p);
+    my $site_url  = conf_value( $conf, 'site_url' ) // '';
+    my ($primary) = $site_url =~ m{\A\w+://([^/:]+)};
+    my @roots     = ( [ $DOC, $primary // 'the primary domain' ] );
+    my %seen      = ( $DOC => 1 );
+    my @declared;
+    if ( open my $fh, '<', "$LZ/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            next unless $l =~ /^(?:alias\.(\S+)\.)?content_root\h*:\h*(.+?)\h*$/;
+            my ( $host, $rel ) = ( $1, $2 );
+            $rel                            =~ s{^["']|["']$}{}g;
+            $rel                            =~ s{^/+|/+$}{}g;
+            next unless length $rel && $rel !~ m{(?:^|/)\.\.(?:/|$)};
+            push @declared, [ "$DOC/$rel", $host // $primary // 'the primary domain' ];
+        }
+        close $fh;
+    }
+    for my $r (@declared) {
+        push @roots, $r if -d $r->[0] && !$seen{ $r->[0] }++;
+    }
+    for my $r (@roots) {
+        my ( $root, $label ) = @{$r};
+        my @shadow;
+        find_noting( 'the engine-docs shadow check',
+            { no_chdir => 1,
+                wanted => sub {
+                    my $p = $File::Find::name;
+                    return unless $p =~ /\.md\z/ && -f $p;
+                    ( my $rel = $p ) =~ s{\A\Q$engine\E/}{};
+                    my $site = "$root/docs/$rel";
+                    return unless -f $site;
+                    push @shadow, "docs/$rel" if _slurp_raw($site) ne _slurp_raw($p);
+                },
             },
-        },
-        $engine,
-    );
-    return unless @shadow;
-    @shadow = sort @shadow;
-    my @shown = @shadow > 10 ? ( @shadow[ 0 .. 9 ], '...' ) : @shadow;
-    report( 'WARN',
-        scalar(@shadow) . ' site page(s) shadow a newer version of the engine\'s /docs manual - '
-            . 'visitors and agents read the site\'s copy: ' . join( ', ', @shown ),
-        'keep a page you meant to override; delete one you did not, and the engine\'s current '
-            . 'page serves at the same path (SM1284)' );
+            $engine,
+        );
+        next unless @shadow;
+        @shadow = sort @shadow;
+        my @shown = @shadow > 10 ? ( @shadow[ 0 .. 9 ], '...' ) : @shadow;
+        report( 'WARN',
+            ( @roots > 1 ? "$label: " : '' )
+                . scalar(@shadow) . ' site page(s) shadow a newer version of the engine\'s /docs manual - '
+                . 'visitors and agents read the site\'s copy: ' . join( ', ', @shown ),
+            'keep a page you meant to override; delete one you did not, and the engine\'s current '
+                . 'page serves at the same path (SM1284)' );
+    }
     return;
 }
 
