@@ -53,8 +53,8 @@ subtest 'acl-set: office allowed on one folder and denied on another' => sub {
 };
 
 subtest 'group-set: either key takes any profile' => sub {
-    $s->users( 'group-create', 'g-x' );
-    $s->users( 'group-create', 'g-y' );
+    $s->users( 'group-add', 'boss', 'g-x' );    # n818: a group exists once it has a member (group-create is no CLI verb)
+    $s->users( 'group-add', 'boss', 'g-y' );
     my $o1 = $s->users( 'group-set', 'g-x', 'addresses',      'office' );
     my $o2 = $s->users( 'group-set', 'g-y', 'addresses_deny', 'office' );
     unlike( "$o1$o2", qr/kind|takes (?:allow|deny)/, 'neither is refused' );
