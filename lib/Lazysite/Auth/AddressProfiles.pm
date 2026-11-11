@@ -133,6 +133,12 @@ sub fault_text ($fault) {
     return 'lazysite/auth/address-profiles.json '
         . ( $fault eq 'undecodable' ? 'does not decode as a JSON object' : 'could not be read' );
 }
+# n818 (SM1440): for an unreadable store, the user this ran as and the one that
+# owns it, to follow the refusal. '' for every other fault.
+sub fault_note ($fault) {
+    return $fault eq 'unreadable' ? Lazysite::Util::unreadable_note( store_path() ) : '';
+}
+
 
 sub valid_name ($name) { return ( defined $name && !ref $name && $name =~ $NAME_RE ) ? 1 : 0 }
 

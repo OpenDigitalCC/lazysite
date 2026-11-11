@@ -220,7 +220,8 @@ sub acls_write_refusal {
             . 'read or does not decode, so saving a rule would replace every rule in it. This '
             . 'is a fault on the host, not a rule about this file. Nothing was changed. '
             . '`lazysite check --docroot <docroot>` names the fault; repair the file from the '
-            . 'command line, or restore it from a backup.',
+            . 'command line, or restore it from a backup.'
+            . Lazysite::Util::unreadable_note( _acls_path() ),
     };
 }
 

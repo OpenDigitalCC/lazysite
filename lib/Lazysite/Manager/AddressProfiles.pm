@@ -58,7 +58,8 @@ sub address_profiles {
     # and the page shows it instead of an empty table.
     return { ok => 0, kind => 'cannot-tell',
         error => Lazysite::Auth::AddressProfiles::fault_text($fault)
-            . '; every rule that names an address profile refuses until it is repaired.' }
+            . '; every rule that names an address profile refuses until it is repaired.'
+            . Lazysite::Auth::AddressProfiles::fault_note($fault) }
         if $fault;
     my @rows = map {
         my $l = $all->{$_};

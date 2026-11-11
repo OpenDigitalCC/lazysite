@@ -421,7 +421,8 @@ sub action_config_set {
         if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
             return { ok => 0, kind => 'cannot-tell',
                 error => Lazysite::Auth::AddressProfiles::fault_text($fault)
-                    . ', so the profiles this names cannot be checked.' };
+                    . ', so the profiles this names cannot be checked.'
+                    . Lazysite::Auth::AddressProfiles::fault_note($fault) };
         }
         for my $n ( grep { length } map { s/^\s+|\s+$//gr } split /,/, $value ) {
             return { ok => 0, field => $key,

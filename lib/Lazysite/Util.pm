@@ -15,7 +15,7 @@ use POSIX           ();
 use Socket          qw(inet_pton inet_ntop AF_INET AF_INET6);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read store_fault backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
+our @EXPORT_OK = qw(store_lock log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled account_page_enabled secure_write_perms write_private_atomic drop_to_tree_owner target_identity cannot_read store_fault path_owner_name unreadable_note backup_retention interpolate_env env_allowlist request_host request_address trusted_proxy_spec parse_trusted_proxies front_end_is_every_visitor proxy_identity unsafe_link_scheme nav_unsafe_entries conf_text_value sanitise_next);
 
 our $COMPONENT = 'lazysite';
 
@@ -168,6 +168,42 @@ sub conf_text_value {
     return undef unless defined $val;
     $val =~ s/\A\s+|\s+\z//g;
     return $val;
+}
+
+# n818 (SM1440): the unix user that owns a store, and what a refusal says about
+# it. A command that cannot read a file under lazysite/auth/ is nearly always
+# running as the wrong unix user (the login user, not the one the CGI runs as),
+# and "fault on the host" sends the operator nowhere. The owner is the file's,
+# or its directory's when the file cannot even be stat'ed from here.
+# Undef when neither can be told.
+sub path_owner_name {
+    my ($path) = @_;
+    return undef unless defined $path && length $path;
+    for my $p ( $path, ( $path =~ m{\A(.*)/[^/]+\z}s ? $1 : () ) ) {
+        my @st = stat $p or next;
+        my ($name) = getpwuid( $st[4] );
+        return $name // "uid $st[4]";
+    }
+    return undef;
+}
+
+# '' when this process opens $path (the fault, if any, is not about who ran it);
+# otherwise a sentence naming the user it ran as, the user that owns the file,
+# and the command to run as that user.
+sub unreadable_note {
+    my ($path) = @_;
+    return '' unless defined $path && length $path;
+    return '' if open my $fh, '<', $path;
+    my $why = "$!";
+    return '' if $!{ENOENT};
+    my ($me) = getpwuid($>);
+    $me //= "uid $>";
+    my $owner = path_owner_name($path);
+    ( my $short = $path ) =~ s{\A.*/(lazysite/)}{$1}s;
+    return " This ran as unix user '$me', which cannot read $short ($why)."
+        . ( !defined $owner ? ' Run it as the user the web server runs the site as, which owns the auth store.'
+        : $owner eq $me ? ' That user owns it, so its permissions are the fault: `lazysite check` names the fix.'
+        :   " It is owned by '$owner': run the command as '$owner' (sudo -u $owner ...)." );
 }
 
 sub cannot_read {

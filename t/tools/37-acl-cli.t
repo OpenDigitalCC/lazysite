@@ -205,7 +205,8 @@ subtest 'a write as root is refused' => sub {
         '--actor', 'alice', '--read', 'alice' );
     isnt( $r->{rc}, 0, 'it refuses' );
     like( $r->{out}, qr/as root/,          'saying why' );
-    like( $r->{out}, qr/sudo -u SITEUSER/, 'and what to run instead' );
+    my ($owner) = getpwuid($>);    # n818: the owner of the auth store, named
+    like( $r->{out}, qr/sudo -u \Q$owner\E /, 'and what to run instead, with the user named' );
     ok( !exists stored()->{'open/public.md'}, 'nothing was written' );
 
     # Reads create nothing, so they are allowed - refusing them would make the

@@ -6676,7 +6676,8 @@ sub _address_profile_fault {
     my $why = Lazysite::Auth::AddressProfiles::store_fault() or return undef;
     return { ok => 0, kind => 'cannot-tell',
         error => Lazysite::Auth::AddressProfiles::fault_text($why)
-            . ( $why eq 'unconverted' ? ', so nothing is written.' : ', so nothing is written over it. Repair the file and retry.' ) };
+            . ( $why eq 'unconverted' ? ', so nothing is written.' : ', so nothing is written over it. Repair the file and retry.' )
+            . Lazysite::Auth::AddressProfiles::fault_note($why) };
 }
 
 sub cmd_address_profile_set {
