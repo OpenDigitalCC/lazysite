@@ -105,8 +105,8 @@ Archive
   14 commits: SM1430, SM1435 and SM1437) and stamped 0.16.11, channel beta (ruling 236). 0.16.11 is cut
   with `--beta` from 0.16.10 plus SM1430, SM1435 and SM1437; it is not security-critical (no change in
   it fixes a known vulnerability) and is the release the 0.17.0 stable is promoted from
-  (rulings 227, 228); the feature freeze starts at the cut. Drafted for the release manager's
-  confirmation: SM1435's register entry (address profiles chosen from those that exist, at
+  (rulings 227, 228); the feature freeze starts at the cut. Confirmed by the release manager on
+  11 Nov 2026 (ruling 237): SM1435's register entry (address profiles chosen from those that exist, at
   every door, and no delete of a profile a rule names; a hardening, no ADR 0007 trigger), the
   walk's entry (SM1430's display-only marker, SM1437's check output, SM1435's Groups page
   wording), one STRIDE row,

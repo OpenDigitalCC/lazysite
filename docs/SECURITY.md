@@ -81,8 +81,8 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
     every address rule sits behind this boundary.
 11. **The address rule** (SM1134, 0.15.10; SM1343, 0.16.5) -> named address profiles
     that pages, folders and groups allow or deny; it narrows what other rules grant
-    and never widens it. From 0.16.11 (SM1435, ruling 234; the walk's draft, for the
-    release manager's confirmation) a rule names only profiles that exist, refused at
+    and never widens it. From 0.16.11 (SM1435, ruling 234; confirmed by the release
+    manager on 2026-11-11, ruling 237) a rule names only profiles that exist, refused at
     save at every door, and a profile a rule names cannot be deleted.
 12. **The Odoo extension** (SM747, 0.15.5; SM1160, 0.15.10) -> an outbound
     connection to an ERP on the operator's URL, a connection user's key, a person's
@@ -186,7 +186,7 @@ Spoofing | An identity written into the data endpoint's environment, by the clie
 Elevation of privilege | Code planted in a site's extensions directory run in place of an engine extension, on the shared container's read-only engine (SM1361, SM1369 X7) | On an engine carrying `SHARED-ENGINE` every extension is the engine's own copy, anything in the site's extensions directory is refused by name and named by `lazysite check`, a site payload module that an engine extension's lib holds is refused, and the marker is read from the engine's own root and never a site's | 0.16.9 (t/unit/extensions/130, t/tools/391, t/lint/391, 392; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1361 entry, confirmed on 2026-11-10 (ruling 225)): every site in the container runs as www-data (ruling 210), so one site's process can read another's state; the separation is the engine's confinement of each request
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
 Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, confirmed by the release manager on 2026-11-10 (ruling 233), with the walk's entry and the claim-link residual risk, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
-Elevation of privilege | A deny rule that names an address profile the store lacks, which excludes nobody and says so only in a log line; an allow rule that names one, which admits nobody; a profile deleted while a rule names it (SM1139's accept-with-warning, SM1141's force) | A rule, a group's address limit and a page's `addresses:` / `addresses_deny:` are refused at every door when they name a profile the store does not hold, naming it, with nothing written; the names a rule already carries are checked on its next save; a profile a rule names cannot be deleted, at any door, with no force; a store that cannot be read refuses and is named (ruling 206); `lazysite check` names a rule or a page already on disk that names a missing profile | 0.16.11 (t/integration/730 and 731, t/unit/mcp/489 and 490, t/unit/users/548 and 53, t/unit/manager/974; row written at the 0.16.11 walk, SM1436, for the release manager's confirmation, with the SM1435 entry): a rule or page saved before 0.16.11 that names a missing profile stands until it is changed, a file edited on disk outside a door is not refused, and the runtime's treatment of an unknown name is unchanged
+Elevation of privilege | A deny rule that names an address profile the store lacks, which excludes nobody and says so only in a log line; an allow rule that names one, which admits nobody; a profile deleted while a rule names it (SM1139's accept-with-warning, SM1141's force) | A rule, a group's address limit and a page's `addresses:` / `addresses_deny:` are refused at every door when they name a profile the store does not hold, naming it, with nothing written; the names a rule already carries are checked on its next save; a profile a rule names cannot be deleted, at any door, with no force; a store that cannot be read refuses and is named (ruling 206); `lazysite check` names a rule or a page already on disk that names a missing profile | 0.16.11 (t/integration/730 and 731, t/unit/mcp/489 and 490, t/unit/users/548 and 53, t/unit/manager/974; row written at the 0.16.11 walk, SM1436, confirmed by the release manager on 2026-11-11 (ruling 237), with the SM1435 entry): a rule or page saved before 0.16.11 that names a missing profile stands until it is changed, a file edited on disk outside a door is not refused, and the runtime's treatment of an unknown name is unchanged
 ```
 
 ## Five priority entries (from the review)
@@ -6164,7 +6164,7 @@ verdict : accepted, confirmed by the release manager on 2026-11-10 (ruling 233).
 
 ### 2026-11-11 - SM1435 (PENDING): address profiles are chosen from those that exist
 
-Assessment drafted by the developer agent (n812, with the 0.16.11 compliance walk, SM1436) for the release manager's confirmation. Ruling 234 (the release manager, 2026-11-11) reverses SM1139's accept-with-warning; ruling 235 (a developer call, which the release manager may overrule) extends it to a page's front matter.
+Assessment drafted by the developer agent (n812, with the 0.16.11 compliance walk, SM1436); confirmed by the release manager on 2026-11-11 (ruling 237). Ruling 234 (the release manager, 2026-11-11) reverses SM1139's accept-with-warning; ruling 235 (a developer call) extends it to a page's front matter, and is confirmed with the entry.
 
 what changed
 : Before, a rule could name an address profile the store did not hold. An `acl-set` answered
@@ -6217,14 +6217,14 @@ residual risk
   of a rule's carried names means a path's rule cannot be changed for an unrelated reason
   until a stale name is cleared; that is intended.
 
-verdict : drafted for the release manager's confirmation. A hardening of the operator's own
+verdict : accepted, confirmed by the release manager on 2026-11-11 (ruling 237). A hardening of the operator's own
   mistakes, not a fix to a vulnerability that reached a stable release: the fail-open needed an
   operator to write a name no profile held. 0.16.11 is the beta (ruling 236) and, with this
   entry, not security-critical.
 
 ### 2026-11-11 - SM1430, SM1437, SM1435 (the rest) (0.16.11): the beta's other changes, with no trigger
 
-Assessment drafted by the developer agent at the 0.16.11 compliance walk (SM1436) for the release manager's confirmation. 0.16.11 is the **beta** (ruling 236): cut with `--beta` from 0.16.10 plus n811 (SM1430), n812 (SM1435) and n814 (SM1437), the code 0.17.0 is promoted from (rulings 227, 228), and the feature freeze on main starts at this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log bc1d27efd..17c1edb13` (14 commits). SM1435's address-profile hardening has its own entry above. The rest moves no control and fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or processing of restricted data). Each item below was checked against the code it names.
+Assessment drafted by the developer agent at the 0.16.11 compliance walk (SM1436); confirmed by the release manager on 2026-11-11 (ruling 237). 0.16.11 is the **beta** (ruling 236): cut with `--beta` from 0.16.10 plus n811 (SM1430), n812 (SM1435) and n814 (SM1437), the code 0.17.0 is promoted from (rulings 227, 228), and the feature freeze on main starts at this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log bc1d27efd..17c1edb13` (14 commits). SM1435's address-profile hardening has its own entry above. The rest moves no control and fires none of ADR 0007's four triggers (no new interface, sign-in method, dependency or processing of restricted data). Each item below was checked against the code it names.
 
 what changed
 : SM1430 (n811). `output_page`, which every page response passes through, now clears the
@@ -6297,7 +6297,7 @@ residual risk
   it until it does. A provider session refused as stale keeps its marker until its renewal
   succeeds or the provider ends the session, as designed.
 
-verdict : drafted for the release manager's confirmation. No trigger fired; recorded because
+verdict : accepted, confirmed by the release manager on 2026-11-11 (ruling 237). No trigger fired; recorded because
   every page response now reads the signed-in identity once when the marker is present, and
   one response's cache header changes. 0.16.11 is the beta (ruling 236) and is not
   security-critical: no change in it fixes a known vulnerability (SM1435 is a hardening,

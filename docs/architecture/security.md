@@ -1649,7 +1649,7 @@ Walked on 2026-11-10 (SM1429); edge, not security-critical (ruling 229). The reg
 ## Address profiles chosen from those that exist, and a stale marker cleared (0.16.11, beta)
 
 Walked on 2026-11-11 (SM1436); the beta (ruling 236), not security-critical. Drafted by the
-developer agent for the release manager's confirmation.
+developer agent and confirmed by the release manager on 2026-11-11 (ruling 237).
 
 - **A rule names only address profiles that exist** (SM1435, rulings 234, 235). A name no
   profile carries matches no address, so an allow naming it admitted nobody and a deny

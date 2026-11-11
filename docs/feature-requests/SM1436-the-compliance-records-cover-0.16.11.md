@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1429); release manager, ruling 236 (2026-11-11)"
 area: release
-status-note: "SHIPPED (PENDING) on n813. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.11, channel beta (ruling 236); SM1435's entry and the walk's entry (SM1430, SM1435's wording) drafted, no trigger, for the release manager's confirmation; one STRIDE row; trust boundary 11 restated; UPGRADE.md's one 0.16.11 section. Docs only."
+status-note: "SHIPPED (PENDING) on n813. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.11, channel beta (ruling 236); SM1435's entry and the walk's entry (SM1430, SM1435's wording) and SM1437's check output, no trigger, confirmed by the release manager (ruling 237); one STRIDE row; trust boundary 11 restated; UPGRADE.md's one 0.16.11 section. Docs only."
 ---
 
 # What was asked
@@ -29,9 +29,11 @@ promoted from (rulings 227, 228), with the feature freeze starting at the cut.
   (the manager API's `acl-set`, MCP `set_permissions`, `lazysite acl set`, the Groups page and
   the users tool's `group-settings-set`, the manager save, the control API, MCP `write_file`,
   `create_page` and `preview_page`, WebDAV), and a profile a rule names cannot be deleted
-  (no force). A hardening, no ADR 0007 trigger, drafted for the release manager.
+  (no force). A hardening, no ADR 0007 trigger, confirmed by the release manager (ruling 237).
 - docs/SECURITY.md, an entry for SM1430, SM1437 and SM1435's remaining item (the Groups page
-  wording), no trigger, for the release manager. The signed-in marker is display only and
+  wording), no trigger, confirmed by the release manager (ruling 237). SM1437, a check that does
+  not say ok about what it could not read, is assessed there as a hardening of what the check
+  reports. The signed-in marker is display only and
   carries no authority, so SM1430 is in the walk entry and has none of its own; the server
   reads the marker only to clear it. One STRIDE row, for a rule naming a missing profile;
   trust boundary 11 restated with the same sentence.
@@ -51,6 +53,10 @@ promoted from (rulings 227, 228), with the feature freeze starting at the cut.
   the same two version stamps block, and the Declaration of Conformity, the restore
   rehearsal and the bench baseline stay advisory below stable and certified. The details are
   in OBLIGATIONS.md's walked section.
+- The restore rehearsal is the one open item: due before the 0.17.0 stable cut, run by the
+  developer on this host as a scratch rehearsal against the shipped 0.16.11 tarball after the
+  beta build, and confirmed by the release manager (rulings 237, 238). OBLIGATIONS.md carries
+  the steps; no evidence for it is written here.
 - It is the release the stable promotion is drawn from, and the feature freeze starts at the
   cut (ruling 228).
 
