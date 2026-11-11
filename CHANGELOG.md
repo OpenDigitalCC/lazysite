@@ -64,7 +64,9 @@ Archive
   SM1440's (messages and check text, and one tightened write; no trigger), the walk's entry
   (SM1438's rehearsal record, with each change's assessment), one STRIDE row, and a section in
   docs/architecture/security.md. An operate-side row asks the operator to give a restore script
-  the new flags. The restore-rehearsal row stays OPEN: the rehearsal is rerun on the shipped
+  the new flags. `--restore-full` also refuses, before it changes anything, a backup whose
+  `lazysite/`, `lazysite/auth` or `lazysite/forms` is a symlink (ruling 206; t/tools/628). The
+  restore-rehearsal row stays OPEN: the rehearsal is rerun on the shipped
   0.16.12 tarball and confirmed by the release manager before 0.17.0 (rulings 241, 242).
   UPGRADE.md's 0.16.12 notes are one section.
 

@@ -82,7 +82,9 @@ applies the serving group and the modes, writes the install state, and ends with
 (exit 4 when the site is not serviceable yet). A restore script or runbook now needs `--cgibin`
 (or, for `lazysite backups`, `--installdir`) and, on a host that does not serve under `www-data`,
 `--serving-group`. Without `--cgibin` the command refuses before it extracts anything and prints
-the command to run. Run it from the unpacked release you want on the restored site.
+the command to run. It also refuses, with nothing changed, a backup whose `lazysite/`,
+`lazysite/auth` or `lazysite/forms` is a symlink. Run it from the unpacked release you want on the
+restored site.
 
 **Smaller changes, nothing to do.**
 

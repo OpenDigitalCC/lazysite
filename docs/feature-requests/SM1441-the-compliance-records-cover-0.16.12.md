@@ -29,9 +29,9 @@ feature freeze holding (ruling 228).
   does, and writes the install state (ruling 239). It names the trust boundary (a full backup
   carries the auth secrets; the restore is a system-user operation, in no manager or network
   door), what the restore now writes from the release and what comes from the tarball (data only,
-  with the backup's state entries for seed and content files), and one residual: the setgid chmod
-  and the root ownership repair follow a symlinked `lazysite/` in a tarball. No ADR 0007
-  trigger.
+  with the backup's state entries for seed and content files), and the refusal of a backup whose
+  `lazysite/` (or `auth/`, `forms/`) is a symlink, before anything is changed (ruling 206). No
+  ADR 0007 trigger.
 - docs/SECURITY.md, an entry for SM1440: refusals name the unix user to run as, the check says ok
   only about what it read, no `--fix` hint with nothing to fix, and the one behaviour change, a
   group limit on a group that does not exist is refused. A small disclosure (the unix user's

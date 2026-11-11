@@ -719,6 +719,18 @@ sub cmd_restore_full {
 
     $tarball = abs_path($tarball) // $tarball;
     die "Backup '$tarball' not found\n" unless -f $tarball;
+
+    # A symlink for lazysite/ or for the two directories the mode and ownership steps
+    # name inside it is refused before anything is made, laid or extracted (ruling 206):
+    # the setgid chmod and the root ownership repair would follow it out of the site.
+    if ( my $bad = linked_site_dir($tarball) ) {
+        print {*STDERR} "install.pl: refusing to restore: the backup holds '$bad' as a symlink.\n"
+            . "  The restore sets modes and, as root, ownership on that directory, and a link would\n"
+            . "  carry them to wherever it points. Nothing was changed.\n"
+            . "  A real lazysite/ tree is a directory: take the backup again from the site, or\n"
+            . "  repair the archive, then run the restore again.\n";
+        return 1;
+    }
     make_path($docroot)                 unless -d $docroot;
     $docroot = abs_path($docroot) // $docroot;
     make_path( $o->{cgibin} ) unless -d $o->{cgibin};
@@ -805,6 +817,28 @@ sub cmd_restore_full {
     audit_full_restore( $docroot, $tarball, $domain );
     info('Full restore complete.');
     return run_health_check($o);
+}
+
+# The directories --restore-full's mode and ownership steps walk into by name (SM1439):
+# lazysite/ itself, and the auth and forms stores inside it. Their members, read from the
+# archive's own listing before anything is extracted. Returns the first one the archive
+# holds as a symlink or hard link, else undef.
+sub linked_site_dir {
+    my ($tarball) = @_;
+    my %named = map { $_ => 1 } qw(lazysite lazysite/auth lazysite/forms);
+    open my $fh, '-|', 'tar', 'tvzf', $tarball or die "Cannot list $tarball\n";
+    my $bad;
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        next unless $line =~ /\A[lh]/;
+        my ($name) = $line =~ /\A\S+\s+\S+\s+\d+\s+\S+\s+\S+\s+(.*?)(?: (?:->|link to) .*)?\z/;
+        next unless defined $name;
+        $name =~ s{\A(?:\./|/)+}{};
+        $name =~ s{/+\z}{};
+        if ( $named{$name} ) { $bad = $name; last }
+    }
+    close $fh;
+    return $bad;
 }
 
 # Record a full-system restore (origin = install).

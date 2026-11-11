@@ -139,4 +139,32 @@ subtest 'the install state records what the restore laid' => sub {
     isnt( $rrc2, 2, 'reinstall is not refused' ) or diag $rout;
 };
 
+# A backup whose lazysite/ is a symlink. The restore's setgid chmod and its root
+# ownership repair would follow the link out of the site, so the restore refuses before
+# it makes, lays or extracts anything (ruling 206). Without the refusal the target's mode
+# is changed (the chmod follows the link).
+subtest 'a backup whose lazysite/ is a symlink is refused, with nothing changed' => sub {
+    my $outside = "$tmp/outside";
+    make_path($outside);
+    open my $oc, '>', "$outside/lazysite.conf" or die $!;
+    print {$oc} "site_name: T\n";
+    close $oc;
+    chmod 0755, $outside;
+    my $stage = "$tmp/linkstage";
+    make_path($stage);
+    symlink( $outside, "$stage/lazysite" ) or BAIL_OUT("symlink: $!");
+    my $bad = "$tmp/linked-backup.tar.gz";
+    my ( $tout, $trc ) = run( 'tar', '-czf', $bad, '-C', $stage, 'lazysite' );
+    is( $trc, 0, 'the archive is built' ) or diag $tout;
+
+    my $docroot = "$tmp/d/public_html";
+    my ( $out, $rc ) = run( $^X, $INSTALL, '--restore-full', $bad, '--docroot', $docroot,
+        '--cgibin', "$tmp/d/cgi-bin", '--serving-group', $GROUP );
+    isnt( $rc, 0, 'refused' ) or diag $out;
+    like( $out, qr/'lazysite' as a symlink/, 'naming the link' );
+    like( $out, qr/Nothing was changed/,     'and saying nothing was changed' );
+    is( sprintf( '%04o', ( stat $outside )[2] & 07777 ), '0755', 'the link\'s target kept its mode' );
+    ok( !-e $docroot && !-e "$tmp/d/cgi-bin", 'no docroot and no cgi-bin were made' );
+};
+
 done_testing();

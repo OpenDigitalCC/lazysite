@@ -128,7 +128,7 @@ stacked on the 0.16.11 release commit). The rows below hold what only a person c
 - Three register entries in `docs/SECURITY.md` cover 0.16.12, all drafted by the developer agent
   on 11 Nov 2026 **for the release manager's confirmation**. SM1439 (the full restore: a
   system-user operation, the code and the modes from the release, the data from the tarball,
-  one residual named) fires no trigger. SM1440 (messages and check text; the one behaviour
+  a backup carrying a symlinked `lazysite/` refused before anything is changed) fires no trigger. SM1440 (messages and check text; the one behaviour
   change is the group refusal) fires none. The walk's entry (SM1438's record, with each change's
   assessment) fires none.
 - One STRIDE row was added at this walk (a full backup restored by `--restore-full`), drafted for

@@ -187,7 +187,7 @@ Elevation of privilege | Code planted in a site's extensions directory run in pl
 Tampering | A remote system's answer writing columns of a table, rows another door could forge, or emptying the table (SM1364) | Only the one table that names a connector as its source is written by that connector's answer, through `import_rows`' coercion and all or nothing; mapped columns are refused at every write door; a row is removed only when the answer is a non-empty list, as a recorded, undoable change; the on-demand refresh needs `manage_data` and the connector's own callers rule | 0.16.9 (t/unit/data/110, t/unit/manager/512; row written at the 0.16.9 walk, confirmed by the release manager on 2026-11-10 (ruling 226), with the SM1364 entry, confirmed on 2026-11-10 (ruling 225), ruling 190): an operator who marks a sourced table `public: true` publishes what the source sends
 Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, confirmed by the release manager on 2026-11-10 (ruling 233), with the walk's entry and the claim-link residual risk, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
 Elevation of privilege | A deny rule that names an address profile the store lacks, which excludes nobody and says so only in a log line; an allow rule that names one, which admits nobody; a profile deleted while a rule names it (SM1139's accept-with-warning, SM1141's force) | A rule, a group's address limit and a page's `addresses:` / `addresses_deny:` are refused at every door when they name a profile the store does not hold, naming it, with nothing written; the names a rule already carries are checked on its next save; a profile a rule names cannot be deleted, at any door, with no force; a store that cannot be read refuses and is named (ruling 206); `lazysite check` names a rule or a page already on disk that names a missing profile | 0.16.11 (t/integration/730 and 731, t/unit/mcp/489 and 490, t/unit/users/548 and 53, t/unit/manager/974; row written at the 0.16.11 walk, SM1436, confirmed by the release manager on 2026-11-11 (ruling 237), with the SM1435 entry): a rule or page saved before 0.16.11 that names a missing profile stands until it is changed, a file edited on disk outside a door is not refused, and the runtime's treatment of an unknown name is unchanged
-Elevation of privilege | A full backup restored by `install.pl --restore-full` (SM1439): a tarball bringing code, modes or an owner of its own, or a restore leaving a site that does not serve | The restore is a system-user operation (a full backup carries the auth secrets; no manager or network door); every file of code it writes, every mode and the group come from the release it runs and the operator's `--serving-group`, the extraction takes no owner or mode from the archive (`--no-same-owner`, `--no-same-permissions`) and vets member names for `..`, an engine that cannot be laid refuses before anything is extracted, and the install state is written from what was laid | 0.16.12 (t/tools/628; row written at the 0.16.12 walk, SM1441, for the release manager's confirmation, with the SM1439 entry): the restore follows a symlinked `lazysite/` in the tarball for the setgid chmod and the root ownership repair (not tested; a backup is the root operator's own file), and the backup is still written inside the docroot (SM602)
+Elevation of privilege | A full backup restored by `install.pl --restore-full` (SM1439): a tarball bringing code, modes or an owner of its own, or a restore leaving a site that does not serve | The restore is a system-user operation (a full backup carries the auth secrets; no manager or network door); every file of code it writes, every mode and the group come from the release it runs and the operator's `--serving-group`, the extraction takes no owner or mode from the archive (`--no-same-owner`, `--no-same-permissions`) and vets member names for `..`, an engine that cannot be laid refuses before anything is extracted, and the install state is written from what was laid | 0.16.12 (t/tools/628; row written at the 0.16.12 walk, SM1441, for the release manager's confirmation, with the SM1439 entry): a backup holding `lazysite/`, `lazysite/auth` or `lazysite/forms` as a symlink is refused before anything is made (t/tools/628), and the backup is still written inside the docroot (SM602)
 ```
 
 ## Five priority entries (from the review)
@@ -6344,14 +6344,16 @@ threat delta
   upgrade does not read the laid engine as operator-edited. The `once` list and the starter mark
   from the tarball decide which one-time upgrade steps a later upgrade runs; a list that says too
   much skips a step, and `lazysite check` and the upgrade are what name it.
-: The new steps follow the tarball's symlinks where the install's own steps do not, in two
-  places. `apply_site_modes` adds group-write and setgid to `lazysite/` (a `chmod` that follows a
-  link), and `align_ownership`, when run as root, starts its walk at `lazysite/`. A backup in which
-  `lazysite` is a symlink would have the target's mode changed or, for root-owned entries inside it,
-  its owner. Every other mode and ownership step skips a symlink (`-l`), and
-  `create_runtime_paths` refuses one. A full backup is the root operator's own file and could
-  already write anywhere under the docroot, the auth store included, so this adds no capability a
-  tarball did not have; recorded, not changed.
+: A backup whose `lazysite/` (or its `auth/` or `forms/`) is a symlink is refused (ruling 206).
+  `apply_site_modes` adds group-write and setgid to `lazysite/` (a `chmod` that follows a link),
+  and `align_ownership`, when run as root, starts its walk at `lazysite/`, so a link would carry
+  the mode and the owner to its target. The restore reads the archive's own listing first
+  (`linked_site_dir`) and refuses, before it makes the docroot, lays the engine or extracts
+  anything, naming the link and saying "Nothing was changed". Found at the walk: the
+  `create_runtime_paths` refusal of a symlinked directory already stopped the restore before the
+  mode and ownership steps, but only after the docroot was made, the cgi-bin laid and the tree
+  extracted; the listing check refuses before any of that. Every other mode and ownership step
+  skips a symlink (`-l`).
 : No ADR 0007 trigger fires. No new interface (two flags on an existing system-user command, no
   listener and no network), no new sign-in method, no new dependency (the code is the installer's
   own), and no new processing of restricted data: the same backup is restored as before. The
@@ -6363,11 +6365,13 @@ controls
   present; fails on the code before the change). t/tools/03-install-pl.t and t/lint/149 follow
   the new flags and the single naming of the install verb. A restore that cannot lay the engine
   refuses before it extracts (no half-restored docroot); the engine is laid by `execute_plan`,
-  which refuses a symlinked destination (`_refuse_symlink`); the extraction's member vetting
+  which refuses a symlinked destination (`_refuse_symlink`); a backup holding `lazysite/`, `lazysite/auth` or
+  `lazysite/forms` as a symlink is refused before anything is made (t/tools/628, its last
+  subtest); the extraction's member vetting
   (`..`), `--no-same-owner` and `--no-same-permissions` are unchanged (SM268 H16).
 
 residual risk
-: A backup whose `lazysite/` is a symlink, as above. A restore run as root onto a docroot whose
+: A restore run as root onto a docroot whose
   owner is not the web server's group relies on `--serving-group` being named; the health check
   at the end says when it was not. The backup is still written inside the docroot it backs up
   (SM602, ruling 240: after stable), so a restore needs a copy kept off the box.
@@ -6457,7 +6461,7 @@ what changed
 threat delta
 : None of the four triggers fired. SM1438: none, a record. SM1439: Elevation of privilege and
   Tampering, assessed in its entry: the code and modes come from the release; the tarball supplies
-  data, the same data as before; one residual (a symlinked `lazysite/` in a backup) is recorded.
+  data, the same data as before; the symlinked `lazysite/` found at the walk is refused before anything is changed.
   SM1440: Information disclosure, narrowed and bounded in its entry; the group refusal narrows one
   write path.
 

@@ -1691,9 +1691,9 @@ the developer agent for the release manager's confirmation.
   every mode comes from the release; the extraction takes no owner or mode from the archive
   (`--no-same-owner`, `--no-same-permissions`) and the tarball supplies data, with the backup's
   state entries for seed and content files kept. An engine that cannot be laid refuses before
-  anything is extracted (ruling 206). Residual: the setgid chmod and the root ownership repair
-  follow a `lazysite/` that is a symlink in the tarball (not tested); every other step skips a
-  link.
+  anything is extracted (ruling 206). A backup holding `lazysite/`, `lazysite/auth` or
+  `lazysite/forms` as a symlink is refused before anything is made, because the setgid chmod and
+  the root ownership repair would follow it (ruling 206); every other step skips a link.
 - **A refusal names the unix user** (SM1440). A root refusal of `lazysite acl set` and of the
   handlers tool names the user that owns `lazysite/auth/` and spells the command with it; a
   command or a manager refusal for an auth store the process cannot read names the user it ran as
