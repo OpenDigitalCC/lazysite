@@ -70,8 +70,11 @@ my $WRITES = qr/\A(?:save|delete|bind|schedule-save|schedule-delete|convert)\z/x
 # test-only override the other tools honour, and like theirs it only ever makes
 # this more restrictive.
 if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} ) && $verb =~ $WRITES && !$opt{dry_run} ) {
-    my $site_user = Lazysite::Util::path_owner_name( Lazysite::Paths::lazysite_dir( $opt{docroot} ) . '/auth' ) // 'SITEUSER';
+    # n825 (SM1447): the owner of the files it writes, not of lazysite/auth/.
+    my ( $site_user, $differ ) = Lazysite::Util::store_run_as(
+        Lazysite::Paths::lazysite_dir( $opt{docroot} ) . '/forms', qw(handlers.conf schedule.conf) );
     fail( "refusing to write as root - run it as the site user (sudo -u $site_user ...).\n"
+            . ( length $differ ? "  $differ\n" : '' )
             . '  Root-owned files in the site tree are what stops the manager working afterwards (SM139).' );
 }
 

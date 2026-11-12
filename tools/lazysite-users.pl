@@ -210,8 +210,13 @@ unless ($DOCROOT) {
 {
     my $d = drop_to_tree_owner( $DOCROOT, as_user => $AS_USER );
     if ( !$d->{dropped} && $> == 0 ) {
+        # n825 (SM1447): name the owner of the store files (what --as-user wants).
+        my ( $own, $differ ) = Lazysite::Util::store_run_as(
+            Lazysite::Paths::lazysite_dir($DOCROOT) . '/auth', qw(acls.json address-profiles.json users.json) );
         print STDERR "lazysite-users.pl: refusing to write into '$DOCROOT' as root - "
-            . "$d->{why}\n";
+            . "$d->{why}\n"
+            . ( $own ne 'SITEUSER' ? "  The owner of the store files is '$own': --as-user $own.\n" : '' )
+            . ( length $differ ? "  $differ\n" : '' );
         exit 2;
     }
 }

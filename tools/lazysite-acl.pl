@@ -101,13 +101,15 @@ if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} )
     && ( $verb eq 'set' || $verb eq 'remove' || $verb eq 'purge-history' ) )
 {
     # n818 (SM1440): the user to run as is the one that owns the auth store, named.
-    my $site_user = Lazysite::Util::path_owner_name( Lazysite::Paths::lazysite_dir( $opt{docroot} ) . '/auth/acls.json' )
-        // 'SITEUSER';
+    # n825 (SM1447): the owner of the store FILES it reads and writes, not of the directory.
+    my ( $site_user, $differ ) = Lazysite::Util::store_run_as(
+        Lazysite::Paths::lazysite_dir( $opt{docroot} ) . '/auth', qw(acls.json address-profiles.json) );
     fail( "refusing to change access as root.\n"
             . "  A write here creates files in the site tree, and root-owned files\n"
             . "  there are exactly what stops the manager working afterwards (SM139).\n"
-            . "  Run it as the site user ($site_user, who owns lazysite/auth/) instead:\n"
+            . "  Run it as the site user ($site_user, who owns the store files) instead:\n"
             . "    sudo -u $site_user " . cli_spelling() . " acl $verb ...\n"
+            . ( length $differ ? "  $differ\n" : '' )
             . "  (--actor is a different thing: it names the lazysite ACCOUNT the\n"
             . "  rule is written as, not the unix user running the command.)" );
 }

@@ -2229,7 +2229,7 @@ sub report_address_rules {
         report( 'WARN',
             'cannot read address-profiles.json as ' . _running_as() . " ($err) while rules name "
                 . join( ', ', @names ) . ' - whether those profiles exist is unknown',
-            "run the check as root (sudo lazysite check ...) or as the site user, who can read '$store'" );
+            _run_as_remedy($d) );
     }
     elsif ( $state eq 'undecodable' ) {
         report( 'WARN',
@@ -2256,7 +2256,7 @@ sub report_address_rules {
             report( 'WARN',
                 'could not check that every address profile a rule names is in the store: '
                     . join( '; ', @{ $refs->{faults} } ),
-                'run the check as the user that owns lazysite/auth/ (sudo -u USER lazysite check ...), or as root' );
+                _run_as_remedy($d) );
         }
         else {
             report( 'OK', 'every address profile a rule names is in the store' );
@@ -2282,7 +2282,7 @@ sub report_address_slots_against_old_kinds {
     if ( $state ne 'ok' ) {
         report( 'WARN', "cannot read $old ($state" . ( $err ? ": $err" : '' ) . ') - the rules cannot be '
                 . 'compared with the kinds the address lists had before 0.16.5',
-            "run the check as root (sudo lazysite check ...) or as the site user, who can read '$old'" );
+            _run_as_remedy($d) );
         return;
     }
     require Lazysite::Auth::AddressRefs;
@@ -2302,7 +2302,7 @@ sub report_address_slots_against_old_kinds {
         report( 'WARN',
             'could not check whether every rule names its address profile in the slot its old list\'s kind meant: '
                 . join( '; ', @{ $refs->{faults} } ),
-            'run the check as the user that owns lazysite/auth/ (sudo -u USER lazysite check ...), or as root' );
+            _run_as_remedy($d) );
         return;
     }
     unless (@say) {
@@ -5178,6 +5178,17 @@ sub _open_state {
 
 # The account this run reads as, for a finding about what it could not read.
 sub _running_as { return scalar( getpwuid($>) ) // "uid $>" }
+
+# n825 (SM1447): the remedy for a check that could not read lazysite/auth/: the user
+# that owns the store FILES (not the directory), named, or each owner where they differ.
+sub _run_as_remedy {
+    my ($d) = @_;
+    require Lazysite::Util;
+    my ( $u, $differ ) = Lazysite::Util::store_run_as(
+        Lazysite::Paths::lazysite_dir($d) . '/auth', qw(acls.json address-profiles.json address-lists.json.converted) );
+    return "run the check as $u, who owns the store files (sudo -u $u lazysite check ...), or as root"
+        . ( length $differ ? ". $differ" : '' );
+}
 
 # One anonymous GET. Returns (status, body). Cache directives on purpose: a
 # cached 200 from an intermediary must not be mistaken for the origin serving

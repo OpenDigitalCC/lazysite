@@ -187,6 +187,37 @@ sub path_owner_name {
     return undef;
 }
 
+# n825 (SM1447): THE USER TO RUN A COMMAND AS IS THE OWNER OF THE STORE FILES IT READS AND
+# WRITES, not of the directory holding them. On a Hestia host lazysite/auth/ is
+# ispadmin:www-data 2770 but acls.json and address-profiles.json are written by the CGI,
+# so www-data owns them and ispadmin cannot read some; naming the directory's owner sent
+# the operator to the one user that fails. One helper for every CLI refusal that names a
+# user (acl, handlers, check, users): $dir is the store directory, @names the files in it
+# the command touches. Returns ( $user, $differ ): $user is the owner of the first of them
+# that exists (the directory's owner when none does; 'SITEUSER' when even that is unknown),
+# and $differ is '' unless the files have different owners, then a sentence naming each.
+# Never called from a web door: ruling 243 keeps unix names out of web refusals.
+sub store_run_as {
+    my ( $dir, @names ) = @_;
+    my ( @order, %files );
+    for my $n (@names) {
+        my @st = stat "$dir/$n" or next;
+        my $u = ( getpwuid $st[4] )[0] // "uid $st[4]";
+        push @order, $u unless $files{$u};
+        push @{ $files{$u} }, $n;
+    }
+    unless (@order) {
+        my $o = path_owner_name($dir);
+        return ( $o // 'SITEUSER', '' );
+    }
+    return ( $order[0], '' ) if @order == 1;
+    return ( $order[0],
+        'The store files have different owners ('
+            . join( '; ', map { "$_ owns " . join( ', ', @{ $files{$_} } ) } @order )
+            . '), so no one user is the owner of them all: run it as the owner of the file it '
+            . 'changes, or give the files one owner (`lazysite check` names the fix).' );
+}
+
 # Is this process answering a web request (the manager API, MCP, any CGI door)? A
 # refusal shown through a web door names no unix user (ruling 243): it says "the web
 # server's user" and "the owner of the file". The CLI tools name the users. This is the
