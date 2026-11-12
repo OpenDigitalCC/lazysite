@@ -55,7 +55,7 @@ like( $warn[0] // '', qr/\[ warn \]/,                        'as a WARN' );
 like( $warn[0] // '', qr{the rule on 'content/area/wide'}, 'naming its path' );
 like( $warn[0] // '', qr{the rule on 'content/area' does not}, 'and the enclosing rule' );
 like( $warn[0] // '', qr/lets outsider read it/,           'and whom it admits beyond it' );
-like( $out, qr{review it: .*lazysite acl remove 'content/area/wide'}, 'telling the operator to review it' );
+like( $out, qr{review it: .*acl remove 'content/area/wide'}, 'telling the operator to review it' );
 ok( !( grep { m{bosscarve|opcarve|narrow} } @warn ),
     'a carve-out by the enclosing owner or an operator, and a narrowing rule, are not named' );
 

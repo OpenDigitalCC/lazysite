@@ -80,7 +80,7 @@ subtest 'an unreadable groups-settings.json is unknown, not unconfigured' => sub
     like( $out,
         qr/^\[ warn \] cannot read groups-settings\.json as \S+ \(Permission denied\) - which groups grant manager access is unknown, so the manager state is not reported/m,
         'a WARN names the store, the user and that the state is unknown' );
-    like( $out, qr/-> run the check as root \(sudo lazysite check \.\.\.\) or as the site user/,
+    like( $out, qr/-> run the check as \S+, who owns what it could not read \(sudo -u \S+ \S.* check \.\.\.\), or as root/s,
         'and how to run the check so it can read it' );
     unlike( $out, qr/manager bootstrapped/, 'and no bootstrap verdict either way' );
 };

@@ -44,7 +44,7 @@ subtest 'a directory the user cannot open: named, and not ok' => sub {
         'the warning names the directory and the user' )
         or diag $out;
     like( $out, qr/were not looked at, so the public page count/, 'and says the count is partial' );
-    like( $out, qr/run the check as root/, 'with the user to run it as' );
+    like( $out, qr/run the check as \S+, who owns what it could not read/, 'with the user to run it as' );
     unlike( $out, qr/\[  ok  \] \d+ public page\(s\), each with a title and a description/,
         'and the ok line is not printed' )
         or diag $out;

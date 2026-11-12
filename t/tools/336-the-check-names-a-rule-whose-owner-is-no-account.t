@@ -52,7 +52,7 @@ like( $warn[0] // '', qr/\[ warn \]/,                     'as a WARN' );
 like( $warn[0] // '', qr{the rule on 'content/area/orphan'}, 'naming its path' );
 like( $warn[0] // '', qr/owned by 'ghost'/,                  'and its owner' );
 like( $out, qr{remove it from the manager's Permissions \(Files page\) as the operator}, 'the remedy' );
-like( $out, qr{lazysite acl set 'content/area/orphan' --owner ACCOUNT --actor local}, 'or re-owning it' );
+like( $out, qr{ acl set 'content/area/orphan' --owner ACCOUNT --actor local}, 'or re-owning it' );
 like( $out, qr/A token cannot/, 'and that a token cannot' );
 ok( !( grep { m{'content/area'|area/host|area/none} } @warn ),
     'a rule owned by an account, by local, or by nobody is not named' );

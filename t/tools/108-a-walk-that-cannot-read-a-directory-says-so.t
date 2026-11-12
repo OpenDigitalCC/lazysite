@@ -49,7 +49,7 @@ like( $out, qr/^\[ warn \] [^\n]*\Q$doc\E\/docs\/locked \(Permission denied\)/m,
     'and so is one inside the docroot' );
 like( $out, qr/^\[ warn \] the db: template check could not read/m, 'each walk says so for itself' );
 like( $out, qr/nothing below them was looked at/, 'the finding says what it means for the result' );
-like( $out, qr/-> run the check as root \(sudo lazysite check \.\.\.\) or as the user that owns the site/,
+like( $out, qr/-> run the check as \S+, who owns what it could not read \(sudo -u \S+ \S.* check \.\.\.\), or as root/s,
     'and how to run the check so it can' );
 
 # Every walk goes through the one helper: the tool calls File::Find::find once,
