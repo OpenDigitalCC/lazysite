@@ -93,6 +93,7 @@ backup effectively holds the site's secrets &mdash; treat it accordingly.</p>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
+var BACKUP_POLL_MS = 5000, BACKUP_POLL_CAP_MS = 3 * 3600 * 1000;    // SM1446: a full backup in progress
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
@@ -129,7 +130,10 @@ function loadBackups() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      var all = d.backups || [];
+      // SM1446 (ruling 248): a backup being taken now is shown at the top of
+      // its list, marked in progress, with nothing to act on yet.
+      var all = (d.in_progress || []).map(function(b) { b.running = true; return b; })
+        .concat(d.backups || []);
       // Three distinct kinds: content snapshots (in-app restore), site packages
       // (SM183: apply to a domain), and full-system backups (CLI restore only).
       renderBackups(all.filter(function(b) { return b.scope === 'content'; }), 'content-list', true);
@@ -200,6 +204,12 @@ function renderBackups(list, elId, restorable) {
     // into a two-column grid one after another, so the badge, Download and
     // Restore each landed on a row of their own, staggered - reported as a
     // button out of alignment, and it was every button in the list.
+    if (b.running) {
+      html += '<div class="mg-row"><span class="mg-file-name"><span class="mg-mono">' + escHtml(b.name) + '</span> '
+            + '<span class="mg-tag mg-tag-on">in progress</span> '
+            + '<span class="mg-row-meta">started ' + fmtDate(b.mtime) + '</span></span></div>';
+      continue;
+    }
     html += '<div class="mg-row">';
     html += '<span class="mg-file-name"><span class="mg-mono">' + escHtml(b.name) + '</span> '
           + '<span class="mg-tag ' + badge + '">' + escHtml(b.kind) + '</span> '
@@ -322,6 +332,14 @@ function _create(btn, extra, okMsg, outId) {
     })
     .then(function(d) {
       if (btn) btn.disabled = false;
+      if (d.ok && d.in_progress) {
+        // SM1446 (ruling 248): a full backup runs on after the request; the
+        // page follows it in the list until it is done, failed or unfinished.
+        say('Full-system backup started: ' + d.name + ' (in progress)');
+        loadBackups();
+        pollBackup(d.name, okMsg, outId, Date.now());
+        return;
+      }
       var t = d.ok ? okMsg + d.name : (d.error || 'Backup failed');
       say(t);
       showStatus(t, !d.ok);
@@ -333,6 +351,37 @@ function _create(btn, extra, okMsg, outId) {
       showStatus('Error: ' + e.message, true);
       loadBackups();
     });
+}
+
+// SM1446 (ruling 248): follow a backup that runs on after its request. Read the
+// list every BACKUP_POLL_MS until the name is listed as a backup (done), as
+// unfinished, or nowhere (failed: the worker removed its claim), or until
+// BACKUP_POLL_CAP_MS has passed; then say so beside the button.
+function pollBackup(name, okMsg, outId, began) {
+  var out = document.getElementById(outId);
+  var say = function(t) { if (out) out.textContent = t; };
+  var again = function() { setTimeout(function() { pollBackup(name, okMsg, outId, began); }, BACKUP_POLL_MS); };
+  var end = function(t, bad) { say(t); showStatus(t, bad); loadBackups(); };
+  if (Date.now() - began >= BACKUP_POLL_CAP_MS) {
+    end('Still being taken: ' + name + '. The list shows it when it has finished.', false);
+    return;
+  }
+  fetch(API + '?action=backup-list', { credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { again(); return; }
+      var find = function(l) { return (l || []).filter(function(b) { return b.name === name; })[0]; };
+      var done = find(d.backups);
+      if (done) { end(okMsg + name + ' (' + fmtSize(done.size) + ')', false); return; }
+      if (find(d.unfinished)) { end('The backup did not finish: ' + name + ' is listed as unfinished.', true); return; }
+      if (!find(d.in_progress)) {
+        end('The backup failed: ' + name + ' is no longer listed. The audit trail\'s backup-create entry says why.', true);
+        return;
+      }
+      say('Full-system backup in progress: ' + name);
+      again();
+    })
+    .catch(function() { again(); });
 }
 
 // --- SM183: site packages (create is on the Domains page; here: list, upload,

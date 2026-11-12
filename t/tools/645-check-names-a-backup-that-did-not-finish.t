@@ -40,7 +40,7 @@ subtest 'an empty claim, a cut-off archive and a staging directory are each name
     spit( "$bk/lazysite-full-20261112T065507Z.tar.gz", '' );
     utime 1_794_466_507, 1_794_466_507, "$bk/lazysite-full-20261112T065507Z.tar.gz";
     spit( "$bk/lazysite-full-20260715T080000Z.tar.gz", "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03" . ( "\x55" x 64 ) );
-    make_path("$bk/.stage-4242-1794466507");
+    make_path("$bk/.stage-999999999-1794466507");
     my $out = run();
     like( $out, qr/an unfinished backup: lazysite\/backups\/lazysite-full-20261112T065507Z\.tar\.gz \(dated 2026-11-12 06:55 UTC, 0 bytes\) holds no finished archive; it is not listed or offered as a backup/,
         'the empty claim, with its date and size' ) or diag $out;
@@ -48,7 +48,7 @@ subtest 'an empty claim, a cut-off archive and a staging directory are each name
         'and how to remove it' );
     like( $out, qr/an unfinished backup: lazysite\/backups\/lazysite-full-20260715T080000Z\.tar\.gz/,
         'the archive that stops part way' );
-    like( $out, qr/a backup's staging directory is left in lazysite\/backups\/\.stage-4242-1794466507 .*rm -r lazysite\/backups\/\.stage-4242-1794466507/s,
+    like( $out, qr/a backup's staging directory is left in lazysite\/backups\/\.stage-999999999-1794466507 .*rm -r lazysite\/backups\/\.stage-999999999-1794466507/s,
         'and the staging directory, with its remedy' );
     unlike( $out, qr/lazysite-manual-20261101T101010Z/, 'the finished one is still not named' );
 };

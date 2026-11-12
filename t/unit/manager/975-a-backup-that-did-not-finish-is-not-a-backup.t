@@ -9,20 +9,22 @@
 # empty claim. No audit row was written either: the trail's line is written after
 # the action, and the action never returned.
 #
-# Driven through lazysite-manager-api.pl, as the page drives it, with a stand-in
-# tar that starts its archive and then hangs - the request is signalled while tar
-# runs, as a deadline would:
+# A full backup now runs detached from its request (ruling 248; t/unit/manager/977),
+# so the request that can be killed mid-tar is a content backup's, which still
+# runs in the request. Driven through lazysite-manager-api.pl, as the page drives
+# it, with a stand-in tar that starts its archive and then hangs - the request is
+# signalled while tar runs, as a deadline would:
+#   - while tar runs the backup is listed as in progress, and restore refuses it
+#     as in progress;
 #   - KILL (cannot be caught): the claim stays; backup-list does not list it as a
-#     backup but under `unfinished`, with its time and how to remove it; the
-#     trail holds the start, by file name; restore refuses it by name;
+#     backup or as in progress but under `unfinished`, with its time and how to
+#     remove it; the trail holds the start, by file name; restore refuses it;
 #   - TERM (the relay's first signal): nothing is left at all - no claim, no
-#     staging directory - and tar is stopped;
+#     staging directory, no marker - and tar is stopped;
 #   - an archive tar wrote through its own name and did not finish (every one
 #     before SM885, and site packages still) is unfinished too; a whole one with
 #     no digest beside it (from before the digest) is still a backup;
-#   - a finished backup records its sha256, and its audit outcome names the file
-#     and, for a full one, the kind `full` (it read `manual`: the page sends
-#     scope=full, which the trail's target ignored);
+#   - a finished backup records its sha256, and its audit outcome names the file;
 #   - a site package tar did not finish is not applied.
 use strict;
 use warnings;
@@ -98,7 +100,7 @@ chmod oct('0755'), "$bin/tar" or die $!;
 # Start backup-create with the hanging tar, wait until tar is running, signal
 # the request, and stop whatever tar is left. Returns the claimed name.
 sub killed_backup {
-    my ( $qs, $sig ) = @_;
+    my ( $qs, $sig, $while ) = @_;
     my $pidf = "$d/../tar.pid";
     unlink $pidf;
     my %before = map { ( s{.*/}{}r => 1 ) } glob "$bk/lazysite-*.tar.gz";
@@ -115,6 +117,7 @@ sub killed_backup {
     Time::HiRes::sleep(0.05) until ( -s $pidf ) || Time::HiRes::time() > $until;
     ok( -s $pidf, "$sig: tar is running when the request is signalled" );
     my ($claim) = grep { !$before{$_} } map { s{.*/}{}r } glob "$bk/lazysite-*.tar.gz";
+    $while->($claim) if $while;
     kill $sig, $pid;
     reap_child( $pid, label => 'manager api' );
     my $tar = slurp($pidf);
@@ -123,8 +126,12 @@ sub killed_backup {
 }
 
 # --- KILL: the claim stays, and is listed as what it is ----------------------------
-my $claim = killed_backup( 'action=backup-create&scope=full', 'KILL' );
-like( $claim, qr/\Alazysite-full-\d{8}T\d{6}Z\.tar\.gz\z/, 'the request had claimed its name' );
+my $running;
+my $claim = killed_backup( 'action=backup-create', 'KILL', sub { $running = api( 'action=backup-list', 'GET' ); } );
+is_deeply( [ map { $_->{name} } @{ $running->{in_progress} || [] } ], [$claim],
+    'while tar runs, the backup is listed as in progress' ) or diag explain $running;
+is_deeply( $running->{unfinished}, [], 'and not as unfinished' );
+like( $claim, qr/\Alazysite-manual-\d{8}T\d{6}Z\.tar\.gz\z/, 'the request had claimed its name' );
 ok( -f "$bk/$claim" && -z "$bk/$claim", 'a KILL leaves the empty claim behind (it cannot be caught)' );
 
 my $l = api( 'action=backup-list', 'GET' );
@@ -138,12 +145,15 @@ like( $u->{remedy} // '', qr/no backup is being taken now.*backup-delete name=\Q
     'and how to remove it' );
 
 my $audit = slurp("$d/lazysite/logs/audit.log");
-like( $audit, qr/\| admin \| backup-create \| full \| [^|]* \| started \| ui \| file=\Q$claim\E$/m,
+like( $audit, qr/\| admin \| backup-create \| manual \| [^|]* \| started \| ui \| file=\Q$claim\E$/m,
     'the trail holds the start, naming the file' );
-unlike( $audit, qr/\| backup-create \| full \| [^|]* \| (?:ok|fail) /, 'and no outcome - the request never wrote one' );
+unlike( $audit, qr/\| backup-create \| manual \| [^|]* \| (?:ok|fail) /, 'and no outcome - the request never wrote one' );
 
 # --- a manual one, killed the same way, is not restored by name ----------------------
-my $mclaim = killed_backup( 'action=backup-create', 'KILL' );
+my $during;
+my $mclaim = killed_backup( 'action=backup-create', 'KILL', sub { $during = api("action=backup-restore&name=$_[0]") } );
+is( $during->{kind}, 'in-progress', 'while it is being taken, restore refuses it as in progress' ) or diag explain $during;
+like( $during->{error} // '', qr/is being taken now: there is nothing to restore/, 'saying so' );
 like( $mclaim, qr/\Alazysite-manual-/, 'a content backup killed mid-tar' );
 my $r = api("action=backup-restore&name=$mclaim");
 ok( !$r->{ok}, 'restore refuses the unfinished one' );
@@ -153,12 +163,12 @@ ok( !glob("$bk/lazysite-prerestore-*"), 'before taking any safety snapshot' );
 
 my $del = api( 'action=backup-delete', 'POST' );    # the name rides the body; this one names none
 ok( !$del->{ok}, 'backup-delete needs a name' );
-unlink "$bk/$claim", "$bk/$mclaim";
+unlink "$bk/$claim", "$bk/$mclaim", glob("$bk/.*.pid");
 system( 'rm', '-rf', glob("$bk/.stage-*") );
 
 # --- TERM: nothing is left at all ----------------------------------------------------
-my $tclaim = killed_backup( 'action=backup-create&scope=full', 'TERM' );
-like( $tclaim, qr/\Alazysite-full-/, 'TERM: a full backup was under way' );
+my $tclaim = killed_backup( 'action=backup-create', 'TERM' );
+like( $tclaim, qr/\Alazysite-manual-/, 'TERM: a content backup was under way' );
 opendir my $dh, $bk or die $!;
 my @left = grep { !/\A\.\.?\z/ } readdir $dh;
 closedir $dh;
@@ -184,16 +194,16 @@ like( slurp("$d/../api.err"), qr/backup interrupted - nothing was kept/, 'the lo
 }
 
 # --- a finished backup: its digest, and an outcome that names it ---------------------
-my $c = api('action=backup-create&scope=full');
-ok( $c->{ok}, 'a full backup that finishes' ) or diag explain $c;
+my $c = api('action=backup-create');
+ok( $c->{ok}, 'a content backup that finishes' ) or diag explain $c;
 ok( length( $c->{sha256} // '' ) == 64, 'records its sha256' );
 ok( -f "$bk/$c->{name}.sha256", 'in the sidecar beside it' );
 my ($row) = grep { $_->{name} eq ( $c->{name} // '' ) } @{ api( 'action=backup-list', 'GET' )->{backups} };
 is( $row->{sha256_status}, 'verified', 'which the listing verifies' );
 $audit = slurp("$d/lazysite/logs/audit.log");
-like( $audit, qr/\| backup-create \| full \| [^|]* \| started \| ui \| file=\Q$c->{name}\E$/m, 'its start' );
-like( $audit, qr/\| backup-create \| full \| [^|]* \| ok \| ui \| file=\Q$c->{name}\E$/m,
-    'and its outcome, naming the file and the kind full' );
+like( $audit, qr/\| backup-create \| manual \| [^|]* \| started \| ui \| file=\Q$c->{name}\E$/m, 'its start' );
+like( $audit, qr/\| backup-create \| manual \| [^|]* \| ok \| ui \| file=\Q$c->{name}\E$/m,
+    'and its outcome, naming the file' );
 
 # --- a site package tar did not finish is not applied ----------------------------------
 {

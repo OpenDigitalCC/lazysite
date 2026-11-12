@@ -78,6 +78,13 @@ backup. After the upgrade the page shows each such file under "Unfinished backup
 taken, delete it on the Backups page or with `rm lazysite/backups/<name>`, and remove any
 `lazysite/backups/.stage-*` directory the check names.
 
+**A full backup runs in the background (SM1446, ruling 248).** The Backups page's full-system
+backup, and `backup-create` with `scope=full`, now answer at once with the file's name and
+`in_progress: true`; the backup is taken by a process of the user the manager runs as, which carries on
+after the request. A script that called `backup-create&scope=full` and read `sha256` or `size`
+from the answer should instead read `backup-list` until the name is listed under `backups` (or
+under `unfinished`, if it stopped). A content backup is unchanged.
+
 ## A full restore gives a site that serves, and the rest of 0.16.12 (the second beta)
 
 0.16.12 is the second beta (ruling 242): 0.16.11 plus the changes below, on the beta channel,

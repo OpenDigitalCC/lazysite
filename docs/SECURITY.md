@@ -6492,6 +6492,17 @@ what changed
   outcome row names the file, and a full backup's target is `full`. `lazysite check` names each
   unfinished backup and `.stage-*` directory. The Backups page shows the outcome and the
   unfinished list, with a Delete through the existing `backup-delete` and `site-backup-delete`.
+: Ruling 248: a full backup runs in a DETACHED WORKER. `backup-create&scope=full` claims the
+  name, forks twice and calls setsid (`Lazysite::Util::detach`, shared with the registry
+  rebuild), and answers at once with `in_progress`. The worker is a copy of the manager API
+  process, so it runs as the same unix user the manager runs as (the CGI's or the pool's; it gains
+  nothing), with stdin, stdout and stderr on /dev/null and descriptors 3-63 closed, in its own
+  session, so the request's end, the relay's TERM/KILL and the web server's kill do not reach it.
+  It does one thing - `action_backup_create` on the claimed name, then the outcome audit row -
+  and ends with `_exit`; it lives as long as the tar does, which nothing bounds but the size of
+  the tree. A `.<name>.pid` marker (pid, start time) beside the claim says it is in progress; the
+  listing trusts it only while that pid is alive and for under six hours. Restore and
+  backup-delete refuse a backup in progress (409).
 
 threat delta
 : Repudiation, narrowed: a backup started and never finished now has a trail row; before, a
@@ -6499,17 +6510,28 @@ threat delta
   offered as a backup or restored, which closes a partial restore from a file the operator took
   for whole. No new action, capability, interface or dependency (`gzip` was already run by the
   backup path); the deletes are the existing actions under their existing checks. No ADR 0007
+  The worker (ruling 248) is the request's own code and identity continued after the request:
+  it adds no interface, reads no input after the request, and its effects are those the request
+  had - one archive and its digest in `lazysite/backups/`, two trail rows. Denial of service:
+  each full backup started is one tar running to completion, where a killed request stopped its
+  tar or left it orphaned; starting them is manage_config (cookie) only, as before, and a
+  second start while one runs takes a second name. Repudiation: the start and outcome rows are
+  written by the worker as the requesting account, so a backup is attributed to who asked.
   trigger fires.
 
 controls
 : t/unit/manager/975 (listing, restore and apply refusal, TERM and KILL mid-tar, the start and
   outcome rows), 976 (the page), t/tools/645 (the check) and 646 (`--restore-full`); each fails
-  on 3d869ef6e.
+  on 3d869ef6e. t/unit/manager/977 (the detached worker: answered in progress, listed in
+  progress, finished with a verified sha256 and its own two trail rows; a KILLed worker and a
+  stale marker are unfinished) fails on de7843a65.
 
 residual risk
 : A KILL still leaves the empty claim, and a tar that outlives its request can leave a staging
   directory; both are reported, not removed, since only the operator knows that no backup is
-  running. A full backup that takes longer than the deadline in front of the manager still
-  cannot be taken from the page (SM1446 part 3, awaiting a ruling).
+  running. Nothing limits how many full backups run at once or for how long; each is bounded by
+  the tree and the disk, and retention (SM268 03-F11) still bounds how many are kept. A worker's
+  log lines reach no error log (its stderr is /dev/null), only the syslog forwarding where it is
+  configured: its outcome is the trail row.
 
-verdict : drafted, not confirmed. A field-pass fix (rulings 206, 227, 228); not security-critical.
+verdict : drafted, not confirmed. A field-pass fix (rulings 206, 227, 228, 248); not security-critical.

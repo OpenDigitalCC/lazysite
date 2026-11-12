@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "0.16.12 test, row Y6"
 area: manager
-status-note: "SHIPPED (PENDING): an empty claim, or a cut-off archive with no sha256, is listed under unfinished, refused by restore, apply and --restore-full, and named by lazysite check; TERM mid-tar keeps nothing; the trail records the start; the page shows the outcome. Part 3 (a full backup that outlives the request) awaits a ruling. t/unit/manager/975, 976, t/tools/645, 646."
+status-note: "SHIPPED (PENDING): an empty claim, or a cut-off archive with no sha256, is listed under unfinished, refused by restore, apply and --restore-full, and named by lazysite check; TERM mid-tar keeps nothing; the trail records the start; the page shows the outcome. A full backup runs detached and lists in progress (ruling 248). t/unit/manager/975-977, t/tools/645, 646."
 ---
 
 # What was found
@@ -62,8 +62,21 @@ that.
    empty claim, which (1) reports. The manager API records the start in the trail (`started`,
    `file=<name>`) before tar runs; the outcome row now names the file too, and a full backup's
    target is `full` (it read `manual`: the page sends `scope=full`, which the target ignored).
-3. **A full backup of a large site completes.** Not built: it needs either a backup that runs
-   detached from the request, or a CLI to take one, and the brief asks for a ruling first.
+3. **A full backup of a large site completes (ruling 248).** `backup-create&scope=full` claims the
+   name, starts a worker detached from the request with `Lazysite::Util::detach` (the registry
+   rebuild's double fork and setsid, now one helper the two share) and answers at once with the
+   name and `in_progress: true`. The worker runs `action_backup_create` on the claimed name - the
+   same staging, rename, sha256, retention and TERM/INT/HUP cleanup - and writes the start and
+   outcome rows to the trail; the request writes no row of its own for it. A marker beside the
+   claim, `.<name>.pid` (pid and start time), is written before the request answers and removed
+   however the backup ends; `backup-list` lists the claim under `in_progress` while that process
+   is alive and the marker is under six hours old, and as unfinished otherwise. Every backup the
+   engine takes writes the marker, so a content backup being taken is in progress too. Restore
+   and backup-delete refuse one in progress (409). `lazysite check` does not name the staging
+   directory of a live process. The page follows a started backup in the list every 5 s, for at
+   most three hours, and says done (name and size), unfinished, or failed (gone from the list).
+   MCP `site_backup` makes a site package (`package_create`), not a full backup, and does not
+   reach this code; it is unchanged. A site package being made writes no marker.
 4. **The page says what happened.** The outcome stays beside the button: the name, the refusal,
    or, for an answer that is not JSON (the error page of a server that stopped waiting), that the
    server stopped waiting and the list will show the backup when it has finished or as
@@ -83,10 +96,18 @@ that.
   refuses it with no safety snapshot. TERM: nothing is left and tar is stopped. A cut-off archive
   with no sha256 is unfinished, a whole one is a backup. A finished full backup has a verified
   sha256 and start and outcome rows naming the file and `full`. An unfinished site package is
-  not applied. 16 of 34 fail on 3d869ef6e.
+  not applied. 16 of 34 fail on 3d869ef6e. Its kill arms now use a content backup (still in the
+  request); while tar runs the backup is in progress and restore refuses it as such, which fails
+  4 of 38 on de7843a65.
 - `t/unit/manager/976`: the page's own JavaScript in node: the outcome line for a finished
   backup, a refusal and a 504 page, the list read again each time, unfinished backups shown with
-  a Delete for their kind. All fail on 3d869ef6e.
+  a Delete for their kind. All fail on 3d869ef6e. The following of a full backup in progress (to done,
+  unfinished, gone, and the cap) fails on de7843a65 (no `pollBackup`).
+- `t/unit/manager/977`: a full backup whose tar waits 3 s answers in under 3 s with `in_progress`,
+  is listed in progress, then finishes after its request and is listed with a verified sha256 and
+  no marker, with exactly the worker's start and outcome rows; a worker killed with KILL lists as
+  unfinished, not in progress; a marker over six hours old or of a dead process is unfinished.
+  Fails on de7843a65.
 - `t/tools/645`: `lazysite check` names an empty claim (date, size, remedy), a cut-off archive
   and a staging directory, and not a finished backup. Fails on 3d869ef6e.
 - `t/tools/646`: `install.pl --restore-full` refuses an empty claim and a cut-off archive, saying

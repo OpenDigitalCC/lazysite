@@ -78,7 +78,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layout_delete action_layouts_manifest action_layout_install
     action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
-use Lazysite::Manager::Backups qw(action_backup_create action_backup_download
+use Lazysite::Manager::Backups qw(action_backup_create action_backup_start action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(dispatch_sessions_keys);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check domain_preview preview_public known_domain_host valid_host host_refusal domain_content_root action_domain_check action_domains_list); # SM944 S27
@@ -2940,12 +2940,23 @@ elsif ( $action eq 'backup-create' ) {
     # the generic line writes after the chain - a request killed mid-tar writes
     # no outcome, and a start with no end is then what says so.
     my $kind = ( $params{scope} // '' ) eq 'full' ? 'full' : 'manual';
-    $result = action_backup_create(
-        ( $kind eq 'full' ? 'full' : undef ),
-        on_start => sub {
-            audit_log( $auth_user, 'backup-create', $kind, _request_ip(), 'started',
-                ( $token_auth ? 'api' : 'ui' ), "file=$_[0]" );
-        } );
+    my ( $ip, $door ) = ( _request_ip(), ( $token_auth ? 'api' : 'ui' ) );
+    my $started = sub { audit_log( $auth_user, 'backup-create', $kind, $ip, 'started', $door, "file=$_[0]" ) };
+    if ( $kind eq 'full' ) {
+        # SM1446 (ruling 248): detached; the worker writes the start and the
+        # outcome, so the generic line below is not written for it.
+        $result = action_backup_start(
+            'full',
+            on_start => $started,
+            on_end   => sub {
+                my ($r) = @_;
+                audit_log( $auth_user, 'backup-create', $kind, $ip, ( $r->{ok} ? 'ok' : 'fail' ), $door,
+                    ( $r->{ok} ? "file=$r->{name}" : ( $r->{reason} || $r->{error} || 'failed' ) ) );
+            } );
+    }
+    else {
+        $result = action_backup_create( undef, on_start => $started );
+    }
 }
 elsif ( $action eq 'backup-restore' ) {
     # SM874: `replace` is the undo-of-apply mode - clear the archive's own
@@ -3036,9 +3047,13 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
     # refusal's reason is never displaced by it.
     my $aud_extra   = '';
     my $aud_no_text = 0;    # P24: a failed account-store read records its class only
-        # SM1446: a backup's outcome names its file, as its start row does.
+        # SM1446: a backup's outcome names its file, as its start row does. A full
+        # backup's worker writes its own start and outcome (ruling 248), so the
+        # request writes no row of its own for one it started.
     $aud_extra = "file=$result->{name}"
         if $action eq 'backup-create' && ref $result eq 'HASH' && length( $result->{name} // '' );
+    $aud_action = undef
+        if $action eq 'backup-create' && ref $result eq 'HASH' && $result->{in_progress};
     # SM503: a data action's material object is the TABLE, not the dispatcher
     # path - the sysop's trail showed data-import and data-row-save rows
     # all targeting "/", which answers none of the questions a trail exists

@@ -148,7 +148,7 @@ sub dispatch_backup_list {
         my $confined = Lazysite::Manager::Common::caller_is_confined();
         # SM1446: the unfinished ones by the same rule, so a caller is told of
         # an unfinished file only where it would be shown the finished one.
-        for my $list (qw(backups unfinished)) {
+        for my $list (qw(backups unfinished in_progress)) {
             next unless ref $result->{$list} eq 'ARRAY';
             $result->{$list} = [
                 grep {

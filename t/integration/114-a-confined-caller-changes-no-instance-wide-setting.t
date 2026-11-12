@@ -74,6 +74,11 @@ ok( op( 'domain-set', { host => 'mine.example.org', key => 'allowed_groups', val
     'setup: cks, tks and mcs are scoped to mine' );
 my $full = op( 'backup-create', {}, 'action=backup-create&scope=full' )->{name} // '';
 ok( length $full, 'setup: a full instance backup exists' );
+# SM1446 (ruling 248): a full backup is taken in the background; wait until it is listed.
+for ( 1 .. 150 ) {
+    last if grep { ( $_->{name} // '' ) eq $full } @{ op( 'backup-list', undef, 'action=backup-list' )->{backups} || [] };
+    select undef, undef, undef, 0.2;    ## no critic (ProhibitSleepViaSelect)
+}
 
 sub uapi {
     my ($p) = @_;

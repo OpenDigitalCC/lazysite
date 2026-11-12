@@ -66,7 +66,13 @@ Archive
   backup, the kind `full` (it read `manual`). The Backups page shows the outcome beside the button
   (the name, the refusal, or that the server stopped waiting), reads the list again whatever
   happened, and shows unfinished backups apart with a Delete. A finished backup records its
-  sha256, as it has since SM183. A field-pass fix (rulings 206, 227, 228).
+  sha256, as it has since SM183. **A full backup now runs detached from its request (ruling
+  248):** `backup-create&scope=full` answers at once with the name and `in_progress`, a worker
+  takes the backup and writes its start and outcome to the trail, and `backup-list` lists it
+  under `in_progress` while its process is alive (for at most six hours), then as a backup or as
+  unfinished; the page follows it until then. Restore and delete refuse one in progress. The
+  registry rebuild and the backup share one detach helper (`Lazysite::Util::detach`). A
+  field-pass fix (rulings 206, 227, 228, 248).
 - SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**
   An agent adding patterns (R1), an agent seeing blocked addresses and a visitor's block state
   (R2) and a built-in pattern edited or switched off for a site that serves it (R4) are features

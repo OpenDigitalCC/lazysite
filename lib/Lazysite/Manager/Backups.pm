@@ -21,7 +21,7 @@ use Exporter          qw(import);
 # load this module back, so naming it here costs no cycle.
 use Lazysite::Manager::Upload ();
 use Lazysite::Paths           ();
-our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
+our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_start action_backup_download
     action_backup_restore action_backup_delete
     write_sha256 read_sha256 verify_sha256
     _claim_name _apply_retention);
@@ -170,11 +170,45 @@ sub _unfinished {
     return _gzip_ok($path) ? 0 : 1;
 }
 
-# The same test for one file, for the paths that act on a single archive.
+# SM1446 (ruling 248): A BACKUP BEING TAKEN NOW IS IN PROGRESS, NOT UNFINISHED.
+#
+# Its claim is as empty as a killed one's, so what tells them apart is a marker
+# beside it, `.<name>.pid`, holding the pid of the process taking it and when it
+# started. It is written as soon as the name is claimed and removed however the
+# backup ends. The backup is in progress while that process is alive and the
+# marker is younger than $IN_PROGRESS_MAX; a dead pid, a missing marker or an
+# older one is unfinished - so a pid reused after a reboot, or a worker that
+# hung, cannot keep a file "in progress" for ever.
+our $IN_PROGRESS_MAX = 6 * 3600;
+
+sub _marker { my ($path) = @_; return $path =~ s{([^/]+)\z}{.$1.pid}r }
+
+sub _write_marker {
+    my ( $path, $pid ) = @_;
+    my $m = _marker($path);
+    open my $fh, '>', "$m.tmp.$$" or return;
+    print {$fh} "$pid " . time . "\n";
+    close $fh;
+    rename "$m.tmp.$$", $m or unlink "$m.tmp.$$";
+    return;
+}
+
+sub _in_progress {
+    my ($path) = @_;
+    open my $fh, '<', _marker($path) or return 0;
+    my ( $pid, $at ) = ( <$fh> // '' ) =~ /\A(\d+) (\d+)/;
+    close $fh;
+    return 0 unless $pid && $at && time - $at < $IN_PROGRESS_MAX;
+    return ( kill( 0, $pid ) || $!{EPERM} ) ? 1 : 0;
+}
+
+# The same test for one file, for the paths that act on a single archive:
+# '' when it is a finished archive, else 'in_progress' or 'unfinished'.
 sub unfinished {
     my ($path) = @_;
     my ( undef, $status ) = _sha_and_status($path);
-    return _unfinished( $path, -s $path // 0, $status );
+    return '' unless _unfinished( $path, -s $path // 0, $status );
+    return _in_progress($path) ? 'in_progress' : 'unfinished';
 }
 
 # What an operator does about one: nothing while a backup is still being taken,
@@ -188,7 +222,7 @@ sub _unfinished_remedy {
 
 sub action_backup_list {
     my $dir = _dir();
-    my ( @out, @unfinished );
+    my ( @out, @unfinished, @running );
     if ( opendir my $dh, $dir ) {
         for my $f ( readdir $dh ) {
             next unless $f =~ /\.tar\.gz\z/ && -f "$dir/$f";
@@ -215,6 +249,10 @@ sub action_backup_list {
 
             # SM1446: never listed as a backup; listed as what it is.
             if ( _unfinished( "$dir/$f", $st[7] // 0, $status ) ) {
+                if ( _in_progress("$dir/$f") ) {
+                    push @running, { name => $f, mtime => $st[9] // 0, kind => $kind, scope => $scope };
+                    next;
+                }
                 push @unfinished, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
                     kind => $kind, scope => $scope, remedy => _unfinished_remedy($f) };
                 next;
@@ -228,7 +266,8 @@ sub action_backup_list {
     }
     @out        = sort { $b->{mtime} <=> $a->{mtime} } @out;
     @unfinished = sort { $b->{mtime} <=> $a->{mtime} } @unfinished;
-    return { ok => 1, backups => \@out, unfinished => \@unfinished };
+    @running    = sort { $b->{mtime} <=> $a->{mtime} } @running;
+    return { ok => 1, backups => \@out, unfinished => \@unfinished, in_progress => \@running };
 }
 
 # SM183: the stamp is second-granular and was the ONLY thing making a name
@@ -391,8 +430,13 @@ sub action_backup_delete {
     my $full = _dir() . "/$name";
     return { ok => 0, kind => 'not-found', error => 'Backup not found' } unless -f $full;
 
+    # SM1446: not while it is being taken - its worker would put it back.
+    return { ok => 0, kind => q{in-progress},
+        error => "$name is being taken now; delete it once it has finished, if you still want to." }
+        if unfinished($full) eq q{in_progress};
     unlink $full or return { ok => 0, error => "Could not delete the backup: $!" };
     unlink "$full.sha256" if -f "$full.sha256";    # SM753: and its sidecar
+    unlink _marker($full);
     log_event( 'INFO', 'backup-delete', 'snapshot removed',
         file => $name, user => $auth_user );
     return { ok => 1, name => $name };
@@ -619,9 +663,12 @@ sub action_backup_create {
     # unmistakably ours (and sort together): lazysite-<kind>-<UTCstamp>.tar.gz.
     # The name is claimed atomically - see _claim_name for why a check-then-create
     # was not enough.
-    my ( $out, $name ) = _claim_name( $dir, $kind );
+    # SM1446 (ruling 248): a detached full backup claims its name in the request,
+    # which answers with it, and hands the claim to its worker.
+    my ( $out, $name ) = $opt{claimed} ? @{ $opt{claimed} } : _claim_name( $dir, $kind );
     return { ok => 0, error => 'Backup failed: could not claim a filename' }
         unless defined $out;
+    _write_marker( $out, $$ );    # SM1446: in progress, by this process
 
     # SM885: TAR DOES NOT WRITE THE CLAIMED NAME. It writes into a staging
     # directory, and the finished archive is renamed into place.
@@ -646,7 +693,7 @@ sub action_backup_create {
     my $stage_dir = "$dir/.stage-$$-" . time;
     make_path($stage_dir);
     unless ( -d $stage_dir ) {
-        unlink $out;
+        unlink $out, _marker($out);
         return { ok => 0,
             error  => 'Backup failed: cannot create the staging directory',
             reason => 'cannot create the staging directory',
@@ -767,7 +814,7 @@ sub action_backup_create {
         my $abandon = sub {
             my ($sig) = @_;
             kill 'TERM', $tar_pid if $tar_pid;
-            unlink $out;
+            unlink $out, _marker($out);
             _drop_staging($stage_dir);
             log_event( 'ERROR', 'backup-create', 'backup interrupted - nothing was kept',
                 file => $name, signal => $sig, user => $auth_user );
@@ -837,7 +884,7 @@ sub action_backup_create {
         # the claimed name now - the orphaned compressor only ever knew the
         # staged path - and taking the directory with it means an orphan that
         # has not opened its file yet has no parent to create it in.
-        unlink $out;
+        unlink $out, _marker($out);
         my $why
             = $rc != 0   ? sprintf( 'tar exited %d', $rc >> 8 )
             : !-f $stage ? 'tar reported success but wrote no archive'
@@ -859,7 +906,7 @@ sub action_backup_create {
     # between where it holds a half-written one.
     unless ( rename $stage, $out ) {
         my $why = "could not place the archive: $!";
-        unlink $out;
+        unlink $out, _marker($out);
         _drop_staging($stage_dir);
         my ($who) = getpwuid($>);
         return { ok => 0,
@@ -877,6 +924,7 @@ sub action_backup_create {
         file => $name, user => $auth_user,
         ( length $root ? ( root => $root ) : () ) );
     my $sha = write_sha256($out);
+    unlink _marker($out);    # SM1446: finished, with its digest
 
     # After the snapshot exists and carries its digest, never before: expiring an
     # old one to make room for a new one that then fails would lose both.
@@ -886,6 +934,49 @@ sub action_backup_create {
     return { ok => 1, name => $name, size => $st[7] // 0, mtime => $st[9] // 0,
         sha256 => $sha,
         scope  => ( $kind eq q{full} ? q{full} : q{content} ) };
+}
+
+# SM1446 (ruling 248): A FULL BACKUP RUNS DETACHED FROM THE REQUEST.
+#
+# A full backup carries every domain and the instance's own tree, and on a large
+# instance tar outlasts every deadline in front of the manager (the relay's 120 s,
+# the proxy's and web server's own): the request was killed mid-tar and left an
+# empty claim the listing called a backup. So the request claims the name, starts
+# a worker detached from it (Lazysite::Util::detach, the registry rebuild's double
+# fork and setsid) and answers at once with the name and in_progress. The worker
+# takes the backup through action_backup_create - the same staging, rename,
+# digest, retention and signal cleanup - and reports through on_start / on_end,
+# which the manager API points at the audit trail. The listing says in progress
+# while it runs (the pid marker), then lists it as done, or as unfinished.
+sub action_backup_start {
+    my ( $kind, %opt ) = @_;
+    my $dir = _dir();
+    make_path($dir) unless -d $dir;
+    return { ok => 0, error => 'Backup failed: cannot create the backup directory',
+        reason => 'cannot create the backup directory' }
+        unless -d $dir;
+    my ( $out, $name ) = _claim_name( $dir, $kind );
+    return { ok => 0, error => 'Backup failed: could not claim a filename' }
+        unless defined $out;
+
+    # The marker names the WORKER before the request answers, so the listing
+    # never sees this claim without one.
+    my $started = Lazysite::Util::detach( sub { _write_marker( $out, $_[0] ) } );
+    if ( !defined $started ) {
+        my $r = eval { action_backup_create( $kind, %opt, claimed => [ $out, $name ] ) }
+            // { ok => 0, error => 'Backup failed: the worker died', reason => 'the worker died' };
+        eval { $opt{on_end}->($r) if ref $opt{on_end} eq 'CODE'; 1 };
+        POSIX::_exit(0);
+    }
+    unless ( $started && -f _marker($out) ) {
+        unlink $out, _marker($out);
+        return { ok => 0, error => 'Backup failed: could not start the backup process',
+            reason => 'could not start the backup process' };
+    }
+    log_event( 'INFO', 'backup-create', 'backup started in the background',
+        file => $name, kind => $kind, user => $auth_user );
+    return { ok => 1, name => $name, in_progress => 1,
+        scope => ( $kind eq 'full' ? 'full' : 'content' ) };
 }
 
 # SM378: the safety snapshot a destructive operation takes first, and the
@@ -983,11 +1074,16 @@ sub action_backup_restore {
 
     my $full = _dir() . "/$name";
     return { ok => 0, error => 'Backup not found' } unless -f $full;
-    # SM1446: an unfinished one is not offered, and not restored by name either.
-    return { ok => 0, kind => 'unfinished',
-        error => "$name is an unfinished backup: it holds no finished archive, so "
-            . 'there is nothing to restore. ' . ucfirst( _unfinished_remedy($name) ) . '.' }
-        if unfinished($full);
+    # SM1446: an unfinished one is not offered, and not restored by name either;
+    # nor is one still being taken (ruling 248).
+    if ( my $state = unfinished($full) ) {
+        return { ok => 0, kind => 'in-progress',
+            error => "$name is being taken now: there is nothing to restore until it has finished." }
+            if $state eq 'in_progress';
+        return { ok => 0, kind => 'unfinished',
+            error => "$name is an unfinished backup: it holds no finished archive, so "
+                . 'there is nothing to restore. ' . ucfirst( _unfinished_remedy($name) ) . '.' };
+    }
 
     # SM484: the archive's members ARE its blast radius - a scoped backup
     # restores exactly its own subtree - so the safety snapshot scopes to the

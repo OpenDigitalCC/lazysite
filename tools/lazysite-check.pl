@@ -3887,7 +3887,12 @@ sub report_unfinished_backups {
     }
     my @stages;
     if ( opendir my $dh, $dir ) {
-        @stages = sort grep { /\A\.stage-/ && -d "$dir/$_" } readdir $dh;
+        # SM1446 (ruling 248): a staging directory is named for the process
+        # taking the backup; one whose process is alive is a backup in progress.
+        @stages = sort grep {
+            my ($pid) = /\A\.stage-(\d+)-/;
+            /\A\.stage-/ && -d "$dir/$_" && !( $pid && ( kill( 0, $pid ) || $!{EPERM} ) )
+        } readdir $dh;
         closedir $dh;
     }
     for my $s (@stages) {

@@ -16,6 +16,9 @@
 #   - the listing's `unfinished` entries are shown apart, by name and time, each
 #     with a Delete that sends the delete for its kind; none, and the note is
 #     hidden.
+#   - a full backup answered as in progress (ruling 248) is followed in the list
+#     until it is a backup (its name and size), unfinished, or gone (failed), and
+#     no further than the cap.
 #
 # With the old page (no outcome line, no reload on failure, no renderUnfinished)
 # these fail.
@@ -41,7 +44,7 @@ like( $page, qr/id="full-outcome"/,    'and so does the full-system card' );
 like( $page, qr/id="unfinished"[^>]*hidden/, 'the unfinished note starts hidden' );
 
 my $fns = join "\n", map { PageScript::extract_function( $page, $_ ) }
-    qw(escHtml fmtDate _create renderUnfinished deleteUnfinished);
+    qw(escHtml fmtDate fmtSize _create pollBackup renderUnfinished deleteUnfinished);
 
 my $dom = <<'JS';
 function El() { this.textContent = ''; this.innerHTML = ''; this.hidden = true; }
@@ -52,7 +55,13 @@ function loadBackups() { loaded++; }
 function showStatus(m, e) { toasts.push([m, !!e]); }
 function confirm() { return true; }
 var window = { confirm: confirm };
-function fetch(url, opt) { sent.push({ url: url, body: opt.body || null }); return reply(); }
+var queue = [], BACKUP_POLL_MS = 5, BACKUP_POLL_CAP_MS = 60000;
+function fetch(url, opt) {
+  sent.push({ url: url, body: (opt && opt.body) || null });
+  if (queue.length && /backup-list/.test(url)) { var o = queue.shift(); return Promise.resolve({ status: 200, json: function () { return Promise.resolve(o); } }); }
+  return reply();
+}
+function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 function answer(status, text) {
   reply = function () { return Promise.resolve({ status: status,
     text: function () { return Promise.resolve(text); },
@@ -95,6 +104,31 @@ my $drive = <<'JS';
 
   renderUnfinished([]);
   out({ step: 'none', hidden: els.unfinished.hidden });
+
+  var F = 'lazysite-full-20261112T080000Z.tar.gz', run = { ok: 1, backups: [], unfinished: [], in_progress: [{ name: F }] };
+  sent = []; loaded = 0;
+  answer(200, JSON.stringify({ ok: 1, name: F, in_progress: 1 }));
+  queue = [run, run, { ok: 1, backups: [{ name: F, size: 2048 }], unfinished: [], in_progress: [] }];
+  _create(btn, '&scope=full', 'Full-system backup created: ', 'full-outcome');
+  await tick();
+  var midway = els['full-outcome'].textContent;
+  await wait(200);
+  out({ step: 'detached', midway: midway, text: els['full-outcome'].textContent, polls: sent.length - 1, left: queue.length });
+
+  queue = [run, { ok: 1, backups: [], unfinished: [{ name: F }], in_progress: [] }];
+  pollBackup(F, 'Full-system backup created: ', 'full-outcome', Date.now());
+  await wait(200);
+  out({ step: 'stopped', text: els['full-outcome'].textContent, left: queue.length });
+
+  queue = [{ ok: 1, backups: [], unfinished: [], in_progress: [] }];
+  pollBackup(F, 'Full-system backup created: ', 'full-outcome', Date.now());
+  await wait(100);
+  out({ step: 'vanished', text: els['full-outcome'].textContent });
+
+  sent = [];
+  pollBackup(F, 'Full-system backup created: ', 'full-outcome', Date.now() - 61000);
+  await wait(50);
+  out({ step: 'capped', text: els['full-outcome'].textContent, sent: sent.length });
 })();
 JS
 
@@ -105,7 +139,7 @@ close $fh;
 my $run   = run_child( [ $node, "$dir/t.js" ], stderr => 'merge' );
 my @lines = split /\n/, $run->{out};
 my %r     = map { my $o = eval { JSON::PP::decode_json($_) }; $o ? ( $o->{step} => $o ) : () } @lines;
-diag "node said: @lines" unless keys %r == 6;
+diag "node said: @lines" unless keys %r == 10;
 
 subtest 'a finished backup: its name stays, and the list is read again' => sub {
     my $s = $r{done} or return fail('no result');
@@ -142,6 +176,24 @@ subtest 'unfinished backups are shown apart, each with a delete for its kind' =>
     is_deeply( JSON::PP::decode_json( $del->{sent}[0]{body} ), { name => 'lazysite-full-20261112T065507Z.tar.gz' },
         'naming the file' );
     ok( $r{none}{hidden}, 'and with none, the note is hidden' );
+};
+
+subtest 'a full backup that runs on is followed until it is done (ruling 248)' => sub {
+    my $s = $r{detached} or return fail('no result');
+    like( $s->{midway}, qr/in progress/, 'started, and said to be in progress' );
+    like( $s->{midway}, qr/lazysite-full-20261112T080000Z\.tar\.gz/, 'by name' );
+    is( $s->{text}, 'Full-system backup created: lazysite-full-20261112T080000Z.tar.gz (2.0 KB)',
+        'then its name and size once the list shows it as a backup' );
+    is( $s->{left}, 0, 'having read the list until it did' );
+    is( $s->{polls}, 3, 'three times, and no more' );
+};
+
+subtest 'the following stops at unfinished, at a vanished backup, and at the cap' => sub {
+    like( $r{stopped}{text} // '', qr/did not finish: .* is listed as unfinished/, 'unfinished' );
+    is( $r{stopped}{left}, 0, 'read until it was' );
+    like( $r{vanished}{text} // '', qr/failed: .* is no longer listed/, 'gone from every list: failed' );
+    like( $r{capped}{text} // '', qr/\AStill being taken: /, 'past the cap it says so' );
+    is( $r{capped}{sent}, 0, 'and reads the list no more' );
 };
 
 done_testing();

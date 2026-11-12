@@ -813,6 +813,36 @@ sub _json_str {
     return $s;
 }
 
+# SM1152, SM1446: A PROCESS DETACHED FROM THE REQUEST - the registry rebuild a
+# content write is owed, and a full backup that takes longer than any deadline in
+# front of the manager. Double fork and setsid: no session, no terminal, no pipe
+# the web server waits on (0-2 are /dev/null, 3-63 closed), and a parent that is
+# init, so the request's own end - or its being killed - does not reach it.
+#
+# Returns 1 to the caller once the detached process exists (0 when it could not
+# be forked) and undef IN the detached process, which must end with
+# POSIX::_exit or an exec: it is a copy of the request and must not run its END
+# blocks. $on_spawn, when given, runs in the intermediate process with the
+# detached pid before the caller resumes - so what it records exists by then.
+sub detach {
+    my ($on_spawn) = @_;
+    my $pid = fork();
+    return 0 unless defined $pid;
+    if ($pid) { waitpid( $pid, 0 ); return 1 }
+    my $gc = fork();
+    POSIX::_exit(1) unless defined $gc;
+    if ($gc) {
+        $on_spawn->($gc) if ref $on_spawn eq 'CODE';
+        POSIX::_exit(0);
+    }
+    POSIX::setsid();
+    if ( open my $null, '+<', '/dev/null' ) {
+        POSIX::dup2( fileno($null), $_ ) for 0 .. 2;
+    }
+    POSIX::close($_) for 3 .. 63;
+    return undef;
+}
+
 # Levelled logging to STDERR (text or json), honouring LAZYSITE_LOG_LEVEL and
 # LAZYSITE_LOG_FORMAT. Component comes from $COMPONENT. Emitted diagnostics are
 # ALSO forwarded to syslog - at WARN and above unless forward_diagnostics says

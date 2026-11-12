@@ -1959,18 +1959,10 @@ sub start_registry_rebuild {
     my $processor = Lazysite::Manager::Common::processor_path();
     return 0 unless defined $processor && -f $processor;
 
-    my $pid = fork();
-    return 0 unless defined $pid;
-    if ($pid) { waitpid( $pid, 0 ); return 1 }
-
-    # Detached: no session, no terminal, no pipe the web server is waiting on.
-    my $gc = fork();
-    POSIX::_exit(0) if !defined $gc || $gc;
-    POSIX::setsid();
-    if ( open my $null, '+<', '/dev/null' ) {
-        POSIX::dup2( fileno($null), $_ ) for 0 .. 2;
-    }
-    POSIX::close($_) for 3 .. 63;
+    # Detached: no session, no terminal, no pipe the web server is waiting on
+    # (SM1446: the one helper, shared with the full backup).
+    my $detached = Lazysite::Util::detach();
+    return $detached if defined $detached;
 
     # A request for the registry, made for nobody: the manager's identity and
     # cookie are not the processor's business, and a preview is no visit.
