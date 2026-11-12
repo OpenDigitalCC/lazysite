@@ -2764,7 +2764,8 @@ sub address_profiles_missing {
         = defined $o{auth_dir} ? $o{auth_dir} : Lazysite::Auth::Acl::settings_dir();
     my $profiles = Lazysite::Auth::AddressProfiles::profiles();
     if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
-        return ( undef, Lazysite::Auth::AddressProfiles::fault_text($fault) );
+        # n825 (SM1447): the third value names the user who ran and the file's owner (CLI only).
+        return ( undef, Lazysite::Auth::AddressProfiles::fault_text($fault), Lazysite::Auth::AddressProfiles::fault_note($fault) );
     }
     my %u;
     return ( [ grep { !$profiles->{$_} && !$u{$_}++ } @names ], undef );
@@ -2780,10 +2781,10 @@ sub page_address_profile_refusal {
     require Lazysite::Auth::AddressRefs;
     my @names = map { $_->[1] } Lazysite::Auth::AddressRefs::page_names($content);
     return unless @names;
-    my ( $missing, $fault ) = address_profiles_missing( names => \@names );
+    my ( $missing, $fault, $note ) = address_profiles_missing( names => \@names );
     if ( defined $fault ) {
         return _refusal(
-            "Whether the address profiles this page names exist cannot be told: $fault. Nothing was written.",
+            "Whether the address profiles this page names exist cannot be told: $fault.$note Nothing was written.",
             'address-profile-refused',
             "the address profile store cannot be read: $fault",
             'repair the store (lazysite check names the fault), then save again'

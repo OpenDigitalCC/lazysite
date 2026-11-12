@@ -2969,10 +2969,10 @@ sub _address_profile_names {
 sub _address_profile_refusal {
     my ($pairs) = @_;
     return undef unless @$pairs;
-    my ( $names, $fault ) = address_profiles_missing( names => [ map { $_->[1] } @$pairs ] );
+    my ( $names, $fault, $note ) = address_profiles_missing( names => [ map { $_->[1] } @$pairs ] );
     if ( defined $fault ) {
         return { ok => 0, kind => 'invalid', field => $pairs->[0][0],
-            error => "Whether the address profiles this rule names exist cannot be told: $fault. Nothing was changed." };
+            error => "Whether the address profiles this rule names exist cannot be told: $fault.$note Nothing was changed." };
     }
     return undef unless @$names;
     my %gone    = map { $_ => 1 } @$names;
