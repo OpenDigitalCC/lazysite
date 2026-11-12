@@ -65,18 +65,18 @@ my %opt = ( docroot => '', actor => '', read => undef, write => undef,
     history => undef );
 
 Getopt::Long::GetOptions(
-    'docroot=s' => \$opt{docroot},
-    'actor=s'   => \$opt{actor},
-    'read=s'    => \$opt{read},
-    'write=s'   => \$opt{write},
-    'owner=s'   => \$opt{owner},
-    'draft!'    => \$opt{draft},
+    'docroot=s'        => \$opt{docroot},
+    'actor=s'          => \$opt{actor},
+    'read=s'           => \$opt{read},
+    'write=s'          => \$opt{write},
+    'owner=s'          => \$opt{owner},
+    'draft!'           => \$opt{draft},
     'history!'         => \$opt{history},          # SM1324
     'addresses=s'      => \$opt{addresses},        # SM1139
     'addresses-deny=s' => \$opt{addresses_deny},
-    'apply'     => \$opt{apply},
-    'json'      => \$opt{json},
-    'help|h'    => sub { usage(0) },
+    'apply'            => \$opt{apply},
+    'json'             => \$opt{json},
+    'help|h'           => sub { usage(0) },
 ) or usage(2);
 
 usage(0) if $verb eq 'help' || $verb =~ /\A-{0,2}help\z|\A-h\z/;
@@ -100,8 +100,8 @@ fail("not a directory: $opt{docroot}") unless -d $opt{docroot};
 if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} )
     && ( $verb eq 'set' || $verb eq 'remove' || $verb eq 'purge-history' ) )
 {
-    # n818 (SM1440): the user to run as is the one that owns the auth store, named.
-    # n825 (SM1447): the owner of the store FILES it reads and writes, not of the directory.
+  # n818 (SM1440): the user to run as is the one that owns the auth store, named.
+  # n825 (SM1447): the owner of the store FILES it reads and writes, not of the directory.
     my ( $site_user, $differ ) = Lazysite::Util::store_run_as(
         Lazysite::Paths::lazysite_dir( $opt{docroot} ) . '/auth', qw(acls.json address-profiles.json) );
     fail( "refusing to change access as root.\n"
@@ -136,12 +136,12 @@ $Lazysite::Auth::Settings::AUTH_DIR = Lazysite::Paths::lazysite_dir($docroot) . 
 $Lazysite::Auth::Acl::token_auth = 0;
 
 my %HANDLER = (
-    list          => \&cmd_list,
-    show          => \&cmd_show,
-    set           => \&cmd_set,
-    remove        => \&cmd_remove,
-    reapply       => \&cmd_reapply,
-    'group-reach' => \&cmd_group_reach,
+    list            => \&cmd_list,
+    show            => \&cmd_show,
+    set             => \&cmd_set,
+    remove          => \&cmd_remove,
+    reapply         => \&cmd_reapply,
+    'group-reach'   => \&cmd_group_reach,
     'purge-history' => \&cmd_purge_history,    # SM1324, ruling 99
 );
 my $handler = $HANDLER{$verb} or do {

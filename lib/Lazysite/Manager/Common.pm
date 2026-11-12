@@ -1016,7 +1016,7 @@ sub served_artifact_refusal {
 # and the site root lie inside no scope.
 sub caller_may_reach_path {
     my ( $rel, %who ) = @_;
-    my %by = _who(%who);
+    my %by     = _who(%who);
     my @scopes = exists $by{scopes}
         ? grep { defined && length } @{ $by{scopes} || [] }
         : @REQUEST_SCOPES;
@@ -2764,7 +2764,7 @@ sub address_profiles_missing {
         = defined $o{auth_dir} ? $o{auth_dir} : Lazysite::Auth::Acl::settings_dir();
     my $profiles = Lazysite::Auth::AddressProfiles::profiles();
     if ( my $fault = Lazysite::Auth::AddressProfiles::store_fault() ) {
-        # n825 (SM1447): the third value names the user who ran and the file's owner (CLI only).
+  # n825 (SM1447): the third value names the user who ran and the file's owner (CLI only).
         return ( undef, Lazysite::Auth::AddressProfiles::fault_text($fault), Lazysite::Auth::AddressProfiles::fault_note($fault) );
     }
     my %u;

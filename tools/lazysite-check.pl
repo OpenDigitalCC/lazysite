@@ -388,7 +388,7 @@ my $conf = "$LZ/lazysite.conf";
 # fixes: the printed report must reflect the post-fix tree, not the pre-fix
 # snapshot (SM139 increment 5).
 sub run_checks {
-    @results          = ();
+    @results = ();
     delete $unread_by{$_} for grep { $_ ne '--fix' } keys %unread_by;    # Q16g
     @chmod_fixes      = ();
     @stale_registries = ();
@@ -1490,12 +1490,12 @@ sub run_checks {
     report_rows_without_a_policy();
     report_unsafe_nav_urls();
     report_csp_allow_lists();
-    report_permissions_ceiling();    # SM1294
+    report_permissions_ceiling();       # SM1294
     report_group_acl_reach();
-    report_address_rules();          # SM1141
+    report_address_rules();             # SM1141
     report_address_slots_against_old_kinds();
     report_old_address_template_calls();
-    report_widened_rules();          # SM1313
+    report_widened_rules();             # SM1313
     report_rules_without_an_owner();    # SM1401
 
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
@@ -3442,7 +3442,7 @@ sub report_page_titles {
     my @hosts     = ( [ undef, $primary // 'the primary domain' ],
         map { [ $_, $_ ] } grep { length } map { lc s/^\s+|\s+$//gr } split /,/, conf_value( $conf, 'alias_hosts' ) // '' );
 
-    my ( $n,    $bad ) = ( 0, 0 );
+    my ( $n, $bad ) = ( 0, 0 );
     my ( @read, %seen, %unread );
     for my $h (@hosts) {
         my ( $host, $label ) = @{$h};
@@ -5192,7 +5192,7 @@ sub _run_as_remedy {
     my ( $u, $differ ) = @paths
         ? Lazysite::Util::store_run_as( "", @paths )
         : Lazysite::Util::store_run_as( Lazysite::Paths::lazysite_dir( $opt{docroot} ) . "/auth",
-            qw(acls.json address-profiles.json address-lists.json.converted) );
+        qw(acls.json address-profiles.json address-lists.json.converted) );
     return "run the check as $u, who owns $what (sudo -u $u " . cli_spelling() . " check ...), or as root"
         . ( length $differ ? ". $differ" : "" );
 }

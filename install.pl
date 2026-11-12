@@ -740,7 +740,7 @@ sub cmd_restore_full {
             . "  repair the archive, then run the restore again.\n";
         return 1;
     }
-    make_path($docroot)                 unless -d $docroot;
+    make_path($docroot) unless -d $docroot;
     $docroot = abs_path($docroot) // $docroot;
     make_path( $o->{cgibin} ) unless -d $o->{cgibin};
     $o->{docroot} = $docroot;
@@ -1536,12 +1536,12 @@ sub rewrite_template_calls {
             $own{ ( getpwuid $st[4] )[0] // "uid $st[4]" } = 1;
         }
         my @owners = sort keys %own;
-        my $that   = @owners == 1 ? "that owner ($owners[0])" : @owners ? 'an owner of them (' . join( ', ', @owners ) . ')' : 'the user that owns the site';
+        my $that = @owners == 1 ? "that owner ($owners[0])" : @owners ? 'an owner of them (' . join( ', ', @owners ) . ')' : 'the user that owns the site';
         push @warn, 'ADDRESS PROFILES: could not read ' . scalar(@dirs)
             . ' director' . ( @dirs == 1 ? 'y' : 'ies' ) . " as $who: " . join( ', ', @show ) . $more
             . ' - so it could not check ' . ( @dirs == 1 ? 'that directory' : 'those directories' )
             . ' for visitor.in_list or visitor.in_any calls'
-            . ( @owners ? ', which ' . ( @dirs == 1 ? 'is' : 'are' ) . ' owned by ' . join( ', ', map {"'$_'"} @owners ) : '' )
+            . ( @owners ? ', which ' . ( @dirs == 1 ? 'is' : 'are' ) . ' owned by ' . join( ', ', map { "'$_'" } @owners ) : '' )
             . "; run the upgrade again as root or as $that, then `lazysite check` to confirm none is left (SM1345, SM1380)";
     }
     return ( \@changed, \@warn );
@@ -1928,15 +1928,15 @@ sub verify_code_files {
 # a deploy that left a stale .pl behind is caught instead of silently reporting
 # the new version.
 sub cmd_verify {
-    my ($o)      = @_;
+    my ($o) = @_;
     my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
     if ( defined( my $why = select_engine( $o, load_state( state_path( $o->{docroot} ) ) ) ) ) {
         print {*STDERR} $why;
         return 2;
     }
-    my %subs     = placeholders( $o->{docroot}, $o->{cgibin} );
+    my %subs = placeholders( $o->{docroot}, $o->{cgibin} );
     %ABSENT_EXT = absent_extensions($manifest);
-    my @bad      = verify_code_files( $manifest, \%subs );
+    my @bad = verify_code_files( $manifest, \%subs );
     if (@bad) {
         print STDERR "VERIFY FAILED for $manifest->{version}: "
             . scalar(@bad) . " code file(s) do not match the manifest -\n";
@@ -2257,9 +2257,9 @@ sub _adopt_site_group {
 
 sub load_install_dirs {
     my ( $manifest, $subs ) = @_;
-    %INSTALL_DIR_MODE = ();
+    %INSTALL_DIR_MODE    = ();
     %RUNTIME_REPAIR_MODE = ();
-    $INSTALL_DOCROOT  = $subs->{DOCROOT} // '';
+    $INSTALL_DOCROOT     = $subs->{DOCROOT} // '';
     for my $d ( @{ $manifest->{install_dirs} || [] } ) {
         $INSTALL_DIR_MODE{ resolve_placeholders( $d->{path}, $subs ) } = oct( $d->{mode} );
     }
@@ -2363,7 +2363,7 @@ sub make_declared_path {
         mkdir $path or die "Cannot create directory $path: $!\n";
         _refuse_symlink( $path, 'set the mode' );
         _adopt_site_group($path);    # SM933 A2: before the chmod, so setgid sticks
-        chmod $mode, $path;    # mkdir's mode is masked by the umask; this is not
+        chmod $mode, $path;          # mkdir's mode is masked by the umask; this is not
 
         # SM933 A5: what is actually there, which is not always what was asked.
         $DIRS_LEFT{$path} = sprintf '%04o', ( lstat $path )[2] & 07777;
@@ -3502,7 +3502,7 @@ sub write_state {
         version        => $version,
         installed_at   => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files          => $files,
-        ( %dirs           ? ( dirs => \%dirs )          : () ),
+        ( %dirs           ? ( dirs      => \%dirs )     : () ),
         ( %left           ? ( dirs_left => \%left )     : () ),    # SM933 A5
         ( $once && @$once ? ( once => [ sort @$once ] ) : () ),   # SM798: steps done once
         ( $NO_STARTER     ? ( starter => 'none' )       : () ),    # SM939 E2: remembered
