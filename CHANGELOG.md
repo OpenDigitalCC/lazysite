@@ -73,6 +73,14 @@ Archive
   unfinished; the page follows it until then. Restore and delete refuse one in progress, and a second full backup is refused while one is. The
   registry rebuild and the backup share one detach helper (`Lazysite::Util::detach`). A
   field-pass fix (rulings 206, 227, 228, 248).
+- SM1447 (PENDING) **a refusal names the user who can actually run the command.** On a Hestia
+  host the store files in `lazysite/auth/` belong to the web server's user, not to the
+  directory's owner, so the root refusal of `lazysite acl` and the check's advice sent the
+  operator to a user who then could not read them. The user named is now the owner of the files
+  the command reads and writes (each owner, where they differ), through one helper used by acl,
+  handlers, check and users. The address-profile refusal names the file's owner and the user to
+  run as. The upgrade's ADDRESS PROFILES line says it could not check the unread directory, names
+  its owner and the rerun, and no longer says calls are false.
 - SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**
   An agent adding patterns (R1), an agent seeing blocked addresses and a visitor's block state
   (R2) and a built-in pattern edited or switched off for a site that serves it (R4) are features
