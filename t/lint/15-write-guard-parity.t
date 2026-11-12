@@ -116,6 +116,7 @@ my %EXEMPT = (
     action_data_wizard_save => 'SM1355: writes only lazysite/db/wizards/<name>.yaml; the name is '
         . 'validated to [a-z][a-z0-9_]{0,63} (Data::Wizard::valid_name), so no separator reaches it',
     action_backup_create   => 'backups dir, name minted by _claim_name',
+    action_backup_start    => 'SM1446: backups dir, name minted by _claim_name; the detached worker writes through action_backup_create',
     action_backup_restore  => 'extracts into the docroot; name validated, tar confined',
     action_git_show        => 'reads git objects; writes only a temp file it names',
     action_git_restore     => 'routes its write through action_save (asserted below)',

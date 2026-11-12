@@ -166,6 +166,9 @@ my %EXEMPT = (
     'Backups::action_backup_download' => 'read-only',
     'Backups::action_backup_create'   =>
         'writes only under lazysite/backups/ - excluded from the versioned set',
+    'Backups::action_backup_start' =>
+        'SM1446: a full backup in a detached worker, through action_backup_create - '
+        . 'writes only under lazysite/backups/, excluded from the versioned set',
     'Backups::action_backup_delete' =>
         'removes an artefact under lazysite/backups/ - the artefact directory is '
         . 'excluded from the versioned set, so there is no content history to keep',
