@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "release manager, rulings 241 and 242"
 area: reliability
-status-note: "DONE (PENDING) on n822, awaiting the release manager's confirmation. On the shipped 0.16.12 tarball one install.pl --restore-full onto a new docroot and cgi-bin took 743 ms; content, auth store, conf intact; check 0 failures. SM602 unchanged. Docs only."
+status-note: "DONE (PENDING) on n822, confirmed by the release manager on 12 Nov 2026 (ruling 247). On the shipped 0.16.12 tarball one install.pl --restore-full onto a new docroot and cgi-bin took 743 ms; content, auth store, conf intact; check 0 failures. SM602 unchanged. Docs only."
 ---
 
 # What was done
@@ -41,5 +41,5 @@ up, so the rehearsal copied it out first.
 
 `docs/RELIABILITY.md`, "Restore rehearsals": the 0.16.11 row's date is corrected from `11 Nov
 2026` to the ISO `2026-11-11` that `tools/lazysite-compliance.pl` reads, and the rerun has its own
-row. `docs/compliance/OBLIGATIONS.md` records the rerun and the row stays OPEN for the release
-manager to confirm.
+row. `docs/compliance/OBLIGATIONS.md` records the rerun and the row is closed: the release
+manager confirmed the rerun on 12 Nov 2026 (ruling 247).

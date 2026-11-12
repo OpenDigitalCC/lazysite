@@ -59,8 +59,9 @@ Archive
   three cgi-bin entry points and the 0.16.12 install state were present, and `lazysite check
   --group` reported 0 failures (it was 3 on 0.16.11). A backup whose `lazysite/` is a symlink is
   refused before anything is changed. SM602 stands. `docs/RELIABILITY.md` has the new row and the
-  0.16.11 row's date is now ISO, so the compliance check reads the newest rehearsal. Docs only;
-  no shipped code changes.
+  0.16.11 row's date is now ISO, so the compliance check reads the newest rehearsal. The release
+  manager confirmed the rerun on 12 Nov 2026 (ruling 247) as the 0.17.0 stable cycle's rehearsal,
+  and the obligations row closes. Docs only; no shipped code changes.
 - SM1442 (PENDING) **tests: t/tools/158 proves a killed cover is not a test failure in a quarter
   of a second, not 270 s.** The 0.16.12 gate failed on 158 alone, killed at the suite's 300 s
   per-test deadline. Before its report step `tools/coverage.sh` digests every input that decides
