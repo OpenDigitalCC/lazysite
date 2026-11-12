@@ -154,7 +154,7 @@ function renderUnfinished(list) {
     html += '<span class="mg-file-name"><span class="mg-mono">' + escHtml(b.name) + '</span> '
           + '<span class="mg-tag mg-tag-off">unfinished</span> '
           + '<span class="mg-row-meta">' + fmtDate(b.mtime) + '</span></span>';
-    html += '<span class="mg-row-actions"><button class="mg-btn mg-btn-sm mg-btn-danger" '
+    html += '<span class="mg-row-actions"><button class="mg-btn mg-btn-sm mg-btn-danger" data-impact="destroy" '
           + 'onclick="deleteUnfinished(\'' + escHtml(b.name) + '\', this)">Delete</button></span>';
     html += '</div>';
   }

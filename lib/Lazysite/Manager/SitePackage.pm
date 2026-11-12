@@ -684,7 +684,7 @@ sub package_apply {
                 . 'yours.' };
     }
     # SM1446: a package tar did not finish is not applied, whatever is in it.
-    if ( Lazysite::Manager::Backups::_unfinished( $pkg, -s $pkg // 0, $verified ) ) {
+    if ( Lazysite::Manager::Backups::unfinished($pkg) ) {
         my $n = $pkg =~ s{.*/}{}r;
         return { ok => 0, kind => 'unfinished',
             error => "$n is an unfinished package: it holds no finished archive, so "

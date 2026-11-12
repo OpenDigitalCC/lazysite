@@ -3874,6 +3874,7 @@ sub report_unfinished_backups {
     return unless -d $dir;
     require Lazysite::Manager::Backups;
     my $list = do {
+        no warnings 'once';
         local $Lazysite::Manager::Backups::LAZYSITE_DIR = $LZ;
         Lazysite::Manager::Backups::action_backup_list();
     };
