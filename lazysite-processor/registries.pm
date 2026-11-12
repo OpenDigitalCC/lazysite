@@ -1435,6 +1435,18 @@ sub scan_pages {
 
     my @pages;
 
+    # n825 (SM1447): A STORE THAT WILL NOT LOAD HIDES EVERY PAGE, AND THE WALK SAYS SO.
+    # _registry_hidden counts a failed acls.json load as governing everything (fail
+    # closed), so a run that cannot read the store lists no page at all - and the check
+    # printed "0 public page(s), each with a title..." about a site with 12 undescribed
+    # ones. Naming the store in $unread makes the check say its set is not whole.
+    if ($unread) {
+        my $acls = "$LAZYSITE_DIR/auth/acls.json";
+        if ( -f $acls && ref( _acl_map('lazysite/auth/acls.json') ) ne 'HASH' ) {
+            $unread->{$acls} = open( my $fh, '<:raw', $acls ) ? 'does not decode as a JSON object' : "$!";
+        }
+    }
+
     # Find all .md and .url files recursively under the root
     my @queue = ($root);
     # SM1284 (ruling 35): and the engine's /docs pages, on a site that put them

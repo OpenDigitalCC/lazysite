@@ -284,6 +284,16 @@ sub report_unread_walks {
     return;
 }
 
+# n825 (SM1447): AN OK LINE SAYS WHAT WAS LOOKED AT. A walk that could not read part
+# of the tree reports that part in its own WARN (report_unread, with the user to run as),
+# and says no ok about the whole: an ok beside a warning that the same check missed
+# directories read as a clean result. Always true, so a caller that returns it still returns.
+sub report_ok_read {    # ( $what, @report_args )
+    my ( $what, @args ) = @_;
+    report( 'OK', @args ) unless keys %{ $unread_by{$what} || {} };
+    return 1;
+}
+
 sub report_unread {    # ( $what, \%dir_to_error )
     my ( $what, $u ) = @_;
     my @dirs = sort keys %$u;
@@ -297,8 +307,7 @@ sub report_unread {    # ( $what, \%dir_to_error )
             . ' - nothing below '
             . ( @dirs == 1 ? 'it' : 'them' )
             . ' was looked at, so this result covers the rest of the site only',
-        'run the check as root (sudo lazysite check ...) or as the user that owns the '
-            . 'site, who can read its engine tree and private store' );
+        _run_as_remedy(@dirs) );
     return;
 }
 sub owner_name { ( getpwuid( ( stat $_[0] )[4] ) )[0] // ( stat $_[0] )[4] }
@@ -413,7 +422,7 @@ sub run_checks {
             $chown_needed = 1;
         }
         else {
-            report( 'OK', "lazysite/ tree owned by $exp_user (or the www-data CGI)" );
+            report_ok_read( 'the ownership check under lazysite/', "lazysite/ tree owned by $exp_user (or the www-data CGI)" );
         }
     }
 
@@ -671,7 +680,7 @@ sub run_checks {
                 "rm -rf '$LZ/cache/tt'  (a pure cache - it regenerates)" );
         }
         else {
-            report( 'OK', "lazysite/cache/tt writable by the CGI" );
+            report_ok_read( 'the template-cache check (lazysite/cache/tt)', "lazysite/cache/tt writable by the CGI" );
         }
     }
 
@@ -1080,8 +1089,7 @@ sub run_checks {
                     . 'which groups grant manager access is unknown, so the manager '
                     . 'state is not reported; if the web server cannot read it either, a password '
                     . 'sign-in is refused to every account, the operator\'s included (SM1352, ruling 206)',
-                'run the check as root (sudo lazysite check ...) or as the site user, '
-                    . "who can read '$gs_file'" );
+                _run_as_remedy($gs_file) );
         }
         elsif ( $GS_STATE eq 'undecodable' ) {
             report( 'FAIL',
@@ -1103,8 +1111,7 @@ sub run_checks {
             report( 'WARN',
                 'cannot read lazysite.conf as ' . _running_as() . " ($conf_err)"
                     . " - whether 'manager: enabled' is set is unknown",
-                'run the check as root (sudo lazysite check ...) or as the site user, '
-                    . "who can read '$conf'" );
+                _run_as_remedy($conf) );
         }
         elsif ( !$mgr_enabled ) {
             # Not setup-sysop: the group is already there and only the conf key
@@ -1144,8 +1151,7 @@ sub run_checks {
                     'cannot read ' . join( ' and ', map { "auth/$_" } @unread ) . ' as ' . _running_as()
                         . " - whether a manager group (@groups) has a member with a password is "
                         . 'unknown',
-                    'run the check as root (sudo lazysite check ...) or as the site user, '
-                        . "who can read '$LZ/auth'" );
+                    _run_as_remedy("$LZ/auth") );
             }
             elsif ( !$have_mgr ) { report( 'WARN', "no user in a manager group (@groups)",
                     $SYSOP ) }
@@ -1399,7 +1405,7 @@ sub run_checks {
                 $git_fix_root = $gd;
             }
             else {
-                report( 'OK', "content history: the repo is usable by the CGI" );
+                report_ok_read( 'the lazysite/git access check', "content history: the repo is usable by the CGI" );
             }
 
             # 7c-ii. core.sharedRepository=group makes git itself keep every
@@ -1608,13 +1614,13 @@ sub run_checks {
             $DOC,
         );
 
-        report( 'OK', sprintf(
+        report_ok_read( 'the content-provenance count', sprintf(
                 'content provenance: %d lazysite page(s) [%d unmodified, %d customised], %d operator-authored',
                 $unmodified + scalar @customised, $unmodified, scalar @customised, scalar @sysop ) );
         my $cap = sub { my @l = @_; @l > 10 ? ( @l[ 0 .. 9 ], '...' ) : @l };
-        report( 'OK', '  customised (edited from a lazysite page): ' . join( ', ', $cap->(@customised) ) )
+        report_ok_read( 'the content-provenance count', '  customised (edited from a lazysite page): ' . join( ', ', $cap->(@customised) ) )
             if @customised;
-        report( 'OK', '  operator-authored (not ours, never touched by upgrades): ' . join( ', ', $cap->(@sysop) ) )
+        report_ok_read( 'the content-provenance count', '  operator-authored (not ours, never touched by upgrades): ' . join( ', ', $cap->(@sysop) ) )
             if @sysop;
     }
 
@@ -2178,7 +2184,7 @@ sub report_address_rules {
         report( 'WARN',
             'address rules could not be looked for everywhere: ' . join( '; ', @{ $refs->{faults} } )
                 . ' - a rule that names an address profile may be in what was not read',
-            'run the check as root (sudo lazysite check ...) or as the site user, who can read the tree' );
+            _run_as_remedy() );
     }
     return unless @rules;    # nothing uses an address rule: nothing to say
 
@@ -2229,7 +2235,7 @@ sub report_address_rules {
         report( 'WARN',
             'cannot read address-profiles.json as ' . _running_as() . " ($err) while rules name "
                 . join( ', ', @names ) . ' - whether those profiles exist is unknown',
-            _run_as_remedy($d) );
+            _run_as_remedy() );
     }
     elsif ( $state eq 'undecodable' ) {
         report( 'WARN',
@@ -2256,7 +2262,7 @@ sub report_address_rules {
             report( 'WARN',
                 'could not check that every address profile a rule names is in the store: '
                     . join( '; ', @{ $refs->{faults} } ),
-                _run_as_remedy($d) );
+                _run_as_remedy() );
         }
         else {
             report( 'OK', 'every address profile a rule names is in the store' );
@@ -2282,7 +2288,7 @@ sub report_address_slots_against_old_kinds {
     if ( $state ne 'ok' ) {
         report( 'WARN', "cannot read $old ($state" . ( $err ? ": $err" : '' ) . ') - the rules cannot be '
                 . 'compared with the kinds the address lists had before 0.16.5',
-            _run_as_remedy($d) );
+            _run_as_remedy() );
         return;
     }
     require Lazysite::Auth::AddressRefs;
@@ -2302,7 +2308,7 @@ sub report_address_slots_against_old_kinds {
         report( 'WARN',
             'could not check whether every rule names its address profile in the slot its old list\'s kind meant: '
                 . join( '; ', @{ $refs->{faults} } ),
-            _run_as_remedy($d) );
+            _run_as_remedy() );
         return;
     }
     unless (@say) {
@@ -2812,7 +2818,7 @@ sub report_widened_rules {
                     . "$enc does not - a rule inside another that widens it, of the "
                     . 'kind 0.16.3 refuses unless the operator or the enclosing rule\'s owner writes it',
                 "review it: keep it if it is meant (it stays in force), or remove it with "
-                    . "lazysite acl remove '$key' --actor local --docroot $d" );
+                    . cli_spelling() . " acl remove '$key' --actor local --docroot $d" );
             last if ++$n >= 50;
         }
         last if $n >= 50;
@@ -2853,7 +2859,7 @@ sub report_rules_without_an_owner {
             "the rule on '$key' is owned by '$owner', which is no account (removed, or never one) - the "
                 . 'rule stays in force as written, and only the operator can change it',
             "remove it from the manager's Permissions (Files page) as the operator, or re-own it: "
-                . "lazysite acl set '$key' --owner ACCOUNT --actor local --docroot $d. A token cannot: "
+                . cli_spelling() . " acl set '$key' --owner ACCOUNT --actor local --docroot $d. A token cannot: "
                 . 'only the operator changes a rule it does not own' );
         last if ++$n >= 50;
     }
@@ -2877,8 +2883,7 @@ sub report_group_acl_reach {
         report( 'WARN',
             'cannot read acls.json as ' . _running_as() . " ($err) - which paths are "
                 . 'protected, and to whom, is unknown',
-            'run the check as root (sudo lazysite check ...) or as the site user, '
-                . "who can read '$f'" );
+            _run_as_remedy($f) );
         return;
     }
     if ( $state eq 'undecodable' ) {
@@ -3092,7 +3097,7 @@ sub report_uncompilable_form_patterns {
                 . 'the field and the character' );
     }
     else {
-        report( 'OK', 'every form pattern in page content can be compiled' );
+        report_ok_read( 'the form-pattern check', 'every form pattern in page content can be compiled' );
     }
     return;
 }
@@ -3136,7 +3141,7 @@ sub report_double_escaped_db_templates {
                 . '| html to a db: variable is not covered by this check' );
     }
     else {
-        report( 'OK', 'no page binds a data table and also applies | html to it' );
+        report_ok_read( 'the db: template check', 'no page binds a data table and also applies | html to it' );
     }
     return;
 }
@@ -3478,8 +3483,7 @@ sub report_page_titles {
             'the page title check could not read ' . scalar(@paths) . ' path(s) as ' . _running_as() . ': '
                 . join( ', ', @show ) . $more
                 . ' - the pages there were not looked at, so the public page count and every finding here cover the rest of the site only',
-            'run the check as root (sudo lazysite check ...) or as the user that owns the '
-                . 'site, who can read its engine tree and private store' );
+            _run_as_remedy(@paths) );
         $bad = 1;
     }
     report( 'OK', "$n public page(s), each with a title and a description of its own" ) unless $bad;
@@ -3564,7 +3568,7 @@ sub report_structured_data {
     unless ($r) {
         report( 'WARN', 'structured_data is declared but could not be checked: '
                 . ( ( $@ // '' ) =~ s/\s+at \S+ line \d+.*//sr || 'the data modules did not load' ),
-            'install the data extension\'s dependencies (lazysite check --dependencies lists them)' );
+            "install the data extension's dependencies (" . cli_spelling() . ' check --dependencies lists them)' );
         return;
     }
     my @f = @{ $r->{findings} };
@@ -4363,7 +4367,7 @@ sub report_theme_assets_mirrored {
         { no_chdir => 1, wanted => sub { $n++ if -f $File::Find::name } },
         $mirror ) if -d $mirror;
 
-    return report( 'OK', "theme assets are mirrored ($n file(s) for $layout/$theme)" )
+    return report_ok_read( 'the theme-asset mirror check', "theme assets are mirrored ($n file(s) for $layout/$theme)" )
         if $n;
 
     # Nothing mirrored. Name the likely cause rather than the symptom: an author
@@ -4952,7 +4956,7 @@ sub report_stray_public {
     );
 
     unless (@stray) {
-        report( 'OK',
+        report_ok_read( 'the protected-content check',
             'protected content is held outside the document root, with no '
                 . 'public copy left beside it' );
         return;
@@ -5004,7 +5008,7 @@ sub report_asset_links {
     }
 
     unless (@links) {
-        report( 'OK', 'no symbolic link in the served asset mirror (lazysite-assets/)' );
+        report_ok_read( 'the asset-mirror link check', 'no symbolic link in the served asset mirror (lazysite-assets/)' );
         return;
     }
 
@@ -5182,12 +5186,15 @@ sub _running_as { return scalar( getpwuid($>) ) // "uid $>" }
 # n825 (SM1447): the remedy for a check that could not read lazysite/auth/: the user
 # that owns the store FILES (not the directory), named, or each owner where they differ.
 sub _run_as_remedy {
-    my ($d) = @_;
+    my (@paths) = @_;
     require Lazysite::Util;
-    my ( $u, $differ ) = Lazysite::Util::store_run_as(
-        Lazysite::Paths::lazysite_dir($d) . '/auth', qw(acls.json address-profiles.json address-lists.json.converted) );
-    return "run the check as $u, who owns the store files (sudo -u $u lazysite check ...), or as root"
-        . ( length $differ ? ". $differ" : '' );
+    my $what = @paths ? "what it could not read" : "the store files";
+    my ( $u, $differ ) = @paths
+        ? Lazysite::Util::store_run_as( "", @paths )
+        : Lazysite::Util::store_run_as( Lazysite::Paths::lazysite_dir( $opt{docroot} ) . "/auth",
+            qw(acls.json address-profiles.json address-lists.json.converted) );
+    return "run the check as $u, who owns $what (sudo -u $u " . cli_spelling() . " check ...), or as root"
+        . ( length $differ ? ". $differ" : "" );
 }
 
 # One anonymous GET. Returns (status, body). Cache directives on purpose: a

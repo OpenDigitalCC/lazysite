@@ -81,6 +81,12 @@ Archive
   handlers, check and users. The address-profile refusal names the file's owner and the user to
   run as. The upgrade's ADDRESS PROFILES line says it could not check the unread directory, names
   its owner and the rerun, and no longer says calls are false.
+  The check says ok only about what it read: a walk that could not read part of the tree prints no
+  ok (form patterns, protected content, the template cache, ownership, content history, content
+  provenance, theme assets, the asset mirror) and its warning names the user who owns what was not
+  read; an unreadable acls.json, which hid every page from the public page set, now makes the page
+  check say so instead of "0 public page(s)". Every piece of advice spells the command through
+  cli_spelling, never a bare `lazysite`.
 - SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**
   An agent adding patterns (R1), an agent seeing blocked addresses and a visitor's block state
   (R2) and a built-in pattern edited or switched off for a site that serves it (R4) are features

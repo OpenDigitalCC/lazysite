@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "the 0.16.12 edge field pass (Y1 and B3 of the test results), built by the lazysite developer agent on n825"
 area: reliability
-status-note: "SHIPPED (PENDING) on n825. The user to run as is the owner of the store files a command reads and writes (acl, handlers, check, users: one Util helper), each owner named where they differ. The address-profile refusal names the owner and the user. The upgrade says it could not check an unread directory, names its owner, and no longer says calls are false."
+status-note: "SHIPPED (PENDING) on n825. The user to run as is the owner of the store files a command reads and writes (acl, handlers, check, users: one Util helper). The profile refusal and the upgrade name the owner. The check prints no ok for a walk that missed part of the tree, and spells every command by cli_spelling."
 ---
 
 # What happened
@@ -33,6 +33,13 @@ lazysite/auth/" advice. The upgrade's ADDRESS PROFILES line said a call below an
 - The upgrade's ADDRESS PROFILES line says it could not check the directory for `visitor.in_list`
   or `visitor.in_any` calls, names the directory's owner, and says to rerun the upgrade as root or
   that owner and then `lazysite check`. It no longer says calls are false.
+- The check prints no ok line for a walk that could not read part of the tree (the form patterns,
+  protected content, the template cache, ownership, content history, content provenance, theme
+  assets, the asset mirror); the warning names the user who owns what was not read. A failed
+  acls.json load hid every page from the public page set silently; the page walk now names the
+  store, so the title check warns instead of saying "0 public page(s)" (`t/tools/652`).
+- Every remedy the check prints spells the command through `cli_spelling`, never a bare
+  `lazysite` (`t/tools/653`).
 
 # Tests
 

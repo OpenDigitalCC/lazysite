@@ -201,7 +201,7 @@ sub store_run_as {
     my ( $dir, @names ) = @_;
     my ( @order, %files );
     for my $n (@names) {
-        my @st = stat "$dir/$n" or next;
+        my @st = stat( $n =~ m{\A/} ? $n : "$dir/$n" ) or next;
         my $u = ( getpwuid $st[4] )[0] // "uid $st[4]";
         push @order, $u unless $files{$u};
         push @{ $files{$u} }, $n;
