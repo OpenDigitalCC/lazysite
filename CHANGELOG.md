@@ -106,11 +106,11 @@ Archive
   read; an unreadable acls.json, which hid every page from the public page set, now makes the page
   check say so instead of "0 public page(s)". Every piece of advice spells the command through
   cli_spelling, never a bare `lazysite`.
-- SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**
-  An agent adding patterns (R1), an agent seeing blocked addresses and a visitor's block state
-  (R2) and a built-in pattern edited or switched off for a site that serves it (R4) are features
-  under the freeze (ruling 246); `docs/feature-requests/SM1445-*.md` records them for 0.17.x
-  edge. No code.
+- Docs: SM1445 filed, for after stable, the owner's other bad-URL blocker requests. An agent
+  adding patterns (R1), an agent seeing blocked addresses and a visitor's block state (R2) and a
+  built-in pattern edited or switched off for a site that serves it (R4) are features under the
+  freeze (ruling 246); `docs/feature-requests/SM1445-*.md` records them for 0.17.x edge. It is a
+  candidate, not shipped. No code.
 - SM1444 (PENDING) **security: the bad-URL blocker counts probes for credential files.** Scanners
   fish for the dot-directories of developer and cloud tools and for app config files no lazysite
   site serves; those requests stayed under the threshold. The built-in patterns now include
