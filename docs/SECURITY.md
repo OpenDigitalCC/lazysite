@@ -188,7 +188,7 @@ Tampering | A remote system's answer writing columns of a table, rows another do
 Elevation of privilege | The root-run Hestia deploy (SM1427) writing outside the site, or acting on a site tree the site user owns: a registry entry built from the site's own files, one overwriting another site's, a claim link made for the wrong account, a `--all` naming sites the registry did not | The registry entry is built from the command line's USER and DOMAIN alone, written only when none exists (a test, then a temporary file moved with `mv -n`); `install.pl --site-url` and `setup-sysop` run as the site user through `sudo -u`, not as root; `--sysop` and `--channel` are checked before anything is touched; the claim link is `setup-sysop`'s single-use, 24-hour link; `upgrade --all` still skips a site whose `update_policy` is not `auto` | 0.16.10 (t/tools/624, 625, 627; row written at the 0.16.10 walk, confirmed by the release manager on 2026-11-10 (ruling 233), with the walk's entry and the claim-link residual risk, SM1429): the claim link is printed to the terminal of whoever runs the deploy (the summary says it is a credential for 24 hours); USER and DOMAIN are validated, USER against Hestia, before anything is touched
 Elevation of privilege | A deny rule that names an address profile the store lacks, which excludes nobody and says so only in a log line; an allow rule that names one, which admits nobody; a profile deleted while a rule names it (SM1139's accept-with-warning, SM1141's force) | A rule, a group's address limit and a page's `addresses:` / `addresses_deny:` are refused at every door when they name a profile the store does not hold, naming it, with nothing written; the names a rule already carries are checked on its next save; a profile a rule names cannot be deleted, at any door, with no force; a store that cannot be read refuses and is named (ruling 206); `lazysite check` names a rule or a page already on disk that names a missing profile | 0.16.11 (t/integration/730 and 731, t/unit/mcp/489 and 490, t/unit/users/548 and 53, t/unit/manager/974; row written at the 0.16.11 walk, SM1436, confirmed by the release manager on 2026-11-11 (ruling 237), with the SM1435 entry): a rule or page saved before 0.16.11 that names a missing profile stands until it is changed, a file edited on disk outside a door is not refused, and the runtime's treatment of an unknown name is unchanged
 Elevation of privilege | A full backup restored by `install.pl --restore-full` (SM1439): a tarball bringing code, modes or an owner of its own, or a restore leaving a site that does not serve | The restore is a system-user operation (a full backup carries the auth secrets; no manager or network door); every file of code it writes, every mode and the group come from the release it runs and the operator's `--serving-group`, the extraction takes no owner or mode from the archive (`--no-same-owner`, `--no-same-permissions`) and vets member names for `..`, an engine that cannot be laid refuses before anything is extracted, and the install state is written from what was laid | 0.16.12 (t/tools/628; row written at the 0.16.12 walk, SM1441, confirmed by the release manager on 11 Nov 2026 (ruling 243), with the SM1439 entry): a backup holding `lazysite/`, `lazysite/auth` or `lazysite/forms` as a symlink is refused before anything is made (t/tools/628), and the backup is still written inside the docroot (SM602)
-Denial of service | A full backup taken in a detached worker that outlives its request, started again and again, or never ending (SM1446, ruling 248) | The worker is the request's own code under the same unix user, with no new action: starting one is `manage_config` (cookie) only; a second full backup is refused while a live pid marker under six hours old names one in progress (409, naming the running file); the worker holds no input after the request, its stdin, stdout and stderr are /dev/null, it ends with `_exit`, and a backup it does not finish is listed as unfinished and never restored | 0.17.0 (t/unit/manager/977; row written at the 0.17.0 walk, SM1448, drafted for the release manager's confirmation): one residual, that two starts in the same instant can both pass the check (it reads the markers before the claim is made), so two tars can run at once; and a worker still running after six hours is no longer counted as in progress
+Denial of service | A full backup taken in a detached worker that outlives its request, started again and again, or never ending (SM1446, ruling 248) | The worker is the request's own code under the same unix user, with no new action: starting one is `manage_config` (cookie) only; a second full backup is refused while a live pid marker under six hours old names one in progress (409, naming the running file); the worker holds no input after the request, its stdin, stdout and stderr are /dev/null, it ends with `_exit`, and a backup it does not finish is listed as unfinished and never restored | 0.17.0 (t/unit/manager/977; row written at the 0.17.0 walk, SM1448, confirmed by the release manager on 12 Nov 2026 (ruling 251)): one residual, that two starts in the same instant can both pass the check (it reads the markers before the claim is made), so two tars can run at once; and a worker still running after six hours is no longer counted as in progress
 ```
 
 ## Five priority entries (from the review)
@@ -6481,7 +6481,7 @@ verdict : accepted, confirmed by the release manager on 11 Nov 2026 (ruling 243)
 
 ### 2026-11-12 - SM1446 (PENDING): a backup that did not finish is never listed as a backup
 
-Assessment drafted by the developer agent (n824), finished at the 0.17.0 compliance walk (SM1448), for the release manager's confirmation.
+Assessment drafted by the developer agent (n824), finished at the 0.17.0 compliance walk (SM1448); confirmed by the release manager on 12 Nov 2026 (ruling 251), with its residual accepted as written (two starts in the same instant can both pass the one-at-a-time check; a worker past six hours stops counting as in progress).
 
 what changed
 : `Manager::Backups::action_backup_list` lists an empty claim, and a file with no sha256 beside
@@ -6558,13 +6558,13 @@ ADR 0007 triggers: none fires. The detached worker is the request's own code and
   already run by the backup path) and no new processing of restricted data (the archive is what
   `backup-create` always wrote, to the same place, under the same mode).
 
-verdict : drafted, not confirmed. A field-pass fix (rulings 206, 227, 228, 248); not security-critical.
-  No trigger fires. The residual (two starts in the same instant) is named for the release
-  manager to accept.
+verdict : accepted, confirmed by the release manager on 12 Nov 2026 (ruling 251). A field-pass fix (rulings 206, 227,
+  228, 248); not security-critical. No trigger fires. The residual (two starts in the same
+  instant can both pass the check; a worker past six hours stops counting) is accepted as written.
 
 ### 2026-11-12 - SM1444 (PENDING): the bad-URL blocker counts probes for credential files
 
-Assessment drafted by the developer agent (n823, with the 0.17.0 compliance walk, SM1448) for the release manager's confirmation. Ruling 245 (the release manager, 2026-11-12) took one request (R3) into 0.17.0 as a field-pass hardening, dotfile secrets only.
+Assessment drafted by the developer agent (n823, with the 0.17.0 compliance walk, SM1448); confirmed by the release manager on 12 Nov 2026 (ruling 251). Ruling 245 (the release manager, 2026-11-12) took one request (R3) into 0.17.0 as a field-pass hardening, dotfile secrets only.
 
 what changed
 : The built-in pattern list of the bad-URL auto-blocker (`Lazysite::BadUrl`, SM128) gains paths
@@ -6604,12 +6604,12 @@ residual risk
   not on it is not counted. The owner's other requests (an agent adding patterns, an agent seeing
   blocked addresses, a built-in pattern edited or switched off) are SM1445, for 0.17.x.
 
-verdict : drafted, not confirmed. A hardening, no trigger. A field-pass hardening (ruling 245),
+verdict : accepted, confirmed by the release manager on 12 Nov 2026 (ruling 251). A hardening, no trigger. A field-pass hardening (ruling 245),
   not security-critical: no known vulnerability is fixed.
 
 ### 2026-11-12 - SM1447 (PENDING): a refusal names the user who can run the command, and the check says what it spells
 
-Assessment drafted by the developer agent (n825, with the 0.17.0 compliance walk, SM1448) for the release manager's confirmation. A field-pass fix from the 0.16.12 edge pass.
+Assessment drafted by the developer agent (n825, with the 0.17.0 compliance walk, SM1448); confirmed by the release manager on 12 Nov 2026 (ruling 251). A field-pass fix from the 0.16.12 edge pass.
 
 what changed
 : Messages and check text. On a Hestia host `lazysite/auth/` is owned by one user and the store
@@ -6658,12 +6658,12 @@ residual risk
   has no login. When the store files have different owners no one user can change them all, and
   the text says so and names each; `lazysite check` names the fix.
 
-verdict : drafted, not confirmed. Messages and check text, with one diagnostic made honest. No
+verdict : accepted, confirmed by the release manager on 12 Nov 2026 (ruling 251). Messages and check text, with one diagnostic made honest. No
   trigger. A field-pass fix (rulings 206, 227, 228), not security-critical.
 
 ### 2026-11-12 - SM1442-SM1447 (0.17.0): the stable, promoted from 0.16.12 with the field-pass fixes, with no trigger
 
-Assessment drafted by the developer agent at the 0.17.0 compliance walk (SM1448) for the release manager's confirmation. 0.17.0 is the first **stable** since 0.16.0, cut with `--final` (rulings 227, 242). It is the stable promotion of the 0.16.12 beta: the 0.16.12 code plus only the fixes of the 0.16.11 and 0.16.12 field passes, and it carries everything since 0.16.0, 0.16.1 to 0.16.12, each of which has its own register entries. The feature freeze (ruling 228) ends with this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log 930e7f32a..f02c7cbb0` (19 commits: SM1442 on n821, SM1443 on n822, SM1444 and SM1445 on n823, SM1446 on n824, SM1447 on n825), stacked on the 0.16.12 release commit 930e7f32a. SM1444, SM1446 and SM1447 have their own entries above. The rest moves no control. Each change was checked against the code it names, and none of ADR 0007's four triggers (new interface, sign-in method, dependency, processing of restricted data) fires.
+Assessment drafted by the developer agent at the 0.17.0 compliance walk (SM1448); confirmed by the release manager on 12 Nov 2026 (ruling 251). 0.17.0 is the first **stable** since 0.16.0, cut with `--final` (rulings 227, 242). It is the stable promotion of the 0.16.12 beta: the 0.16.12 code plus only the fixes of the 0.16.11 and 0.16.12 field passes, and it carries everything since 0.16.0, 0.16.1 to 0.16.12, each of which has its own register entries. The feature freeze (ruling 228) ends with this cut. The walk read the CHANGELOG's `## Unreleased` section and `git log 930e7f32a..f02c7cbb0` (19 commits: SM1442 on n821, SM1443 on n822, SM1444 and SM1445 on n823, SM1446 on n824, SM1447 on n825), stacked on the 0.16.12 release commit 930e7f32a. SM1444, SM1446 and SM1447 have their own entries above. The rest moves no control. Each change was checked against the code it names, and none of ADR 0007's four triggers (new interface, sign-in method, dependency, processing of restricted data) fires.
 
 what changed
 : SM1442 (n821). t/tools/158 proves a killed cover is not a test failure in a fraction of the
@@ -6711,10 +6711,10 @@ controls
 residual risk
 : As each entry says. The Declaration of Conformity is an unsigned draft, advisory on stable and
   blocking at the certified cut (ADR 0010); the bench baseline (captured 2026-09-30) is
-  re-captured on a quiet host at the stable cut. SM602 (the full backup is written inside the
+  re-captured on a quiet host after the 0.17.0 cut, at the release manager's chosen moment and before the certified cut it blocks (ruling 250). The 0.17.0 stable is not the beginning of general-availability marketing in ADR 0007's waiver (ruling 249), so the first third-party penetration test stays due by 31 Dec 2026. SM602 (the full backup is written inside the
   docroot it backs up) stands for 0.17.x (ruling 240).
 
-verdict : drafted, not confirmed. No trigger fired. 0.17.0 is the stable (ruling 227), promoted
+verdict : accepted, confirmed by the release manager on 12 Nov 2026 (ruling 251). No trigger fired. 0.17.0 is the stable (ruling 227), promoted
   from the 0.16.12 beta with only the fixes of the 0.16.11 and 0.16.12 field passes (rulings
   227, 242), and is not security-critical: no change in it since 0.16.12 fixes a known
   vulnerability. The feature freeze (ruling 228) ends with the cut.

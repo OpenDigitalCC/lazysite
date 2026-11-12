@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1441); release manager, rulings 227 and 242"
 area: release
-status-note: "SHIPPED (PENDING) on n826. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.0, channel stable; SM1444's, SM1446's and SM1447's entries and the walk's, no trigger, drafted for the release manager's confirmation; one STRIDE row; the Declaration of Conformity restamped, unsigned; UPGRADE.md's one 0.17.0 section. Docs only."
+status-note: "SHIPPED (PENDING) on n826. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.0, channel stable; SM1444's, SM1446's and SM1447's entries and the walk's, no trigger, confirmed by the release manager on 12 Nov 2026 (ruling 251); one STRIDE row; the Declaration of Conformity restamped, unsigned; UPGRADE.md's one 0.17.0 section. Docs only."
 ---
 
 # What was asked
@@ -31,8 +31,9 @@ passes. The feature freeze (ruling 228) ends with the cut.
   a time, and the residual that two starts in the same instant can both pass the check). The
   walk's entry closes 0.17.0: SM1442, SM1443 and SM1445, each change's assessment, and the
   statement that 0.17.0 is the stable promotion of 0.16.12 with the field-pass fixes. None fires
-  an ADR 0007 trigger. One STRIDE row, for the detached backup worker. All drafted for the
-  release manager's confirmation.
+  an ADR 0007 trigger. One STRIDE row, for the detached backup worker. All drafted by the developer
+  agent and confirmed by the release manager on 12 Nov 2026 (ruling 251), SM1446's residual accepted
+  as written.
 - docs/compliance/OBLIGATIONS.md, stamped 0.17.0: the register, threat-model, SBOM, fired-trigger
   and vulnerability-handling rows; two operate-side rows (a script reading a full backup's
   answer, and a site coming from 0.16.0 reading the upgrade notes in order); the "what a person
@@ -58,12 +59,13 @@ Read from `tools/lazysite-compliance.pl`, `tools/release.sh` and docs/compliance
   an advisory that the rehearsal is older; it blocks only at certified.
 - A stable cut runs the coverage stage and adds the download/ commit; the release commit moves
   the 0.16 line into the changelog archive.
-- The bench baseline (captured 2026-09-30) is advisory on stable and stays OPEN. The re-capture is
-  `perl tools/bench.pl --baseline` on a quiet host; this host is shared, so the moment is the
-  release manager's.
-- Open for the release manager: whether the 0.17.0 stable is "the beginning of general-availability
-  marketing" in ADR 0007's waiver (the first third-party engagement is due before that, or by
-  2026-12-31); the bench re-capture; the entries' confirmation; SM1446's residual.
+- The bench baseline (captured 2026-09-30) is advisory on stable and stays OPEN through the cut
+  (ruling 250). It is re-captured after 0.17.0 with `perl tools/bench.pl --baseline` on a quiet
+  host, at the release manager's chosen moment, before the certified cut it blocks.
+- Answered by the release manager on 12 Nov 2026: the entries and the STRIDE row are confirmed (ruling
+  251, SM1446's residual accepted as written); the 0.17.0 stable is not the beginning of
+  general-availability marketing in ADR 0007's waiver, so the first third-party engagement stays
+  due by 31 Dec 2026 (ruling 249); the bench re-capture is after 0.17.0 (ruling 250).
 
 # Tests
 

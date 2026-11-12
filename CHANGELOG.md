@@ -59,12 +59,15 @@ Archive
   with `--final` as the stable promotion of the 0.16.12 beta with only the fixes of the 0.16.11
   and 0.16.12 field passes; the first stable since 0.16.0, it carries 0.16.1 to 0.16.12, and the
   feature freeze (ruling 228) ends with it. It is not security-critical: no change since
-  0.16.12 fixes a known vulnerability. Drafted for the release manager's confirmation:
-  register entries for SM1444 (a hardening of a default list, no trigger), SM1447 (messages and
+  0.16.12 fixes a known vulnerability. Drafted by the developer agent and confirmed by the release
+  manager on 12 Nov 2026 (ruling 251): register entries for SM1444 (a hardening of a default list, no trigger), SM1447 (messages and
   check text, no trigger) and the finished SM1446 (the detached full backup: who, how long, one at
   a time, and the residual that two starts in the same instant can both pass the check; no
-  trigger), the walk's entry, one STRIDE row and a section in docs/architecture/security.md. The
-  restore-rehearsal row is closed (ruling 247). The Declaration of Conformity, which a stable cut
+  trigger; the residual is accepted as written), the walk's entry, one STRIDE row and a section in
+  docs/architecture/security.md. The restore-rehearsal row is closed (ruling 247). The 0.17.0
+  stable is not the beginning of general-availability marketing, so the first third-party
+  pentest stays due by 31 Dec 2026 (ruling 249); the bench baseline is re-captured after 0.17.0
+  (ruling 250). The Declaration of Conformity, which a stable cut
   does not require signed (ADR 0010), is restamped to 0.17.0 and stays unsigned. UPGRADE.md's
   0.17.0 notes are one section whose opening paragraph takes a site on the 0.16.0 stable through
   0.16.1 to 0.16.12 in order.

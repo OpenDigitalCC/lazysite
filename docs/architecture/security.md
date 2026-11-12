@@ -1716,7 +1716,7 @@ the developer agent and confirmed by the release manager on 11 Nov 2026 (ruling 
 
 Walked on 2026-11-12 (SM1448); the first stable since 0.16.0 (cut with `--final`, rulings 227
 and 242), promoted from the 0.16.12 beta with the field-pass fixes. Not security-critical.
-Drafted by the developer agent for the release manager's confirmation.
+Drafted by the developer agent; confirmed by the release manager on 12 Nov 2026 (ruling 251).
 
 - **A backup that did not finish is never listed or restored** (SM1446). An empty claim, or a
   file with no sha256 whose gzip stream stops part way, is listed under `unfinished` and never
