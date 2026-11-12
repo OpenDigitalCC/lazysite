@@ -72,7 +72,9 @@ that.
    however the backup ends; `backup-list` lists the claim under `in_progress` while that process
    is alive and the marker is under six hours old, and as unfinished otherwise. Every backup the
    engine takes writes the marker, so a content backup being taken is in progress too. Restore
-   and backup-delete refuse one in progress (409). `lazysite check` does not name the staging
+   and backup-delete refuse one in progress (409), and a full backup is refused while another is
+   in progress (kind `in-progress`, naming the running one and when it started, nothing claimed;
+   a stale or dead marker does not block). `lazysite check` does not name the staging
    directory of a live process. The page follows a started backup in the list every 5 s, for at
    most three hours, and says done (name and size), unfinished, or failed (gone from the list).
    MCP `site_backup` makes a site package (`package_create`), not a full backup, and does not
@@ -107,7 +109,8 @@ that.
   is listed in progress, then finishes after its request and is listed with a verified sha256 and
   no marker, with exactly the worker's start and outcome rows; a worker killed with KILL lists as
   unfinished, not in progress; a marker over six hours old or of a dead process is unfinished.
-  Fails on de7843a65.
+  A full backup started while another is in progress is refused, naming it, with nothing
+  claimed; a stale marker does not block.  Fails on de7843a65.
 - `t/tools/645`: `lazysite check` names an empty claim (date, size, remedy), a cut-off archive
   and a staging directory, and not a finished backup. Fails on 3d869ef6e.
 - `t/tools/646`: `install.pl --restore-full` refuses an empty claim and a cut-off archive, saying

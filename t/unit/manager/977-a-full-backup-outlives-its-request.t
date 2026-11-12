@@ -16,7 +16,10 @@
 #   - a tar that hangs, whose worker is killed with KILL: the listing says
 #     unfinished, not in progress;
 #   - a marker whose process is alive but which is older than the stated age, or
-#     whose process is gone, is unfinished - never in progress for ever.
+#     whose process is gone, is unfinished - never in progress for ever, and does
+#     not block a new full backup;
+#   - while a full backup is in progress another is refused (in-progress, 409),
+#     naming the running one and when it started, and nothing is claimed.
 use strict;
 use warnings;
 use Test::More;
@@ -154,6 +157,29 @@ system( 'rm', '-rf', glob("$bk/.stage-*") );
     my $s = api( 'action=backup-list', 'GET' );
     is_deeply( names( $s, 'in_progress' ), [], 'a marker older than the stated age, or of a dead process, is not in progress' );
     is_deeply( [ sort @{ names( $s, 'unfinished' ) } ], [ $old, $dead ], 'both are unfinished' );
+
+    # --- one full backup at a time (ruling 206) ------------------------------------
+    my $ok = api( 'action=backup-create&scope=full', 'POST' );
+    ok( $ok->{ok} && $ok->{in_progress}, 'a stale or dead marker does not block a new full backup' )
+        or diag explain $ok;
+    ok( wait_for( sub { grep { $_ eq ( $ok->{name} // '' ) } @{ names( api( 'action=backup-list', 'GET' ), 'backups' ) } }, 60 ),
+        'and it finishes' );
+
+    my $live = 'lazysite-full-20261112T090000Z.tar.gz';
+    spit( "$bk/$live", '' );
+    spit( "$bk/.$live.pid", "$$ " . time . "\n" );
+    opendir my $dh, $bk or die $!;
+    my %before = map { ( $_ => 1 ) } readdir $dh;
+    closedir $dh;
+    my $no = api( 'action=backup-create&scope=full', 'POST' );
+    ok( !$no->{ok}, 'while a full backup is in progress, another is refused' );
+    is( $no->{kind}, 'in-progress', 'as in progress' );
+    like( $no->{error} // '', qr/already being taken: \Q$live\E, started \d{4}-\d\d-\d\d \d\d:\d\d UTC/,
+        'naming the running one and when it started' );
+    opendir $dh, $bk or die $!;
+    my @new = grep { !$before{$_} } readdir $dh;
+    closedir $dh;
+    is_deeply( \@new, [], 'and nothing is claimed' );
 }
 
 done_testing();

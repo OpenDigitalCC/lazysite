@@ -6510,27 +6510,30 @@ threat delta
   offered as a backup or restored, which closes a partial restore from a file the operator took
   for whole. No new action, capability, interface or dependency (`gzip` was already run by the
   backup path); the deletes are the existing actions under their existing checks. No ADR 0007
-  The worker (ruling 248) is the request's own code and identity continued after the request:
+  trigger fires.
+: The worker (ruling 248) is the request's own code and identity continued after the request:
   it adds no interface, reads no input after the request, and its effects are those the request
   had - one archive and its digest in `lazysite/backups/`, two trail rows. Denial of service:
   each full backup started is one tar running to completion, where a killed request stopped its
   tar or left it orphaned; starting them is manage_config (cookie) only, as before, and a
-  second start while one runs takes a second name. Repudiation: the start and outcome rows are
-  written by the worker as the requesting account, so a backup is attributed to who asked.
-  trigger fires.
+  second full backup is refused while one is in progress (a live marker under six hours old;
+  kind in-progress, 409, naming the running one), so one runs at a time per instance.
+  Repudiation: the start and outcome rows are written by the worker as the requesting account,
+  so a backup is attributed to who asked.
 
 controls
 : t/unit/manager/975 (listing, restore and apply refusal, TERM and KILL mid-tar, the start and
   outcome rows), 976 (the page), t/tools/645 (the check) and 646 (`--restore-full`); each fails
   on 3d869ef6e. t/unit/manager/977 (the detached worker: answered in progress, listed in
   progress, finished with a verified sha256 and its own two trail rows; a KILLed worker and a
-  stale marker are unfinished) fails on de7843a65.
+  stale marker are unfinished) fails on de7843a65; its one-at-a-time refusal fails on 13a0693a9.
 
 residual risk
 : A KILL still leaves the empty claim, and a tar that outlives its request can leave a staging
   directory; both are reported, not removed, since only the operator knows that no backup is
-  running. Nothing limits how many full backups run at once or for how long; each is bounded by
-  the tree and the disk, and retention (SM268 03-F11) still bounds how many are kept. A worker's
+  running. One full backup runs at a time (two simultaneous starts can still race past the
+  check, as two requests in the same instant); nothing bounds how long one runs but the tree,
+  and retention (SM268 03-F11) still bounds how many are kept. A worker's
   log lines reach no error log (its stderr is /dev/null), only the syslog forwarding where it is
   configured: its outcome is the trail row.
 

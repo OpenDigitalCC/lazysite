@@ -70,7 +70,7 @@ Archive
   248):** `backup-create&scope=full` answers at once with the name and `in_progress`, a worker
   takes the backup and writes its start and outcome to the trail, and `backup-list` lists it
   under `in_progress` while its process is alive (for at most six hours), then as a backup or as
-  unfinished; the page follows it until then. Restore and delete refuse one in progress. The
+  unfinished; the page follows it until then. Restore and delete refuse one in progress, and a second full backup is refused while one is. The
   registry rebuild and the backup share one detach helper (`Lazysite::Util::detach`). A
   field-pass fix (rulings 206, 227, 228, 248).
 - SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**

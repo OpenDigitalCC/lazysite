@@ -955,6 +955,24 @@ sub action_backup_start {
     return { ok => 0, error => 'Backup failed: cannot create the backup directory',
         reason => 'cannot create the backup directory' }
         unless -d $dir;
+
+    # ONE AT A TIME (ruling 206): a second full backup while one is being taken
+    # would tar the same tree twice at once for nothing. Refused, naming the one
+    # running and when it started, before anything is claimed. Only a live,
+    # unexpired marker blocks (_in_progress); a stale or dead one does not.
+    if ( opendir my $dh, $dir ) {
+        my @running = sort grep { /\A(?:lazysite-)?\Q$kind\E-.*\.tar\.gz\z/ && -z "$dir/$_" && _in_progress("$dir/$_") }
+            readdir $dh;
+        closedir $dh;
+        if (@running) {
+            my $at = ( stat _marker("$dir/$running[0]") )[9] // 0;
+            return { ok => 0, kind => 'in-progress', running => $running[0],
+                error => "A $kind backup is already being taken: $running[0], started "
+                    . strftime( '%Y-%m-%d %H:%M UTC', gmtime $at )
+                    . '. Start another once it has finished.' };
+        }
+    }
+
     my ( $out, $name ) = _claim_name( $dir, $kind );
     return { ok => 0, error => 'Backup failed: could not claim a filename' }
         unless defined $out;
