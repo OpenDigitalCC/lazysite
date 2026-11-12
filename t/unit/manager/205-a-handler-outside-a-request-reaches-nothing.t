@@ -809,6 +809,10 @@ subtest 'the listings extracted from the dispatch chain list nothing outside a r
     $spit->( "$lz/forms/contact.conf",                   "targets:\n" );
     $spit->( "$d/contact.md", "---\ntitle: C\nform: contact\n---\n\n:::form\nn | N\n:::\n" );
     $spit->( "$lz/backups/full-20260101-000000.tar.gz", 'x' );
+    # SM1446: a whole gzip stream - a file that is not one is listed as unfinished.
+    require IO::Compress::Gzip;
+    IO::Compress::Gzip::gzip( \'x' => "$lz/backups/full-20260101-000000.tar.gz" )
+        or die $IO::Compress::Gzip::GzipError;
     no warnings 'once';
     local $Lazysite::Manager::Common::DOCROOT          = $d;
     local $Lazysite::Manager::Themes::DOCROOT          = $d;
