@@ -4,7 +4,7 @@ title: "SM1445: the bad-URL blocker, for agents and for a site that serves a bui
 subtitle: "Three requests from a site owner, held until after stable (ruling 246): an agent adds patterns, an agent sees blocked addresses, and a built-in pattern can be edited or switched off."
 brand: plain
 standard-margins: true
-status: open
+status: candidate
 raised: 2026-11-12
 raised-by: "a site owner's requests R1, R2 and R4, ruling 246"
 area: security
