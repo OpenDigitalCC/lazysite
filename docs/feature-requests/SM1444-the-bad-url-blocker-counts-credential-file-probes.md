@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "a site owner's request (R3), ruling 245"
 area: security
-status-note: "SHIPPED (PENDING) on n823. Built-in patterns for /.docker/, /.claude/, /.cursor/, /.kube/, /.azure/, /.vscode/, /.idea/, /.terraform/, /.gnupg/, appsettings*.json, aws-exports.js and /wp-json/batch, in the blocker and in the stats noise set. /app.js and /app.config.js stay out. t/tools/640."
+status-note: "SHIPPED (PENDING) on n823. Built-in patterns for /.docker/, /.claude/, /.cursor/, /.kube/, /.azure/, /.vscode/, /.idea/, /.terraform/, /.gnupg/, appsettings*.json, aws-exports.js and /wp-json/batch, in the blocker and, but for wp-json/batch, in the stats noise set. /app.js and /app.config.js stay out. t/tools/640."
 ---
 
 # What was asked
@@ -28,7 +28,7 @@ owner's requests are SM1445.
 `Lazysite::BadUrl` holds the built-in patterns, and its source says they mirror the stats
 extension's noise set. The two are separate lists in separate files (the engine library and an
 extension that runs on its own), so they stay two lists, and the new block is the same text in
-both. `t/tools/640` fails if the two blocks differ.
+both, except `wp-json/batch` (below). `t/tools/640` fails if the two blocks differ.
 
 Added, each a path no lazysite site serves:
 
@@ -42,7 +42,8 @@ Added, each a path no lazysite site serves:
 - `wp-json/batch`. WordPress probes were already counted (`wp-login.php`, `wp-admin`,
   `wp-includes`, `wp-content`, `xmlrpc.php`); the batch endpoint, the modern replacement, was
   caught by nothing in the blocker, and the stats extension caught it only by behaviour (SM332's
-  sweep). A lazysite site has no `/wp-json/`.
+  sweep). A lazysite site has no `/wp-json/`. It is added to the blocker only: SM332's tests use
+  it as the example of a path no signature caught, so the stats noise set leaves it to the sweep.
 
 Left out on purpose: `/app.js` and `/app.config.js`. A real site can serve them (a theme keeps its
 scripts there), and counting a site's own assets blocked every visitor behind the front proxy once

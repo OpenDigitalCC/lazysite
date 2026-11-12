@@ -63,7 +63,8 @@ Archive
   site serves; those requests stayed under the threshold. The built-in patterns now include
   `/.docker/`, `/.claude/`, `/.cursor/`, `/.kube/`, `/.azure/`, `/.vscode/`, `/.idea/`,
   `/.terraform/`, `/.gnupg/`, `appsettings*.json`, `aws-exports.js` and `/wp-json/batch`, in the
-  blocker and in the stats noise set (the same block in both, checked by t/tools/640).
+  blocker and, but for the batch endpoint (the stats sweep catches that), in the stats noise set
+  (the same block in both, checked by t/tools/640).
   `/app.js` and `/app.config.js` stay out: a real site can serve them. A site's `bad_url_extra`
   still adds to the list, and a real file is still spared. A field-pass hardening (ruling 245):
   no new setting, tool or UI.

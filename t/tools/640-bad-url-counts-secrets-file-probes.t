@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # n823 (SM1444, ruling 245): the bad-URL blocker counts probes for credential files.
 # Scanners fish for the dot-directories of developer and cloud tools and for app config
-# files no lazysite site serves. Each new path counts as a bad URL; /app.js and
-# /app.config.js do NOT (a real site can serve them); an ordinary page does not; a site's
+# files no lazysite site serves, and WordPress's batch endpoint. Each new path counts
+# as a bad URL; /app.js and /app.config.js do NOT (a real site can serve them); an ordinary page does not; a site's
 # `bad_url_extra` still adds to the list; and the stats noise set carries the same names.
 #
 # Sabotage: take the SM1444 block out of $BAD_RE in lib/Lazysite/BadUrl.pm and the
@@ -59,12 +59,13 @@ my $r = Lazysite::BadUrl::guard(
 ok( !$r && !is_blocked( $d, '203.0.113.99' ), '/app.js, at threshold 1, blocks nobody' );
 
 # The stats extension's noise set mirrors the list: the SM1444 block is the same text.
+# (wp-json/batch is the blocker's alone: stats finds it by sweep, t/unit/extensions/06.)
 sub block_of {
     my ($file) = @_;
     open my $fh, '<', "$root/$file" or die "$file: $!";
     local $/;
     my $t = <$fh>;
-    $t =~ /(# SM1444 \(ruling 245\).*?wp-json\/batch\n)/s or return '';
+    $t =~ /(# SM1444 \(ruling 245\).*?aws-exports\\\.js\n)/s or return '';
     return $1;
 }
 my $a = block_of('lib/Lazysite/BadUrl.pm');

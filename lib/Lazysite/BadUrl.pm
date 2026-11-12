@@ -94,12 +94,18 @@ my $BAD_RE = qr{
       # and .idea (editor files holding sftp and database passwords), .terraform
       # (state and provider credentials), .gnupg (private keys). The slash keeps a
       # page like /docker-notes out. Then appsettings.json (and appsettings.ENV.json)
-      # of .NET apps, AWS Amplify's aws-exports.js, and WordPress's batch endpoint.
+      # of .NET apps and AWS Amplify's aws-exports.js.
       # /app.js and /app.config.js are NOT here: a real site can serve them.
       # Keep this block identical in lib/Lazysite/BadUrl.pm and extensions/stats.pl
-      # (t/unit/lib/12-bad-url.t checks).
+      # (t/tools/640 checks).
       | \.(?:docker|claude|cursor|kube|azure|vscode|idea|terraform|gnupg)/
-      | appsettings(?:\.[\w-]+)?\.json | aws-exports\.js | wp-json/batch
+      | appsettings(?:\.[\w-]+)?\.json | aws-exports\.js
+
+      # SM1444: WordPress's batch endpoint, the modern replacement for wp-login.php.
+      # Here only: the stats extension finds it by behaviour (SM332's sweep, whose
+      # tests use it as the example of a path no signature caught), so it is not in
+      # that noise set.
+      | wp-json/batch
       )
   | \.php (?: $ | [?/] )
 }xi;
