@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**
+  An agent adding patterns (R1), an agent seeing blocked addresses and a visitor's block state
+  (R2) and a built-in pattern edited or switched off for a site that serves it (R4) are features
+  under the freeze (ruling 246); `docs/feature-requests/SM1445-*.md` records them for 0.17.x
+  edge. No code.
+- SM1444 (PENDING) **security: the bad-URL blocker counts probes for credential files.** Scanners
+  fish for the dot-directories of developer and cloud tools and for app config files no lazysite
+  site serves; those requests stayed under the threshold. The built-in patterns now include
+  `/.docker/`, `/.claude/`, `/.cursor/`, `/.kube/`, `/.azure/`, `/.vscode/`, `/.idea/`,
+  `/.terraform/`, `/.gnupg/`, `appsettings*.json`, `aws-exports.js` and `/wp-json/batch`, in the
+  blocker and in the stats noise set (the same block in both, checked by t/tools/640).
+  `/app.js` and `/app.config.js` stay out: a real site can serve them. A site's `bad_url_extra`
+  still adds to the list, and a real file is still spared. A field-pass hardening (ruling 245):
+  no new setting, tool or UI.
 - SM1443 (PENDING) **docs: the restore rehearsal is rerun on the shipped 0.16.12 tarball, and
   a full restore is one command that gives a site that serves.** `install.pl --restore-full`
   onto a new docroot and cgi-bin took 743 ms; the content, the auth store, `lazysite.conf`, the

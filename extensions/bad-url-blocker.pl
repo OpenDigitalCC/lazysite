@@ -2,7 +2,8 @@
 # bad-url-blocker.pl - the bad-URL auto-blocker's descriptor (SM128).
 #
 # The blocker recognises vulnerability-scanner probes (/wp-login.php, /.env,
-# *.php on a Markdown site, ...), counts them per source IP in a rolling window,
+# the credential dot-directories of developer and cloud tools such as /.docker/ and
+# /.claude/, appsettings.json, aws-exports.js, *.php on a Markdown site, ...), counts them per source IP in a rolling window,
 # and blocks an IP after a threshold. Detection + counting + the block store live
 # in Lazysite::BadUrl; enforcement runs in the auth wrapper (lazysite-auth.pl).
 # This descriptor just exposes the settings on the Extension Config page and marks
@@ -20,7 +21,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             id          => 'bad-url-blocker',
             name        => 'Bad-URL auto-blocker',
             description => 'Auto-blocks source IPs that hammer scanner/probe URLs '
-                . '(/wp-login.php, /.env, *.php on a Markdown site, ...). On by '
+                . '(/wp-login.php, /.env, /.docker/, /.claude/, appsettings.json, *.php on a Markdown site, ...). On by '
                 . 'default. A blocked address is REFUSED THE SITE - it receives '
                 . '403 and is served nothing. The current blocks, with per-address '
                 . 'unblock, are on this page.',

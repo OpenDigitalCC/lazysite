@@ -86,7 +86,21 @@ my $BAD_RE = qr{
     (?: wp-login\.php | wp-admin | wp-includes | wp-content | xmlrpc\.php
       | phpmyadmin | \bpma\b | \.env | \.git | \.aws | \.ssh
       | vendor/ | boaform | eval-stdin | HNAP1 | setup\.cgi
-      | owa/ | autodiscover | actuator | console/ )
+      | owa/ | autodiscover | actuator | console/
+      # SM1444 (ruling 245): paths no lazysite site serves, fished for credentials.
+      # Dot-directories of developer and cloud tools, each holding tokens or keys:
+      # .docker (registry auth), .claude and .cursor (AI tool settings and API
+      # keys), .kube (cluster credentials), .azure (cloud CLI sign-ins), .vscode
+      # and .idea (editor files holding sftp and database passwords), .terraform
+      # (state and provider credentials), .gnupg (private keys). The slash keeps a
+      # page like /docker-notes out. Then appsettings.json (and appsettings.ENV.json)
+      # of .NET apps, AWS Amplify's aws-exports.js, and WordPress's batch endpoint.
+      # /app.js and /app.config.js are NOT here: a real site can serve them.
+      # Keep this block identical in lib/Lazysite/BadUrl.pm and extensions/stats.pl
+      # (t/unit/lib/12-bad-url.t checks).
+      | \.(?:docker|claude|cursor|kube|azure|vscode|idea|terraform|gnupg)/
+      | appsettings(?:\.[\w-]+)?\.json | aws-exports\.js | wp-json/batch
+      )
   | \.php (?: $ | [?/] )
 }xi;
 

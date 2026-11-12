@@ -1977,7 +1977,9 @@ SBOM gate; `release.sh` refuses to run when the lint tools are absent.
   usability, not the capability alone. A control-API token is also pinned as a
   per-site credential that cannot authenticate against another site's docroot.
 - **Bad-URL auto-blocker** (SM128, on by default). `Lazysite::BadUrl` counts
-  scanner-probe hits (`wp-login.php`, `.env`, `.git`, `*.php` on a Markdown site, …)
+  scanner-probe hits (`wp-login.php`, `.env`, `.git`, the credential dot-directories of developer
+  and cloud tools such as `.docker/`, `.claude/` and `.cursor/`, `appsettings.json`,
+  `aws-exports.js`, `wp-json/batch`, `*.php` on a Markdown site, …)
   per source IP in a rolling window and blocks at a threshold (default 10 / 3600s);
   enforced in the auth wrapper (403), blocked IPs listed + unblockable on the Stats
   page, auto-blocks audited.

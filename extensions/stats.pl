@@ -120,6 +120,19 @@ my $NOISE_RE = qr{
       | phpmyadmin | \bpma\b | \.env | \.git | \.aws | \.ssh
       | vendor/ | boaform | eval-stdin | HNAP1 | setup\.cgi
       | owa/ | autodiscover | actuator | console/
+      # SM1444 (ruling 245): paths no lazysite site serves, fished for credentials.
+      # Dot-directories of developer and cloud tools, each holding tokens or keys:
+      # .docker (registry auth), .claude and .cursor (AI tool settings and API
+      # keys), .kube (cluster credentials), .azure (cloud CLI sign-ins), .vscode
+      # and .idea (editor files holding sftp and database passwords), .terraform
+      # (state and provider credentials), .gnupg (private keys). The slash keeps a
+      # page like /docker-notes out. Then appsettings.json (and appsettings.ENV.json)
+      # of .NET apps, AWS Amplify's aws-exports.js, and WordPress's batch endpoint.
+      # /app.js and /app.config.js are NOT here: a real site can serve them.
+      # Keep this block identical in lib/Lazysite/BadUrl.pm and extensions/stats.pl
+      # (t/unit/lib/12-bad-url.t checks).
+      | \.(?:docker|claude|cursor|kube|azure|vscode|idea|terraform|gnupg)/
+      | appsettings(?:\.[\w-]+)?\.json | aws-exports\.js | wp-json/batch
     # SM941 R11: SOCKET AND LIVE-RELOAD ENDPOINTS. lazysite serves no websocket, so
     # a request to one is not a page view whatever its user-agent says.
     #
@@ -710,7 +723,7 @@ if ( $arg{describe} ) {
                 { key => 'ai_user_agents', label => 'Extra AI user-agents', type => 'text', default => '',
                     note => 'Comma-separated UA substrings to also count as AI assistants, on top of the built-ins (GPTBot, ClaudeBot, anthropic, ...).' },
                 { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
-                    note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, *.php, ...).' },
+                    note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, /.docker/, /.claude/, appsettings.json, *.php, ...).' },
                 # SM332: the behavioural trigger. Exposed because the
                 # false-positive case is a real reader following stale
                 # bookmarks, and how many of those a site produces is a
