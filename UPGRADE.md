@@ -68,7 +68,24 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
-## Unreleased (0.17.0)
+## An unfinished backup is named, a full backup runs in the background, and the rest of 0.17.0 (the stable)
+
+0.17.0 is the stable (rulings 227, 242): the 0.16.12 beta plus only the fixes of the 0.16.11 and
+0.16.12 field passes, listed below, and the first stable since 0.16.0. It is not security-critical.
+**A site on the stable line (0.16.0) takes 0.16.1 to 0.16.12 in order, then this**, and the
+sections below are those releases' notes, newest first, so read them from the bottom up: 0.16.1
+and 0.16.2 have no section here (the CHANGELOG has them: 0.16.2 closed a theme archive planting a
+link in the served asset mirror, so run `lazysite check`, which names a link already planted,
+remove it and rotate the session secret as docs/OPERATOR.md says; and from 0.16.1 the visitor log
+names signed-in accounts); 0.16.3, "Starter pages are opt-in for new sites" and "The /docs manual
+moves into the engine", with `lazysite check` naming any access rule wider than the rule around
+it; 0.16.4, "Plugins become extensions"; 0.16.5, "Address lists become address profiles"; 0.16.6,
+"The primary's content leaves out the other domains"; 0.16.7, "Odoo's modules leave core's lib";
+0.16.8, "Odoo's actions become the extension's"; 0.16.9, "A broken store now refuses", the longest,
+with the Odoo package, CryptX and the container; 0.16.10, "The container image carries git";
+0.16.11, "Address profiles are chosen from those that exist"; and 0.16.12, "A full restore gives a
+site that serves". Then run `lazysite upgrade` once, run `lazysite check`, and restart what holds
+engine code. The feature freeze is over: 0.17.x edge takes the features held for it.
 
 **An unfinished backup is named, and is yours to remove (SM1446).** A backup whose request was
 killed before tar finished left its name in `lazysite/backups/` as an empty file (or, if it was
@@ -76,14 +93,37 @@ taken before SM885, as an archive that stops part way), and the Backups page lis
 backup. After the upgrade the page shows each such file under "Unfinished backups" and
 `lazysite check` names it with its date. Nothing removes one for you: when no backup is being
 taken, delete it on the Backups page or with `rm lazysite/backups/<name>`, and remove any
-`lazysite/backups/.stage-*` directory the check names.
+`lazysite/backups/.stage-*` directory the check names. Restore, a site-package apply and
+`install.pl --restore-full` refuse an unfinished file by name.
 
 **A full backup runs in the background (SM1446, ruling 248).** The Backups page's full-system
 backup, and `backup-create` with `scope=full`, now answer at once with the file's name and
 `in_progress: true`; the backup is taken by a process of the user the manager runs as, which carries on
 after the request. A script that called `backup-create&scope=full` and read `sha256` or `size`
 from the answer should instead read `backup-list` until the name is listed under `backups` (or
-under `unfinished`, if it stopped). A content backup is unchanged.
+under `unfinished`, if it stopped). A second full backup is refused while one is being taken
+(409, naming it); restore and delete refuse the one in progress. A content backup is unchanged.
+
+**Smaller changes, nothing to do.**
+
+- The bad-URL blocker counts requests for credential files (SM1444, ruling 245): `/.docker/`,
+  `/.claude/`, `/.cursor/`, `/.kube/`, `/.azure/`, `/.vscode/`, `/.idea/`, `/.terraform/`,
+  `/.gnupg/`, `appsettings*.json`, `aws-exports.js` and `/wp-json/batch` join the built-in
+  patterns, as `/.env` always was. No lazysite site serves them; a file the site really has is
+  still spared, and `bad_url_extra` still adds. `/app.js` is not counted.
+- A refusal names the user who can run the command (SM1447). On a Hestia host the store files in
+  `lazysite/auth/` belong to the web server's user, not to the directory's owner, so
+  `lazysite acl` as root, the handlers tool, the users tool and `lazysite check` now name the
+  owner of the files they read and write (each owner, where they differ), and the
+  address-profile refusal names the file's owner and the user to run as. A refusal through a web
+  door still names no unix user.
+- `lazysite check` says ok only about what it read (SM1447): a walk that could not read part of
+  the tree prints no ok and warns, naming the user who owns what was not read; an `acls.json`
+  that will not decode now makes the page check say so instead of "0 public page(s)"; every
+  piece of advice spells the command that exists on the host. The upgrade's ADDRESS PROFILES
+  line says it could not check an unread directory, names its owner and the rerun.
+- The restore rehearsal on the shipped 0.16.12 tarball is recorded in docs/RELIABILITY.md
+  (SM1443), and `t/tools/158` runs in a fraction of the time (SM1442).
 
 ## A full restore gives a site that serves, and the rest of 0.16.12 (the second beta)
 

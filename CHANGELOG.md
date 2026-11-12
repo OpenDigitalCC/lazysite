@@ -53,6 +53,22 @@ Archive
 
 ## Unreleased
 
+- SM1448 (PENDING) **docs: the compliance records cover 0.17.0, the stable.** OBLIGATIONS.md
+  and TECHNICAL-FILE.md are walked against the 0.17.0 line (`git log 930e7f32a..f02c7cbb0`, 19
+  commits: SM1442 to SM1447) and stamped 0.17.0, channel stable (rulings 227, 242). 0.17.0 is cut
+  with `--final` as the stable promotion of the 0.16.12 beta with only the fixes of the 0.16.11
+  and 0.16.12 field passes; the first stable since 0.16.0, it carries 0.16.1 to 0.16.12, and the
+  feature freeze (ruling 228) ends with it. It is not security-critical: no change since
+  0.16.12 fixes a known vulnerability. Drafted for the release manager's confirmation:
+  register entries for SM1444 (a hardening of a default list, no trigger), SM1447 (messages and
+  check text, no trigger) and the finished SM1446 (the detached full backup: who, how long, one at
+  a time, and the residual that two starts in the same instant can both pass the check; no
+  trigger), the walk's entry, one STRIDE row and a section in docs/architecture/security.md. The
+  restore-rehearsal row is closed (ruling 247). The Declaration of Conformity, which a stable cut
+  does not require signed (ADR 0010), is restamped to 0.17.0 and stays unsigned. UPGRADE.md's
+  0.17.0 notes are one section whose opening paragraph takes a site on the 0.16.0 stable through
+  0.16.1 to 0.16.12 in order.
+
 - SM1446 (PENDING) **fix: a backup that did not finish is never listed as a backup.** A full
   backup of a large instance from the Backups page was killed mid-tar by a deadline in front of
   the manager; the empty name it had claimed was listed as a full backup (size 0, no sha256),

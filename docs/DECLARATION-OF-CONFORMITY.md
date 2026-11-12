@@ -1,6 +1,6 @@
 ---
 title: "lazysite - Declaration of Conformity"
-subtitle: "EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - UNSIGNED DRAFT, for the 0.16.0 stable"
+subtitle: "EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - UNSIGNED DRAFT, for the 0.17.0 stable"
 brand: plain
 ---
 
@@ -13,10 +13,12 @@ at the certified cut (ADR 0010); the developer agent restamped the draft on 20 O
 record and this document claims no conformity not yet in place.
 :::
 
-This is the Declaration of Conformity draft for the 0.16.0 stable of
-lazysite. Its code is the code of 0.15.15, walked clean (release manager,
-20 October 2026: "0.15.15, after its walk"; 21 October 2026: the stable is cut from main
-before the next batch lands). It was
+This is the Declaration of Conformity draft for the 0.17.0 stable of
+lazysite. Its code is the code of the 0.16.12 beta plus the fixes of the 0.16.11 and 0.16.12
+field passes (release manager, 10 and 11 November 2026, rulings 227 and 242: the stable is
+promoted from the beta). The draft was stamped to the 0.16.0 stable (the code of 0.15.15,
+walked clean; 20 and 21 October 2026) and restamped to 0.17.0 by the developer agent on 12
+November 2026; the stable channel does not require it signed (ADR 0010). It was
 prepared at 0.8.0 and carried forward through the stable releases since;
 it is now stamped to the candidate and its evidence is refreshed. It becomes the
 declaration of record when the version and dates are finalised and the responsible
@@ -33,8 +35,8 @@ bold: 1
 tone: medium
 ---
 Product | lazysite - static site builder with authenticated authoring (web manager, WebDAV, control API/MCP)
-Version | 0.16.0 - the stable (the code of 0.15.15); to be finalised at the certified cut
-Unique identification | git tag `v0.16.0`; release tarball `dist/lazysite-0.16.0.tar.gz` with `.sha256` sidecar; embedded `release-manifest.json` and `sbom.json` (CycloneDX)
+Version | 0.17.0 - the stable (the 0.16.12 beta plus the field-pass fixes); to be finalised at the certified cut
+Unique identification | git tag `v0.17.0`; release tarball `dist/lazysite-0.17.0.tar.gz` with `.sha256` sidecar; embedded `release-manifest.json` and `sbom.json` (CycloneDX)
 Release channel | stable candidate (`release.sh --final`); the declaration of record attaches to a certified cut (`release.sh --certified`, ADR 0010)
 ```
 
@@ -72,10 +74,10 @@ text: 2
 Secure by design/default; risk-based development (Part I) | The STRIDE/ASVS L1 threat model in `docs/SECURITY.md` (thirteen trust boundaries; the 0.11-0.15 trust changes added 20 October 2026); the mechanism narrative in `docs/architecture/security.md`; the mechanical release gates (full suite, lint, secrets, strict SBOM) recorded per release
 Protection from unauthorised access; data confidentiality and integrity | The capability model and controls verified in `docs/SECURITY.md` (ADRs 0001/0003; per-file ACLs; checked writes; anonymise-at-write access log)
 Availability and resilience | The reliability declaration in `docs/RELIABILITY.md` (SLOs, error budget, RTO/RPO, failure-mode test mapping, restore rehearsals)
-Vulnerability handling (Part II); coordinated disclosure | The CVD policy in the repo-root `SECURITY.md` (private reporting channel, acknowledgement and fix timelines); the significant-change assessment register in `docs/SECURITY.md` (entries through 0.15.15, drafted by the developer agent and awaiting the release manager's confirmation); the dated remediation register that evidences the ADR 0007 timelines stays for the certified release
+Vulnerability handling (Part II); coordinated disclosure | The CVD policy in the repo-root `SECURITY.md` (private reporting channel, acknowledgement and fix timelines); the significant-change assessment register in `docs/SECURITY.md` (entries through 0.17.0; the 0.17.0 entries are drafted by the developer agent and await the release manager's confirmation); the dated remediation register that evidences the ADR 0007 timelines stays for the certified release
 SBOM | `sbom.json` shipped in the release tarball (CycloneDX, per-file SHA-256, SPDX licence ids), regenerated per release behind the strict drift gate (`tools/manifest-to-sbom.pl --strict`)
 Security updates; support period | Five years from the first stable release (0.7.0), ending 2031-07-10, security fixes on the stable channel - declared in `docs/POLICY.md` ("Support period"); delivery via the edge/stable/certified channel mechanism (ADR 0005, ADR 0010)
-Obligations status overview | The CRA Article 13 obligations table in `docs/POLICY.md` - the posture of record for what is in place, drafted and pending; the dated register in `docs/compliance/OBLIGATIONS.md` (walked to 0.15.15) and the Annex VII index in `docs/compliance/TECHNICAL-FILE.md`
+Obligations status overview | The CRA Article 13 obligations table in `docs/POLICY.md` - the posture of record for what is in place, drafted and pending; the dated register in `docs/compliance/OBLIGATIONS.md` (walked to 0.17.0) and the Annex VII index in `docs/compliance/TECHNICAL-FILE.md`
 ```
 
 # 6. Standards and specifications applied

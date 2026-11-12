@@ -1712,6 +1712,45 @@ the developer agent and confirmed by the release manager on 11 Nov 2026 (ruling 
   the shipped 0.16.11 tarball, which found the restore gap SM1439 closes; it is rerun on the
   shipped 0.16.12 tarball before 0.17.0 (docs/SECURITY.md, the 2026-11-11 entries).
 
+## An unfinished backup, a detached full backup, and the stable (0.17.0)
+
+Walked on 2026-11-12 (SM1448); the first stable since 0.16.0 (cut with `--final`, rulings 227
+and 242), promoted from the 0.16.12 beta with the field-pass fixes. Not security-critical.
+Drafted by the developer agent for the release manager's confirmation.
+
+- **A backup that did not finish is never listed or restored** (SM1446). An empty claim, or a
+  file with no sha256 whose gzip stream stops part way, is listed under `unfinished` and never
+  under `backups`; `backup-restore`, a site-package apply and `install.pl --restore-full` refuse it by
+  name before a safety snapshot or anything is laid. `lazysite check` names each one and any
+  `.stage-*` directory. TERM, INT and HUP stop tar, remove the claim and the staging directory
+  and re-raise. The manager API writes a `started` audit row before tar runs and an outcome row
+  after it, both naming the file.
+- **A full backup runs detached from its request** (SM1446, ruling 248). `backup-create` with
+  `scope=full` claims the name, calls `Lazysite::Util::detach` (the double fork and `setsid`
+  the registry rebuild uses) and answers at once with `in_progress`. The worker is the manager
+  API's own code continued: the same unix user, descriptors 0-2 on /dev/null and 3-63 closed, in
+  its own session so the request's end and the relay's signals do not reach it, no input after it
+  starts, and `_exit` at the end. A pid marker beside the claim (`.<name>.pid`, pid and start
+  time) says it is in progress while the pid lives and the marker is under six hours old.
+  Starting is `manage_config`, cookie only, as before. A second full backup is refused while a
+  live marker names one (409, naming the file); two starts in the same instant can both pass
+  that check, because the markers are read before the claim is made. The detach helper is shared
+  with the registry rebuild.
+- **The bad-URL blocker counts probes for credential files** (SM1444, ruling 245). The built-in
+  signature list gains the dot-directories of developer and cloud tools, `appsettings*.json`,
+  `aws-exports.js` and `/wp-json/batch`, in the blocker and (but for the batch endpoint) in the
+  stats noise set. A real file is still spared and `bad_url_extra` still adds. A hardening of a
+  default list.
+- **A refusal names the user who can run the command** (SM1447). The user named is the owner of
+  the store files a command reads and writes (`Lazysite::Util::store_run_as`), not of the
+  directory, because on a Hestia host they differ. A refusal through a web door still names no
+  unix user (ruling 243). `lazysite check` prints no ok line for a walk that could not read part
+  of the tree, and its page walk names an `acls.json` that will not decode. Output only.
+- **The records** (SM1443, SM1442, SM1445). The restore rehearsal on the shipped 0.16.12 tarball
+  is confirmed (ruling 247). A test, a record and a filing; no shipped file changes.
+- **The stable.** 0.17.0 adds no feature to 0.16.12 and moves no trust boundary. The feature
+  freeze (ruling 228) ends with the cut; 0.17.x edge takes the features held for it (ruling 227).
+
 ## Credential lifecycle and MFA (SM072)
 
 - **One live credential per account.** A password, an `lzs_` access token, a
