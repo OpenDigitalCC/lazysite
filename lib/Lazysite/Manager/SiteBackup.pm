@@ -146,13 +146,18 @@ sub dispatch_backup_list {
     if ( ref $result eq 'HASH' && ref $result->{backups} eq 'ARRAY' ) {
         my $dir      = Lazysite::Paths::lazysite_dir($DOCROOT) . '/backups';
         my $confined = Lazysite::Manager::Common::caller_is_confined();
-        $result->{backups} = [
-            grep {
-                ( $_->{scope} // '' ) eq 'site'
-                    ? !_package_scope_refusal("$dir/$_->{name}")
-                    : !$confined
-            } @{ $result->{backups} }
-        ];
+        # SM1446: the unfinished ones by the same rule, so a caller is told of
+        # an unfinished file only where it would be shown the finished one.
+        for my $list (qw(backups unfinished)) {
+            next unless ref $result->{$list} eq 'ARRAY';
+            $result->{$list} = [
+                grep {
+                    ( $_->{scope} // '' ) eq 'site'
+                        ? !_package_scope_refusal("$dir/$_->{name}")
+                        : !$confined
+                } @{ $result->{$list} }
+            ];
+        }
     }
     return $result;
 }

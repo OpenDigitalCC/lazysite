@@ -683,6 +683,14 @@ sub package_apply {
                 . 'its source, or delete the sidecar if you know the change was '
                 . 'yours.' };
     }
+    # SM1446: a package tar did not finish is not applied, whatever is in it.
+    if ( Lazysite::Manager::Backups::_unfinished( $pkg, -s $pkg // 0, $verified ) ) {
+        my $n = $pkg =~ s{.*/}{}r;
+        return { ok => 0, kind => 'unfinished',
+            error => "$n is an unfinished package: it holds no finished archive, so "
+                . 'there is nothing to apply. If no package is being made now, remove it '
+                . "(site-backup-delete name=$n)." };
+    }
 
     my $stage = _lz() . "/backups/.apply-$$-" . strftime( '%H%M%S', gmtime );
     remove_tree($stage) if -e $stage;

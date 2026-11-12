@@ -53,6 +53,20 @@ Archive
 
 ## Unreleased
 
+- SM1446 (PENDING) **fix: a backup that did not finish is never listed as a backup.** A full
+  backup of a large instance from the Backups page was killed mid-tar by a deadline in front of
+  the manager; the empty name it had claimed was listed as a full backup (size 0, no sha256),
+  the page showed nothing, and the audit trail had no row. `backup-list` now lists an empty
+  claim, and an archive whose gzip stream stops part way with no sha256 beside it, under
+  `unfinished` with its time and how to remove it, never under `backups`; restore and site-package
+  apply refuse one by name, `install.pl --restore-full` refuses one before anything is laid, and
+  `lazysite check` names each, and a staging directory a killed backup left. A request terminated
+  mid-tar (TERM, the pool relay's first signal) stops tar and keeps nothing. The trail records a
+  backup's start by file name as well as its outcome, which now names the file and, for a full
+  backup, the kind `full` (it read `manual`). The Backups page shows the outcome beside the button
+  (the name, the refusal, or that the server stopped waiting), reads the list again whatever
+  happened, and shows unfinished backups apart with a Delete. A finished backup records its
+  sha256, as it has since SM183. A field-pass fix (rulings 206, 227, 228).
 - SM1445 (PENDING) **docs: the owner's other bad-URL blocker requests are filed for after stable.**
   An agent adding patterns (R1), an agent seeing blocked addresses and a visitor's block state
   (R2) and a built-in pattern edited or switched off for a site that serves it (R4) are features

@@ -6477,3 +6477,39 @@ verdict : accepted, confirmed by the release manager on 11 Nov 2026 (ruling 243)
   beta (ruling 242) and is not security-critical: no change in it fixes a known vulnerability (SM1439
   repairs a restore that left a site unable to serve, SM1440 is wording and one tightened write).
   It is the release the stable promotion is drawn from; the feature freeze (ruling 228) holds.
+
+### 2026-11-12 - SM1446 (PENDING): a backup that did not finish is never listed as a backup
+
+Assessment drafted by the developer agent (n824) for the release manager's confirmation.
+
+what changed
+: `Manager::Backups::action_backup_list` lists an empty claim, and a file with no sha256 beside
+  it whose gzip stream fails `gzip -t`, under `unfinished` instead of `backups`; the per-domain
+  filter of `backup-list` applies to both. `backup-restore`, site-package apply and
+  `install.pl --restore-full` refuse such a file by name, before a safety snapshot or anything is
+  laid. While tar runs, TERM, INT and HUP stop tar, remove the claim and the staging directory and
+  re-raise. The manager API writes a `started` audit row naming the file before tar runs; the
+  outcome row names the file, and a full backup's target is `full`. `lazysite check` names each
+  unfinished backup and `.stage-*` directory. The Backups page shows the outcome and the
+  unfinished list, with a Delete through the existing `backup-delete` and `site-backup-delete`.
+
+threat delta
+: Repudiation, narrowed: a backup started and never finished now has a trail row; before, a
+  killed request left none. Tampering and integrity: an empty or cut-off archive is no longer
+  offered as a backup or restored, which closes a partial restore from a file the operator took
+  for whole. No new action, capability, interface or dependency (`gzip` was already run by the
+  backup path); the deletes are the existing actions under their existing checks. No ADR 0007
+  trigger fires.
+
+controls
+: t/unit/manager/975 (listing, restore and apply refusal, TERM and KILL mid-tar, the start and
+  outcome rows), 976 (the page), t/tools/645 (the check) and 646 (`--restore-full`); each fails
+  on 3d869ef6e.
+
+residual risk
+: A KILL still leaves the empty claim, and a tar that outlives its request can leave a staging
+  directory; both are reported, not removed, since only the operator knows that no backup is
+  running. A full backup that takes longer than the deadline in front of the manager still
+  cannot be taken from the page (SM1446 part 3, awaiting a ruling).
+
+verdict : drafted, not confirmed. A field-pass fix (rulings 206, 227, 228); not security-critical.

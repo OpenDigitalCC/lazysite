@@ -2936,8 +2936,16 @@ elsif ( $action eq 'backup-create' ) {
     # scope=full = a full-system snapshot (config + auth + content) for DR and
     # cross-domain migration; otherwise a content-only snapshot. These are
     # manager (cookie) actions - not in %need, so a token client cannot reach them.
+    # SM1446: the trail records the START, naming the file, as well as the outcome
+    # the generic line writes after the chain - a request killed mid-tar writes
+    # no outcome, and a start with no end is then what says so.
+    my $kind = ( $params{scope} // '' ) eq 'full' ? 'full' : 'manual';
     $result = action_backup_create(
-        ( $params{scope} // '' ) eq 'full' ? 'full' : undef );
+        ( $kind eq 'full' ? 'full' : undef ),
+        on_start => sub {
+            audit_log( $auth_user, 'backup-create', $kind, _request_ip(), 'started',
+                ( $token_auth ? 'api' : 'ui' ), "file=$_[0]" );
+        } );
 }
 elsif ( $action eq 'backup-restore' ) {
     # SM874: `replace` is the undo-of-apply mode - clear the archive's own
@@ -3028,6 +3036,9 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' || $AUDIT_FAILED ) {
     # refusal's reason is never displaced by it.
     my $aud_extra   = '';
     my $aud_no_text = 0;    # P24: a failed account-store read records its class only
+        # SM1446: a backup's outcome names its file, as its start row does.
+    $aud_extra = "file=$result->{name}"
+        if $action eq 'backup-create' && ref $result eq 'HASH' && length( $result->{name} // '' );
     # SM503: a data action's material object is the TABLE, not the dispatcher
     # path - the sysop's trail showed data-import and data-row-save rows
     # all targeting "/", which answers none of the questions a trail exists

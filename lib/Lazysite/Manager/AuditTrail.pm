@@ -184,7 +184,10 @@ sub _audit_implicit_target {
     }
     # Backups: create names the KIND (full/content/manual); restore/download the
     # backup file.
-    return ( $req->{kind} // $params->{kind} // 'manual' ) if $action eq 'backup-create';
+    # SM1446: and the page asks for a full one with scope=full, which this read
+    # as manual - so its start row and its outcome named two different kinds.
+    return ( ( $params->{scope} // '' ) eq 'full' ? 'full' : ( $req->{kind} // $params->{kind} // 'manual' ) )
+        if $action eq 'backup-create';
     if ( $action =~ /^backup-(?:restore|download)\z/ ) {
         my $n = $params->{name} // $req->{name} // '';
         return $n if length $n;

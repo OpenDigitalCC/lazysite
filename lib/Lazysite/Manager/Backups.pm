@@ -144,9 +144,51 @@ sub _sha_and_status {
     return ( $want, $got eq $want ? 'verified' : 'mismatch' );
 }
 
+# SM1446: A BACKUP THAT DID NOT FINISH IS NOT A BACKUP.
+#
+# The name is claimed up front as an empty file (_claim_name), and the archive is
+# renamed over it only when tar has finished. A request killed in between - the
+# pool's relay deadline, the web server's, the proxy's - leaves the empty claim,
+# and the listing called it a full backup: size 0, no digest, offered to
+# download and keep. Measured in the field on a large nine-domain instance.
+#
+# So this is the one test of "finished", for the listing, the restore and the
+# check. A finished archive is placed whole by a rename and its digest written
+# after it, so:
+#   - an empty file is a claim tar never filled;
+#   - a file with a digest beside it was placed whole (whether it still MATCHES
+#     the digest is the separate verified/mismatch question);
+#   - a file with no digest is an archive from before the digest existed, or one
+#     tar wrote through its own name and did not finish (every archive before
+#     SM885 was written that way, and site packages still are). Only gzip can
+#     tell those apart: a cut-off stream fails `gzip -t`.
+# $status is _sha_and_status's verdict for the same file.
+sub _unfinished {
+    my ( $path, $size, $status ) = @_;
+    return 1 unless $size;
+    return 0 unless $status eq 'absent';
+    return _gzip_ok($path) ? 0 : 1;
+}
+
+# The same test for one file, for the paths that act on a single archive.
+sub unfinished {
+    my ($path) = @_;
+    my ( undef, $status ) = _sha_and_status($path);
+    return _unfinished( $path, -s $path // 0, $status );
+}
+
+# What an operator does about one: nothing while a backup is still being taken,
+# else remove it. Named for the action that removes that kind.
+sub _unfinished_remedy {
+    my ($name) = @_;
+    my $verb = $name =~ /\A(?:lazysite-)?site-/ ? 'site-backup-delete' : 'backup-delete';
+    return "if no backup is being taken now, remove it: Delete on the Backups page "
+        . "($verb name=$name), or rm lazysite/backups/$name";
+}
+
 sub action_backup_list {
     my $dir = _dir();
-    my @out;
+    my ( @out, @unfinished );
     if ( opendir my $dh, $dir ) {
         for my $f ( readdir $dh ) {
             next unless $f =~ /\.tar\.gz\z/ && -f "$dir/$f";
@@ -170,6 +212,13 @@ sub action_backup_list {
             # anything checked it, so the listing now says which of the
             # three it is: verified, mismatch, or absent.
             my ( $sha, $status ) = _sha_and_status("$dir/$f");
+
+            # SM1446: never listed as a backup; listed as what it is.
+            if ( _unfinished( "$dir/$f", $st[7] // 0, $status ) ) {
+                push @unfinished, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
+                    kind => $kind, scope => $scope, remedy => _unfinished_remedy($f) };
+                next;
+            }
             push @out, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
                 kind          => $kind, scope => $scope,
                 sha256        => $sha,
@@ -177,8 +226,9 @@ sub action_backup_list {
         }
         closedir $dh;
     }
-    @out = sort { $b->{mtime} <=> $a->{mtime} } @out;
-    return { ok => 1, backups => \@out };
+    @out        = sort { $b->{mtime} <=> $a->{mtime} } @out;
+    @unfinished = sort { $b->{mtime} <=> $a->{mtime} } @unfinished;
+    return { ok => 1, backups => \@out, unfinished => \@unfinished };
 }
 
 # SM183: the stamp is second-granular and was the ONLY thing making a name
@@ -604,6 +654,11 @@ sub action_backup_create {
     }
     my $stage = "$stage_dir/$name";
 
+    # SM1446: the caller's record that this backup has STARTED, by name, before
+    # tar runs. The request that takes it can be killed before it writes its
+    # outcome; a start with no end is then the record of that.
+    $opt{on_start}->($name) if ref $opt{on_start} eq 'CODE';
+
     # 'full' = the whole site including the lazysite/ infra (config, auth,
     # forms, nav, themes/layouts) - a portable snapshot for DR and for migrating a
     # site to another domain (restored by a system user via install.pl --restore
@@ -701,18 +756,45 @@ sub action_backup_create {
     # and a stray .err can never appear beside the artefacts.
     my $err_file = "$stage_dir/tar.err";
     my $rc       = 0;
-    my $pid      = fork();
-    if ( !defined $pid ) {
-        $rc = -1;
-    }
-    elsif ( !$pid ) {
-        open STDERR, '>', $err_file or exit 127;
-        exec( 'tar', 'czf', $stage, '-C', $DOCROOT, @excludes, $member, @store )
-            or exit 127;
-    }
-    else {
-        waitpid $pid, 0;
-        $rc = $?;
+
+    # SM1446: A REQUEST TERMINATED MID-TAR TAKES ITS UNFINISHED BACKUP WITH IT.
+    # The pool's relay deadline sends TERM before KILL, as a web server does to
+    # a CGI it gives up on: stop tar, drop the claim and the staging directory,
+    # then die of the same signal. A KILL cannot be caught; what it leaves is an
+    # empty claim, which the listing reports as unfinished (_unfinished).
+    my $tar_pid;
+    {    # armed while tar runs, and only then: never over a placed archive
+        my $abandon = sub {
+            my ($sig) = @_;
+            kill 'TERM', $tar_pid if $tar_pid;
+            unlink $out;
+            _drop_staging($stage_dir);
+            log_event( 'ERROR', 'backup-create', 'backup interrupted - nothing was kept',
+                file => $name, signal => $sig, user => $auth_user );
+            $SIG{$sig} = 'DEFAULT';
+            kill $sig, $$;
+            exit 1;
+        };
+        local $SIG{TERM} = $abandon;
+        local $SIG{INT}  = $abandon;
+        local $SIG{HUP}  = $abandon;
+
+        my $pid = fork();
+        if ( !defined $pid ) {
+            $rc = -1;
+        }
+        elsif ( !$pid ) {
+            $SIG{$_} = 'DEFAULT' for qw(TERM INT HUP);
+            open STDERR, '>', $err_file or exit 127;
+            exec( 'tar', 'czf', $stage, '-C', $DOCROOT, @excludes, $member, @store )
+                or exit 127;
+        }
+        else {
+            $tar_pid = $pid;
+            waitpid $pid, 0;
+            $rc      = $?;
+            $tar_pid = undef;
+        }
     }
     my $tar_err = '';
     if ( open my $eh, '<', $err_file ) {
@@ -901,6 +983,11 @@ sub action_backup_restore {
 
     my $full = _dir() . "/$name";
     return { ok => 0, error => 'Backup not found' } unless -f $full;
+    # SM1446: an unfinished one is not offered, and not restored by name either.
+    return { ok => 0, kind => 'unfinished',
+        error => "$name is an unfinished backup: it holds no finished archive, so "
+            . 'there is nothing to restore. ' . ucfirst( _unfinished_remedy($name) ) . '.' }
+        if unfinished($full);
 
     # SM484: the archive's members ARE its blast radius - a scoped backup
     # restores exactly its own subtree - so the safety snapshot scopes to the

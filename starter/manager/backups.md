@@ -6,6 +6,12 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
+<div class="mg-note mg-note-warn" id="unfinished" hidden>
+<p><b>Unfinished backups.</b> These were started and did not finish, so they hold
+no backup and are not offered as one. If no backup is being taken now, delete them.</p>
+<div class="mg-list" id="unfinished-list"></div>
+</div>
+
 <div class="mg-note mg-note-info">
 Backups are whole-site snapshots for disaster recovery &mdash; the full-system
 kind includes configuration and secrets. Day-to-day <b>content versioning</b>
@@ -26,6 +32,7 @@ snapshot first, and clears the affected page caches.
 </p>
 <div style="margin-bottom:12px;">
 <button class="mg-btn mg-btn-primary" onclick="createBackup(this)">Create content backup</button>
+<span class="mg-row-meta" id="content-outcome" role="status"></span>
 </div>
 <div class="mg-list" id="content-list">
 <div class="mg-row"><span class="mg-file-name">Loading&hellip;</span></div>
@@ -76,6 +83,7 @@ shell</b>, not a button here:
 backup effectively holds the site's secrets &mdash; treat it accordingly.</p>
 <div style="margin-bottom:12px;">
 <button class="mg-btn mg-btn-primary" onclick="createFullBackup(this)">Create full-system backup</button>
+<span class="mg-row-meta" id="full-outcome" role="status"></span>
 </div>
 <div class="mg-list" id="full-list">
 <div class="mg-row"><span class="mg-file-name">Loading&hellip;</span></div>
@@ -127,8 +135,52 @@ function loadBackups() {
       renderBackups(all.filter(function(b) { return b.scope === 'content'; }), 'content-list', true);
       renderPackages(all.filter(function(b) { return b.scope === 'site'; }));
       renderBackups(all.filter(function(b) { return b.scope === 'full'; }), 'full-list', false);
+      renderUnfinished(d.unfinished || []);
     })
     .catch(function(e) { showStatus('Failed to load backups: ' + e.message, true); });
+}
+
+// SM1446: a backup that was started and did not finish is not a backup. The
+// server lists it apart; it is shown apart, with its time and a delete.
+function renderUnfinished(list) {
+  var box = document.getElementById('unfinished');
+  var el = document.getElementById('unfinished-list');
+  if (!box || !el) return;
+  box.hidden = !list.length;
+  var html = '';
+  for (var i = 0; i < list.length; i++) {
+    var b = list[i];
+    html += '<div class="mg-row">';
+    html += '<span class="mg-file-name"><span class="mg-mono">' + escHtml(b.name) + '</span> '
+          + '<span class="mg-tag mg-tag-off">unfinished</span> '
+          + '<span class="mg-row-meta">' + fmtDate(b.mtime) + '</span></span>';
+    html += '<span class="mg-row-actions"><button class="mg-btn mg-btn-sm mg-btn-danger" '
+          + 'onclick="deleteUnfinished(\'' + escHtml(b.name) + '\', this)">Delete</button></span>';
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function deleteUnfinished(name, btn) {
+  var site = /^(?:lazysite-)?site-/.test(name);
+  var msg = 'Delete the unfinished backup "' + name + '"?\n\nIt holds no backup. '
+          + 'Delete it only if no backup is being taken now.';
+  var go = function(ok) {
+    if (!ok) return;
+    if (btn) btn.disabled = true;
+    fetch(API + '?action=' + (site ? 'site-backup-delete' : 'backup-delete'), {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (btn) btn.disabled = false;
+      if (!d.ok) { showStatus(d.error || 'Delete failed', true); return; }
+      showStatus('Deleted ' + name + '.');
+      loadBackups();
+    }).catch(function(e) { if (btn) btn.disabled = false; showStatus('Delete error: ' + e.message, true); });
+  };
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Delete' }).then(go); }
+  else { go(window.confirm(msg)); }
 }
 
 // restorable = content (in-app restore button); full backups download only.
@@ -238,28 +290,49 @@ function restoreBackup(name, btn, replace) {
   else { go(window.confirm(msg)); }
 }
 
-function createBackup(btn) { _create(btn, '', 'Backup created: '); }
+function createBackup(btn) { _create(btn, '', 'Backup created: ', 'content-outcome'); }
 
 function createFullBackup(btn) {
   var msg = 'Create a full-system backup?\n\nIt includes configuration, accounts '
           + 'and secrets. Keep the downloaded file secure.';
-  var go = function(ok) { if (ok) _create(btn, '&scope=full', 'Full-system backup created: '); };
+  var go = function(ok) { if (ok) _create(btn, '&scope=full', 'Full-system backup created: ', 'full-outcome'); };
   if (typeof mgConfirm === 'function') { mgConfirm(msg, { ok: 'Create' }).then(go); }
   else { go(window.confirm(msg)); }
 }
 
-function _create(btn, extra, okMsg) {
+// SM1446: THE BUTTON RETURNS TO REST WITH THE OUTCOME BESIDE IT, and the list is
+// read again whatever happened. The outcome was only a toast, gone in seconds,
+// and an answer that was not JSON - the error page of a server that stopped
+// waiting - was dropped, so the page fell silent and showed nothing new.
+function _create(btn, extra, okMsg, outId) {
+  var out = document.getElementById(outId);
+  var say = function(t) { if (out) out.textContent = t; };
   if (btn) btn.disabled = true;
+  say('Creating backup…');
   showStatus('Creating backup...');
   fetch(API + '?action=backup-create' + extra, { method: 'POST', credentials: 'same-origin' })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      return r.text().then(function(t) {
+        try { return JSON.parse(t); } catch (e) {
+          return { ok: 0, error: 'No answer from the backup (HTTP ' + r.status + '): the server '
+            + 'stopped waiting for it. It may still finish; the list shows it when it has, '
+            + 'or as unfinished.' };
+        }
+      });
+    })
     .then(function(d) {
       if (btn) btn.disabled = false;
-      if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus(okMsg + d.name);
+      var t = d.ok ? okMsg + d.name : (d.error || 'Backup failed');
+      say(t);
+      showStatus(t, !d.ok);
       loadBackups();
     })
-    .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });
+    .catch(function(e) {
+      if (btn) btn.disabled = false;
+      say('Error: ' + e.message);
+      showStatus('Error: ' + e.message, true);
+      loadBackups();
+    });
 }
 
 // --- SM183: site packages (create is on the Domains page; here: list, upload,

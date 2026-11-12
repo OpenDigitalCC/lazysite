@@ -45,7 +45,11 @@ ok( $l->{backups}[0]{size} > 0, 'size reported' );
 # and refused by backup-delete as "Not a lazysite snapshot name".
 {
     my $up = 'lazysite-backup-20260908-092453-pre-0.13.7.tar.gz';
-    _put( "$d/lazysite/backups/$up", "not really a tarball\n" );
+    # SM1446: a whole gzip stream, as an archive the installer finished is - the
+    # listing reports a file that is not one as an unfinished backup.
+    require IO::Compress::Gzip;
+    IO::Compress::Gzip::gzip( \"not really a tarball\n" => "$d/lazysite/backups/$up" )
+        or die $IO::Compress::Gzip::GzipError;
     my ($row) = grep { $_->{name} eq $up } @{ action_backup_list()->{backups} };
     ok( $row, 'the installer archive is listed' );
     is( $row->{kind},  'upgrade', 'as kind upgrade' );

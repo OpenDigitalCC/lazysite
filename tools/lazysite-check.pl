@@ -1524,6 +1524,7 @@ sub run_checks {
 
     # --- 8f. registries left behind from before they were served (SM293) --------
     report_stale_registries();
+    report_unfinished_backups();    # SM1446
 
     # --- 8h. templates written for 0.12's raw db values (SM844) ------------------
     report_double_escaped_db_templates();
@@ -3861,6 +3862,40 @@ sub _slurp_raw {
     my $c = <$fh>;
     close $fh;
     return $c // '';
+}
+
+# SM1446 (ruling 206): A BACKUP THAT DID NOT FINISH IS NAMED. The listing no
+# longer offers one as a backup (Manager::Backups::_unfinished, the one test of
+# "finished", read here through the listing itself); this says it is there, when
+# it was started and how to remove it. And a staging directory a killed backup
+# left behind, which can hold the archive a tar outliving its request finished.
+sub report_unfinished_backups {
+    my $dir = "$LZ/backups";
+    return unless -d $dir;
+    require Lazysite::Manager::Backups;
+    my $list = do {
+        local $Lazysite::Manager::Backups::LAZYSITE_DIR = $LZ;
+        Lazysite::Manager::Backups::action_backup_list();
+    };
+    my $when = sub { my @t = gmtime( $_[0] // 0 ); sprintf '%04d-%02d-%02d %02d:%02d UTC', $t[5] + 1900, $t[4] + 1, @t[ 3, 2, 1 ] };
+    for my $u ( @{ $list->{unfinished} || [] } ) {
+        report( 'WARN',
+            "an unfinished backup: lazysite/backups/$u->{name} (dated " . $when->( $u->{mtime} )
+                . ", $u->{size} bytes) holds no finished archive; it is not listed or offered as a backup",
+            $u->{remedy} );
+    }
+    my @stages;
+    if ( opendir my $dh, $dir ) {
+        @stages = sort grep { /\A\.stage-/ && -d "$dir/$_" } readdir $dh;
+        closedir $dh;
+    }
+    for my $s (@stages) {
+        report( 'WARN',
+            "a backup's staging directory is left in lazysite/backups/$s (since "
+                . $when->( ( stat "$dir/$s" )[9] ) . '): a backup that was stopped before it finished',
+            "if no backup is being taken now, remove it: rm -r lazysite/backups/$s" );
+    }
+    return;
 }
 
 sub report_stale_registries {

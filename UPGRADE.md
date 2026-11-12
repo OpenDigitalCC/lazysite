@@ -68,6 +68,16 @@ to do (SM1307).
 Sections below are per-release notes, newest first. Where an older section says
 `install.sh`, read it as a record of what that release did.
 
+## Unreleased (0.17.0)
+
+**An unfinished backup is named, and is yours to remove (SM1446).** A backup whose request was
+killed before tar finished left its name in `lazysite/backups/` as an empty file (or, if it was
+taken before SM885, as an archive that stops part way), and the Backups page listed it as a
+backup. After the upgrade the page shows each such file under "Unfinished backups" and
+`lazysite check` names it with its date. Nothing removes one for you: when no backup is being
+taken, delete it on the Backups page or with `rm lazysite/backups/<name>`, and remove any
+`lazysite/backups/.stage-*` directory the check names.
+
 ## A full restore gives a site that serves, and the rest of 0.16.12 (the second beta)
 
 0.16.12 is the second beta (ruling 242): 0.16.11 plus the changes below, on the beta channel,

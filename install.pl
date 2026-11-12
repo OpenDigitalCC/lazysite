@@ -720,6 +720,15 @@ sub cmd_restore_full {
     $tarball = abs_path($tarball) // $tarball;
     die "Backup '$tarball' not found\n" unless -f $tarball;
 
+    # SM1446: a backup that did not finish is refused before anything is laid: an
+    # empty claim, or an archive cut off mid-write, would restore part of a site.
+    unless ( -s $tarball && system( 'gzip', '-tq', $tarball ) == 0 ) {
+        print {*STDERR} "install.pl: refusing to restore: '$tarball' is not a finished backup\n"
+            . "  (it is empty, or its archive stops part way). Nothing was changed.\n"
+            . "  Restore a finished full backup; the manager's Backups page lists only those.\n";
+        return 1;
+    }
+
     # A symlink for lazysite/ or for the two directories the mode and ownership steps
     # name inside it is refused before anything is made, laid or extracted (ruling 206):
     # the setgid chmod and the root ownership repair would follow it out of the site.
