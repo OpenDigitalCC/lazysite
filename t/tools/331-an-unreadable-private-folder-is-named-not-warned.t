@@ -72,8 +72,9 @@ is( $rc, 0, 'the upgrade succeeds' ) or diag "$out\n$err";
 unlike( $err, qr/Can't (?:opendir|stat|cd to)/, 'no raw File::Find warning on STDERR' ) or diag $err;
 like( "$out\n$err", qr/ADDRESS PROFILES: could not read 1 directory as \S+: \Q$shut\E \([^)]+\)/,
     'the summary names the directory it could not read' ) or diag "$out\n$err";
-like( "$out\n$err", qr/visitor\.in_list or visitor\.in_any call below it was not renamed.*run the upgrade again as root/s,
-    '  and says what was left and how to finish it' );
+like( "$out\n$err", qr/could not check that directory for visitor\.in_list or visitor\.in_any calls.*owned by .\S+.*run the upgrade again as root or as that owner/s,
+    '  and says it could not check, who owns it, and how to finish it' );
+unlike( "$out\n$err", qr/is false until|was not renamed and/, 'and does not claim a call is false, which it could not tell' );
 like( slurp("$priv/open.md"), qr/visitor\.in_profile\('office'\)/, 'a readable file in the store is still renamed' );
 like( slurp("$shut/inner/page.md"), qr/visitor\.in_list\('office'\)/, 'the unread one is untouched' );
 unlike( slurp($sp) // '', qr/"address-profiles-converted"/, 'the step is not recorded, so the next upgrade tries again' );

@@ -1527,12 +1527,22 @@ sub rewrite_template_calls {
         my $more = @show > 8 ? ' (and ' . ( @show - 8 ) . ' more)' : '';
         splice @show, 8 if @show > 8;
         my $who = getpwuid($>) // "uid $>";
+        # n825 (SM1447): say what is known. The walk could not look in these directories,
+        # so it does not know whether any visitor.in_list / visitor.in_any call is below
+        # them; it names who owns them, which is who can look.
+        my %own;
+        for my $dir (@dirs) {
+            my @st = stat $dir or next;
+            $own{ ( getpwuid $st[4] )[0] // "uid $st[4]" } = 1;
+        }
+        my @owners = sort keys %own;
+        my $that   = @owners == 1 ? "that owner ($owners[0])" : @owners ? 'an owner of them (' . join( ', ', @owners ) . ')' : 'the user that owns the site';
         push @warn, 'ADDRESS PROFILES: could not read ' . scalar(@dirs)
             . ' director' . ( @dirs == 1 ? 'y' : 'ies' ) . " as $who: " . join( ', ', @show ) . $more
-            . ' - any visitor.in_list or visitor.in_any call below '
-            . ( @dirs == 1 ? 'it' : 'them' )
-            . ' was not renamed and is false until it is; run the upgrade again as root or as the '
-            . 'user that owns the site, then `lazysite check` to confirm none is left (SM1345, SM1380)';
+            . ' - so it could not check ' . ( @dirs == 1 ? 'that directory' : 'those directories' )
+            . ' for visitor.in_list or visitor.in_any calls'
+            . ( @owners ? ', which ' . ( @dirs == 1 ? 'is' : 'are' ) . ' owned by ' . join( ', ', map {"'$_'"} @owners ) : '' )
+            . "; run the upgrade again as root or as $that, then `lazysite check` to confirm none is left (SM1345, SM1380)";
     }
     return ( \@changed, \@warn );
 }
