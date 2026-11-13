@@ -143,10 +143,13 @@ subtest 'cached until the next change of state, and not past it' => sub {
 };
 
 subtest 'a ttl: does not outlast the expiry' => sub {
+    # The bound uses the clock read BEFORE the render: the engine fixes max-age at render
+    # time, and under instrumentation the render itself takes tens of seconds.
+    my $before = time;
     my $out = run_processor( $docroot, '/hours-ttl' );
     my ($max) = $out =~ /^Cache-Control: public, max-age=(\d+)/m;
     ok( defined $max, 'a ttl: page is publicly cacheable' );
-    ok( $max <= $tomorrow_midnight - time + 1, "but for no longer than until the expiry ($max s, not 86400)" );
+    ok( $max <= $tomorrow_midnight - $before + 1, "but for no longer than until the expiry ($max s, not 86400)" );
 
     mark('hours-ttl');
     age( 'hours-ttl', 5 );

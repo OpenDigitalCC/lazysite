@@ -53,6 +53,18 @@ Archive
 
 ## Unreleased
 
+- SM1450 (PENDING) **tests: two processor tests no longer race the clock under Devel::Cover.**
+  The 0.17.0 `--final` gate's coverage stage failed `t/unit/processor/185-a-schedule-page-is-cached-until-its-state-changes.t`
+  and `t/unit/processor/131-a-static-says-when-it-changed.t`, both of which passed in the plain
+  suite minutes earlier. Under instrumentation a render takes tens of seconds and each test read
+  the clock at the wrong moment. 185 bounded a `ttl:` page's max-age by `time` read after the
+  render returned, though the engine fixed max-age when it rendered, so the bound was as much
+  too tight as the render was slow; it now uses the time read before the request. 131 stamped
+  the "fresh" file a minute ahead once at the top of a file that runs for over a minute, so by the
+  If-Range request it was more than a second behind the clock and the engine rightly answered
+  206; the stamp is now set an hour ahead immediately before that request. Each assertion still
+  fails when the engine is wrong (checked by scratch edits to the clamp and to the one-second
+  rule). Tests only; no engine change.
 - SM1448 (PENDING) **docs: the compliance records cover 0.17.0, the stable.** OBLIGATIONS.md
   and TECHNICAL-FILE.md are walked against the 0.17.0 line (`git log 930e7f32a..f02c7cbb0`, 19
   commits: SM1442 to SM1447) and stamped 0.17.0, channel stable (rulings 227, 242). 0.17.0 is cut

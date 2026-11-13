@@ -47,14 +47,19 @@ utime $OLD, $OLD, $path{'private.mp4'} or die $!;
 # A file whose mtime is not yet behind the clock: a date naming it is a WEAK
 # validator (RFC 9110 13.1.5), because a second write inside the same second
 # would carry the same date. The future keeps this independent of when in the
-# second the test runs.
-my $FRESH = time() + 60;
-utime $FRESH, $FRESH, $path{'fresh.mp4'} or die $!;
+# second the test runs. It is set again immediately before the request that needs it
+# (fresh_date), and an hour ahead: under instrumentation this file runs for over a
+# minute and a render takes tens of seconds, so a stamp made once at the top, or only
+# a minute ahead, is behind the clock by the time it is used.
 my @D = qw(Sun Mon Tue Wed Thu Fri Sat);
 my @M = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
-my @g = gmtime $FRESH;
-my $FRESH_DATE = sprintf '%s, %02d %s %04d %02d:%02d:%02d GMT',
-    $D[ $g[6] ], $g[3], $M[ $g[4] ], $g[5] + 1900, @g[ 2, 1, 0 ];
+sub fresh_date {
+    my $t = time() + 3600;
+    utime $t, $t, $path{'fresh.mp4'} or die $!;
+    my @g = gmtime $t;
+    return sprintf '%s, %02d %s %04d %02d:%02d:%02d GMT',
+        $D[ $g[6] ], $g[3], $M[ $g[4] ], $g[5] + 1900, @g[ 2, 1, 0 ];
+}
 
 sub get {
     my ( $range, %env ) = @_;
@@ -147,6 +152,7 @@ subtest 'If-Range with a date' => sub {
     $r = get( 'bytes=0-99', HTTP_IF_RANGE => 'not a date' );
     is( $r->{status}, '200', 'an unparsable If-Range gets the whole file' );
 
+    my $FRESH_DATE = fresh_date();
     $r = get( 'bytes=0-99', uri => '/lazysite-assets/media/fresh.mp4',
         HTTP_IF_RANGE => $FRESH_DATE );
     is( $r->{h}{'last-modified'}, $FRESH_DATE, 'the fresh file names its date' );
