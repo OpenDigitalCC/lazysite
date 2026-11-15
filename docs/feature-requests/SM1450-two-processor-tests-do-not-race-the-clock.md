@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-13
 raised-by: "the 0.17.0 --final gate's coverage stage, ruling 254"
 area: tests
-status-note: "SHIPPED (PENDING) on n829. t/unit/processor/185 bounds a ttl: page's max-age by the clock read before the render; t/unit/processor/131 stamps its fresh file an hour ahead immediately before the If-Range request. Tests only; no engine change."
+status-note: "SHIPPED (0.17.0) on n829. t/unit/processor/185 bounds a ttl: page's max-age by the clock read before the render; t/unit/processor/131 stamps its fresh file an hour ahead immediately before the If-Range request. Tests only; no engine change."
 ---
 
 # What failed

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-15
 raised-by: "the release manager, ruling 256"
 area: release
-status-note: "SHIPPED (PENDING) on n830. release.sh and gate-main.sh run coverage for --certified only (or LAZYSITE_COVER_FORCE=1); a stable receipt says coverage=not run and build accepts it. Replaces SM1083's 'stable only'. t/tools/104, t/tools/168, docs/DEVELOPER.md."
+status-note: "SHIPPED (0.17.0) on n830. release.sh and gate-main.sh run coverage for --certified only (or LAZYSITE_COVER_FORCE=1); a stable receipt says coverage=not run and build accepts it. Replaces SM1083's 'stable only'. t/tools/104, t/tools/168, docs/DEVELOPER.md."
 ---
 
 # Why

@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.16.12"
+subtitle: "Everything lazysite has and does, and why - as of v0.17.0"
 brand: plain
 ---
 
@@ -2053,6 +2053,16 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.17.0** (2026-11-15, stable) - **The stable release of the 0.16 line, with
+  an unfinished backup named and a full backup that runs detached.** the
+  0.16.12 beta as the new stable, replacing 0.16.0, with only the fixes of the
+  beta field passes: an unfinished backup is never listed as a backup or
+  restored, and a full backup runs detached from its request, one at a time,
+  with its outcome shown on the Backups page (SM1446); a refusal names the user
+  who owns the files the command reads, and lazysite check says ok only about
+  what it read (SM1447); the bad-URL blocker counts probes for credential files
+  (SM1444); the restore rehearsal rerun on the shipped 0.16.12 tarball
+  (SM1443). It carries everything since 0.16.0: 0.16.1 to 0.16.12
 - **0.16.12** (2026-11-11, beta) - **A full restore gives a site that serves,
   and a refusal names the user to run as.** install.pl --restore-full lays the
   engine from the release, applies the serving group and modes, writes the

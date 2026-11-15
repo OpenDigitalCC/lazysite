@@ -5,6 +5,2132 @@ brand: plain
 standard-margins: true
 ---
 
+## 0.16.12 - BETA: a full restore gives a site that serves, and a refusal names the user to run as (2026-11-11)
+
+- SM1441 (ba1afef5) **docs: the compliance records cover 0.16.12, the second beta.** OBLIGATIONS.md
+  and TECHNICAL-FILE.md are walked against the 0.16.12 line (`git log b050272f9..2920a8f8a`, 10
+  commits: SM1438, SM1439 and SM1440) and stamped 0.16.12, channel beta (ruling 242). 0.16.12 is
+  cut with `--beta` from 0.16.11 plus the beta field-pass fixes; it is not security-critical (no
+  change in it fixes a known vulnerability) and is the release the 0.17.0 stable is promoted from
+  (rulings 227, 242); the feature freeze holds. Confirmed by the release manager on 11 Nov 2026 (ruling 243):
+  SM1439's register entry (`install.pl --restore-full` lays the engine and the modes from the
+  release and takes only data from the tarball; a system-user operation; no ADR 0007 trigger),
+  SM1440's (messages and check text, and one tightened write; a refusal through a web door names no unix user, the CLI keeps naming them, ruling 243; no trigger), the walk's entry
+  (SM1438's rehearsal record, with each change's assessment), one STRIDE row, and a section in
+  docs/architecture/security.md. An operate-side row asks the operator to give a restore script
+  the new flags. `--restore-full` also refuses, before it changes anything, a backup whose
+  `lazysite/`, `lazysite/auth` or `lazysite/forms` is a symlink (ruling 206; t/tools/628). The
+  restore-rehearsal row stays OPEN: the rehearsal is rerun on the shipped
+  0.16.12 tarball and confirmed by the release manager before 0.17.0 (rulings 241, 242).
+  UPGRADE.md's 0.16.12 notes are one section.
+
+- SM1440 (acbed644) **Field findings from the 0.16.11 pass: a refusal names the user to run
+  as, and the check says ok only about what it read.** `lazysite acl set` as root now names
+  the unix user that owns `lazysite/auth/` and spells the command with it (the handlers tool
+  likewise). A command that cannot read an auth store (`acl set`, `address-profile-delete`,
+  the manager's profile refusals) says which user it ran as and who owns the file, and keeps
+  "Nothing was changed"; a refusal shown through the manager API or MCP names no unix user: it
+  says the web server's user and the owner of the file, and advises running the command on the
+  host as that owner. The check no longer prints "every address profile a rule names is
+  in the store" or "every rule names its address profile in the slot ..." when acls.json
+  could not be read: it says it could not check, naming the file, the user and the owner.
+  The "re-run with --fix" hint shows only when `--fix` has a repair to apply. A
+  `group-settings-set` address limit on a group that does not exist says the group does not
+  exist, not that a profile is missing.
+
+- SM1439 (2642a1f3) **A full restore gives a site that serves.** `install.pl --restore-full`
+  (and `lazysite backups --restore-full`) extracted the docroot only, so the restored site
+  had no cgi-bin entry points and no serving group, and ended on "Check file
+  ownership/permissions on the target host". It now lays the engine's entry points from the
+  release it runs by the code provision uses, takes `--cgibin` and `--serving-group` as
+  provision does, applies the group and modes, and ends with the health check. Without a
+  `--cgibin`, or if the entry points cannot be laid, it refuses before extracting anything
+  and says what to run. Docs: OPERATOR, the manager guide and the Backups page.
+
+- SM1438 (0423b76a) **The restore rehearsal on the shipped 0.16.11 tarball.** Install,
+  canary content and a sysops account, full backup, docroot destroyed, `install.pl
+  --restore-full --domain` onto a new docroot: 91 ms, content, auth store and
+  `lazysite.conf` intact. Recorded in docs/RELIABILITY.md. The backup still lands inside the
+  docroot (SM602); `lazysite check` on the restored docroot names the cgi-bin entry points
+  that `--restore-full` does not lay. Docs only.
+
+## 0.16.11 - BETA: address profiles are chosen from those that exist, the signed-in marker clears on a dead session, and the check names what it could not read (2026-11-11)
+
+- SM1437 (480a90ce) **`lazysite check` says when it could not read the pages.** Run as the
+  site user, the page check printed "0 public page(s), each with a title and a description
+  of its own" for a docroot that had 17 undescribed pages as root: the page walk skipped a
+  directory it could not open and said nothing. It now names each path it could not read and
+  the user, says its count covers the rest of the site only, says to run as root or the site's
+  owner, and does not print the ok line (t/tools/582).
+- SM1437 (480a90ce) **The /docs shadow check covers every domain's content root.** A domain's
+  own copies of /docs pages under its content root (`sites/<name>/docs/`) shadowed the
+  engine's manual and the check never looked. It runs for the primary and each declared
+  content root, and names the domain on its line (t/tools/583).
+- SM1437 (480a90ce) **`check --fix` says what it did.** With nothing to change it printed the
+  same report as `check` with only the hint gone. It now prints `--fix: nothing to change`
+  (t/tools/584).
+- SM1437 (480a90ce) **`repair` says "nothing to repair" when it applied no change.** It
+  printed "-> repaired. Left for you to decide, not a fault:" beside a tally of "0 repaired".
+  The tally is as it was (t/tools/585).
+- SM1430 (f1abba5a) **auth: a public page clears the signed-in marker a dead session left.**
+  After "Require sign-in again" on a local session, a revoked session or a removed
+  account, public pages still drew "Sign out" from the `lzs_session` marker until a visit
+  to /manager/. A page response to a request carrying the marker and no signed-in
+  identity now clears it, on plain CGI and in the pool, and that response is not stored.
+  A visitor without the marker gets no Set-Cookie, so cached public pages stay cacheable.
+  A stale provider session keeps its marker for its renewal.
+- SM1435 (f8e6d881) **The Groups page says where the settle panel is.** Its "What this
+  grants" for `settle_odoo_writes` ended "Held by the operator group by default" and named no
+  page; n804's wording was in `unlocks`, which that page does not draw. It now says the panel
+  is the Unknown Odoo writes page, linked from its card on Extensions - configure
+  (t/unit/extensions/612).
+- SM1435 (f8e6d881) **A rule that names an address profile the store lacks is refused on
+  save (ruling 234).** `set_permissions` with `addresses: ["zz92-allow"]` answered `ok: true`
+  with no such profile, and the rule then refused every write to the path. The manager API's
+  `acl-set`, MCP `set_permissions` and `lazysite acl set` now refuse it, naming each missing
+  profile, and write nothing; a list of paths is refused whole. The names an existing rule
+  already carries are checked too, so a rule left naming a profile removed by hand is refused
+  on its next save until the name is cleared. A group's address limit is refused the same
+  way, and so is a page whose front matter `addresses:` or `addresses_deny:` names one, at
+  every content door (the manager save, the control API, MCP `write_file` and `create_page`,
+  WebDAV); `validate_page` reports it as an issue, and `lazysite check` keeps its warning for
+  a page already on disk. It was a warning before (SM1139); address profiles are now
+  predefined and selectable only. t/integration/730 and 731, t/unit/mcp/489 and 490 and
+  t/unit/users/548 fail without the change.
+- SM1435 (75ed6247) **A profile a rule names cannot be deleted.** `address-profile-delete`
+  had a force path (`--force`, the API's `force`, the page's "Delete anyway") that deleted a
+  profile a rule still names and left that rule refusing everything. It is gone at every
+  door: `--force` is an unknown option, `force` is not read, and the Address profiles page
+  shows the refusal, naming the rules, with Close. A profile in use may still be changed.
+  t/unit/users/53, t/unit/manager/395 and 974 fail without the change.
+- SM1436 (e3ad72ac) **docs: the compliance records cover 0.16.11, the beta.** OBLIGATIONS.md
+  and TECHNICAL-FILE.md are walked against the 0.16.11 line (`git log bc1d27efd..17c1edb13`,
+  14 commits: SM1430, SM1435 and SM1437) and stamped 0.16.11, channel beta (ruling 236). 0.16.11 is cut
+  with `--beta` from 0.16.10 plus SM1430, SM1435 and SM1437; it is not security-critical (no change in
+  it fixes a known vulnerability) and is the release the 0.17.0 stable is promoted from
+  (rulings 227, 228); the feature freeze starts at the cut. Confirmed by the release manager on
+  11 Nov 2026 (ruling 237): SM1435's register entry (address profiles chosen from those that exist, at
+  every door, and no delete of a profile a rule names; a hardening, no ADR 0007 trigger), the
+  walk's entry (SM1430's display-only marker, SM1437's check output, SM1435's Groups page
+  wording), one STRIDE row,
+  trust boundary 11 restated, and a section in docs/architecture/security.md. An operate-side
+  row asks the operator to correct a rule that names a missing profile. UPGRADE.md's 0.16.11
+  notes are one section.
+
+## 0.16.10 - EDGE: a new Hestia site is one command, the container image carries git, a manager cannot widen an OpenID Connect group map, and the compliance records cover the release (2026-11-10)
+
+- SM1420 (a7886c55) **The shipped docs pass their own `lazysite check`.** Eight shipped
+  pages shared four titles in pairs (Authentication, Forms, Manager, Payment: the full
+  guide and its short summary under features/) and two had no description. Each now has a
+  title that says what it is, the two have a subtitle, and no page moved. A test runs the
+  check over the whole shipped docs tree.
+- SM1421 (28dec8ce) **`lazysite check` over a sound DB_File counter prints nothing on
+  STDERR.** The upload-rate and login-rate counter checks kept the object `tie`
+  returns while they ran `untie`, so Perl printed "untie attempted while 1 inner
+  references still exist" twice into every check and repair over a healthy site. The
+  reference is dropped first. No other `untie` in `tools/` or `lib/` keeps one.
+- SM1421 (28dec8ce) **A check message quotes its apostrophe.** The engine-tree line
+  read "front end`s deny rules"; it reads "front end's".
+- SM1421 (28dec8ce) **The repair's tally says when it applied changes.** A site with a
+  warning left counts as awaiting your decision, as it always has (a warning is one the
+  repair never settles); after "--fix applied 2 change(s)" the line read "0 repaired, 1
+  awaiting your decision" and looked like a no-op. It now reads "1 awaiting your
+  decision (2 changes applied)". The repair also shows its own report as one block
+  once the fix has run, where it streamed.
+- SM1422 (e009d6b4) **auth: a manager cannot point a new OIDC map entry at a capability
+  group.** Ruling 214 lets only the operator save a map entry whose site group carries
+  capabilities. The check kept any entry whose site group the stored map already named,
+  so with the operator's `staff = staff` saved, a `manage_config` holder could add
+  `members = staff` and the provider's whole `members` group signed in holding the
+  capability (found against a local authentik, n801). The operator's entries are now
+  kept as saved, the provider group and the site group together; a new one, or one
+  moved to another provider group, is refused `forbidden`. t/unit/manager/743.
+- SM1426 (dd7db01a) **`lazysite-common` recommends `git`.** Content history runs `git`, and
+  the container image installs it (SM1423); the Debian package did not say so. It is
+  Recommends, not Depends: history is off until a site turns it on. t/lint/593 reads
+  the stanza and fails without the change.
+- SM1426 (1a9ccf71) **The sign-in's `lzs_session` marker has one writer.** The sign-in
+  wrapper printed its own copy of the marker line, beside the helper SM1425 gave the
+  renewals. It now prints `Lazysite::Auth::Session::session_marker_header`'s line, with
+  the same attributes. t/lint/592 holds the line to that one writer and fails without the
+  change.
+- SM1425 (0911a6ad) **A session renewed in place sets the signed-in marker again.**
+  After Require sign-in again (ruling 214) the verifier's stale answer clears the
+  `lzs_session` display marker, and the renewal that followed kept the session but did
+  not set the marker, so the page script showed "Sign in" to a person who was signed in.
+  A successful renewal, through OpenID Connect (`lazysite-oidc.pl`) and through the Odoo
+  endpoint's own renew, now sets `lzs_session` again with the attributes a sign-in gives
+  it, through one helper (`Lazysite::Auth::Session::session_marker_header`) that the
+  sign-in's cookie pair uses too. Tests t/unit/extensions/170 and t/unit/odoo/135 assert
+  it and fail without the change.
+- SM1423 (efd8ff3a) **The container image carries `git`, so content history works in it,
+  and the move from the 0.16.1 Docker recipe is written out.** Neither image installed
+  `git`, so content history could not be turned on in the container. The Dockerfile now
+  installs Debian's `git`; the history stays off until a site turns it on, with the one
+  command in `installers/docker/README.md`. The same README now has the move from the
+  0.16.1 recipe as eight numbered steps with exact commands: the project-prefixed volume
+  names, `docker compose create` for the new volume, the copy as `www-data` keeping modes,
+  `site_name` and `site_url` in the copied `lazysite.conf`, and the host names given to
+  `lazysite-sites add`. t/lint/563 holds the Dockerfile's packages to the programs the
+  engine runs. The upgrade also sets the declared mode, mode only, on every directory the
+  model declares (the 0.16.1 recipe left `lazysite/stats/form-events` at 2755, which
+  refused the moved site); t/tools/581.
+
+- SM1424 (2f310882) **`lazysite check` and `validate_page` say a `description:` key is not
+  read.** A page with `description:` in its front matter was listed as having no
+  description, with a remedy that named only `subtitle:` and `meta_desc:`. The engine reads
+  `meta_desc`, else `subtitle`, and nothing reads `description`, so no third spelling is
+  added: the check's line says the key is not read by the engine and names the pages that
+  carry it, and `validate_page` warns `description-not-read` (t/tools/591).
+- SM1424 (2115bd75) **A change refused by an address rule says what the rule limits.** A
+  save, delete or move refused because the page's folder rule names an address profile
+  and the caller is outside it answered "This page is not available from your address.",
+  the sentence for a reader. It now says the access rule on the path limits changes to its
+  allowed addresses and that the change must be made from an allowed address, naming no
+  address and no profile; `kind: address` and `retryable: false` are unchanged, and a read
+  keeps its sentence (t/integration/281, t/unit/mcp/258).
+- SM1424 (ece3459c) **The upgrade note says when `analysts` and `lead-readers` arrive.**
+  The 0.16.9 note said opening the Groups page adds them on an older site, without the
+  conditions the adoption holds to. It now says: an operator group and at least one
+  shipped bundle group, a role the site lacks and has not had, none where the operator
+  group carries the `seeded` mark, and no members; a site without the bundle layer gets
+  neither (t/unit/users/317).
+- SM1424 (361780c4) **The Unknown Odoo writes link is said to be on the page that has the card.**
+  The Odoo capability's description and the generated capability map said the link sits
+  "on its card on Extensions"; the cards are on Extensions - configure
+  (`/manager/extension-config`), and a tester looked for the link on the enable/disable
+  page. Both now name it (t/unit/extensions/381).
+- SM1427 (747496c2) **A new Hestia site is one command, the first operator included.**
+  `lazysite-hestia-deploy.sh USER DOMAIN [STAGE_DIR] [--sysop NAME] [--channel C]` now
+  finishes a first-time site: it applies the `lazysite-proxy` template when Hestia has it
+  (and names the copy command when it does not), sets `site_url: https://DOMAIN` through the
+  new `install.pl --site-url`, writes `/etc/lazysite/sites.d/DOMAIN` (never over an existing
+  entry), runs `setup-sysop` as the site user after the health check and prints the claim link
+  as a full URL, and ends with one summary. An upgrade is unchanged. Fixed alongside: the
+  installer's group message names a root command that works, `repair --docroot D` and
+  `probe --docroot D` take the option their usage line lists, and `setup-sysop` no longer
+  says the site has no operator. `--all` on the fleet verbs is the registry's sites and
+  the Hestia list's together, merged by docroot with the registry winning, so registering one
+  site no longer hides the rest. t/tools/621-625.
+- SM1429 (625152db) **docs: the compliance records cover 0.16.10.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.10 line (`git log 64d5c3c11..17a681a71`,
+  23 commits) and stamped 0.16.10; the two defects the walk found are fixed in their own commits (the repair's shell use, the deploy's USER and DOMAIN). Drafted at the walk and confirmed by the release manager on 2026-11-10 (ruling 233): SM1422's register entry, whose verdict adds ruling 229 (it
+  ships in 0.16.10, not security-critical, with no advisory, because the code is only in
+  0.16.9, off by default); an entry for SM1420, SM1421, SM1423, SM1424, SM1425, SM1426 and
+  SM1427, which fires no ADR 0007 trigger and says why each moves no control (the Hestia
+  deploy's registry entry and first operator, `--all` over the registry and the Hestia
+  list, `git` in the image and the package, the declared modes the upgrade sets, wording,
+  the signed-in marker's one writer, output and docs); one STRIDE row for the root-run
+  Hestia deploy; a 0.16.10 section in docs/architecture/security.md. SBOM: strict, exit 0,
+  495 components; 1,797 test files. 0.16.10 is edge, not security-critical (ruling 229).
+- SM1429 (68f2f9b4) **`lazysite repair` runs the doctor without a shell.** Found at the
+  0.16.10 walk: the check before the repair, the `--fix` run and the check after ran as one
+  string through the shell with the docroot and cgi-bin unquoted, so a path holding a shell
+  metacharacter was read as a command (the paths come from the root-written registry or
+  Hestia's list). The three runs are now list-form pipes (`_capture`), their output read as
+  before. The other `qx` calls in the CLI already quote every word. t/tools/626 repairs a
+  docroot named with `;touch MARK` and `$(touch MARK2)` and fails without the change.
+- SM1429 (e16ba10d) **The Hestia deploy checks USER and DOMAIN before it touches
+  anything.** Found at the 0.16.10 walk: both became path parts and the registry file's
+  name and were checked only by the docroot existing. DOMAIN must now be a plain host name
+  (letters, digits, dots and hyphens; no slash, no space, no leading dot or hyphen), USER a
+  plain name, and USER a user Hestia holds (`v-list-user`); anything else is refused with
+  exit 2 before the template, the install or the registry is touched. The summary says the
+  claim link is a credential for 24 hours and must not be pasted into a ticket or a log.
+  t/tools/627 fails without the change.
+
+## 0.16.9 - EDGE: a broken store refuses and is made fixable, Odoo's sign-in becomes an identity provider, OpenID Connect and passkeys arrive, and one container serves many sites (2026-11-10)
+
+- SM297 (0bc5e7c9) **Identity is a value: the data endpoint holds who is calling and
+  writes no trust header (the first surface converted).** One accessor:
+  `Lazysite::Auth::Identity::request_identity` answers a value held for the request
+  (`$Lazysite::Auth::Identity::HELD`, set with `local`) and reads nothing from `%ENV`
+  while it is held. `lazysite-data.pl` used to write the verified identity back into
+  its own environment under the fixed `X-Remote-*` names with the wrapper's sentinel
+  and read it from there; it holds the value now, so an identity forged in the request
+  or written in the process has no effect. A session whose store cannot be read is
+  refused there with a 503 naming the store (ruling 206), where it was served as
+  anonymous. The manager API in the pool keeps its relay (fork, the contract written
+  from the value, exec) and the CGI wrapper its header contract.
+- SM297 (7f652595) **A signed-in page on a session store that cannot be read is refused,
+  not rendered as anonymous (ruling 217).** The auth wrapper and the pool's front door
+  answer a session cookie whose store (`user-settings.json`, `revoked.json`, `users`)
+  cannot be read or decoded with a 503 - the engine's one refusal for a store it cannot
+  tell, which names no file to the visitor (rulings 216, 217) - and the log names the
+  store and the repair. No cookie, an expired cookie or a removed account is served as
+  before.
+- SM1369 (b973ddac) **X4: an extension declares an identity provider, and the Odoo site
+  sign-in is the first (H-1; rulings 178, 186).** `owns.hooks.identity_provider` gives
+  core a provider's `on`, `still_valid`, `groups`, `login_option` and `banner`, its
+  `renew` path, its `signin_page` and whether its groups may `grant`. Core keeps the
+  session: it signs the `<id>=<login>` cookie, writes and reads the record (now naming
+  its provider), revokes, refuses an unsecured site, and drops any group the provider
+  hands it that carries a capability unless the provider declares `grants` (only OIDC
+  will, SM1351), auditing every sign-in through such a provider with the groups it
+  granted. The provider's extension must be on at every check. The processor serves
+  the sign-in page while the provider is on, keeps it reachable in maintenance, and
+  gives layouts `signin_banner` and `login_options`, which /login lists. Odoo's sign-in
+  is declared this way; nobody is signed out by the upgrade, and the cookie, identity,
+  groups, pages and log lines are as they were. Odoo bindings (the `odoo` handler type)
+  are configured with `manage_odoo` (ruling 178), which the upgrade's top-up gives every
+  group holding `manage_connectors`. The handler and schedule actions open, on every door, for a
+  capability a declared handler type names (ruling 192), so `manage_odoo` alone manages
+  Odoo bindings and their schedules, and no other kind of handler.
+- SM1369 (fedb3460) **X5, H-4: an extension's endpoint reads its body and checks the token
+  of a POST through core's request kit.** `Lazysite::Endpoint` caps a body before it is
+  read, parses a multipart one, holds the visitor key (moved from the Odoo extension:
+  the same cookie, secret and signatures, so no visitor in the field is lost; each
+  extension has its own secret) and checks every POST (`post_guard`) for the session's
+  token or the visitor token before the extension's code runs (G-4). `hooks.endpoints`
+  goes live; the Odoo page endpoint declares itself and uses the kit, at the same
+  `lazysite-odoo.pl` location. t/lint/351 holds every declared endpoint to the kit. A
+  POST to the Odoo endpoint that carries no token at all is now refused 403 `csrf`
+  whole, a batch included, where a session binding answered 401 and a batch answered
+  per call; the browser helper always sends a token and fetches fresh ones once on a
+  `csrf` refusal.
+
+- SM1369 (ee812b17) **X5, H-5: an extension declares the services lazysited runs for it,
+  and which of its endpoints is warm.** `hooks.services` (`name`, `wanted`, `run`,
+  `reason`) goes live: the supervisor lists, gates, starts, stops and reports each one an
+  enabled extension declares, through the hook loader, and names none itself. An
+  endpoint declares `warm: 1` and a `preload` list: the pool's front door hands a warm
+  endpoint to its warm-fork parent by reading the index, the parent's socket is named for
+  its endpoint (`odoo-endpoint.sock` is unchanged), and the program compiles the declared
+  list in place of a list core kept. The Odoo extension declares oomd and its
+  endpoint's parent as services, unchanged in behaviour.
+
+- SM1369 (eddf719b) **X6, H-6: `lazysite check` runs what an enabled extension checks of
+  itself.** `hooks.checks` goes live: each function answers findings (`level`, `text`,
+  `fix`) that the check prints with its own `report()`; one that dies is a WARN naming
+  the extension and the run goes on; an extension installed and off is one line,
+  "installed, off". The Odoo extension's five checks (its scheduled keys' expiry, the OOM
+  it loads, oomd, the Odoo sign-in's group map, read bindings at the old form default)
+  move into it and print the same lines while it is on; with it off they no longer run.
+
+- SM1369 (8446600d) **X6, H-8 (ruling 188): an extension's panel is a manager page it
+  ships.** `hooks.panels` (`page`, `label`, `cap`) goes live: the page is a file in the
+  extension's payload (`manager/<name>.md`), served at `/manager/<id>-<name>` to a manager
+  holding `cap` (one of the extension's own capabilities; 403 otherwise), and linked from
+  its card on the extension-config page for a caller who holds `cap` (ruling 194). No script is injected into a core page. The
+  Odoo extension's Unknown Odoo writes panel is its own page now,
+  `/manager/odoo-unknown-writes`, under `settle_odoo_writes`; the extension-config page
+  names no extension.
+
+- SM1369 (c4e2a14f) **X6, H-11: one secrets store.** `Lazysite::Secrets` is the store the
+  connectors and the Odoo extension both use, and any extension by its id: one secret
+  per file, `lazysite/<owner>/keys/<name>.key`, written atomically, `0600` in a `0700`
+  directory, never listed, and "cannot tell" when it cannot be read. The Odoo keys were
+  already laid out so and are read where they are. A connector's secret moves from
+  `connectors/secrets.json` into the store when it is next set; until then the map is
+  read, so every secret set before the change stays readable.
+- SM1364 (9a07a823) **data: a table reads its rows from another system's API.** A
+  descriptor's `source:` names a GET connector, the schedule entry that refreshes it,
+  where the list is in the answer and a map from each item's fields to its columns. The
+  refresh is the existing chain (schedule -> connector handler -> connector), and an
+  answer table that names a source is written through `import_rows` rather than appended
+  to; a row the source stops sending is removed as a recorded, undoable change, only
+  when the answer is a non-empty list (ruling 189). `data-table-refresh` /
+  `refresh_data_table` (manage_data) refresh it now, as the caller. A failed refresh changes nothing and is recorded; the table's age (`data-table`
+  `source`) comes from the entry's new `last_ok` in schedule-runs.json. Mapped columns are
+  read-only at every door, naming the source (`Tables::_write_prep`, `import_rows`).
+  The descriptor is the one link (ruling 191): a connector needs no `answer_table` to
+  refresh the tables that name it. The run record is written under one lock by the
+  daemon and an on-demand refresh, the daemon merging only its own entries; the Data
+  page shows a sourced table's age and last outcome with Refresh now.
+  t/unit/data/110, t/unit/manager/512, t/unit/manager/513, t/unit/daemon/38.
+- SM1351 (b36ee5e7) **auth: sign in through an outside OpenID Connect provider, with its
+  groups.** A new extension, `oidc` (OpenID Connect sign-in), with its endpoint
+  `/cgi-bin/lazysite-oidc.pl`: the code flow with PKCE against any number of providers
+  named in `lazysite/oidc.conf`, each with its issuer, client id, scopes, group claim,
+  group map and button label, and its client secret in the secrets store, set with
+  `extensions/oidc.pl --secret <name>`. The identity is the token endpoint's answer over
+  TLS with client authentication (ruling 185): iss, aud, the nonce, the state and the
+  expiry are checked, the ID token's signature is not. A provider group may map to any
+  site group, operators included, and every sign-in is audited with the groups it
+  granted (ruling 186); a person in no mapped group is not signed in. A provider whose
+  config, secret or discovery is broken is refused, its sessions end, and the log and
+  `lazysite check` name the fault and the remedy (ruling 206); the others are untouched.
+  Discovery is fetched on save and by Refresh. A provider may name its own CA bundle
+  (`<name>.ca_file`), and starts count against the sign-in limiter per address
+  (ruling 213). H-1 gains `instances` (SM1369): one
+  extension may be several providers, `<id>-<name>`, each its own session prefix, and
+  /login's options carry `sep` for a path with a query. t/unit/extensions/170.
+  Ruling 214 (Q127): the providers are set on the Extensions page, with their secrets,
+  through a new settings type, a repeating section (`records`: named records of text,
+  `pairs` rows and one `secret`, kept as `<key>: a, b` and `a.<field>: value`, the
+  secret in the secrets store and never read back). t/unit/manager/582.
+  Ruling 214 (Q129): a group map entry whose target carries capabilities (operators, or
+  any group that grants one) is saved only by the operator; manage_config maps to plain
+  groups. The refusal is `forbidden` and names the group.
+  Ruling 214 (Q128): the Sessions page gains **Require sign-in again** for the selected
+  sessions (`session-revoke` with `reauth`, the same gate, audited `session-reauth`). A
+  provider's session is marked (Auth::Session::require_provider_reauth): it is stale until
+  its provider is asked again, so the next request goes through the provider's `renew`
+  path - for OIDC, a new sign-in that renews the same session with its groups read afresh
+  and returns to `next`; no token is stored. A local session is signed out.
+- SM1352 (bd2eed75) **CryptX is recommended, for passkeys and web push (ruling 187).** The
+  Debian package (`lazysite-common`) and the Docker image's install list add
+  `libcryptx-perl`. It is lazy-required only by passkeys (SM1352) and web push (SM1363),
+  through one question (`Lazysite::Crypto::cryptx_missing`); without it those two say
+  they need it and nothing else changes. `lazysite check` says whether it is installed,
+  and warns when it is not and an account holds a passkey or `notify.conf` routes a
+  notice by `webpush`. One ADR 0007 dependency entry in docs/SECURITY.md,
+  confirmed by the release manager (ruling 225) (t/unit/tools/118).
+
+- SM1352 (3101346c) **Passkeys (ruling 187).** A person signs in with their phone's or
+  computer's passkey: "Sign in with a passkey" on the sign-in page (and so in the
+  installed app), an answer to a one-use challenge (`?action=passkey-challenge`) posted
+  to `?action=passkey-login`, which passes the password sign-in's address limits, rate
+  limiter and account gates and mints the same local session (no TOTP step after a
+  passkey). The first passkey is enrolled through the ordinary setup link (`/claim`:
+  "Use a passkey instead"); more are added, listed and removed on `/account`
+  (`::: account-passkeys`; `me-passkeys`, `me-passkey-begin` with the current password
+  when the account has one, or a fresh assertion by one of its passkeys when it signs
+  in by passkey only (ruling 199), `me-passkey-add`, `me-passkey-remove`). User
+  verification is required: an authenticator without it is refused at enrolment,
+  saying why, and a UV passkey sign-in skips TOTP (ruling 198). A manager can only
+  remove them all - "Remove all passkeys" on the Users page, `users` action
+  `passkey-wipe` (`manage_users`), which also signs the account out and is audited.
+  `passkey_only` on a group refuses its members' passwords, in the password branch;
+  with the group settings unreadable every password sign-in is refused, the
+  operator's included, and the log and `lazysite check` name the file and the remedy
+  (ruling 206, withdrawing ruling 197's exception).
+  Attestation `none`, the key from `getPublicKey()` (SPKI DER), ES256, RS256 and
+  Ed25519; only public keys are stored, in the account's record. ADR 0007
+  new-authentication-method entry in docs/SECURITY.md, confirmed (ruling 225) (t/unit/auth/107-109,
+  t/unit/account/36).
+
+- SM1363 (3e576e13) **Notices by web push and by webhook (rulings 187, 188).** `webpush`
+  and `webhook` are routes in `notify.conf`'s `route.<type>` table, beside `xmpp` and
+  `email`, and reach the account a notice names when its record chooses them:
+  `notify_routes`, beside `notify_email`. Web push sends an empty POST, VAPID-signed with
+  the site's own key (`lazysite/auth/webpush-vapid.pem`, made on first use), to each
+  device the person turned notices on for on `/account` (`::: account-push`; `me-push`,
+  `me-push-subscribe`, `me-push-unsubscribe`); the app's worker shows "Something is
+  waiting for you" and opens `/account`. The webhook route calls the connector
+  `webhook.connector` names, in scheduled mode, with the notice's kind, title, account
+  and link and never its content - the way a text message goes, to the operator's own
+  gateway (ruling 188). `notify_routes: webhook` is an operator's setting. One hourly
+  bound, `mail.per_hour`, now counts every route's sends but webhook's, which has its own
+  `webhook.per_hour` (default 20, ruling 195); a device whose push service answers 404
+  or 410 is removed (ruling 199); an account may carry a `phone` (international form,
+  set on `/account` with `me-phone` or on the Users page), carried only in the webhook
+  body (ruling 196); and every attempt is a log line
+  with its outcome. ADR 0007 new-external-interface entry in docs/SECURITY.md,
+  confirmed (ruling 225) (t/unit/notify/41, t/unit/account/38).
+- SM1407 (b77750bf) **The Groups page adopts the layer roles, and a listing shows the
+  mark.** On the 0.16.8 edge run `analysts` and `lead-readers` did not arrive after the
+  Groups page was opened: the adoptions run where the users tool seeds, and the Users
+  page's read seeded while the Groups page's (`group-settings-get`) did not. It does now.
+  Each role is still adopted once, with no members, and stays deleted after an operator
+  deletes it. The groups listing (`list_groups`, the control API's `groups`) carries each
+  group's `seeded` mark, so an operator can see whether the operator group has it.
+
+- SM1404 (6a82074a) **The operator's Files listing is MCP's listing.** The manager API's
+  `list` still carried the permissions editor's address-profile choices beside the
+  entries (SM1404 kept them there for the Files page), so an operator's listing of a
+  folder under a rule naming a profile showed an entry named after it, where MCP
+  `list_files` did not. No listing carries them now; the Files page reads them with the
+  other picker lists, from `principals`, and `acl-get` carries them as before.
+
+- SM1398 (668b3e61) **A page body has `| json`, and a filter it lacks is refused on save.**
+  `[% page_url_raw | json %]` in a page body left the whole body as written: `json` was a
+  layout's and a component's filter only. The page-body render now has it. A filter a
+  page body does not have (anything beyond Template Toolkit's own, `json` and
+  `url_safe`) fails the whole body at render, so it is now refused on save - the editor,
+  the control API, MCP's write_file - and named by validate_page with its line, whether
+  or not its branch runs.
+
+- SM1357 (8e05f683) **check: a title is shared within one domain, not across two.**
+  `lazysite check`'s shared-title and missing-description checks read each domain's own
+  public page set - the one its sitemap and `llms.txt` list (ruling 174), from the
+  processor - instead of walking the whole docroot, so two domains' home pages with the
+  same title are no longer a duplicate. Each warning names the page's address, and its
+  domain on a site of several (ruling 199); a folder ruling 171 leaves out is not
+  counted, and an alias without a content root of its own shares the primary's pages.
+- SM1418 (25cfc23c) **the XMPP notice account is a usable contact.** Adding the site's
+  account in a chat client left the presence subscription one-way (the sender only
+  connected, sent and left), so Conversations showed an unusable "Trust OMEMO
+  Fingerprints" dialogue. While connected for a send to a person, the delivery now
+  approves a subscribe from the configured recipient and from no one else, and asks for
+  its own subscription once (the roster says `both`, `to` or pending: no repeat).
+  A group chat gets no subscription step. A presence step that fails is logged and the
+  notice is still sent. Messages stay plain-body (chat for a person, groupchat for a
+  room); nothing is published under OMEMO. The test notification reports a `presence`
+  stage. t/unit/lib/322; /docs/forms.
+- SM1416 (89f35877) **The FastCGI pool runs the site's own engine (ruling 203).** The pool
+  launcher exec'd the package's processor while the manager, auth and DAV CGIs ran the
+  site's own copy, so after a package upgrade one site ran two engine versions. It now
+  runs the site's own processor (from `CGIBIN=`, else the docroot's sibling cgi-bin) and
+  lib. A site whose engine copy is missing or unreadable gets 503 and a log line, never
+  the package's engine, and `lazysite check` names the fault and its remedy (ruling 206).
+  A shared read-only engine keeps running the image's. t/integration/458.
+- SM1417 (617f7abe) **A broken access store or setting refuses; it is never worked
+  around (rulings 206 and 207, items 1-8).** A site that was silently carrying on now
+  refuses until the fault is repaired from the command line; `lazysite check` and the
+  log name each fault and its remedy, and an absent store is still "nothing
+  configured". (1) A rule set or removal, a file copy, a `.url` migration or a table
+  rule over a damaged acls.json is refused and the file left as it was - it used to be
+  replaced by that one rule, losing every other. (2) A damaged acls.json refuses the
+  operator too, for files and table rows (ruling 197's exception withdrawn). (3) An
+  auth store lock (lazysite/auth/.consume.lock) that cannot be taken refuses every
+  account change and single-use link. (4) A login rate limiter that cannot count (no
+  DB_File, a counter that will not open) refuses every sign-in, the Odoo sign-in
+  and an OIDC sign-in start included, which say so as cannot-tell rather than "too many
+  attempts" (rulings 212, 223);
+  switched off is unchanged. (5) A groups-settings.json that will not read refuses every signed-in page
+  (503). (6) A groups file that will not open refuses sign-in and every session. (7) A
+  rejected or missing content_root refuses that host (503) instead of serving the
+  docroot root. (8) An invalid session_lifetime refuses sign-in and sessions, and an
+  invalid password_min_length every password set, instead of the default. New check
+  lines for 3, 4, 6, 7 and 8. UPGRADE.md says what an operator sees and how to fix it.
+  Register entry confirmed by the release manager (ruling 225).
+- SM1417 (1f4cdb73) **a damaged store refuses writes and sends, and lazysite check names
+  it (ruling 206, survey items 9-21).** A store that exists and cannot be told is a
+  fault: the engine refuses and leaves the file as found, and `lazysite check` and the
+  log name the store and the repair (one wording, `Lazysite::Util::store_fault`).
+  Uploads are refused when the upload counter will not open; the notification outbox
+  sends nothing, and keeps its queue, when its ledger or unsubscribe store holds a bad
+  line; the submitter-mail, notice-mail and connector-call caps refuse on a bad line;
+  the scheduler runs no job on a damaged run record, the daemon supervisor starts no
+  service on a damaged state file, and neither they nor the notify status or the
+  connector sweep rewrite a damaged file any more; a data migration, rebuild or import
+  refuses when its pre-flight query fails. The manager door says cannot-tell (503) for
+  an undecodable groups-settings.json, a forgot-password request the host cannot match
+  answers `error=unavailable`, and an undecodable install state or an unreadable notice
+  template is logged. Absent stores are unchanged. See UPGRADE.
+- SM1369 (5a20e368) **X7: Odoo ships in its own deb, `lazysite-odoo`, and the installer
+  lays it out when it is present (rulings 188, 205).** The deb is built from the same
+  source for the same release. It Depends on `lazysite-common` (same version) and on
+  `libodoo-oom-perl`. lazysite-common no longer carries `extensions/odoo*` or the
+  endpoint.
+  - The release manifest marks each extension's files (`extension: <id>`).
+  - `install.pl` leaves out, whole, an extension whose descriptor is not in its payload,
+    and the site's old copies take the usual left-the-manifest path.
+  - A site that has the extension on is refused before anything changes, naming the
+    package to install.
+  - There is no `--with odoo` flag. The Odoo tests stay in `t/`.
+
+- SM1361 (5a20e368) **One container serves many sites, on the image's read-only engine
+  (rulings 201, 205, 206, 208, 210).**
+  - `installers/docker`: the image carries the engine and its extensions, read-only.
+    Each site is a folder in one volume, listed in `sites.conf`, with its own FastCGI
+    pool and runtime.
+  - Every process runs as www-data, and the root filesystem is read-only. The container
+    serves plain HTTP behind the operator's own TLS proxy (`front.conf.example`).
+  - `lazysite-sites` adds and removes a site without a restart. It also does status,
+    restart, restore, rollback-plan, check and sysop.
+  - Each start brings each site to the image. A site whose state is newer than the image
+    is refused, with the restore command printed.
+  - A failed or damaged site is refused, answers 503 and is named, while the others
+    serve. The container is unhealthy only when nginx or its supervisor is down.
+  - `install.pl --engine shared` (also the default where the payload carries the
+    `SHARED-ENGINE` marker) lays a site with no engine copy.
+  - On such an engine, X1's rule is the engine's own payload only. A site's extension
+    file is refused by name, and `lazysite check` names it.
+  - Fixed: `install.pl` gave an engine tree laid beside the docroot 0644 on its account
+    store and SMTP secret.
+  - T-115, the beside layout (a migrated Hestia site too) is closed in full:
+    - `install.pl` gives the auth and forms seeds, `forms/smtp.conf` and the form configs
+      their private modes there;
+    - the group-write step reaches every declared file (it had reached none);
+    - `forms/` is applied 2770 by the install as well as the check;
+    - `lazysite check` fails a world bit on the user store, the group list, the ACLs,
+      the auth and forms examples and either directory, and `lazysite repair` sets the
+      declared mode;
+    - every install also sets those declared modes itself, edited files included (modes
+      only), so an upgrade never leaves a site unserviceable over a mode lazysite set
+      (ruling 215);
+    - the auth consume lock and a store's sidecar lock are created 0660, whatever the
+      umask.
+
+- SM1419 (fc58a641) **docs: the compliance records cover 0.16.9.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.9 stack (`git log
+  8a2806723..63e8f1970`, 102 commits) and stamped 0.16.9. The sixteen register entries
+  the branches wrote are confirmed by the release manager (ruling 225). Seven fire a
+  trigger, each contained: SM1369 X4 and SM1351 (sign-in method; SM1351 with
+  new-external-interface), SM1352 passkeys (new-authentication-method and
+  new-external-interface), CryptX (new-dependency-with-authentication-logic), SM1363 web
+  push and webhook (new-external-interface), SM1363's phone number and SM1364
+  (new-processing-of-restricted-data); the other nine fire none. There is no early
+  third-party review: the OIDC grant mapping and the passkey paths are named in the scope
+  of the engagement ADR 0007 already requires. Written at the walk and confirmed (ruling 226): an
+  entry for SM1418 (the XMPP notice account answers a subscribe from its recipient only),
+  SM1407, SM1404, SM1398, the container's tooling and the restack's wording, which names
+  the rest of 0.16.9 and why each moves no control; trust boundary 15 and the assets
+  line restated; nine STRIDE rows; five operate-side rows; a 0.16.9 section in
+  docs/architecture/security.md. The SBOM strict check exits 0 with 495 components. 0.16.9 is edge, not security-critical (ruling 226).
+  UPGRADE.md's 0.16.9 notes are one section. Docs only; nothing is signed.
+
+## 0.16.8 - EDGE: Odoo's actions, sources and assets become the extension's own, a form mails only whom a notify handler names, and a row keeps its history with undo (2026-11-08)
+
+- SM1415 (0185b105) **docs: the compliance records cover 0.16.8.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.8 stack and stamped 0.16.8. The thirteen
+  register entries the branches wrote are confirmed by the release manager (ruling 177):
+  SM1414 fires new-external-interface, and SM1355 (rows' earlier values in the row
+  history) and SM1396 (the offline kit's browser storage) fire
+  new-processing-of-restricted-data, each contained - by the daily `row-history-prune`
+  job and by the purge at sign-out keyed to the login - with a "walked" note against the
+  code; the other ten fire none. Rulings 178 (the Odoo handler type stays on
+  `manage_connectors`), 179 (the sweep's removals are audited, not in the row history)
+  and 180 (the schedule wizard is a docs example; a `date` step) are folded into their
+  entries. Written at the walk and confirmed by the release manager (ruling 182): an entry for SM1400, SM1402, SM1404,
+  SM1405, SM1409 and SM1411 that names the rest of 0.16.8, trust boundary 15 and the
+  assets line restated, three STRIDE rows and four operate-side rows, the SM1362 row
+  restated. 0.16.8 is edge and not security-critical
+  (ruling 182). UPGRADE.md's 0.16.8 notes are one section. Docs only; nothing is signed.
+
+- SM1369 (ebf87fe5) **X2: an extension declares its capabilities and its control-API
+  and MCP actions, and core carries them from the index (H-7, H-9; rulings 71, 135).**
+  `owns.hooks` gains three live kinds: `capability_info` (each owned capability's
+  section, grid label, title, grant sentence, UI unlocks and what tops it up),
+  `api_actions` (one row per action in `%ACTION`'s shape, with its gate, its MCP twin's
+  description and input schema, and the handler in the payload lib) and
+  `refusal_kinds`. The extension index gains a `declared` view, built from every
+  installed extension's descriptor by the same validation, and a fresh install builds
+  the index as the upgrade does (ruling 166) (a row without a gate, an
+  ALWAYS row without its reason, a name not prefixed by the extension's id, a core
+  name shadowed, an owned capability nobody describes, a twin requiring what the
+  action does not: each refused by name, and the extension is not enabled). One
+  mirror fills `@CAP_KEYS`, the capability map, `%GATE`/`%ACTION` and the refusal
+  statuses from it, once per process; the manager API and MCP dispatch a declared
+  action through one table-driven branch to the extension's handler, through the X1
+  loader, so an extension that is off answers "this extension is off" and the tool
+  listing does not change with the toggle. Odoo's ten actions, its refusal kinds and
+  its two capabilities are its own declaration now; the wire is held to a 0.16.7
+  capture (t/unit/odoo/136). Ruling 71: `manage_odoo` is the extension's admin
+  capability (status, calls, the keys; the binding override); every group holding
+  manage_connectors is topped up with it by the upgrade (ruling 167: one line naming
+  the groups, a 0 an operator set stays; `lazysite-users.pl capability-top-up`) and on
+  next use. The parity lints read the merged
+  table; the Groups and Users grids draw a declared capability from served labels;
+  `lazysite check` reads the index's capabilities and reports a failed build or an
+  enabled extension whose hooks are not indexed. Lint 321's allow-list falls from 42
+  files to 34.
+- SM1369 (742ce069) **Page sources and delivery handler types are declared by the
+  extension (X3: H-2, H-3).** An enabled extension's `owns.hooks.page_sources` gives a page
+  variable a prefix that core resolves by calling the extension's own code from its payload
+  lib through the hook index; `per_viewer` marks such a page as never cached for another
+  viewer (it replaces the three `odoo-identity:` peeks), `live` sets the live-source flag
+  as `url:` does, `check` adds issues at the page's save. Core hands a source no session
+  credential unless it declared `per_viewer`, makes every value inert, and renders a
+  source that dies or answers nothing as the empty string with one WARN line. An
+  extension's `owns.hooks.handler_types` puts a type in the handler catalogue with its
+  label, cap, schema and `origins`; core runs its `parse` and `on_save` at save,
+  `on_delete` at delete and `deliver` from a form or the timer, and keeps handlers.conf,
+  the schema check, the cap gate, the schedule and the delivery record; a delivery from an
+  origin the type did not list is refused by core. The `address_profiles` schema field type
+  lets the address-profile check find the profiles a handler names by the field's type
+  and slot, whichever type carries them. Odoo's `odoo:` and `odoo-identity:` sources and
+  its handler type move onto the hooks (`Lazysite::Odoo::Hooks`); its bindings, page
+  variables, refusals and handlers.conf rows are unchanged, and lint 321's allow-list
+  loses seven files. The hook index is rebuilt on every upgrade, so a site using Odoo
+  gets its hooks indexed by the upgrade; `odoo-identity:` needs the Odoo extension on, as
+  `odoo:` always did. Tests: t/unit/extensions/79, 73. Register entry drafted, confirmed
+  (ruling 177).
+- SM1369 (e246bb85) **An extension declares its assets, components and template
+  variables (X5, the asset part of H-10).** Three hook kinds go live in
+  `Lazysite::Extensions::Hooks`: `assets` (a file in the payload, served at
+  `/assets/<id>-<file>` and at a declared alias on every domain, injected into a page
+  whose markup carries the attribute `inject_when` names, with the data attributes an
+  `attrs` function answers), `components` (a `::: name` component in the payload's
+  `templates/components`) and `template_vars` (a layout variable rendered by the
+  extension's function when a template names it). The index build refuses a file not in
+  the payload; a new processor part, `lazysite-processor/extensions.pm`, reads the
+  index module-free and the enabled list again. Odoo declares its helper (alias
+  `/assets/lazysite-odoo.js`, the display name on the tag), `odoo-signin.tt`,
+  `odoo_signin_banner` and `odoo_display_name`; the helper and the component move into
+  `extensions/odoo/` and the four core lines that knew them leave (lint 321: 39 files).
+  With the extension off, the helper is neither injected nor served. New:
+  t/unit/extensions/76; t/integration/174, 171 and 172 build the index as the manager
+  would.
+
+- SM1396 (e246bb85) **The offline kit is an engine extension, `app-offline`.** Ruling 53,
+  built on the asset hooks as their second consumer (ruling 74): one declared script
+  (`/assets/app-offline-kit.js`) and one variable, `[% app_offline_kit %]`, the tag while
+  the extension is on and nothing otherwise; `requires: odoo`. The kit wraps the Odoo
+  helper: a connection banner, kept reads (the last good answer, given when a read fails
+  for want of a network), a write guard and queue (a change made offline or cut off is
+  queued and sent once with its `Idempotency-Key`, so a resend never writes twice),
+  install and update status, and sign-out. What the browser keeps is owned by login:
+  `?csrf=1` answers `owner`, a label of the login, and an item with no owner is dropped.
+  The kit needs the Odoo site sign-in (`odoo_site_signin: on`): `owner` comes from the
+  site session's `odoo:<login>`, the identity cookie carries no label of the login, and
+  on a default Odoo site the kit keeps nothing (rulings 161, 163). Slots
+  `data-ls-app-banner`, `-show-out`, `-show-in`, `-status`; docs under /docs/app and in
+  the layouts briefing. New: t/unit/extensions/77, 78 (a 127.0.0.1 endpoint stand-in);
+  t/unit/odoo/28, 41, 63.
+
+- SM1397 (e246bb85) **A site with no favicon answers with the engine's.** `/favicon.ico`
+  and `/favicon.svg` that reach the engine on a site with no such file are answered with
+  a small neutral mark (an SVG, and a real 16x16 ICO), cacheable for an hour; a file the
+  site has wins. t/unit/processor/181.
+
+- SM1398 (e246bb85) **`page_url_raw`, the raw twin of `page_url`** for JSON-LD through
+  `| json`, under the SM824 contract. t/unit/processor/144.
+
+- Docs: SM1399 (the engine's template filters testable from outside a checkout) recorded
+  as a candidate.
+- SM1412 (f9d737c0) **`owner_contact` is retired (ruling 159).** SM1362's copy of each form's
+  notice to the one address `lazysite/notify.conf` named as `owner_contact` (0.16.6) is
+  removed, with the built-in templates written for it; the key is ignored from 0.16.8. A
+  form mails nobody unless it names a notify handler (ruling 158): its submissions are
+  stored and its notice goes to the bell. `lazysite check` names a site that still sets the
+  key, with the remedy: a notify handler on the form whose recipients name the people as a
+  group (SM1413). The acknowledgement to the submitter is unchanged. Docs: `/docs/forms`,
+  UPGRADE.md. `t/unit/forms/78`, `t/tools/337`.
+
+- SM1413 (09619d6c) **A notify handler's recipients may name a group (ruling 158).** No one
+  is mailed by default - a form's submissions are stored - and people are mailed through a
+  notify handler the form names. Its `recipients` gain `{"groups":["site-owners"]}`: each
+  member account of each named group, nested membership as the group store resolves it, at
+  the address its account record holds, once each. A member with no address is skipped and
+  counted (a `no-address` line in the event's outbox record, `no_address` in the rule's
+  status, "skipped" on the Handlers page), not audited as a refusal. The operator group may
+  be named. The other sources' rules hold: one message per address, once; the
+  per-recipient cap; the audit row; the unsubscribe link. A group that does not exist is
+  refused at save, naming it. Docs: `/docs/forms` (how a form mails people, the notify
+  handler). `t/unit/notify/10`.
+
+- SM1395 (93572fda) **An anonymous public write binding keeps no join (ruling 154).** A
+  binding with `modes: public`, `apply: immediate` and a write operation kept two records
+  that together tied what a visitor sent to where it came from: the plan store (the
+  parameters, the owner `visitor:<hash>`) and the call record (the IP and the same hash on
+  every line). The Odoo binding setting `anonymous: 1`, allowed only with `modes: public`
+  (refused otherwise, naming why; a field on the Handlers page): once the call is applied
+  (an immediate apply as it answers; a confirmed plan when confirmed, withdrawn, settled or
+  dismissed) the parameters leave the plan and run records - `plan.json`, `run.json`, the
+  journal, here and in the daemon's run folder, each value redacted to null with the field
+  names kept - and the call line, its refusals and its audit row are written without `ip`
+  and without `visitor` (binding, time, phase, outcome and the idempotency key stay). The
+  per-visitor rate cap still counts by the hash in `recent.jsonl`, which no call line joins
+  to. Ruling 160: at the same point the visitor's hash leaves the plan and run records too -
+  `meta.json`'s owner and OOM's own records (`run.json`'s `planned.by` and the approval's and
+  apply's `by`, the plan's and the journal's `actor`, OOM's `audit.jsonl`) name `visitor`
+  with no hash; until then the owner keeps it, so the maker's confirm works as before, and a
+  spent plan answers a later confirm or withdraw as not found. Ruling 168: a repeat of that
+  confirm or withdraw carrying the same `Idempotency-Key` gets the first stored outcome back,
+  as SM1223 answers every caller (`repeat`, nothing sent to Odoo, no parameter value), matched
+  by the plan's own scoped key (`meta.json`'s `idem`), never by the visitor, and writing no
+  hash anywhere; without the key or with another it stays not found. A withdraw now takes the
+  key too (checked as a confirm's), and a key a plan's first confirm or withdraw carried is
+  kept on a plan made without one, so the offline kit's resend on an anonymous binding works.
+  Docs: `/docs/odoo` (bindings, the anonymous write path, the call record). SECURITY.md entry
+  drafted (less processing of personal data; no ADR 0007 trigger), confirmed (ruling 177).
+  `t/unit/odoo/139`,
+  `t/unit/odoo/137` (through oomd), `t/unit/odoo/138`.
+
+- SM1405 (6502e71f) **A notice mail has its own shape (ruling 157).** `Notify::_mail_send`
+  handed a notice to the Form SMTP extension as a form submission (the subject as
+  `subject_prefix`, the notice as a `message` field), so a notice mail arrived with the
+  subject `[SITE] A form was submitted - ` (nothing after the dash) and a body laid out as a
+  submission: a "Form submission" heading, the notice under a `message:` label, then
+  Submitted and IP lines. It is now sent as a composed message (the extension's
+  `send_message`, SM1020's path): its own subject, the rendered notice as the body, no
+  handler layout, no IP line - still through SM485's send, the Form SMTP extension as the
+  only transport, the same hourly bound. Every notice mail that send makes (SM485's account
+  notices, an import's claim links) takes the same shape. `t/unit/forms/77`.
+
+- SM1401 (5d4a0683) **Removing an account names the rules it owned (triage T-91).** An access
+  rule kept its owner's login after the account went, in force as written and changeable by
+  the operator alone, and nothing said so. `lazysite-users.pl remove` and the manager's
+  account delete (the users API's `remove`, now answering `orphaned_rules`) say which rules
+  the account owned, where (`/path`, in `lazysite/auth/acls.json`) and the remedy; `lazysite
+  check` names each stored rule whose owner is no account (`report_rules_without_an_owner`,
+  `local` counting as one) with the same remedy: the operator removes it from the manager's
+  Permissions or re-owns it with `lazysite acl set --owner`; a token cannot, by design
+  (`Acl::_is_operator` answers 0 under token auth). The rule itself is not changed.
+  `t/unit/users/73`, `t/tools/336`.
+
+- SM1402 (0f6fadb2) **A notify setting for a form that does not exist is refused (triage
+  T-92).** `set_form_notify` (MCP) and `form-notify-save` (API) asked only whether the
+  caller reaches the form, and `action_form_notify_save` wrote `lazysite/forms/<name>.conf`
+  for any name - a conf for a form nobody made. A name that is neither registered (its conf
+  exists) nor bound on a page (`form: NAME` in its front matter) is refused (`kind:
+  not-found`, `field: form`), naming `create_form`; a registered form still saves, and a form
+  a page binds whose conf is not there yet is made as before. `t/unit/forms/76`.
+
+- SM1404 (d66320e1) **A listing carries no entry named after a rule's address profile (triage
+  T-93).** On 0.16.6 an operator's `list_files /zz78-addr` showed, beside the page, an entry
+  named after the folder rule's address profile with no type. Reproduced on a scratch site:
+  what wrote it is SM1139's `address_profiles` (the permissions editor's picker choices, a
+  list of `{ name }`), which `Manager::Files::action_list` returned on every listing answer,
+  so over MCP it sat next to `entries`. The choices now ride on the manager API's listing
+  only (`pickers`, the Files page being their one reader); MCP `list_files` asks without
+  them. `acl-get` carries them as before. `t/unit/manager/477`.
+
+- SM1400 (c2bab12f) **A layout's backup snapshot is not a layout (triage T-87).** `delete_layout`
+  (and an activate) keeps `<name>-backup-<stamp>` beside the layouts, and the listing every
+  door draws installed layouts and themes from (`themes-list-all`: the Appearance page, MCP
+  `list_themes`, the control API) walked every directory under `layouts/`, so the snapshot
+  came back as a layout of its own with the deleted layout's theme under it, and a second
+  delete removed it. The listing now leaves every snapshot out of `themes` and lists it under
+  `backups` (`artifact`, `layout`, `name`, `path`, the path `artifact-backups-delete` takes); the
+  Appearance page's Backups panel draws that list. `layouts-available` and the catalogue
+  annotation already left snapshots out. `t/unit/manager/476`.
+- SM1354 (3ddb3af2) **Copy a page, change the copy, publish it over the page.** Ruling 155.
+  `page-copy` / `copy_page` takes a private copy at `lazysite/copies/pages/<page>`, one
+  per page, read and written only by those who may write the page and in the page's
+  scope; it is edited like any page and rendered by `preview_page` and the manager's
+  preview as the page would be. `page-copy-publish` / `publish_copy` puts it over the page
+  as one content-history version naming the publisher, the door (person or agent, `via`
+  when given) and who prepared it; refused as `stale-copy`, naming both versions, when the
+  page changed since. `page-copy-discard` / `discard_copy` leaves no trace; `page-copies`
+  lists the open copies. The editor offers Copy, Publish, Discard and, after a publish,
+  Undo. A person publishes in the manager with `manage_content`; over MCP or the control
+  API a publish needs the new `publish_copies` as well, off by default and held by no
+  shipped role. The copies folder takes no upload, delete, folder, move or file copy.
+
+- SM1355 (0555aaba) **Wizards that build rows, availability switches, and row history
+  with undo.** Ruling 156. A table may name a boolean `availability` field;
+  `switch_row` / `data-row-switch` and the manager's Available column turn a row on or
+  off at once, as one recorded change, with the row write the table already grants; a
+  page shows the switched-on rows with `db:<table>(available)`. Every row save, delete
+  and switch on every door is recorded in the store (`_row_changes`: who, from where,
+  before and after); `list_row_changes` / `data-row-changes` and the manager's History
+  list them, and `undo_row_change` / `data-row-undo` puts a row back, refused when the
+  row changed since. An undo is a write like any other: the pages showing the table
+  refresh at once (t/unit/data/88). Ruling 170: the history is kept 90 days, or the table's own
+  `row_history_days` (a positive whole number, refused by name otherwise); a change past
+  its period, a deleted row's included, is removed when the store is next written and
+  daily by the daemon's new `row-history-prune` job (as the job account, needing only
+  `run_jobs`, each run audited), never on a read, and undoing one still listed is refused as
+  `expired-change`. A wizard (`lazysite/db/wizards/<name>.yaml`, `save_wizard` /
+  `data-wizard-save`, checked against its table) asks one question per step (text,
+  price, choice, choices, yes/no; required, help, `when`) and builds or edits one row:
+  `run_wizard` / `data-wizard-run` and the data page's wizard buttons. A required
+  question cannot be skipped.
+- SM1356 (56b6ec7f) **Schedules: weekly hours, exceptions, and rows that show between two
+  dates.** A table whose descriptor says `schedule: true` is a schedule: weekly periods
+  (several a day, one may run past midnight) and exceptions (a date or a range, closed or
+  other hours), with fields the engine gives it, written through the doors every table
+  has and refused at the write when a row could not be read. `schedule:<table>` gives a
+  page or layout its blocks - "Open now until 17:00 / Opens at 12:00", the week, today,
+  the next exception - in the site's `time_zone:` (new; summer time from the zone's own
+  rules). Such a page is cached until the next change of state (an opening, a closing,
+  local midnight) and never past it, on both cache branches and in its `max-age`. Any
+  table may declare `shows_from` / `shows_until` (date or datetime): a row outside its
+  window is not shown by a page binding, its counts or the data endpoint, and the page
+  expires when the next row enters or leaves it. Ruling 164: the daemon's
+  `schedule-exceptions` job (hourly, `manage_data`) removes a passed exception and writes
+  the removal to the audit trail with the row it removed; with the audit trail off it
+  removes nothing. `lazysite check` names a `time_zone` the host does not know. Ruling 172:
+  the Debian package (`lazysite-common`) lists `tzdata` in its Recommends, as does the
+  Docker image's install list. The schedule's wizard (`opening_hours`, in `/docs/data-tables`) adds a
+  period or an exception one question at a time, and wizards gain a `date` step
+  (`YYYY-MM-DD`) for its dates (t/unit/data/89).
+
+- SM1357 (56b6ec7f) **Structured data for search: JSON-LD, every public page in the
+  sitemap, and the AI-readable summary.** A table's descriptor may map it to a schema.org
+  type (`structured_data:` - type, pages, properties: a field, a `=literal` or a nested
+  object), checked at save; the engine puts JSON-LD on the pages it names from the rows an
+  anonymous visitor may read now, encoded inert. The organisation entry, on the home page,
+  comes from the site's own details (`site_type`, `site_address`, `site_phone`,
+  `site_email`, `site_hours` naming a schedule), published once one is set. A row written
+  through any door refreshes the pages that show its table at once, `ttl:` or not (each
+  table's change stamp). `sitemap.xml` and `llms.txt` list every public page - a page with
+  no `register:` key is in both - and never a protected, draft, copied, `api:`/`raw:`,
+  `search: false`, demonstration or system page. Ruling 174: the two are built from one page
+  set and list exactly the same pages (a page registered for either is in both). Ruling 171:
+  a folder that looks like another site's content (under `sites/`, or holding its own
+  `lazysite.conf`) and is not a declared content root is left out of both, and of site
+  search and every `scan:` listing (ruling 176); `lazysite check`
+  names it as served on the bare host, with the remedy. Ruling 165: `llms.txt` is on by default
+  with titles, descriptions and the organisation entry; `llms_txt: off` turns it off.
+  `lazysite check` names a public page with no title or description, a shared title, and
+  the findings in the emitted JSON-LD against each mapping's type.
+  The live-data recipe in `/docs/ai-briefing-building-sites` says so: a poll's row
+  refreshes a `ttl:` page that reads the table, and `ttl:` bounds one whose table did not
+  change (t/integration/360).
+- SM1410 (c51599e0) **a staging run that stages no account is not kept.**
+  `accounts-import-stage` and `stage_accounts` wrote a staging record with `staged: 0`
+  when every row was invalid and answered ok with its id. Such a run now writes nothing
+  and is refused, still listing each invalid row and saying nothing was staged; a kept
+  run's reply names accounts-import-remove with its id (t/integration/369).
+
+- SM1409 (c0a9c044) **a layout set without a theme of its own says so in words.**
+  `domain-set` of the layout alone, with the domain's theme still the other layout's,
+  mirrored the mixed pair and warned that assets belong under a path naming the new
+  layout and the old theme. The set stays accepted (the two-call binding sends the layout
+  first); the mixed pair is not mirrored, and the warning names the theme that is not the
+  layout's, the layout's own themes and what to send: layout and theme together
+  (t/unit/manager/481).
+
+- SM1408 (0adbda3c) **a token's group refusal says what it is.** Every token deletes and
+  changes only the groups it created, and the refusal called it "a domain-confined
+  caller", which a token confined to no domain read as wrong. The rule stands; the
+  group-delete and group-set refusals (delete_group, set_group over MCP) and
+  delete_group's description now say a token is bound by it and the operator deletes or
+  changes any group from the manager's Groups page (t/integration/368).
+
+- SM1407 (22c49a44) **`analysts` and `lead-readers` reach a site bootstrapped before
+  them.** The two roles shipped with the bundle layer (0.11.2) in the seed only, and no
+  adoption named them, so an older site got the agent roles and the bundles and never
+  these. They are adopted once, with no member, through the had-record, where the bundle
+  layer is there, nested into their bundles as a new install nests them (cap-audit with
+  them), and never on a store whose manager group carries the `seeded` mark, whose seed
+  wrote them (t/unit/users/74).
+
+- SM1411 (eda480c7) **the editor takes and renews its lock with a POST.** The editor sent
+  `lock` and `renew-lock` as GETs; both are declared mutating and the API refuses a
+  mutating action sent as GET, so from 0.7.19 no editor open was granted its lock, and from
+  0.15.5 the page showed "This action must be sent as POST." as its lock label and opened
+  with Save disabled (the first change enabled it, so saves went through, unlocked). Both
+  are POSTs now, as `unlock` was. A lint keeps every manager page's fetch of a mutating
+  action a POST (t/unit/manager/480, t/lint/340).
+- SM1414 (0a909aa2) **A member saves content over their own session (ruling 169).** Since
+  SM1057 (0.15.5) the manager API refused every signed-in account without `ui`, so a member
+  app's authors could not save a file. A new capability, `write_content`, passes `read`,
+  `list`, `save`, `mkdir`, `move` and `delete` on that door for a holder without `ui`, and
+  no other action. A listing shows only the entries a rule governs and lets the account
+  read (ruling 173), by the site's paths. A write answers by the site's paths as well. A write lands only where the access rule on the file or its folder names the
+  account or its group as a writer; a path no rule governs is refused. Paths are inside the
+  content root of the domain the session is signed in on, and the engine's `lazysite/` tree
+  is never reached. CSRF, the audit row and the file checks are unchanged. It implies
+  nothing, no shipped role holds it, and a `ui` holder is unchanged. Docs: `/docs/auth`,
+  `/docs/ai-briefing-authoring`, UPGRADE.md, a register assessment (ADR 0007 new external
+  interface), confirmed contained (ruling 177). `t/integration/377`.
+
+## 0.16.7 - EDGE: Odoo's modules move into the extension's own lib, a stale Odoo session is renewed, and a group is deleted on every door (2026-11-07)
+
+- SM1394 (def213ea) **docs: the compliance records cover 0.16.7.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.7 stack and stamped 0.16.7. The seven
+  register entries the branches wrote are walked against the code, each gaining a "walked"
+  note: SM1383 is confirmed (ruling 146); SM1381's new-external-interface (the renewal
+  step, a tokenless GET on the Odoo endpoint) is confirmed contained (ruling 150) and
+  the five with no trigger are confirmed (ruling 149; SM1387's new action on an existing
+  door is not a new interface, ruling 151; SM1392's listing, ruling 152), SM1390 a
+  hardening by ruling 147, so 0.16.7 is edge and not security-critical (ruling 149).
+  Written at the walk and confirmed by the release manager (ruling 149): an entry for
+  SM1385, SM1389 and SM1391, trust boundary 12 restated for Odoo's payload lib and the
+  renewal step and four STRIDE rows, with four operate-side rows. UPGRADE.md's 0.16.7 notes are one section. Docs
+  only; nothing is signed.
+
+- SM1369 (525674a3) **Odoo's modules move out of core's lib into the extension's own (X7,
+  part one).** Ruling 135: a hook may name only a module in its extension's payload lib, so
+  `Lazysite::Odoo`, its twelve `Lazysite::Odoo::*` modules and the oomd and warm-endpoint
+  services move from `lib/` to `extensions/odoo/lib/` before X2. Their names do not change.
+  They still ship in the same package and install, and every URL, cgi-bin link, asset,
+  conf key, store, cookie, action, MCP tool, capability and the oomd socket stay as they
+  are. Core reaches them through `Lazysite::Extensions::require_payload`, which loads the
+  copy beside core's own lib by the X1 rule and refuses one found anywhere else. An
+  upgrade lays the payload out, removes the old copies and the directories they emptied,
+  and rebuilds the hook index. Lint 321's allow-list is 42 files. The tests and the OOM
+  snapshot stay in `t/` until 0.16.9. New: t/lint/335, t/unit/extensions/75, and the
+  upgrade journey t/tools/335.
+
+- SM1381 (525674a3) **A site session that is only stale is renewed on the way to the
+  page.** A person signed in through Odoo and idle past `odoo_identity_ttl` was sent to
+  `/login` by every protected page, and `/login`'s `?action=session` said they were signed
+  out, although their Odoo session was still good. The page gate now sends such a session
+  to a renewal step on the Odoo endpoint (`?renew=1&next=`). The step asks Odoo once and
+  returns the person to the page. If Odoo has ended the session, it sends them to `/login`
+  with `next` kept (a site's own `auth_redirect` page where one is set). `?action=session` goes through the same step. A cookie,
+  `lzs_renewed`, guards against a loop: one renewal a minute, then the sign-in. The
+  refusal is logged at INFO. t/unit/odoo/135.
+
+- SM1382 (3ba0fc2e) **docs: live data is a scheduled connector answer in a table row
+  (ruling 132, B).** A spike, `t/integration/360`, proves the chain the docs claim on a
+  scratch site against a JSON source on 127.0.0.1: schedule, connector handler, remote, a
+  data-table row, a page or the data endpoint. The "Live data" section of
+  `/docs/ai-briefing-building-sites` is the sanctioned recipe, with the limits the spike
+  measured: a 300-second floor (an interval rounds up to a multiple of 300), fixed fields,
+  one row per poll with the answer as text, `ttl:` the only freshness bound, `mode=live`
+  inert, and the endpoint's unknown-parameter refusal. The `client` row of the data-tables
+  binding modes is corrected: such a binding still reads rows at render. Filed beside it,
+  as a candidate: SM1384, a connector cannot express a multi-step job protocol.
+
+- SM1383 (3ba0fc2e) **docs: the session cookie is an external contract (ruling 132, E).**
+  `docs/architecture/session-cookie-contract.md` states the `lazysite_auth` format an outside
+  process on the same host verifies read-only: the signed `username:timestamp:sid:groups`
+  payload and the legacy three-field variant, the key and how it is used, constant-time
+  comparison, expiry, `revoked.json`, and fresh groups. `t/unit/auth/75` mints a cookie
+  through the real sign-in and verifies it as the document says, agreeing with the engine.
+  The format does not change silently. A `docs/SECURITY.md` entry is drafted; it records,
+  for ruling, that the preview cookie's value verifies as a session for an account named
+  `v1`; confirmed as contained (ruling 146).
+
+- SM1390 (f333e366) **auth: another signed value is not a session, a future timestamp is
+  refused, and the sliding reader is reachable (ruling 147).** Three gaps found at the
+  SM1383 walk, closed as hardening. The session verifier refuses a payload whose first
+  field is the preview cookie's marker `v1`, and the preview verifier refuses a payload
+  without exactly five fields, so a value signed for one purpose no longer reads as the
+  other. A session whose timestamp (or `seen` time) is more than 300 seconds ahead of the
+  clock is refused; the contract document states the allowance. The payload is split to
+  five fields, so the five-field sliding shape the reader was written for - unreachable
+  behind a limit-4 split - is read as itself; nothing issues it. No account can be named
+  by the marker: `lazysite-users.pl add`, `rename` and `account-create` (the manager's
+  Users add and an import's approval go through add) and an import's `stage_accounts`
+  refuse the name, saying why, from the verifier's constant; `lazysite check` names an
+  account that already carries it. `t/unit/auth/76`, `t/integration/361`,
+  `t/unit/users/71`, `t/tools/333`; a `docs/SECURITY.md` entry is drafted, confirmed
+  (ruling 149).
+
+- SM1391 (f333e366) **daemon: a schedule entry under the floor is recorded as refused,
+  once (ruling 148).** A hand-written `every:` below 300 seconds in `schedule.conf` was
+  passed over in silence. The first tick that meets it records a refusal against the
+  entry in `lazysite/daemon/schedule-runs.json`, naming the value and the floor, and logs
+  it; later ticks write nothing for it; raised to the floor it runs. `lazysite check`
+  names each such entry with its value and the remedy. `t/unit/daemon/17`, `t/tools/332`.
+
+- SM1389 (c8e13a54) **`lazysite check` no longer reports the protected-history repository as
+  stray public copies.** The stray-copy walk read the whole private store, so the SM1324
+  history repository (`<store>/lazysite/git`) matched the docroot's content-history repository
+  at `lazysite/git` file for file (HEAD, config, refs, identical objects) and the 0.16.6 edge
+  deploy reported the site NOT SERVICEABLE. The walk now skips that repository, found by
+  `ProtectedHistory`'s own path helper. Only the repository: a layout a rule moved into the
+  store's `lazysite/layouts` is content, and a copy beside it is still reported.
+
+- SM1387 (4c81d959) **A group is deleted once nothing uses it, on every door.** No token or
+  MCP surface deleted a group. `group-delete` (control API), `delete_group` (MCP) and the
+  manager's Groups page (which now calls `group-delete`) need `manage_users`, are audited
+  (`@group`), and are refused while the group holds a member or anything names it - an access
+  rule's `@group`, a page's `auth_groups`, a domain's `allowed_groups` or `locked_groups`
+  (primary or alias), `auth_group_map`, a data table's `writable_by`, an Odoo binding's or a
+  connector's `callers`, `odoo_group_map` - the refusal naming each (`kind: in-use`, with
+  `members` or `references`). The walk is `Lazysite::Auth::GroupRefs`, asked by the users tool
+  for every caller. The operator group is never deleted, the only one or not; an empty agent
+  role (SM1371) or shipped role may be (`reset-groups` restores a shipped one). A
+  domain-confined caller deletes only a group it created with `group-set`.
+
+- SM1388 (6675f612) **A folder rule's history needs the folder to exist, and says so.** A rule
+  with `history: true` (SM1324) is refused until its folder exists in the document root or the
+  private store. The refusal said "'X' is not a folder", which read as a file; for a folder not
+  there yet it now says it does not exist and to create it first. The protected-history docs
+  (OPERATOR.md, the access-control model) say so.
+
+- SM1386 (0db996a7) **A theme install warns when its stylesheets are outside assets/.** Only a
+  theme's `assets/` is served, so a zip with `main.css` at its root beside `theme.json`
+  installed and previewed with no CSS. Every install door - `theme-upload` (the manager's
+  Upload Theme), MCP `install_theme`, and the layout installs (`layouts-install`,
+  `layout-install`, MCP `install_layout`) - now installs such a theme with a warning naming
+  each stylesheet and where it belongs (`warnings`; `theme_warnings` for `layout-install`).
+  Warned, never refused. The themes doc's on-disk picture put `main.css` beside
+  `theme.json`; it now shows it in `assets/`.
+
+- SM1385 (51cd54d4) **A theme is deleted by its path, under any layout.** `delete_theme`
+  (MCP), `theme-delete` (control API) and the manager's Themes page found a theme only under
+  the active layout (D013), so one under any other layout was removable only file by file.
+  Each now takes `lazysite/layouts/<layout>/themes/<name>` as `theme-copy` does (SM1339); the
+  bare name still means the active layout's theme. The active theme, a theme any domain
+  serves, and a theme another account made (over MCP or a token) are refused by path as by
+  name; a path into a served copy is refused naming its source. The Themes page offers
+  Delete under every layout.
+
+- SM1393 (29586984) **The agent roles and the shipped bundles reach a site the `seeded` mark
+  never reached.** SM1371's four agent roles, and the bundles SM1241 and SM1262 adopt on an
+  existing site, were adopted only where some group record carried `seeded`. A site
+  bootstrapped before SM608 wrote the mark, or whose manager group the conf migration wrote
+  without it, carries it on no record and adopted nothing from any release, for ever: the
+  0.16.6 edge site had loaded its Users page many times and had neither. Now a bootstrapped
+  site (a manager group is there) adopts once, on the next Users or Groups page load or any
+  other use of the users tool that reads the group store; the CLI `groups` listing does not.
+  Whether the store carries the mark is read from the manager group, which no adoption
+  touches: where it does, an unmarked record is operator-made as SM608 reads it; where it
+  does not, a group present under its shipped name is what the store can say. SM1262's record
+  keeps the rest: a deleted role or bundle never returns, an unreadable record adopts nothing.
+
+- SM1392 (1f018409) **The manager's editor opens a form's own conf to `manage_forms`, and every
+  door names that capability for it.** SM1371 opened `lazysite/forms/<name>.conf` to
+  `manage_forms` over MCP, WebDAV and the control API's read and save, but the editor page
+  marked every `lazysite/` path "system file (read-only)" before asking the server. The editor
+  now exempts a form's own conf (never `smtp.conf`, `handlers.conf` or `schedule.conf`); the
+  server's gate decides, and a manager without `manage_forms` sees its refusal naming the
+  capability. Over MCP, `read_file` and `write_file` on that path ask `manage_forms`, the
+  path's own capability, in place of `manage_content` - as a layout path asks the design
+  capabilities - so a caller without it is told what it needs, and one holding `manage_forms`
+  alone reaches the file as it has over WebDAV since 0.8.1. Every other path keeps the tool's
+  capability. Ruling 152: such a grant is also OFFERED the two tools, each saying it reaches a
+  form's own configuration and nothing else - the tools declare it (`cap_path`), and the gate,
+  the listing, whoami's `tools_by_reach` (now with `path_only_reach`) and the capability map
+  read that one declaration; no other tool or path shape is offered to a path grant.
+
+## 0.16.6 - EDGE: the primary site's content leaves out the other domains, agents hold roles, and extensions can declare hooks (2026-11-07)
+
+- SM1380 (0e503772) **docs: the compliance records cover 0.16.6.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.6 stack and stamped 0.16.6. The ten register
+  entries the branches wrote, each confirmed by the release manager (rulings 134, 140), are
+  walked against the code; SM1369's new-external-interface and SM1362's
+  new-processing-of-restricted-data are their triggers' assessments, contained. Written at
+  the walk and confirmed by the release manager (ruling 142): an entry for SM1375 and
+  SM1378, trust boundary 15 (an extension's code in a core process) and three STRIDE rows,
+  with four operate-side rows. 0.16.6 is edge, not security-critical (ruling 142). Found at the walk: the 403 page's group names were not escaped by the
+  stash; escaped in 0.16.6 under SM1375 (ruling 141). SM1373, SM1374 and SM1375 gain their filings;
+  UPGRADE.md's 0.16.6 notes are one section. Nothing is signed. One fix found at the walk,
+  from the 0.16.5 edge deploy: the upgrade's template-call rename (SM1345) walked the private
+  store with a plain File::Find, so a directory it could not read printed a raw "Can't
+  opendir(...): Permission denied" and its old `visitor.in_list` / `visitor.in_any` calls
+  were left unrenamed with nothing in the summary. `install.pl` now collects the walk's
+  warnings, as `lazysite check` does (Q16g), and says once, under ADDRESS PROFILES, which
+  directories it could not read, that any old call below them was not renamed, and to run the
+  upgrade again as root or the site's owner; the step is then not recorded, so the next
+  upgrade tries again.
+
+- SM1379 (94fc2820) **A form's quarantine leaves email fields out of the repetition rule and
+  quarantines a probe in one.** Ruling 133: "every field holds the same value" (SM913)
+  counted the email field, so a random address defeated it; email fields (named so, or
+  holding only an address) are now left out. An email field holding quotes, an
+  SQL comment or SQL-shaped text quarantines the submission, the reason naming the field;
+  one apostrophe in an address's local part (`o'brien@example.org`) passes (ruling 138).
+  Quarantined, never refused. Register entry confirmed (ruling 140).
+
+- SM1378 (e38805a8) **A layout says the engine it needs, and installing or activating it on an
+  older one warns.** Ruling 133: `requires.lazysite` in `layout.json`, which the layouts
+  catalogue writes in every layout, was read nowhere. Installing a layout, activating it, or
+  binding it to a domain now compares it with the site's engine version and, when the engine
+  is older, answers with `requires` and a `warning` naming both versions - as SM337 does for
+  a layout with no `[% nav %]`. It goes ahead either way.
+
+- SM1377 (478aafdb) **The data endpoint refuses a query parameter it does not read.** Ruling
+  131: `/cgi-bin/lazysite-data.pl` named an unknown parameter (`ignored`, a warning) and
+  still answered every row, so `?table=t&chunk=AAA` looked like a filtered answer. It now
+  answers 400 with `kind: unknown-parameter`, naming the parameter and the four it reads
+  (`order_by`, `order`, `limit`, `offset`). `_`, a cache-buster, is accepted and unread;
+  `table` and `csrf` are unchanged. The `ignored` field is gone. Supersedes SM606 in part.
+  Ruling 139: the control API's `data-rows` refuses an unknown parameter the same way
+  (it reads `table`, `order_by`, `order`, `limit`, `offset`; `_` and `csrf_token` are
+  accepted). UPGRADE.md says who is affected. Register entry confirmed (ruling 140).
+
+- SM1372 (7fdd5ade) **The primary site's content leaves out the other domains' folders.** Ruling
+  126: an account given nothing, or granted the primary's row, read the whole document root
+  as its content, and so reached every secondary domain's folder (`sites/...`) through it.
+  Now the primary's content is the document root less the other domains' content roots, on
+  WebDAV, MCP, the control API and the manager's Files, and the refusal names the folder and
+  how to grant it. Ruling 137: a listing (the manager's Files, MCP `list_files`, WebDAV
+  PROPFIND) leaves those folders out too, for a caller refused them. The operator (a member of the operator group) and an account granted a domain keep that
+  reach. UPGRADE.md says how to give an account the domain it relied on. Register entry confirmed (ruling 140).
+
+- SM1362 (a467caee) **A form tells the site's owner by email, and can answer the submitter.**
+  Ruling 123 re-scoped the filing: a bare form already saves (the shipped local-storage
+  handler). `owner_contact:` in `lazysite/notify.conf` names one address, and each form's
+  notice is also mailed there through the existing notice mail (the Form SMTP extension,
+  `mail.per_hour`); it follows the notice (not on `notify: off`, not for a quarantined
+  submission, the fields only on `notify: full`). A form's conf can opt in to an
+  acknowledgement with `acknowledge_field` and `acknowledge_message` (and
+  `acknowledge_subject`): the form's own words, never the visitor's text, mailed to the
+  address in that field under the email handler's caps (3 an hour per address, 60 per
+  site, counted together). Register entry confirmed (ruling 140): the owner notice under `notify: full` fires ADR 0007's new-processing-of-restricted-data, contained.
+
+- SM1366 (75447078) **An Odoo call's record names the signed-in account.** A call made under a
+  person's Odoo session was recorded, and written to the audit log, as `session:<hash>`
+  alone, so an operator could not tell who acted. Where the request is signed in to the site
+  (a local account, or `odoo:<login>`), the record's `actor` and the audit line name that
+  account, and the hash is kept beside it (`session` on the record, `session=` on the audit
+  row). With no site identity the hash is the actor, as before. Who owns a plan is unchanged,
+  a refused sign-in keeps its login hash, and no session id or typed login is written.
+
+- SM1374 (50da6727) **A plan Odoo refused tells the visitor why, in Odoo's words or plainly.** An
+  Odoo plan that failed at Odoo answered "the plan did not apply completely - see the
+  counts", an operator's sentence. When Odoo refused the data (a validation or user error)
+  the answer's `error` is now Odoo's own message, without the "Odoo Server Error:" prefix,
+  and the change says `validation: 1`; any other failure answers "The change was not saved.
+  Try again, or tell the site's operator." and its text is withheld from the change too,
+  since an access error or a missing record names models, groups and ids. A refusal the
+  operation itself raises keeps its sentence. The counts stay in the result, the journal
+  and a log line for the operator. A change whose answer never came is unchanged.
+
+- SM1373 (2e379ccf) **An extension's settings read answers only its own keys.** `extension-read`
+  for an extension kept in `lazysite.conf` (bad-url-blocker, log) answered every key in the
+  site's main config, and one with its own file any key its schema does not name; only its
+  own password fields were dropped. It now answers the keys the extension's `config_schema`
+  or `config_keys` names, whatever its file. The action is reachable by a manager session
+  with `manage_config` only (no token reaches it). Register entry confirmed (ruling 140).
+
+- SM1375 (b9add76d) **The 403 page lists the groups a page needs.** The shipped `403.md` named
+  them as "- reviewers" lines run into one paragraph, on a front-matter group gate and on an
+  ACL read-list refusal alike: Markdown reads the page before Template Toolkit fills it, and
+  the loop's directive line kept the list from starting. The template writes the list as
+  HTML, so the groups render as a list. A site with its own `403.md` is unchanged. Ruling
+  141: the group names are HTML-escaped where the stash is built, as SM709 escapes the other
+  auth values; a read list naming a group with markup rendered it as markup on the page.
+  A hardening (only an account that can write a page's markup writes a read list's names).
+  Register entry confirmed (ruling 141).
+
+- SM1370 (68c433d3) **A token follows its account's grant (ruling 121).** Measured first: no
+  token door fixes a capability into a credential - an lzs_ token verifies through
+  `verify_credential` and `caps_for` at each request, an OAuth token resolves its partner
+  through `partner-caps` at each call, WebDAV asks once per CGI process. So a grant added at
+  the account reaches an existing token on its next request, one removed is refused at once,
+  and a token confined to a domain stays confined when the account widens; t/unit/manager/460
+  now holds that on the control API, MCP bearer and MCP OAuth. Both whoamis carry a `grant`
+  block saying so, with the remedy for a client whose tool list predates the grant (list the
+  tools again; no new pairing key). The layouts briefing stops advising a token rotation.
+
+- SM1371 (7e0906da) **Agent accounts hold roles (ruling 122).** Four agent roles ship as
+  assignable groups (ADR 0003): `content-agent`, `data-agent`, `forms-reader` and
+  `analytics-agent`, each one job over MCP, and an existing site adopts them once, with no
+  members. `whoami` (both doors) and the Users page name the roles an account holds and any
+  capability beyond them (`Auth::Settings::role_summary`). Ticking a grant whose extension is
+  off offers the enable in the same step, through the audited `extension-enable`.
+  `manage_forms` now reads and writes a form's own `lazysite/forms/<name>.conf` through MCP
+  `read_file`/`write_file` and the manager's file editor, as WebDAV has since 0.8.1, with
+  WebDAV's binding rules; `smtp.conf`, `handlers.conf` and `schedule.conf` stay closed.
+
+- SM1369 (767cc0fc) **Extension hooks, slices X0 and X1 (ruling 55): core names no extension,
+  and finds an extension's hooks in an index.** X0: `t/lint/321` fails a new core line that
+  names Odoo (odoo, OOM, oomd; ruling 136 counts Odoo's names only); the 43 files that do today
+  are an allow-list that may only shrink, and X7 empties it. X1: an extension's `owns` may declare `hooks` and
+  `requires`, validated by the new `Lazysite::Extensions::Hooks` before anything is indexed. The
+  manager writes `lazysite/extensions.index.json` from the enabled extensions on enable,
+  disable and save, and the upgrade rebuilds it. `Hooks::call_hook` runs an indexed function
+  from the extension's own payload lib (`extensions/<stem>/lib`), only while the extension and
+  what it requires are on. Enabling an extension whose `requires` names one that is off is
+  refused by name. No hook kind is live yet: a declaration of one is refused, naming the slice
+  that builds it (X2 to X8 are to come). A site whose extensions declare no hooks has no index
+  and behaves as before.
+
+## 0.16.5 - EDGE: address lists become address profiles, a theme's copies follow its source, and protected folders may keep a history (2026-11-06)
+
+- SM1368 (e88a6e54) **docs: the compliance records cover 0.16.5.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.5 stack's ten branches and stamped 0.16.5. The
+  four register entries the branches wrote are walked, and two of them (SM1324's protected
+  history, SM1325's read audit) are found to fire ADR 0007's new-processing-of-restricted-data
+  trigger, which each entry now records as that trigger's assessment. Two entries are drafted
+  at the walk (a theme's served copies; the rest of 0.16.5), with two STRIDE rows (a theme's
+  source re-mirrored on every write; the bad-URL blocker's loopback exemption behind a front
+  end `trusted_proxies` does not cover), the architecture notes, two operate-side rows and
+  UPGRADE.md's 0.16.5 entry. All six entries are for the release manager's confirmation.
+  Docs only; nothing is signed.
+
+- SM1365 (f07f1559) **A page refused by an ACL read list gets the site's 403.** A signed-in
+  visitor outside an `auth/acls.json` read list who opened a page in the governed directory
+  got a bare 103-byte 403 with no layout or theme. They now get the site's 403 page, which
+  says who is signed in and names the list's groups (never a user on it), as a front-matter
+  group gate does. An image, a PDF or a download keeps the short 403, with the security
+  headers. A draft section is still 404 and an anonymous visitor is still sent to sign in.
+
+- SM1339 (c377650a) **A served copy of a theme says so, and is not written.** Ruling 81: a write
+  into a host's `/lazysite-assets/<layout>/<theme>/` (the docroot's or a domain's own) is
+  refused on every surface - the manager, the control API, MCP `write_file`, `upload_file`,
+  `move_file`, `delete_file`, and WebDAV PUT, MKCOL, DELETE, MOVE and a COPY's destination -
+  for the operator too, naming the source path to write instead, since the copy is replaced
+  whole at the source's next write and reaches no other host. Reading a copy, copying out of
+  one and removing the copy of a theme no longer installed are not refused. `list_files` and
+  the Files page mark each copy `served_copy`, with its `source` and the hosts that serve it
+  (`served_by`, each with `theme_active`). Ruling 109: the theme a secondary domain serves as
+  its own is read-only on every surface as the primary's is, the refusal naming the domain and
+  copy, edit, activate with `host`; ruling 120: and so is the layout it serves as its own, a
+  layout only pages pin staying writable. `theme-copy` and `copy_theme` take the theme by its path,
+  `lazysite/layouts/<layout>/themes/<theme>`, as well as by its name.
+
+- SM1336 (b9e9a3eb) **Every served copy of a theme carries its tokens and its version.** Ruling
+  81: an installed theme (Upload Theme, `install_theme`) and a copied theme (`theme-copy`,
+  `copy_theme`) had their copy built by hand, with no `theme-tokens.css`, no fingerprint (SM830)
+  and no copy on a secondary domain. Both now write it the one way every copy is written.
+
+- SM1335 (0a090fb9) **A theme's copies follow its source.** Ruling 81: a write to a theme's
+  source, on any surface, re-mirrors that theme to every host's copy (the docroot's and each
+  content root's) and drops the cached pages that use it, a page pinning it by `theme:`
+  included; a write to a layout's own files drops the pages that use the layout. An edit to an
+  inactive theme reaches the pages that pin it with no activation, and a secondary domain's
+  copy is no longer the one written at the theme's creation; a host whose copy is missing gets
+  it at the next write (ruling 111). One theme per write, never the
+  site's; a link or a server-run file in a theme's `assets/` is not copied into any copy.
+
+- SM1342 (b0ea8aa0) **A /docs anchor lands on its heading.** The manual wrote its section
+  links as GitHub writes them (`#the-docs-manual`), and the engine's converter ids a
+  heading with no hyphens for spaces (`#thedocsmanual`), so eight links in the shipped
+  manual landed at the top of their page. They are written in the engine's form, and
+  t/lint/310 holds every anchor in a /docs link to a heading of the page it names.
+
+- SM1341 (48ff1a2e) **Each AI doc says it once, and says who it is for.** An owner following
+  the docs met the connect steps on two shipped pages, authentication, endpoints and the
+  grant model on two more, and the layouts machinery on two that did not link each other.
+  Each now has one home: the client steps, endpoints, connection modes and authentication
+  in Connect an AI assistant, which is now public so a client can read it before it holds
+  a credential (Onboard links it); capabilities and denied paths in the signed-in tools
+  reference (the publishing briefing points at each, and `.well-known/ai-partner` lists
+  the setup page among its docs); the layouts model, installing and
+  switching in /docs/layouts and what an agent needs to change them in the layouts
+  briefing, linked both ways. Every page of the set opens with "Who this is for", and the
+  docs index is by reader (operator, agent, developer), then theme, and lists the Figma
+  integration. Facts moved, none dropped. Rulings 80, 113, 115.
+
+- SM1340 (0ec7149b) **The layouts docs point at the site's design guide.** The engine's
+  `/docs/layouts` and `/docs/ai-briefing-layouts` are the same on every site, so they could
+  not name the guide a site publishes for whoever designs for it, and an agent starting from
+  the docs never found it. `design_guide: /path` in `lazysite.conf` makes both pages open
+  with a "This site's design guide" line linking it; unset, they carry nothing. Only a
+  same-site path counts, under the rule `?next=` is held to; a full URL or anything
+  malformed is ignored. A domain names its own with `alias.<host>.design_guide`, which
+  overrides the site's for that host; without one it uses the site's, except a domain
+  with its own content root, which shows no line. Rulings 79, 114.
+
+- SM1322 (9de880fb) **/login asks the server whether the session is honoured.** It judged
+  "signed in" from the `lzs_session` display marker alone, which outlives a revoked or
+  expired session and an Odoo session gone stale, so it told a visitor the site had just
+  refused "You are already signed in" and hid the form. The panel now carries
+  `data-ls-auth-check`, and the chrome script asks the new
+  `/cgi-bin/lazysite-auth.pl?action=session` (yes or no, uncached, from the verdict every
+  surface uses). A no clears the marker and shows the sign-in; no answer leaves the page as
+  it was. A session it does honour is offered "Sign in as someone else": the sign-out with
+  `then=signin`, which revokes the session and lands back on the form with the page's
+  `?next=`. A site with its own `login.md` adds both to its panel. Ruled 2026-11-04 (ruling
+  49) and 2026-11-05 (ruling 85).
+
+- SM1321 (a4bb88f4) **The bad-URL blocker spares the site's own files and exempt addresses.**
+  `vendor/` is a probe pattern and also where a theme keeps its scripts. The blocker counted a
+  site's own assets, and behind a front proxy every visitor was 127.0.0.1, so everyone got 403
+  for 1 h 44 min. A path that resolves to a regular file under the docroot is never counted now
+  (plain segments only: no `..`, no symbolic link on the way, no dot name, not the engine
+  tree). Loopback (127.0.0.0/8, ::1) is always exempt: never counted or refused, a block on
+  file included. The new `bad_url_exempt` key names address profiles (SM1343) whose addresses are
+  exempt too, in addition to loopback; only the value `none` removes loopback. It takes
+  profile names only: the Config page refuses an address or a profile that does not exist,
+  `lazysite check` warns about one, and a profile it names counts as in use. Ruled 2026-11-04 (ruling 48) and
+  2026-11-05 (rulings 83, 84).
+
+- SM1345 (d597045c) **The upgrade turns each address list into an address profile, and no
+  site changes behaviour.** The request's A-4: once, install.pl converts
+  `lazysite/auth/address-lists.json` to `address-profiles.json`, the same names and entries
+  with no kind, keeps the old file as `address-lists.json.converted` and says what it
+  converted. No rule is rewritten: every use already named its list in the slot the list's
+  kind meant, so an allow list's uses are Allow uses and a deny list's Deny uses. A profile
+  store already there is never overwritten, and an old store that will not decode is left for
+  the operator, with every rule that names a profile refused until it is converted. The same
+  step renames the site's `visitor.in_list` / `visitor.in_any` calls (pages, layouts, themes,
+  templates, the private store) to `visitor.in_profile` / `visitor.in_any_profile`, naming each
+  file. `lazysite check` names any old call left, and every rule whose slot is not its old
+  list's kind (a hand edit only; it refused everyone before and now applies in its slot): run
+  it after upgrading.
+
+- SM1344 (8b2f4fb1) **The Files page limits a rule by address profile, each chosen Allow or
+  Deny.** The request's A-3: the permissions card's "Limited by address" becomes "Limited by
+  address profile", one row per profile with Not used, Allow or Deny, in place of the two
+  pickers that offered only allow lists or only deny lists. A name the rule carries that the
+  store does not hold keeps its choice and is marked, so saving the card does not drop it.
+  The Groups page limits a group by address profile with the same picker, saved as one request
+  (`address_limit`, both lists, one write), so a profile moved from Deny to Allow is never in
+  neither list.
+
+- SM1343 (06f14ed2) **Address lists are address profiles, allowed or denied where they are
+  used.** The release manager's request (24 October 2026; rulings 56-58): a profile is a named
+  set of IPv4 and IPv6 addresses and ranges with notes, and has no allow or deny kind. Each rule
+  that names one chooses: `addresses` allows it and `addresses_deny` denies it, on a page, a file
+  or folder rule, a group, the manager's and sign-in's keys and a session binding, so one office
+  range can be allowed on one page and denied on another. Deny still wins, and a folder's and a
+  page's rules must both admit. Renamed outright, with no aliases: the store is
+  `auth/address-profiles.json`, the page Access, Address profiles, the actions
+  `address-profiles`, `address-profile-set` and `address-profile-delete`, the MCP tool
+  `list_address_profiles` and the users tool's commands the same; an old name is refused naming
+  the new one, and a `kind` sent is refused by name. The template test is
+  `visitor.in_profile` / `visitor.in_any_profile`; the old names are gone. A profile a rule names is still not deleted
+  without a second confirmation. A site whose lists were never converted refuses every rule that
+  names a profile, rather than letting its deny rules block nobody.
+
+- SM1334 (2b713de4) **A group can pin its members to a domain.** Ruling 78: only a pin removes the
+  other domains, for an account or a group. An account's pin is a domain's `locked_users`; a
+  domain's new `locked_groups` pins every member of the groups it names the same way: they reach
+  only the domains that lock them, of the ones they are granted. Set it on the Domains sheet
+  (Groups locked to this domain, the primary's row included), with `domain-set`, MCP
+  `domain_set` or `lazysite-domains.pl pin-add`/`pin-remove`; it needs `manage_users`, as the
+  other access keys do. A pin on the primary confines to the primary. A group a request's address
+  leaves out can no longer lift a pin: the request's domains are held inside the account's.
+
+- SM1333 (51e65e01) **The primary is a row on every domain surface.** Ruling 78: the Domains page
+  lists the primary as `(default)` with an Access sheet (groups allowed, users locked), and
+  `domain-set` on the control API, MCP `domain_set` and `lazysite-domains.pl` (`--host '(default)'
+  group-add` and the rest) take the host `(default)` for those two keys, writing the primary's
+  bare lines; any other key on it is refused, naming Config. A secondary row no longer shows the
+  primary's access as inherited, on either listing: a row's access is its own, as it always was
+  where it is enforced. A group named only on the primary's row reaches the primary only, as on
+  any row.
+
+- SM1332 (e3ba5522) **A domain grant adds, and the primary can be granted.** Ruling 78: naming an
+  account's group on a secondary domain took the primary site away from it, because the primary
+  was reached only by having no scope at all, and there was no primary row to grant it back on.
+  The primary's row now carries `allowed_groups` (the bare `allowed_groups:` line), and a grant
+  there adds the primary (`dav_scopes` holds `/`) to the domains the account already has. An
+  account granted nothing keeps the primary; only a lock removes the others. The one domain rule
+  reads `/` as the primary only, never as the other domains' folders; WebDAV, MCP and the manager
+  read it as the whole site, as for an unbound account; the refusal names the primary's row.
+  Nothing changes at upgrade: an account scoped today keeps exactly its reach.
+
+- SM1328 (a1c2adcd) **Odoo is shown by the name the site gives it.** Every dialog label and
+  error text a visitor or a manager reads said "Odoo", with no way for a site to call its
+  back office what its people call it. One setting, `odoo_display_name` in the Odoo
+  extension's settings (default `Odoo`), is now said by the sign-in dialog, `/odoo-signin`
+  and its button, `/login`'s link to it, the browser helper's messages, the errors the page
+  endpoint answers and the Unknown Odoo writes panel. Empty, they name nothing, and each
+  text is written to read whole without it ("Sign in", "That sign-in was not accepted").
+  The extension's own name, its page, its daemon, its settings and the logs keep "Odoo".
+  The setting has one reader, `Lazysite::Odoo::Name`. Ruled 2026-11-04 (ruling 52).
+
+- SM1327 (60e395f4) **A write names the version it replaces.** MCP `write_file` saved with
+  no modification time, which skips the save's conflict check, so an agent writing back a
+  file it had read replaced whatever another writer saved in between. It takes an optional
+  `base_mtime`, the `mtime` `read_file` answers (`read_page`'s `modified`): given and stale,
+  nothing is written and the answer is a conflict (`kind: conflict`) naming the file's
+  current `mtime`; a base for a file that no longer exists is refused the same way; absent,
+  the write is what it was. `rename_page`'s alias and its link rewrite, which read a page
+  and write it back, now save with the time they read, as `replace_text` does. The
+  building-sites briefing says to write back with the version read. Ruled 2026-11-04
+  (ruling 51, part (b)).
+
+- SM1325 (1d94a533) **A site can audit the AI reads of its pages and files.** Ruling 50 (T-17):
+  a successful read is kept off the audit trail (SM943). `audit_reads: on` in lazysite.conf
+  records each successful MCP `read_file`, `read_page`, `view_version` and `preview_page`, and a
+  token's control-API `git-show`, with the account, the path and the time, in a file of its
+  own beside the trail, `logs/audit-reads.log` (ruling 97): rotated and forwarded as the trail
+  is, and shown on the Audit page under Show: AI reads, so reads never push a change off the
+  change view. Off by default, and a value other than on is off. A signed-in person's reads
+  are not recorded. The Config page switches it (Record AI reads; `config-set`), and only for
+  an account or token holding Site config AND the audit trail switch permission, the trail's
+  own gate (ruling 96).
+
+- SM1324 (9712a81b) **A protected folder can keep a history, by choice.** Ruling 50 (T-16):
+  protected content is kept out of the content history, which may be pushed to a remote. A
+  folder rule may now carry `history: true` (the manager's Keep history, `history` on the
+  control API's `acl-set` and MCP `set_permissions`, `lazysite acl set --history`; whoever may
+  set the rule may set it). The folder's versions are kept in a second repository whose work
+  tree is the private store (`<store>/lazysite/git`, 02770), never the public one. Its first
+  version is taken when it is set, and it records while the site's content history is on
+  (ruling 98). It covers the rules nested in the folder unless one says `history: false`;
+  a rule that says nothing inherits (ruling 100). Clearing it, or removing the rule, keeps
+  what was recorded; `lazysite acl purge-history PATH --actor USER` deletes a folder's
+  history from the repository and its object store, for the operator only, audited as
+  `history-purge` (ruling 99). Every history read
+  (`list_versions`, `view_version`, `restore_version`, `list_content_history` and the
+  manager's history view) applies the file's read rule, and a restore its write rule. Off by
+  default: a site that does not set it changes nothing and gets no repository. MCP
+  `list_content_history` now passes the caller to the read rule, so it lists a protected
+  file to its readers.
+
+- SM1346 (1d2ed2c6) **lazysite is tested on OOM 0.44.** The pinned snapshot in
+  `t/vendor/oom` moves from 0.42 to OOM 0.44 (f32c444), skipping 0.43, checked against
+  the 0.44 debs. No lazysite code changes, and every Odoo test passes on it. For an
+  operator on OOM 0.44: a binding may name the new operations (`core.user delete`, the
+  Discuss pack) and `quiet` on `core.make`, `core.set` and `core.action`; what a page
+  is told of a write Odoo did not keep, and of a refused record, is SM1347; the OOM deb
+  needs libdatetime-perl and libdatetime-timezone-perl. SM747's spec is re-filed.
+  t/lint/207, 261.
+- SM1347 (2bb2d781) **A page is told what Odoo did not keep, and why a record was refused.**
+  From OOM 0.44 a write whose value Odoo dropped or reset is still `done`; its entry in
+  `result.changes` now names the fields (`not_kept`) and says so (`note`), never the
+  values asked or found, and `result.not_verified` is passed (ruling 103). The browser
+  helper draws each note into `<div data-ls-odoo-not-kept>`. The same for an immediate
+  apply, a confirm and a resumed run's carried changes. A record the account may not
+  read (`refused/access`) and one that is gone (`refused/missing`) each have their own
+  sentence, where both said "refused before Odoo answered" (ruling 104); the kind stays
+  `refused`. t/unit/odoo/122, 123, 124.
+- SM1330 (34cbdace) **tests: the compatibility tier tests the OOM it names.**
+  `tools/ext-compat.sh` failed every night on the installed deb and on OOM's tree for
+  reasons in lazysite's harness: under `LAZYSITE_OOM_LIB` the host's `shop` pack claimed the
+  suite's `shop.basket` (52 files), t/unit/odoo/78 expected the snapshot's data root, and the
+  daemon tests started the snapshot's oomd, which loads the snapshot's OOM first. Each
+  target now runs alone - its library, its oomd (`LAZYSITE_OOMD`), its own data and the
+  suite's own operations, never the host's packs - and the FAIL line and the inbox note name
+  the failing files, which prove's absolute paths had hidden. The gate is unchanged.
+
+## 0.16.4 - EDGE: plugins become extensions, on disk, in lazysite.conf, in the manager and on the wire (2026-11-06)
+
+- SM1367 (7db1a9a5) **docs: the compliance records cover 0.16.4.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against SM1142, the release's one change, and stamped 0.16.4.
+  The register has a drafted entry for the rename, for the release manager's confirmation:
+  the upgrade step that moves a site to `extensions/` and converts which extensions are on,
+  and the wire's old spelling refused and its response keys renamed (ruling 95); no trigger
+  fired. A STRIDE row, the architecture notes and an operate-side row for the references the
+  upgrade cannot see, among them an audit filter on the old action names: the audit records
+  the extension actions as `extension-*` from 0.16.4. Docs only; nothing is signed.
+
+- SM1142 (95f3ab81) **A site from before the rename upgrades in place and behaves the same, and
+  the docs say extension.** Slice S4. The docs, the `/docs` manual and briefings, the README
+  and the skill say `extensions/`, `extensions:` and the new manager addresses; UPGRADE.md has
+  the entry, with the hand-made references the upgrade cannot see (a crontab running
+  `plugins/stats.pl`, a pipe to `plugins/form-smtp.pl`, a bookmark, a script on the old
+  action spelling). The tests moved with the code (`t/unit/extensions/` and every test whose
+  name said the old word). A journey test (t/journey/06) upgrades a pre-rename site and asks
+  each deciding reader - the sign-in CGI's rate limiter, the data gate, the runtime's start
+  gate, the notifier and the render path's registry and manager nav - what it sees: the same as
+  before. History keeps its words (CHANGELOG, filings, reviews, FEATURES.md's timeline).
+
+- SM1142 (4b35348f) **On Hestia the root-run scripts make `extensions/`, and clear the old
+  directory.** Slice S3 (R4: no separate installer release ahead - the root-run deploy runs
+  before the user-run install anyway). The domain root is mode 0551, so the site user cannot
+  create a sibling of the docroot: the deploy now makes `extensions/` and hands it to the site
+  user on every run, before the install, and after the install removes the old directory the
+  upgrade emptied - only when empty, with rmdir. The lazysite-app template's hook and
+  `lazysite-hestia-domain.pl` make `extensions/` for a new site. The deb ships
+  `/usr/share/lazysite/extensions`; the installers' and packaging's words follow.
+
+- SM1142 (739f693e) **The code says extension, and the old action spelling is answered with the
+  new one.** Slice S2 (R5: "so that the namespace of plugin is fully free"). The modules are
+  `Lazysite::Manager::Extensions` and `Lazysite::Extensions::Owns`, and the functions, the
+  template variable (`enabled_extensions`), the manager's own scripts and styles and the
+  internal action names follow. The wire's old spelling is removed: an old-spelling action
+  answers unknown action naming its `extension-*` spelling, and the old `?<id>` parameter on
+  extension-read, -save and -action and whoami's old catalogue switch are refused naming
+  `extension` and `extensions`; the list's response key is `extensions` and groups-read's is
+  `capability_extension`. The audit writes an extension action's row as `extension-*` from
+  0.16.4 (earlier rows stay `plugin-*`), SM831's `spelling=deprecated` flag is gone with the
+  old spelling, and a disabled extension's refusal logs as `extension-gate` (was
+  `plugin-gate`): a filter or report on the old names matches nothing new. t/lint/307 holds the word to history, third-party names and the few
+  places that must name the old spelling to convert or refuse it. ON UPGRADE: a script calling
+  the old spelling must move to `extension-*` (SM1125's note); the sites agent has been told.
+
+- SM1142 (f2f0749a) **The upgrade moves a site to `extensions/`, and nothing reads the old name
+  after it.** Slice S1 of the rename (ruled 2026-10-17, R1 and R3: "fixup on upgrade, then its
+  done"). The engine's extensions ship in `extensions/` (deb: `/usr/share/lazysite/extensions`)
+  and a site's lazysite.conf lists them as `extensions/<file>.pl` under `extensions:`, the one
+  header every reader and the writer now accept. A one-time upgrade step (`extensions-rename`)
+  converts each site in place: it moves what is left in the old directory beside the docroot
+  into `extensions/` (an edited copy of a shipped one is kept as `<file>.from-plugins` beside
+  the release's), rewrites the list and its entries so every extension that was on stays on -
+  login rate limiting among them - re-points a hand-made cgi-bin link, moves a start page on
+  the Extensions page to its new address, removes the empty old directory, and says what it did
+  in the upgrade summary. The manager pages are `/manager/extensions` and
+  `/manager/extension-config`; the old addresses are not kept (R2). Eleven script lookups ask
+  one resolver, `Lazysite::Extensions` (t/lint/306 refuses a twelfth), and `lazysite check`
+  names a list or entry written back under the old name, by line. ON UPGRADE: check anything
+  of your own that names the old directory - a crontab running `plugins/stats.pl`, a pipe to
+  `plugins/form-smtp.pl`: they are `extensions/stats.pl` and `extensions/form-smtp.pl` now
+  (UPGRADE.md lists them).
+
+## 0.16.3 - EDGE: a confined agent stays in its scope, a rule inside another cannot widen it, and the /docs manual is the engine's (2026-11-06)
+
+- SM1337 (2c3b663a) **docs: the compliance records cover 0.16.3.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against the 0.16.3 batch and stamped 0.16.3. The register
+  records the release manager's acceptance of the SM1303, SM1308 and SM1309 entries
+  (ruling 65), and one entry for the rest of 0.16.3 that moves a control, accepted too
+  (ruling 93); SM1308 and SM1309 owe no Article 14 notice or advisory (ruling 94). The
+  architecture notes and OPERATOR.md cover the confined walks, the widening refusal and
+  SM1313's warning, the engine's /docs manual, the theme upload over MCP and the Odoo
+  settle capability. Docs only; nothing is signed.
+
+- SM1280 (9e591e18) **An Odoo operation is told whether the call came from an address list.**
+  Ruling 3 (the OOM Lab's office-network clock-in): a binding names an `address_profile` and an
+  `address_param` (a yes/no parameter), and its operation receives only 1 or 0 - never the
+  address. The server decides it from the request's address behind `trusted_proxies`, and a page
+  cannot set or override it. No address, an unknown list or an unreadable store is 0. The list
+  counts as in use, so it is not deleted while the binding names it. The key is `address_profile`
+  (ruling 58, ahead of address lists becoming address profiles); for now it names an address list.
+- SM1277 (af65be3a) **The page shows an Odoo write whose answer never came.** Ruling 10b: the
+  browser helper draws what a `write()` or `confirm()` left unknown into the page's
+  `data-ls-odoo-unknown` element, as text, with Check again, and It was made / It was not made
+  for each change only when the answer says the person may say. `LazysiteOdoo.resume` and
+  `showUnknown` are there for a page that draws it itself.
+- SM1278 (6ebdf225) **The manager lists, settles and dismisses an unknown Odoo run.** Rulings 10b
+  and 10c: the Odoo extension's row on the Extensions page has Unknown Odoo writes, each open run
+  with the changes still unknown, It was made / It was not made for a change, and Check again and
+  Close run (a dismissal) for the run. Listing and dismissing need `settle_odoo_writes`; a dismissal sends
+  nothing to Odoo, keeps who, when and why, and is one call record and one audit line. The
+  control API and MCP have `odoo-unknown-runs`, `odoo-resume` and `odoo-dismiss` (and their
+  twins).
+- SM1279 (7ee5a892) **An unknown Odoo run is kept until it is settled or dismissed.** Ruling 10c:
+  no expiry. The plan store's seven days, the daemon run folders' schedule and SM1162's purge
+  of a spent plan's file bytes no longer reach a run left unknown and still open, since a resume
+  reads its plan, its journal and the bytes of a change it sends again. Settled or dismissed, it
+  goes on the ordinary schedule and its bytes go at once.
+- SM1275 (fae8b33a) **An Odoo run that ended unknown is read back and settled.** Rulings 10a and
+  10b, with OOM 0.42's resume: an apply that left a change unknown now names its run (`run`,
+  the plan id; no path), and `POST {run, resume: true}` resumes it. OOM reads each unknown
+  change back first (found made: done, never sent again; found not made: carried), then the
+  rest of the run applies through the path a first apply takes, in-process or through oomd.
+  A change no read can tell is refused `unknown-outcome` (409), naming it, until its maker or a
+  holder of `settle_odoo_writes` says it was made (`assume_done`) or was not
+  (`assume_not_done`). Anyone the binding admits may check again. A visitor never resumes a
+  public binding's run. A confirm's token rule, the write caps, one call record and one audit
+  line naming the run and the decision.
+- SM1276 (e7e8bec7) **A capability settles an Odoo write whose answer never came.** Ruling 10a:
+  where OOM cannot read a change back, the run's own maker or a holder of a new capability
+  says whether it was made. `settle_odoo_writes` is declared by the Odoo extension, so it is
+  grantable only where the extension is installed, and every operator group holds it: a new
+  site's at once, an older site's by the SM645 top-up. A declined 0 stays declined.
+- SM1291 (7a27f58f) **a theme installs from a zip over MCP, its fonts with it.** MCP
+  `install_theme` (manage_themes) takes a theme's zip as base64 and installs it through the
+  function the manager's Upload Theme uses, so the checks and refusals are the same ones -
+  0.16.2's among them (SM1303): the site's upload limit, and no symbolic link or file type
+  the web server runs. The audit row is theme-upload's, and the caller can `delete_theme`
+  what it installed. From the lazysite.io site agent (K-5).
+
+- SM1290 (6b7f53a3) **a page previews in a theme that is not active.** MCP `preview_page` takes
+  `theme`: the page, or a draft, renders with that installed theme in place of the site's,
+  the section's and the page's own, so a theme can be checked on real pages before it is
+  activated. Nothing is activated, cached or written, and a theme not installed for the
+  layout the page renders with is refused. It needs `manage_themes` or `manage_layouts` as
+  well as `manage_content`, as the manager's theme preview does; the manager's page preview
+  takes the same `theme`. From the lazysite.io site agent (K-4).
+
+- SM1289 (f78375f8) **a form under any theme has base styles, and the theme overrides them.**
+  Under a theme with no form rules (lumen, edge observation O-4) a stepped form's fields and
+  buttons were the browser's own. `lazysite-chrome.css` now carries small base rules for the
+  engine's forms - field spacing, full-width inputs, buttons in the page's font, the step
+  fieldsets, the error line - each inside `:where()`, so its specificity is zero, and with no
+  colour beyond `currentColor` and `inherit`. Any page with a form links them, with or without
+  a layout; under a layout the link goes first in the head, so any theme rule about the same
+  element wins. Ruling 30.
+
+- SM1288 (ce8aa783) **the sign-in and search pages no longer override the theme.** The starter
+  `/forgot.md` and `/search-results.md`, and the engine's login, forgot and claim pages, each
+  opened with a `<style>` block that came after the theme's stylesheet, so on a themed site
+  those pages wore the engine's buttons and grid. The blocks are gone and the same rules are in
+  `lazysite-chrome.css` under `.lazysite-fallback`, as SM1251 did for the contact page: a site
+  with no layout sees the same pages, and a themed site sees its theme. An upgrade refreshes a
+  starter copy the site never changed and keeps one it did. Ruling 12.
+- SM1299 (bd7d2da4) **the Odoo sign-in page returns the visitor where they were going, and
+  /login offers it.** Once signed in, `/odoo-signin` goes to its `?next=` when that is a
+  path on this site, and to `/` otherwise: the endpoint decides, through the check
+  `/login`'s own return uses (now one function, which also refuses a `//` anywhere in the
+  path, for `/login` too). On a site opted in to Odoo sign-in, `/login` shows a "Sign in
+  with Odoo" link to it, carrying any `next`, beside the local form. `/odoo-signin` stays
+  reachable while the site is in maintenance, as `/login` does. Ruled 2026-10-23
+  (rulings 36-39).
+
+- SM1295 (ace93456) **a ready-made sign-in page for a site whose sign-in is the Odoo
+  login.** While `odoo_site_signin` is on, `/odoo-signin` is a sign-in page in the site's
+  own layout: a "Sign in with your Odoo login" button that opens the sign-in dialog, and,
+  once signed in, who is signed in and a sign-out. Set `auth_redirect: /odoo-signin` to
+  send visitors there. It is a system page like `/login`, so a site's own `odoo-signin.md`
+  replaces it, and with the switch off it is not found. The button is the `::: odoo-signin`
+  component, which a layout may restyle; the page carries no inline style. SM1160's
+  follow-up (#340).
+
+- SM1296 (85885cd3) **get_permissions on a page's stem answers the rule that governs the
+  page.** On edge, `/zz76/b` answered `acl: null` while `/zz76/b.md` was a draft, because a
+  move had folded the draft into the page's own key (SM1257). A stem that names a page, and
+  the page itself, now answer the page's rule as the engine reads it, with `key` naming
+  the key that holds it (and `keys` when the page and its stem each hold part). On MCP
+  `get_permissions`, the control API `acl-get` and `lazysite acl show`. A folder of that
+  name keeps its own rule. Edge walk of 0.16.1, O-3.
+
+- SM1297 (f220dc78) **the maintenance switch can be cleared back to unset.** Switched on
+  and off through config-set, lazysite.conf read `maintenance: off` where it had been
+  empty, and config-set refused an empty value. Empty is now accepted and means off, as
+  an absent key does; the Config page's switch sends it when turned off, so the key is
+  cleared. Edge walk of 0.16.1, O-1.
+
+- SM1298 (cd2c496e) **every form's unknown-rule warning says which form, in one
+  wording.** The first form's warning for a `key:value` the renderer ignores had no
+  "form 1:" and was worded differently from a later form's ("form 2: unknown form rule
+  ..."). Every form's warning now reads "form N: unknown form rule '<rule>' on field
+  '<field>': it is not one the form reads, so it does nothing when the form renders",
+  for a bare word and a `key:value` alike. What blocks a save is unchanged. Edge walk
+  of 0.16.1, O-2.
+
+- SM1294 (127e53bd) **a site may set a ceiling on the browser features its pages ask
+  for.** `permissions_policy_allow` in lazysite.conf is optional. Absent or empty, a page
+  asks for any denied feature as SM1266 made it. Set, a page's `<feature>: self` grants
+  only a listed feature: an unlisted one keeps `=()`, and validate warns naming the key.
+  `none` lets no page ask. payment and browsing-topics can never be listed: config-set
+  refuses them by name, a hand-written one grants nothing, and `lazysite check` names it.
+  On the Config page under Browser features; the site's for every domain, never set per
+  domain alias. Page status shows what the response sends. Ruled 2026-10-23 (ruling 29).
+- SM1286 (5e12820a) **`lazysite starter` clears out the starter pages a site never
+  edited.** A site keeps the starter pages it has when the default changes (SM1285), and
+  removing them was file-by-file work. `lazysite starter --docroot D --list` names each
+  as unmodified or edited, by provenance: the `provenance: lazysite-starter` stamp, and
+  the checksum the install recorded or the one shipped. `--remove-unmodified` removes the
+  unmodified ones with their cached renders, and `--dry-run` says what it would remove.
+  An edited page is never removed, nor the pages a site needs (forgot, logout, the search
+  pages). It runs as the site user, refuses root, is audited, and names a menu entry left
+  linking a removed page. Ruling 34.
+
+- SM1285 (b30b3796) **A new site arrives without the starter pages.** Provisioning laid
+  lazysite's demo, sample contact and members pages and its welcome page on every site, for
+  the owner to delete before launch. A new site now has the system pages, the site search,
+  the engine's `/docs` manual (SM1284) and a minimal home page. The engine serves that home
+  at `/` until the site writes its own `index.md`, and an access rule at `/` governs it.
+  `--starter` adds the starter pages and is remembered for upgrades. `--no-starter` is
+  accepted and means the default. A site that already has starter pages keeps them. The
+  seeded menu no longer links pages the site has not got. `lazysite demo` keeps its
+  demos. `lazysite-hestia-domain add --starter` and `LAZYSITE_STARTER=1` (Hestia deploy,
+  Docker) opt in. Ruling 33.
+
+- SM1284 (26f7b150) **The /docs manual is the engine's.** The agent briefings and the
+  manual they link into were starter content in each site's docroot. So cleaning a site
+  up for launch put at risk the pages the partner brief, `.well-known/ai-partner` and the
+  MCP instructions send agents to: theunited.community kept 30 of 70 pages by hand. The
+  whole manual now ships in the engine tree (`lazysite/templates/docs/`), every upgrade
+  refreshes it, and it serves at `/docs/` on every site, `--no-starter` ones included,
+  whenever the site has no page of its own there. A site's own page at the path wins,
+  and `lazysite check` warns that it shadows a newer version of the engine's. Access
+  rules over `docs/` govern the engine's pages too. The manual stays out of the site's
+  search, sitemap, feeds and `llms.txt` unless `engine_docs_public: true` puts it in.
+  The upgrade removes each unmodified `docs/` copy and keeps an edited one, naming it.
+  A recursive scan no longer lists pages from the `lazysite/` management tree.
+  Rulings 4, 27, 32, 34 and 35.
+
+- SM1283 (b1fafdef) **The sign-in and error pages serve when the engine tree is beside the
+  docroot.** On a site that had moved its engine tree to `<docroot>-lazysite` (SM293), the
+  engine's own `/claim` and `/login` (SM201) answered 404 whenever the docroot had no copy
+  of its own, which a fresh install never seeds. The fallback chose the engine's file and
+  the content-root check then refused it, because its real path is outside the docroot. A
+  source the fallback chose is now accepted when it sits under the engine's page tree.
+  Every other source is confined as before.
+- SM1302 (2fb0c7ff) **internal: a test opens no pipe to a child itself.** t/lint/284, t/lint/273's
+  sibling, fails a test that opens a pipe to or from a child (`'-|'`, `'|-'`, the forking open,
+  `'cmd |'`) itself, unless it says it drives the child itself or the text is fixture text.
+
+- SM1301 (c9535430) **internal: a one-way pipe in a test has a timeout too.** SM1245 bounded the
+  two-way spawns under t/ and left 58 one-way pipe opens in 54 files, mostly git, find, tar and
+  the tools under test, with no limit: a child that never exits hung its test with nothing to
+  name it. They run through TestHelper::run_child now, which fails the test naming itself and
+  the child after `child_timeout()`.
+- SM1313 (a4924496) **lazysite check names a rule wider than its enclosing rule.** 0.16.3
+  refuses such a rule unless the operator or the enclosing rule's owner writes it (SM1309),
+  and keeps the ones already stored. The check now names each stored one whose owner is
+  neither, as a WARN naming the path, the enclosing rule and whom it admits beyond it, and
+  asks the operator to review it. It changes nothing, and `lazysite repair` leaves it to a
+  person. Ruled 2026-11-04 (ruling 61).
+
+- SM1312 (6fa4fb0a) **list_pages leaves out a page the caller may not read.** It read every
+  page's title without asking the page's rule, so a gated page still in the document root
+  (protected before 0.10.8, or under a rule with only address lists) had its title listed.
+  Ruled 2026-11-04 (ruling 60).
+
+- SM1311 (b9542a81) **a confined audit is of its scope.** `audit_site` walked the whole site
+  for a grant confined to a scope. It now audits the scope (`scope_roots`). A link to a page
+  outside it is listed in `outside_scope_links`, never as broken, and its target is not
+  looked up; a path on the domain the scope root serves is read there. An unconfined
+  audit is unchanged. Ruled 2026-11-04 (ruling 59).
+
+- SM1310 (c364fdcb) **replace_text refuses a page changed under it.** It saved without the
+  modification time it read, which skips the save's conflict check, so of two agents
+  replacing text on one page at once both answered `replacements: 1` and one change was
+  lost. It saves with that time now: a page another writer saved in between is refused as a
+  conflict (`kind: conflict`), nothing written, and the agent is told to run it again. The
+  check's resolution is one second. Ruled 2026-11-04 (ruling 51, part (a); `write_file`'s
+  base version is 0.16.4).
+
+- SM1309 (643e4e02) **a rule inside another may narrow it; only the operator or the
+  enclosing rule's owner may widen it.** A subfolder's rule replaces its parent's for a mode
+  (longest match), and anyone who may write a path may write its first rule, so a member of
+  a protected area, or the member's agent, opened a subfolder to a non-member with one
+  `set_permissions` call. Writing a rule that admits, to read or to write, anyone the
+  enclosing rule does not is now refused (`kind: widens-enclosing-rule`, naming the
+  enclosing rule) unless the operator or that rule's owner writes it, on the manager, the
+  control API, MCP and `lazysite acl set`. A move that would carry such a rule inside the
+  area is refused the same way, on the manager, MCP and WebDAV. Longest match stays, so an
+  operator's carve-out still works, and an existing carve-out can be re-applied by its
+  owner. Ruled 2026-11-04 (ruling 46).
+
+- SM1308 (630b5735) **a confined agent lists and searches only its scope.** An MCP grant
+  confined to a scope was answered `list_pages`, `list_files` and `search_files` from the
+  whole docroot when it named no path, because the scope check skips an argument that is not
+  given; and the search printed lines of files whose rule the caller does not pass. A
+  missing or empty path is now the grant's scope roots, the walks stay inside them (as do
+  `delete_page`'s reference list and `rename_page`'s link rewrite, which wrote pages outside
+  the scope), and each search hit is a file the caller may read. The manager API's `list`
+  with no or an empty path, and `pages`, answer a confined caller the same way. Ruled
+  2026-11-04 (ruling 47).
+
+- SM1274 (adf2903a) **Dismiss all empties the notices panel.** "Mark all read" marked every
+  notice read and left them all in the panel. Now called Dismiss all, it also takes them out:
+  the panel is empty and the count 0, on screen and on the next page, and the notices stay in
+  the store, as a single Dismiss leaves them. A notice that arrives afterwards is unread. The
+  manager offers it whenever the panel holds a notice; a member's own bell does the same.
+  Ruled 2026-10-23 (ruling 26).
+
+- SM1273 (a28ef0d0) **lazysite repair gives a manager group the capabilities a release
+  added.** A site whose only warning was a manager group's not-yet-held capability was left
+  "awaiting your decision", though there was nothing to decide. Before it checks again,
+  repair now runs the users tool's top-up (`group-reach` for each manager group, as the
+  site's owner when run as root), so the site ends repaired. A declined capability stays
+  declined. `--dry-run` names the commands and runs none, and a failed call is reported
+  and the repair goes on. The check's warning names `repair --domain DOMAIN` as the
+  simplest fix.
+
+- SM1272 (15c2c6a1) **the check says a manager group is granted a new capability on the next
+  use, not that it must decide.** After an upgrade, `lazysite check` told an operator that
+  sysops had "not decided" on a capability the release added (on edge, `maintenance_access`)
+  and asked them to grant or dismiss it on the Groups page. The SM645 top-up grants a manager
+  group every capability it has no decision on, on the next use of the users tool, so the
+  warning now says that and names the use: opening the Users, Groups or Config page, or a
+  `lazysite-users.pl` command such as `group-reach`. A declined capability stays declined. A
+  gap the top-up does not fill keeps the Groups page wording. This corrects the 0.16.1 line
+  for SM1118, "on upgrade too (an upgrade adds the `cap-maintenance` bundle)": nothing is
+  granted at upgrade. The operator group and site-admins get `maintenance_access` on the
+  next use of the users tool after the upgrade (SM685, kept by the release manager on
+  2026-10-23).
+
+- SM1270 (b7be28de) **acl-remove needs a path.** The control API's `acl-remove` with no path,
+  or an empty one, removed the site-wide rule and published everything it held back (the
+  dispatcher's `/` default, which SM306 kept for recovery). It is refused now, on every
+  channel and before the scope check, with a message saying the site-wide rule is removed
+  with `path=/`; `Files::action_acl_remove` refuses it for the CLI and MCP too. The action
+  declares `path` required, as MCP `remove_permissions` does. `/`, `.` and `./` still remove
+  the site-wide rule. Ruled 2026-10-23 (ruling 17), replacing SM306's no-path default.
+- SM1316 (c093a5e8) **docs: the Hestia updater is given its stage once.**
+  `lazysite-hestia-update-all.sh` defaults its stage to the release it runs from, and every
+  command that told an operator to run it named the stage twice
+  (`bash STAGE/installers/hestia/lazysite-hestia-update-all.sh --force-security STAGE`).
+  OPERATOR.md, UPGRADE.md, the hint `lazysite upgrade --all` prints on a Hestia host and the
+  deploy hook's own command drop the second one, and the updater's usage says it need not be
+  given. t/lint/292 refuses the doubled form anywhere outside the release history (ruling
+  45).
+
+- SM1315 (83bab8b6) **release: the deploy hook passes `--force-security` itself.** A
+  release whose manifest declares `"security_critical": true` was deployed by
+  `tools/lazysite-deploy.sh` with its usual flags, so the Hestia updater scoped it by each
+  site's `update_channel` and the operator pushed it to the rest by hand. The hook now reads
+  `release-manifest.json` from the tarball it deploys and adds `--force-security` to the
+  updater's flags when the key is true; a missing or false key adds nothing, and a manifest
+  it cannot read adds nothing and says so. It still deploys only a strictly higher version
+  (ruling 45).
+
+- SM1314 (28b0d2eb) **release: a security release is cut on stable.** 0.16.2 was cut
+  `--security-critical` on edge, so the standard deploy reached only the edge sites and the
+  rest were pushed by hand with the Hestia updater's `--force-security`.
+  `tools/release.sh build X --security-critical` now refuses (exit 2) unless `--final` (or
+  `--certified`) is given too, before a receipt is read, saying a security release is cut on
+  stable so the standard deploy reaches every site. OPERATOR.md, UPGRADE.md and
+  docs/development.md give the stable form (ruling 45).
+
+## 0.16.2 - EDGE: a security release: a theme archive cannot plant a link in the served asset mirror (2026-10-23)
+
+- SM1307 (a33a0406) **security: a security release reaches the stable sites of a Hestia
+  fleet.** `lazysite upgrade --all --force-security` reaches registered sites, and a Hestia
+  host registers none, while its updater scoped by `update_channel` alone.
+  `lazysite-hestia-update-all.sh --force-security` deploys a release whose manifest declares
+  `security_critical` to the sites whose channel refuses it (`install.pl --force-security`,
+  through the per-site deploy), names each one in the table, the findings and the summary,
+  and audits it as `upgrade-forced`; excluded sites stay excluded. Both refuse the flag for a
+  release that does not declare it. `upgrade --all` on such a host names the updater
+  instead of reporting nothing to do (ruling 41b).
+
+- SM1306 (6bbe2fe6) **docs: the compliance records cover 0.16.2.** OBLIGATIONS.md and
+  TECHNICAL-FILE.md are walked against this security release's changes (SM1303-SM1305) and
+  stamped 0.16.2: the SM1303 register entry, the SBOM on the 0.16.2 tree, 0.16.2 as the first
+  release cut security-critical, and an operator row for SM1304's planted links. Docs only;
+  nothing is signed.
+
+- SM1305 (c8f8d554) **release: `tools/release.sh` cuts a security release.**
+  `--security-critical` is passed to `build-manifest.pl`, so the shipped manifest carries
+  `"security_critical": true`, the declaration `lazysite upgrade --all --force-security`
+  needs before it overrides every site's channel and policy. A build without the flag
+  carries no such key. OPERATOR.md and docs/development.md say how (ruling 41b).
+
+- SM1304 (6d23dfaf) **security: `lazysite check` names a symbolic link in the served asset
+  mirror.** A link a theme upload planted before 0.16.2 (SM1303) stays after the upgrade,
+  still serving what it points at. The check now warns for every symbolic link under
+  `lazysite-assets/`, naming it and its target, and the line says to remove it and rotate
+  `lazysite/auth/.secret` (the manager's Sessions page, "Log out all users"). It never
+  deletes one, and `lazysite repair` counts such a site as needing a human, not as repaired
+  (ruling 42).
+
+- SM1303 (dac205ff) **security: a theme archive cannot plant a link in the served asset
+  mirror.** The manager's Upload Theme (`theme-upload`, `manage_themes`) extracted a zip's
+  symbolic link and copied it into `/lazysite-assets/` as a link, so a public URL served any
+  file the web server can read - `lazysite/auth/.secret`, the session-signing secret, among
+  them, from which an operator's session could be forged. Every release up to 0.16.1 is
+  affected. Every entry is now checked before any is extracted: a symbolic link, a file type
+  the web server runs (`.php` and the rest) or an archive over the site's upload limit
+  refuses the whole archive. `docs/SECURITY.md` records it, drafted for the release manager.
+
+## 0.16.1 - EDGE: the first batch on the 0.16 line: a moved draft stays a draft, and maintenance mode (2026-10-23)
+
+- SM1269 (b81c128e) **docs: the compliance records cover 0.16.1.** The 0.16.1 edge gate
+  refused with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.16.0. Both are walked against
+  this release's changes and stamped 0.16.1. The significant-change register in
+  `docs/SECURITY.md` has five drafted entries for the release manager to confirm: the
+  warm-forked Odoo endpoint (SM1226, a new local socket), the stem-rule fix (SM1257), the
+  Odoo options and OOM 0.42, the Docker Compose package, and the changes that fired no
+  trigger. The threat model gains the warm-fork parent as a trust boundary, and
+  OBLIGATIONS.md an operator row for SM1219's account names. Docs only; nothing is signed.
+- SM1263 (c9499210) **MCP can remove an access rule.** `remove_permissions { path }` is the
+  twin of the control API's `acl-remove` and `lazysite acl remove`: the same function, so the
+  same `manage_content` capability, owner refusal, site-wide `/` and audit action
+  (`acl-remove`). `set_permissions` with empty lists only clears a rule's lists. The MCP tool
+  requires its path; the control API's `acl-remove` keeps SM306's default (no path removes the
+  site-wide rule, so recovery stays easy).
+- SM1262 (53a69904) **a bundle is adopted once, and a deleted one stays deleted.** Bundle
+  adoption could not tell a bundle a site never had from one an operator deleted, so a
+  deleted bundle (a `ch-files` taken out to deny WebDAV) came back on the next use of the
+  users tool. The bundles a site has had - present at the first run, seeded, or adopted - are
+  recorded in `auth/bundles-adopted.json`, and a recorded bundle is never adopted again. An
+  unreadable record adopts nothing.
+- SM1258 (c3e4a750) **a WebDAV delete takes a page's stem rule with it.** WebDAV DELETE
+  dropped only the page's own rule, so a rule keyed by its stem waited for the next page
+  written there. It now drops it under SM1242's rule (the exact stem key, only while no
+  folder of that name exists), and the manager's delete and WebDAV call one shared function.
+- SM1257 (09684d7a) **a page drafted through its stem stays a draft when it moves.** A rule
+  set on `/about` is stored as `about` and holds `about.md` back; every mover re-keyed only
+  the page's own key, so a moved page left its draft behind and was published at its new
+  path, its bytes back in the document root. The stem rule now moves with the page through
+  one shared function (`Acl::fold_page_stem`), in the manager's move, MCP `move_file` and
+  `rename_page`, the control API's move and WebDAV MOVE, while no folder of that name exists.
+- SM1244 (269ff00c) **lazysite check warns of an OOM that can resend a write.** OOM 0.37 and
+  earlier can send a write again when its answer timed out, so a change can be made twice in
+  Odoo. While the Odoo extension is on, the check names the OOM the site loads (version and
+  file) and warns below 0.38, with the fix: install OOM 0.38 or later. A running oomd that
+  reports an older OOM gets the same warning.
+- SM1243 (4db4d2fb) **the offline pages refusal says the list takes commas.** An
+  `app_offline_pages` value of paths separated by spaces was refused as one path that is not
+  plain, without saying the list is separated by commas. The refusal now says so and shows
+  the list written that way.
+- SM1242 (27b0769b) **a draft is called a draft, and a page's rule goes with it.**
+  set_permissions (acl-set) judged only the page's own record, so a page inside a draft
+  folder, or under a folder's read list, was told "anyone may still fetch these pages". The
+  reply now asks the rules that decide, after the save, and a draft with no read list carries
+  `draft_note`: 404 to the public, a preview for any signed-in account. Deleting a page
+  (delete_page, the control API, the manager) also drops a rule keyed by its stem, while no
+  folder of that name exists.
+- SM1241 (a854ba6f) **every shipped bundle reaches an existing site.** Bundles were seeded
+  only when groups-settings.json was absent, so cap-tidy, cap-services and any later bundle
+  reached new installs only; SM1118 adopted cap-maintenance alone. Every bundle in the shipped
+  nesting is adopted now, on the next use of the users tool: only when it is absent, only for
+  the shipped roles present, never rewriting an edited group, and only on a site that already
+  has the bundle layer, so a site whose roles predate the bundles is left as it is.
+- SM1240 (896ab776) **the sign-in rate counter is made for the serving group.** The login
+  rate limiter created `auth/.login-rate.db` 0600, so only its creator could open it; the
+  0.16.0 rollout found it owned by the site user on two sites, where the www-data CGI could
+  not open it and allowed every attempt. It is now created 0660 under any umask, in the auth
+  directory's group, and a counter the process owns that lost group access gets it back. The
+  limiter still fails open when it cannot open the counter.
+- SM1261 (510802aa) **a confirm whose daemon run is gone says to make the plan again.**
+  oomd finds a confirm's plan by its run folder. When that folder or its plan file was
+  gone, the page was told "the Odoo connection is not configured correctly" (`config`,
+  503). It now answers `not-found` (404), "this plan is no longer held by the Odoo
+  daemon - make the plan again", naming no path, on the page endpoint, the control API
+  and MCP alike. t/unit/odoo/104.
+- SM1248 (4ea417dd) **a change of `odoo_packs` reloads oomd with no gap.** oomd used to
+  read the site's packs from its environment at its start, so the service restarted it
+  when `odoo_packs` changed. While it restarted, a call was refused as `daemon-down`
+  (`odoo_daemon: required`) or ran in-process (`on`). oomd's config now names the
+  packs (`namespaces`, OOM 0.39 and later). On a config save the service asks oomd's
+  `reload` verb, which swaps in new workers with the socket kept, and logs the answer
+  or why it was refused. A call made meanwhile waits and is answered by the daemon.
+  The restart for a changed `odoo_packs` is gone. An OOM before 0.39 keeps reading the
+  packs at its start, and the service logs that a change waits for it.
+  t/unit/odoo/103, t/unit/daemon/14.
+- SM1247 (36a3434f) **internal: lazysite's vendored OOM is 0.42.** The pinned
+  snapshot in `t/vendor/oom` moves from 0.38 to OOM 0.42 (b91d5e2), skipping 0.39
+  to 0.41. Each change of 0.39 to 0.42 was checked against lazysite. Only oomd's
+  config `namespaces` and its `reload` verb reach it, and SM1248 adopts them.
+  Every Odoo test passes on the new snapshot unchanged. SM747's spec is re-filed.
+  t/lint/207, 261.
+- SM1265 (ce3eb088) **`--rebuild-exposed` rebuilds only the sites in the X-Forwarded-For failure.**
+  A site whose front end passes the client's X-Forwarded-For through to a site that trusts
+  forwarded addresses lets any visitor choose their address (SM1194). The Hestia updater's
+  new opt-in `--rebuild-exposed` rebuilds those in-scope sites and no others, after the
+  template refresh and before the deploy, so the permission pass and the repair follow
+  (SM270). Each is logged as auto-rebuilt. Without the flag the FAILURE line names it. It is
+  refused with `--list` (#379, ruled option B).
+- SM1249 (f0a4772b) **the Hestia site list sees every lazysite template.** `lazysite-hestia-list.sh`
+  matched only the lazysite-app web template, so a host whose sites use lazysite-cgi or
+  lazysite-fcgi behind lazysite-proxy listed 0 sites. It now lists every domain on a lazysite web
+  template (lazysite, -app, -cgi, -fcgi) or on the lazysite-proxy proxy template, reads each field
+  by name, and shows the template. `--tpl NAME` narrows the list to one. The batch updater still
+  deploys only lazysite-app domains (#379).
+- SM1239 (5a60a9e1) **NOT SERVICEABLE is the verdict of the check after the repair.** The 0.16.0
+  rollout reported two sites NOT SERVICEABLE and, in the same run, "repair: 32 clean". The verdict
+  was the deploy's own final check, run straight after the install; the repair runs later on
+  every site. A site whose repair passes is now `updated (repaired)`, with a finding saying the
+  deploy's check failed first. One whose repair does not pass stays NOT SERVICEABLE.
+- SM1238 (05d8831c) **the ACL dry run names what has not moved, and the Hestia updater runs it.**
+  The 0.16.0 notes tell the operator to run `lazysite-acl.pl reapply` without `--apply` on each site
+  and report each `NOT MOVED: <path>` line. The dry run never printed one: it listed every rule.
+  It now names each read-listed or draft rule whose files are still in the document root (the
+  SM296 state), moving nothing; `--json` carries `not_moved`. `lazysite-hestia-update-all.sh
+  --reapply-acls-dry-run` runs it on every site that upgraded, as the site's own user, reports
+  each line as a finding and exits 2 if there is one (#378).
+- SM1237 (e9330fee) **a probe that could not run says why.** The 0.16.0 rollout ended "probe: 16
+  clean, 0 exposed, 16 could not run" with no reason given. `lazysite probe` now prints a reason
+  for every site it could not confirm: the skip's cause, the probe's own no-answer verdict, or
+  that the check gave no verdict, with its last line. The old guess ("run lazysite repair") is
+  gone. The rollout reports each reason as a finding, grouped with its sites, and counts a probe
+  command that did not finish as could-not-run rather than exposed. A half-applied probe rule
+  names its cause. A root `--fix` creates the private store where the engine cannot (the Hestia
+  domain folder is 0551), so the probe can run on a site that never protected anything.
+- SM1236 (1289daa1) **the rollout names a command this host runs, and the repair after a rebuild.**
+  The 0.16.0 rollout said `lazysite check --domain D` on hosts deployed from the tarball, which
+  puts no `lazysite` on PATH. Every hint in the updater, the deploy, the CLI and the check, acl
+  and hestia-domain tools now names `lazysite` when it is on PATH and `perl <stage>/tools/lazysite-cli.pl`
+  otherwise (passed down as `LAZYSITE_CLI`), and offers `repair --domain D` rather than
+  `check --fix`. A hint naming `v-rebuild-web-domain` names the repair after it, because a
+  rebuild resets the docroot to 2751 (SM270). `--rebuild` already repairs the sites it manages;
+  a domain it rebuilds and does not manage is now told the repair command.
+- SM1235 (2091a8a5) **the rollout reports a message that differs only by a path once.** On the
+  0.16.0 rollout one site's findings held about seventy "both trees held 'docs/X.md' ... moved
+  to <dir>/docs/X.md" lines, one per file, and the report could no longer be copied. The quiet
+  report now normalises paths before grouping: such lines are one finding with the count, the
+  directory the paths are under per site (the displaced directory), three examples and a file
+  with the full list (`LAZYSITE_FINDINGS_DIR`, default `$TMPDIR`). This covers every per-path
+  finding. A message with no path reads as before.
+- SM1266 (6d322cff) **a page may ask for any browser feature the platform denies.**
+  SM1174 let a page say `camera: self`; the same key now works for every feature in the
+  Permissions-Policy denied list - `geolocation: self`, `microphone: self` - on the
+  camera's terms: that page alone, over https only, front matter only, kept per page
+  through the cache. A page that asks for nothing sends exactly the header it sent
+  before, and the camera behaves as it did. The validator reports a value other than
+  `self` or `none` (`permission-unreadable`) and a `<key>: self` that names no such
+  feature (`permission-unknown`, a warning); page_status and the editor's status bar list what a
+  page allows. `payment` (the paid-page key) and `browsing-topics` (no trackers) cannot be asked for.
+  The site-level allow list is later.
+- SM1267 (bc6a26a4) **the briefings name the denied browser features.** The authoring and
+  layouts briefings list every feature Permissions-Policy denies and say how a page asks
+  for one, so an author learns a microphone or location feature needs the page key
+  before a visitor reports that it does not work (SM710).
+- SM1245 (834e04a8) **internal: a test child never deadlocks on its pipes, and never hangs
+  the suite.** t/unit/dav/33 sat 95 minutes in the 2026-10-20 14:30 suite run: run_dav read
+  the child's stdout to EOF before its stderr, with no limit, and 232 files under t/ had
+  their own copies of that block, 381 in all. TestHelper::run_child writes stdin while it
+  reads stdout and stderr, and a child still running after five minutes (twenty under
+  Devel::Cover) is killed and the test fails naming itself, the child and the wait. The
+  helpers and the copies run through it; t/unit/lib/207 hangs on the old run_dav.
+- SM1246 (70b2272a) **internal: a test runs its children through run_child.** t/lint/273
+  fails a test that calls open2 or open3 itself, unless it says it drives the child itself
+  (signals it, or reads it while it runs).
+- SM1233 (f712a7f7) **a Docker Compose package.** `installers/docker/` is no longer a
+  placeholder: nginx, the one-rule FastCGI pool and `lazysited` in one container,
+  the engine in the image and the site in three volumes (the docroot, `lazysite/`,
+  the private store), built locally from the unpacked release tarball with
+  `docker compose build` - no registry image, and no Odoo. The first start runs
+  `install.pl` into the empty volumes; later starts leave their data alone and a new
+  image upgrades the site in place. The first account is `setup-sysop`, as at the end
+  of any install. The package ships in the tarball (the placeholder's export
+  exclusion is gone and the manifest lists it), documented in
+  `installers/docker/README.md` and `docs/IMPLEMENTOR.md`; t/tools/210 holds it
+  without Docker.
+- SM1219 (b8ed6fbc) **the visitor log names the signed-in account.** A visit made while signed in is
+  recorded with the account the engine verified (never a header a client sent; an anonymous
+  visit has none), kept as long as the rest of the log. analyse_visitors takes `by_account`
+  (analytics; a domain-confined caller sees only its own domains' accounts) and the manager
+  Stats page lists the visits per account. The analytics capability's text no longer says it
+  cannot identify a visitor. Account names are personal data: telling members is the operator's
+  duty (operator guide).
+- SM1118 (735eec5f) **a site can be put into maintenance.** `maintenance: on` (Config page; per
+  domain on the Domains page, `alias.<host>.maintenance: on`, with the instance switch covering
+  all) sends every page request by 302 to `maintenance_page` (default `/maintenance`, a shipped
+  system page); the page answers 503 with Retry-After (`maintenance_until`, UTC). A new
+  capability, `maintenance_access` (Access during maintenance), is what gets an account through:
+  the operator group and the site-admins role hold it, on upgrade too (an upgrade adds the
+  `cap-maintenance` bundle to an existing site), and any group can be given it. A posted form is
+  refused and not stored, and MCP, the control API, WebDAV and the data endpoint answer 503 to an
+  account without it. The check is in the processor, so it holds behind the wrapper, on the
+  split templates and in the one-rule pool. `lazysite check` warns while it is on.
+- SM1220 (f45dacda) **the Hestia deploy no longer lists four "could not read ... Permission denied" warnings.** They came from install.pl's own health check, which the deploy runs as the site user, who cannot open the web server group's private store. The deploy passes install.pl `--health-check-by-caller`; its final check already runs as root, after the permission pass, and is the one verdict. No group change.
+- SM1222 (fea99edd) **the dev server takes extension directories.** `tools/lazysite-server.pl
+  --extensions DIR` (repeatable) adds directories to look for extensions in, so an app's
+  extensions need not be copied beside the docroot. They are searched in the order given,
+  before the docroot's `plugins/`; a name in two is served from the first, and the startup
+  lines say so. A symlinked directory stops the server; a symlinked script is skipped. The
+  dev server only: an installed engine's lookup is unchanged.
+- SM1221 (fb2e5c3a) **a signed-out call to the manager API answers 401, not 400.**
+  A request with no sign-in answered `400 {ok:false, error:"Authentication required"}`, the
+  status for a malformed request. It answers 401 with the same body, now with kind
+  `unauthenticated`, and no `WWW-Authenticate` (the session is a cookie). A site with no
+  manager account yet answers 503 (`not-set-up`) in its own wording: nothing to sign in to.
+- SM1223 (58890621) **a binding passes the caller's idempotency key to OOM.** A page that queues its
+  writes offline sends an `Idempotency-Key` header per item (8 to 128 characters); it is hashed with the
+  binding and who sent it into OOM's `idem`, so nobody collides with or replays another person, and a
+  repeat answers the first plan or result (`repeat: true`) instead of writing twice, in process and
+  through oomd, for an immediate apply and for plan and confirm. The call record has `idem` and `repeat`.
+  The browser helper takes `{ idempotencyKey }`.
+- SM1224 (65c229f7) **a rows key's declared max raises its cap.** lazysite held every request value to
+  1,000 characters, so a rows key an operation declares with its own `max` (OOM 0.38, up to
+  1,048,576) was refused past 1,000 though OOM accepts it. That `max` is now the key's cap;
+  an undeclared key keeps 1,000. A JSON body over 64 KB names its binding in the query and is
+  held to that binding's budget (20 MB at most), so a declared large value is not refused
+  by the body cap first.
+- SM1225 (2dc27941) **a report is a download.** A binding with `answer: download` is answered to
+  a GET with the document its report holds (OOM `core.report` with `inline=1`) instead of base64
+  in JSON: OOM's content type, a safe file name, `Content-Length`, `Cache-Control: private,
+  no-store`, and a size cap (`download_max_kb`, default 10 MB) over which it is refused, never
+  cut short. The binding's gate, callers, rate caps and both paths (in-process, oomd) are the
+  call's own; a binding without the option answers JSON as before.
+- SM1226 (9b8dee47) **security, performance: the Odoo endpoint runs warm-forked.** Every
+  Odoo call used to start a perl and compile the endpoint. A parent per site, supervised
+  by lazysited (the `odoo-endpoint` service, on a site with a pool conf and the Odoo
+  extension on; never on a plain-CGI site), now holds the compiled endpoint and nothing
+  else: no configuration, no key, no request. It forks a fresh child for each request,
+  and the child runs the endpoint as the CGI does and exits. The one-rule pool hands it
+  the endpoint; the split FastCGI templates (nginx and Apache `vhost-fcgi`, Hestia's
+  fcgi templates) now send `/cgi-bin/lazysite-odoo.pl` to the pool, which hands it on.
+  With no parent listening the pool runs the CGI. It restarts when the engine changes on
+  disk. An Odoo read through the pool went from 116 ms to 17 ms on the dev host.
+  Regenerate a split-template vhost to take the new location.
+- SM1164 (d9d729fb) **internal: the surface bench measures an Odoo call through oomd.**
+  `tools/bench-surfaces.sh --surface odoo-oomd` (D5) times a read binding end to end
+  against the vendored oomd and OOM's fake Odoo. It splits each call into the program
+  start, the endpoint's own work and the call. `--with-warm-fork` adds SM1226's parent.
+- SM1228 (81539a35) **the practice copies take the extension-* action names.** The served
+  field-practice briefing and its source docs/practice/app-practice.md taught `plugin-list`,
+  `plugin-action`, `plugin-read` and `plugin-save`; they name the `extension-*` actions now (the
+  old names are still served, audited as deprecated). t/lint/266 scans the briefing too.
+- SM1229 (1f80f332) **an address list a binding names is not deleted by accident.** The delete
+  guard read pages, access rules, groups and lazysite.conf but not a session binding's own
+  `signin_addresses` / `signin_addresses_deny`, so such a list could be deleted and the binding
+  then refused every call. The manager and the control API now refuse it, naming each binding
+  (with `force` as before).
+- SM1250 (08066592) **a multi-step form no longer restyles a themed page.** A page with a
+  `--- step ---` form links `/assets/lazysite-chrome.css` for its step rules, under any layout, and
+  the file's fallback page rules were bare element selectors: on a themed site every such page took
+  the system font, an 800px column, 2rem margins and #333 text, since the link comes after the
+  theme's stylesheet. The fallback template's `<body>` now carries `class="lazysite-fallback"` and
+  every page rule in the file is scoped to it, so a layout's page gets the form rules only. A theme
+  that worked around it (`html body { ... }`) can drop the workaround. t/unit/processor/148.
+- SM1251 (fe75f66a) **the starter contact page no longer overrides the theme's form styles.** The
+  shipped `/contact.md` opened with a `<style>` block (blue buttons, a two-column label grid) that
+  came after the theme's stylesheet and beat its form rules on that page. The block is gone; the
+  same rules are in `/assets/lazysite-chrome.css` under the fallback template's body class, so a
+  site with no layout looks as before and a themed site gets its theme. An upgrade replaces an
+  unmodified copy of the page and keeps a customised one (t/tools/211 runs it). `validate_page`
+  already warns on a `<style>` in page content (`style-block-in-page`).
+- SM1252 (7866e16f) **a stepped form no longer leaves empty paragraphs inside itself.** A
+  multi-step form's output began with its stylesheet `<link>`, which the Markdown pass does not take
+  for block HTML, so the head of the form was wrapped: `<p><link><form>` ... `</p>` and
+  `<p></form>`, and every stepped form had stray spacing. The link is emitted inside the form, after
+  the opening tag, so the form passes through as a single-step one does. t/unit/processor/149.
+- SM1253 (fb97b34e) **validate_page no longer reports valid form rules as unknown.** The form check
+  split a field's rules on whitespace and knew ten words, so a radio or checklist option with a
+  space, a quoted `placeholder:"Your full name"`, and the `file`, `multiple` and `capture` rules
+  were each an `invalid-form-rule` issue, failing a page that renders correctly. The validator cuts
+  the rules with a marked copy of the renderer's tokeniser and knows every rule word the renderer
+  takes. t/lint/276 runs both: it takes the renderer's accepted words from the renderer itself and
+  compares the two cuts over every form line in the tree and a generated set.
+- SM1254 (f94da757) **a quoted page variable reaches the layout without its quotes.** A
+  `tt_page_var:` entry kept its quote marks, so `hero_cards: "a,b,c"` reached the layout as
+  `"a,b,c"` and a split gave `"a` and `c"`. One matched pair of quotes is taken off, as it is for
+  a top-level front-matter key; an unquoted value is unchanged. A quoted source
+  (`x: "json:/d.json"`) now binds as the unquoted one does. t/unit/processor/150.
+- SM1255 (86a3c29f) **docs: the shipped docs say what the engine does.** From the lazysite.io
+  content check: the pre-layouts Views page (`view.tt`) is removed and its links point at Layouts,
+  and the per-page layout override page describes `lazysite/layouts/NAME/layout.tt` and the
+  built-in fallback; the per-host key list has all 29 keys (and the env allowlist `REQUEST_URI`);
+  the session registry prunes at `session_lifetime`, not a fixed 24 hours; the connect code lasts
+  30 minutes; the CSP shipped report-only by default (FEATURES.md said enforcing); the bad-URL
+  block list is on the plugin's own page; and a cached page is served by the processor, not the
+  web server. t/lint/274 asks the code for each fact.
+- SM1256 (2266ca2b) **the Hestia integrator takes the certified channel.** `lazysite-hestia-domain
+  add --channel certified` was refused ("must be 'edge', 'beta' or 'stable'") although ADR 0010
+  added the rung and `lazysite provision`, which the integrator passes the value to, accepts it.
+  The check, the usage and the POD take all four. t/tools/212.
+- SM1259 (0e667758) **a certified cut gets past the manifest build.** `release.sh --certified`
+  passes `--channel certified` to `build-manifest.pl`, which accepted only edge, beta and stable and
+  died, so the first certified cut would have stopped there. It takes the fourth rung (ADR 0010);
+  an unknown channel is still refused. t/tools/213.
+- SM1260 (585f16bf) **a site can be put on the certified channel from the manager.** config-set
+  (the Config page and the control API) refused `update_channel: certified`, and the page did not
+  offer it, though ADR 0010 says a site that requires certification sets exactly that and the
+  installer honours it. Both take it now. Every other channel validator in the tree was checked:
+  install.pl and the CLI already took it (now pinned), and SM1256 and SM1259 fixed the Hestia
+  integrator and the manifest build. t/unit/manager/17, t/tools/215.
+- SM1264 (f0c55990) **validate_page warns on a form rule the renderer ignores, in every form.** An
+  unknown `key:value` (`maxx:5`, `capture:front`) was passed silently, and only a page's first
+  `::: form` block was read. Both are reported now as warnings that never block a save
+  (`unknown-form-rule`, `pattern-will-not-compile`, a later block's messages naming its number);
+  `invalid-form-rule` and `uncompilable-pattern` still block exactly what they blocked. The
+  valued rules are read by a marked copy of the renderer's, held to it by t/lint/276.
+  t/unit/lib/206, t/unit/mcp/01.
+
+## 0.16.0 - STABLE: the stable release of the 0.15 line (2026-10-22)
+
+- SM1230 (902e2784) **coverage fits around the night's other work.** The 01:30 cover-once was refused on
+  2,904 MB of swap in use with 7,075 MB available (the host carries swap all day). Swap in use no longer
+  refuses a heavy job (a note, as in the gate); only MemAvailable under 5 GB, disk, inodes or the lock do.
+  A stand-alone `tools/coverage.sh` runs under `nice -n 19 ionice -c3` with 2 jobs (`LAZYSITE_COVER_JOBS`),
+  has no time limit, resumes from the groups already recorded, and a second start exits 2.
+
+- SM1231 (d5739370) **docs: the stable gate's records are walked for the 0.16.0 stable.** The
+  threat model (`docs/architecture/security.md`, `docs/SECURITY.md`) takes in the trust
+  changes since 0.11; the held SM1219 and SM1118 are held for 0.16.1, not in the 0.16.0
+  stable. The significant-change register has ten drafted entries for the release manager
+  to confirm; SM747's (the Odoo extension) is accepted. OBLIGATIONS.md and TECHNICAL-FILE.md
+  are walked row by row against the code of 0.15.15 (which is 0.16.0's) and stamped 0.16.0,
+  with what a person must confirm, and the Declaration of Conformity is an unsigned draft
+  for 0.16.0, saying so at its top. Docs only; nothing is signed.
+
 ## 0.15.16 - BETA: 0.15.15 promoted to beta (2026-10-20)
 
 - SM1234 (75348147) **release: the 0.15.15 stable candidate is promoted to beta.** Its

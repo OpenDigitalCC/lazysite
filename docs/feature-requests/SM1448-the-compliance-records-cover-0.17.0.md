@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1306 to SM1441); release manager, rulings 227 and 242"
 area: release
-status-note: "SHIPPED (PENDING) on n826. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.0, channel stable; SM1444's, SM1446's and SM1447's entries and the walk's, no trigger, confirmed by the release manager on 12 Nov 2026 (ruling 251); one STRIDE row; the Declaration of Conformity restamped, unsigned; UPGRADE.md's one 0.17.0 section. Docs only."
+status-note: "SHIPPED (0.17.0) on n826. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.0, channel stable; SM1444's, SM1446's and SM1447's entries and the walk's, no trigger, confirmed by the release manager on 12 Nov 2026 (ruling 251); one STRIDE row; the Declaration of Conformity restamped, unsigned; UPGRADE.md's one 0.17.0 section. Docs only."
 ---
 
 # What was asked

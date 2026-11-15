@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-11
 raised-by: "the 0.16.12 release gate (t/tools/158 killed after 300 s); release manager, ruling 244"
 area: tests
-status-note: "SHIPPED (PENDING) on n821. t/tools/158 runs the real tools/coverage.sh from a fixture root with no coverage-inputs.pl, so the 238 s cold-cache digest does not run: 0.26 s, was 283 s. All 9 assertions kept, deadline unchanged. Three sabotages each fail it. Test-only."
+status-note: "SHIPPED (0.17.0) on n821. t/tools/158 runs the real tools/coverage.sh from a fixture root with no coverage-inputs.pl, so the 238 s cold-cache digest does not run: 0.26 s, was 283 s. All 9 assertions kept, deadline unchanged. Three sabotages each fail it. Test-only."
 ---
 
 # What happened

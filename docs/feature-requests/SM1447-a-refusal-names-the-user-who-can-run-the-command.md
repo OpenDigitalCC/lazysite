@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "the 0.16.12 edge field pass (Y1 and B3 of the test results), built by the lazysite developer agent on n825"
 area: reliability
-status-note: "SHIPPED (PENDING) on n825. The user to run as is the owner of the store files a command reads and writes (acl, handlers, check, users: one Util helper). The profile refusal and the upgrade name the owner. The check prints no ok for a walk that missed part of the tree, and spells every command by cli_spelling."
+status-note: "SHIPPED (0.17.0) on n825. The user to run as is the owner of the store files a command reads and writes (acl, handlers, check, users: one Util helper). The profile refusal and the upgrade name the owner. The check prints no ok for a walk that missed part of the tree, and spells every command by cli_spelling."
 ---
 
 # What happened

@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "a site owner's request (R3), ruling 245"
 area: security
-status-note: "SHIPPED (PENDING) on n823. Built-in patterns for /.docker/, /.claude/, /.cursor/, /.kube/, /.azure/, /.vscode/, /.idea/, /.terraform/, /.gnupg/, appsettings*.json, aws-exports.js and /wp-json/batch, in the blocker and, but for wp-json/batch, in the stats noise set. /app.js and /app.config.js stay out. t/tools/640."
+status-note: "SHIPPED (0.17.0) on n823. Built-in patterns for /.docker/, /.claude/, /.cursor/, /.kube/, /.azure/, /.vscode/, /.idea/, /.terraform/, /.gnupg/, appsettings*.json, aws-exports.js and /wp-json/batch, in the blocker and, but for wp-json/batch, in the stats noise set. /app.js and /app.config.js stay out. t/tools/640."
 ---
 
 # What was asked

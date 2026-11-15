@@ -8,7 +8,7 @@ status: shipped
 raised: 2026-11-12
 raised-by: "0.16.12 test, row Y6"
 area: manager
-status-note: "SHIPPED (PENDING): an empty claim, or a cut-off archive with no sha256, is listed under unfinished, refused by restore, apply and --restore-full, and named by lazysite check; TERM mid-tar keeps nothing; the trail records the start; the page shows the outcome. A full backup runs detached and lists in progress (ruling 248). t/unit/manager/975-977, t/tools/645, 646."
+status-note: "SHIPPED (0.17.0): an empty claim, or a cut-off archive with no sha256, is listed under unfinished, refused by restore, apply and --restore-full, and named by lazysite check; TERM mid-tar keeps nothing; the trail records the start; the page shows the outcome. A full backup runs detached and lists in progress (ruling 248). t/unit/manager/975-977, t/tools/645, 646."
 ---
 
 # What was found
