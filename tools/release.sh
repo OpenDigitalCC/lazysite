@@ -391,11 +391,11 @@ if [ "$MODE" = build ]; then
     # SM1083 ruling 2026-10-16: an edge or beta receipt may say "coverage=not
     # run"; a stable or certified one may not.
     case "$CHANNEL" in
-        stable | certified)
+        certified)
             case "$(receipt_field coverage)" in
                 "not run"*)
                     echo "release.sh: the gate receipt for $VERSION ran no coverage ($(receipt_field coverage));" >&2
-                    echo "release.sh: a $CHANNEL release needs the coverage stage. Gate again: tools/gate-main.sh --version $VERSION --final" >&2
+                    echo "release.sh: a $CHANNEL release needs the coverage stage. Gate again: tools/gate-main.sh --version $VERSION --certified" >&2
                     exit 1
                     ;;
             esac
@@ -1011,9 +1011,13 @@ fi
 # certified, or when LAZYSITE_COVER_FORCE=1 asks for it on any channel, or on
 # demand through tools/coverage.sh. The receipt says which.
 COV_RUN=0
-case "$CHANNEL" in stable | certified) COV_RUN=1 ;; esac
+# Ruling 256 (release manager, 2026-11-15): coverage for certified only. The 0.17.0
+# stable was held three days by the coverage stage: memory kills in the Devel::Cover
+# merge, and two tests that raced the clock under instrumentation. In its history the
+# stage has found no engine fault; a stable that cannot ship is the larger risk.
+case "$CHANNEL" in certified) COV_RUN=1 ;; esac
 [ "${LAZYSITE_COVER_FORCE:-}" = 1 ] && COV_RUN=1
-COV_NOT_RUN="not run (channel $CHANNEL; stable only, SM1083 ruling 2026-10-16)"
+COV_NOT_RUN="not run (channel $CHANNEL; certified only, ruling 256)"
 if [ "$COV_RUN" = 1 ]; then
     echo "==> coverage.sh --check (instrumented, in groups; a group not matched to a recorded pass is measured - the whole set took 7 hours on 0.15.5)"
 else

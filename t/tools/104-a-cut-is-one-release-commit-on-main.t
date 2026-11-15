@@ -148,15 +148,15 @@ sub release {
 }
 sub tags { git( $_[0], 'tag', '-l', 'v0.1.1' ) }
 
-# SM1083 ruling 2026-10-16: coverage for stable only. The stand-in coverage.sh
+# Ruling 256 (2026-11-15): coverage for certified only. The stand-in coverage.sh
 # prints the pass line when it runs, so the receipt says whether it did.
-subtest 'the coverage stage runs for stable only, or when forced' => sub {
+subtest 'the coverage stage runs for certified only, or when forced' => sub {
     my $d    = repo();
     my $main = git( $d, 'rev-parse', 'main' );
     my ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main );
     is( $rc, 0, 'an edge gate passes' ) or diag($out);
     my $r = slurp("$d/tmp/release-gate/0.1.1/receipt");
-    like( $r, qr/^coverage=not run \(channel edge; stable only, SM1083 ruling 2026-10-16\)$/m, 'with coverage not run, and the ruling named' );
+    like( $r, qr/^coverage=not run \(channel edge; certified only, ruling 256\)$/m, 'with coverage not run, and the ruling named' );
     like( $r,   qr/^coverage_from=none$/m,                  'from nowhere' );
     like( $out, qr/^==> coverage: not run \(channel edge/m, 'said in the gate output' );
     unlike( $out, qr/coverage\.sh --check \(instrumented/, 'and the stage was not started' );
@@ -168,7 +168,12 @@ subtest 'the coverage stage runs for stable only, or when forced' => sub {
 
     ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main, '--final' );
     is( $rc, 0, 'a stable gate passes' ) or diag($out);
-    like( slurp("$d/tmp/release-gate/0.1.1/receipt"), qr/^coverage=measured$/m, 'stable: the stage ran and measured' );
+    like( slurp("$d/tmp/release-gate/0.1.1/receipt"), qr/^coverage=not run \(channel stable;/m, 'stable: not run either (ruling 256)' );
+    unlike( $out, qr/coverage\.sh --check \(instrumented/, 'and the stage was not started' );
+
+    ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main, '--certified' );
+    is( $rc, 0, 'a certified gate passes' ) or diag($out);
+    like( slurp("$d/tmp/release-gate/0.1.1/receipt"), qr/^coverage=measured$/m, 'certified: the stage ran and measured' );
     like( $out, qr/coverage\.sh --check \(instrumented/, 'and said it was starting' );
 
     {
@@ -179,7 +184,7 @@ subtest 'the coverage stage runs for stable only, or when forced' => sub {
     }
 };
 
-subtest 'build takes a receipt without coverage for edge, refuses it for stable' => sub {
+subtest 'build takes a receipt without coverage for edge, refuses it for certified' => sub {
     my $d    = repo();
     my $main = git( $d, 'rev-parse', 'main' );
     my ( $rc, $out ) = release( $d, 'gate', '0.1.1', '--commit', $main );
@@ -190,13 +195,13 @@ subtest 'build takes a receipt without coverage for edge, refuses it for stable'
 
     my $e = repo();
     $main = git( $e, 'rev-parse', 'main' );
-    ( $rc, $out ) = release( $e, 'gate', '0.1.1', '--commit', $main, '--final' );
-    is( $rc, 0, 'a stable gate passes' ) or diag($out);
+    ( $rc, $out ) = release( $e, 'gate', '0.1.1', '--commit', $main, '--certified' );
+    is( $rc, 0, 'a certified gate passes' ) or diag($out);
     my $rf = "$e/tmp/release-gate/0.1.1/receipt";
-    spit( $rf, slurp($rf) =~ s/^coverage=measured$/coverage=not run (channel stable; hand-edited)/mr );
-    ( $rc, $out ) = release( $e, 'build', '0.1.1', '--notes', $NOTES, '--final' );
-    is( $rc, 1, 'a stable build refuses a receipt whose gate ran no coverage' );
-    like( $out, qr/ran no coverage \(not run \(channel stable; hand-edited\)\);\nrelease\.sh: a stable release needs the coverage stage\. Gate again: tools\/gate-main\.sh --version 0\.1\.1 --final/, 'and says how to get one' );
+    spit( $rf, slurp($rf) =~ s/^coverage=measured$/coverage=not run (channel certified; hand-edited)/mr );
+    ( $rc, $out ) = release( $e, 'build', '0.1.1', '--notes', $NOTES, '--certified' );
+    is( $rc, 1, 'a certified build refuses a receipt whose gate ran no coverage' );
+    like( $out, qr/ran no coverage \(not run \(channel certified; hand-edited\)\);\nrelease\.sh: a certified release needs the coverage stage\. Gate again: tools\/gate-main\.sh --version 0\.1\.1 --certified/, 'and says how to get one' );
     is( tags($e), '', 'nothing is tagged' );
 };
 

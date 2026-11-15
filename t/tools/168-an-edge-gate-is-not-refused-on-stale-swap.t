@@ -44,11 +44,11 @@ is( $rc, 3, 'the edge gate stops at the guard' ) or diag $out;
 unlike( $out, qr/swap in use \d+ MB is over 1024 MB and MemAvailable/, 'not on the swap' );
 like( $out, qr/stage base .* MB free, under/, 'on the disk, past the swap' );
 
-( $rc, $out ) = gate('--final');
-is( $rc, 3, 'the stable gate stops at the guard' ) or diag $out;
+( $rc, $out ) = gate('--certified');
+is( $rc, 3, 'the certified gate stops at the guard' ) or diag $out;
 like( $out, qr/swap in use \d+ MB is over 1024 MB; not refusing/,
-    'stable (coverage runs): the swap is a note' );
-like( $out, qr/stage base .* MB free, under/, 'stable: on the disk, past the swap' );
+    'certified (coverage runs, ruling 256): the swap is a note' );
+like( $out, qr/stage base .* MB free, under/, 'certified: on the disk, past the swap' );
 
 {
     local $ENV{LAZYSITE_COVER_FORCE} = 1;

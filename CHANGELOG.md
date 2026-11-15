@@ -53,6 +53,17 @@ Archive
 
 ## Unreleased
 
+- SM1451 (PENDING) **release: the coverage stage runs for certified only; a stable gates like a
+  beta.** Ruling 256 (the release manager, 2026-11-15) replaces SM1083's "coverage for stable
+  only". The 0.17.0 stable was held for three days by the coverage stage alone: the suite and
+  bench passed each time, and every failure was the stage's own (two tests that raced the clock
+  under instrumentation, SM1450, and repeated memory kills in the Devel::Cover merge of the
+  processor group). In its history the stage has found no engine fault; every coverage filing is
+  about the stage itself. A stable that cannot ship its fixes is the larger risk. `release.sh`
+  and `gate-main.sh` now run coverage for `--certified` only (or `LAZYSITE_COVER_FORCE=1`); a
+  stable receipt says `coverage=not run (channel stable; certified only, ruling 256)` and build
+  accepts it. `--final` keeps the release-material lints and the download/ commit.
+  `tools/coverage.sh` stays, on demand, as advice. t/tools/104 and 168 follow the rule.
 - SM1450 (PENDING) **tests: two processor tests no longer race the clock under Devel::Cover.**
   The 0.17.0 `--final` gate's coverage stage failed `t/unit/processor/185-a-schedule-page-is-cached-until-its-state-changes.t`
   and `t/unit/processor/131-a-static-says-when-it-changed.t`, both of which passed in the plain
