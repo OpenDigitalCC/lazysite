@@ -105,6 +105,13 @@ for a test, and a release is one commit on main (SM971).
 - `VERSION` X.Y.Z and `NEXT_VERSION` X.Y.(Z+1), by `tools/bump-version.pl`;
 - `starter/lazysite/templates/docs/ai-briefing-practice.md`, by `tools/import-field-practice.pl`;
 - `docs/INDEX.md`, by `tools/gen-doc-index.pl --write`.
+- `docs/feature-requests/*.md` - a filing whose bullet is stamped and whose status is
+  `candidate` becomes `shipped` (`partial` when the bullet names a part), and a
+  `SHIPPED (PENDING)` status-note says the version (SM1454 R6 b);
+- `docs/compliance/OBLIGATIONS.md` and `TECHNICAL-FILE.md` - on a **stable patch** whose
+  records were walked at the line's previous release: stamped with the target and a
+  dated patch-walk clause naming the diff's runtime files and register entries, or a
+  refusal saying what to walk by hand (SM1454 R6 a; docs/DEVELOPER.md, "Patch releases").
 
 **A PENDING ref is resolved from git, never guessed.** The SHA is the one commit,
 since the newest tag reachable from HEAD, whose diff added that exact line to
@@ -177,8 +184,9 @@ Claude-Session, becomes the release commit's trailers. Then build:
    GATE-LOG row (naming the gated commit) and copies the gate's coverage record;
 4. commits that as ONE release commit on top of main, and refuses unless its
    diff touches only the allowlist;
-5. runs the checks that read the material (`release-material.pl --lints`) and
-   the compliance check on it;
+5. runs the compliance check and the checks that read the material
+   (`release-material.pl --lints`) on it - the gate runs the same two, on its stage,
+   before the suite;
 6. builds the manifest, SBOM, man pages, tarball, the four .debs and the
    claude.ai skill from the release commit;
 7. on a stable cut, commits the new `download/` set on top (download/ only;

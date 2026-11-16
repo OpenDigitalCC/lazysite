@@ -72,7 +72,7 @@ spit( "$d/docs/feature-requests/SM4-fourth.md", filing( 'SM4', 'SHIPPED (PENDING
 spit( "$d/docs/feature-requests/SM9-later.md", filing( 'SM9', 'SHIPPED (PENDING): lands later.' ) );
 spit( "$d/docs/feature-requests/SM5-stamped.md", filing( 'SM5', 'SHIPPED (0.0.9): already said.' ) );
 spit( "$d/docs/feature-requests/SM6-open.md",
-    "---\nid: SM2\ntitle: \"not shipped\"\nstatus: candidate\nstatus-note: \"OPEN: nothing yet.\"\n---\n" );
+    "---\nid: SM6\ntitle: \"not shipped\"\nstatus: candidate\nstatus-note: \"OPEN: nothing yet.\"\n---\n" );
 commit( $d, 'the second and third' );
 
 my $out = run_cmd( $^X, "$d/$GEN", '0.1.1', '--dir', $d, '--date', '2026-10-12' );
@@ -91,7 +91,7 @@ is( $note{'SM9-later.md'}, 'SHIPPED (PENDING): lands later.', 'one with no entry
 is( $note{'SM1-old.md'}, 'SHIPPED (PENDING): released before this existed.',
     'one released in an earlier section is not stamped with this version' );
 is( $note{'SM5-stamped.md'}, 'SHIPPED (0.0.9): already said.', 'one already stamped is left alone' );
-is( $note{'SM6-open.md'}, 'OPEN: nothing yet.', 'one not shipped is left alone, whatever its id' );
+is( $note{'SM6-open.md'}, 'OPEN: nothing yet.', 'one not shipped, with no entry here, is left alone (t/tools/686: a candidate whose bullet is stamped is not)' );
 like( slurp("$d/docs/feature-requests/SM2-second.md"), qr/SHIPPED \(PENDING\) in prose stays/,
     'only the status-note is touched' );
 
