@@ -616,9 +616,11 @@ sub callback {
         return { ok => 1, renewed => 1, next => $pend->{next} // '/', provider => $prov, login => $login,
             groups => \@groups };
     }
+    my $why;
     my ($cookie) = Lazysite::Auth::Session::mint_provider_session( provider => $prov, login => $login,
-        name => $display, groups => \@groups, ip => $a{ip}, ua => $a{ua} );
-    return { ok => 0, status => '503 Service Unavailable', error => 'The site could not start a session.' }
+        name => $display, groups => \@groups, ip => $a{ip}, ua => $a{ua}, refusal => \$why );
+    return { ok => 0, status => '503 Service Unavailable',
+        error => 'The site could not start a session' . ( length( $why // '' ) ? ": $why" : '' ) . '; see the event log.' }
         unless $cookie;
     log_event( 'INFO', 'auth', 'an OIDC sign-in', provider => $prov, user => "$prov:$login",
         groups => join( ',', @groups ) );

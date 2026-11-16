@@ -638,4 +638,45 @@ subtest 'a call through the endpoint names the signed-in account' => sub {
     like( $rec->{session} // '', qr/\Asession:[0-9a-f]{16}\z/, '  and keeps her session by its hash' );
 };
 
+# SM1459: a refused site session says which of its causes it was. The 503 carries the
+# cause class and what to do, never a path; the event log has the detail. Before, every
+# cause was answered "the auth secret is missing or the session registry cannot be
+# written", and a site whose extensions index was stale got that with both in order.
+subtest 'SM1459: a refused site sign-in names its cause' => sub {
+    conf_on();
+    my $index = "$LZ/extensions.index.json";
+    ok( -e $index, 'the site has an extensions index (the extension was enabled through the manager)' );
+    rename $index, "$index.away" or die $!;
+    %JAR = ();
+    $all_logs = '';
+    my ( $st, $ck, $j ) = sign_in();
+    isnt( $st, 200, 'a provider that is not in the index: no sign-in' );
+    like( $j->{error} // '', qr/not in the extensions index/, 'the answer names the stale index' );
+    like( $j->{error} // '', qr/rebuild the extensions index or switch the extension on/, '...and what to do' );
+    unlike( $j->{error} // '', qr/auth secret is missing/, '...and not the old fixed cause' );
+    unlike( $j->{error} // '', qr/\Q$d\E/, '...with no path in it' );
+    like( $j->{error} // '', qr/see the event log/, '...and points to the log' );
+    ok( !cookie_value( $ck, 'lazysite_auth' ), 'no site session cookie' );
+    like( $all_logs, qr/a provider sign-in was refused: the provider is not usable \(not-indexed\).*provider\W+odoo/s,
+        'the log names the cause and the provider' );
+    rename "$index.away", $index or die $!;
+
+    rename "$LZ/auth/.secret", "$LZ/auth/.secret.away" or die $!;
+    %JAR = ();
+    $all_logs = '';
+    ( $st, $ck, $j ) = sign_in();
+    isnt( $st, 200, 'no auth secret: no sign-in' );
+    like( $j->{error} // '', qr/no auth secret/, 'the answer names the missing secret' );
+    unlike( $j->{error} // '', qr/session registry|extensions index/, '...and not another cause' );
+    unlike( $j->{error} // '', qr/\Q$d\E/, '...with no path in it' );
+    like( $all_logs, qr{a provider sign-in was refused: the auth secret does not exist.*\Q$LZ\E/auth/\.secret}s,
+        'the log has the path' );
+    rename "$LZ/auth/.secret.away", "$LZ/auth/.secret" or die $!;
+
+    %JAR = ();
+    my ($ok) = sign_in();
+    is( $ok, 200, 'with both back, the sign-in works' );
+    %JAR = ();
+};
+
 done_testing;

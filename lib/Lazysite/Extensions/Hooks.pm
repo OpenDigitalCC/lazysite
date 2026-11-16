@@ -52,7 +52,7 @@ our @EXPORT_OK = qw(validate_hooks validate_requires hook_kinds hook_functions
     declared_entry mirror mirror_index unmirror mirror_state index_signature
     index_failed_path note_index_failure declared_refusal_status
     cross_problems page_sources handler_types check_payload_files names_payload_files
-    identity_provider identity_providers);
+    identity_provider identity_providers identity_provider_absence rebuild_index_command);
 
 # The hook vocabulary. `hook` is the proposal's H-n, `slice` the slice that
 # builds its consumer. A live kind carries its shape:
@@ -586,6 +586,48 @@ sub identity_provider {
     return undef if grep { !$on->{$_} } @{ ref $e->{requires_keys} eq 'ARRAY' ? $e->{requires_keys} : [] };
     return { %{ $e->{hooks}{identity_provider} }, extension => $ext, key => $e->{key}, provider => $id,
         ( defined $instance ? ( instance => $instance ) : () ) };
+}
+
+# THE COMMAND AN OPERATOR RUNS TO REBUILD THE INDEX (SM1459): the upgrade's own
+# step, run from the engine tree as the site's user, for the docroot named. The
+# manager does the same when an extension is switched on, off or saved.
+sub rebuild_index_command {
+    my ($docroot) = @_;
+    $docroot = '<docroot>' unless defined $docroot && length $docroot;
+    return "perl -I<engine>/lib -MLazysite::Manager::Extensions -e 'exit Lazysite::Manager::Extensions::rebuild_hook_index_main(\@ARGV)' $docroot";
+}
+
+# WHY identity_provider ANSWERS NOTHING (SM1459), for a refusal to say so:
+# ( $class, $text ) - $class one of bad-id, instances, not-indexed, stale-index,
+# off, requires-off, or '' when the provider is usable. $text is for the
+# browser: the cause and what to do, naming no path. The caller logs the
+# command (rebuild_index_command) where a person with a shell reads it.
+sub identity_provider_absence {
+    my ( $lz, $id ) = @_;
+    return ( 'bad-id', 'the sign-in provider has an id a session cannot carry' )
+        unless defined $lz && defined $id && $id =~ /\A[a-z][a-z0-9-]{0,31}\z/;
+    my $exts = read_index($lz)->{extensions};
+    my $e    = $exts->{$id};
+    if ( ref $e eq 'HASH' && ref $e->{hooks} eq 'HASH' && ref $e->{hooks}{identity_provider} eq 'HASH' ) {
+        return ( 'instances', 'the sign-in provider is a family of providers and none was named' )
+            if ( $e->{hooks}{identity_provider}{instances} // '' ) eq '1';
+    }
+    else {
+        my ($ext) = _instance_of( $exts, $id );
+        unless ( defined $ext ) {
+            return ( 'stale-index', 'the extensions index lists the provider\'s extension without its sign-in '
+                    . 'declaration, so the index was built by an older engine: rebuild the extensions index' )
+                if ref $e eq 'HASH';
+            return ( 'not-indexed', 'the sign-in provider is not in the extensions index: the index is stale or '
+                    . 'the extension is off - rebuild the extensions index or switch the extension on' );
+        }
+        $e = $exts->{$ext};
+    }
+    my $on = enabled_keys($lz);
+    return ( 'off', 'the provider\'s extension is switched off: switch it on' ) unless $on->{ $e->{key} // '' };
+    return ( 'requires-off', 'an extension the provider requires is switched off: switch it on' )
+        if grep { !$on->{$_} } @{ ref $e->{requires_keys} eq 'ARRAY' ? $e->{requires_keys} : [] };
+    return ( '', '' );
 }
 
 # Every provider the index declares, enabled now, in id order. An instances

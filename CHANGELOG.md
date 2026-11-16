@@ -70,6 +70,14 @@ Archive
 - SM1452 (PENDING) **tests: t/integration/315 does not race the clock**. Its Retry-After bound
   is the time from the clock read just before the request to `maintenance_until`, and the
   tolerance covers the render, not the run, as SM1450 did for t/unit/processor/185. Test only.
+- SM1459 (PENDING) **auth: a refused provider sign-in names its cause**. `mint_provider_session`
+  refuses for four reasons - the provider is not usable (not in the extensions index, the extension
+  or one it requires off), the login is not a session's, there is no auth secret (a missing
+  `.secret` was silent), the registry cannot be written - and each now gives its own reason and one
+  event-log line naming the provider and the path. The Odoo and OpenID Connect extensions' 503
+  carries the reason (the cause and what to do, no path) in place of a fixed "auth secret missing or
+  registry unwritable". `lazysite check` warns of an extensions index built by an older engine, with
+  the rebuild command. t/unit/auth/178, t/unit/odoo/63, t/tools/691.
 - SM1457 (PENDING) **tools: the deploy reports what it did, and a test holds it to that**. The quiet
   rollout report lists only the deploy's own findings (a failure, a repair needing a human, a
   probe exposure or one that could not run, a refused permission, a site root that did not

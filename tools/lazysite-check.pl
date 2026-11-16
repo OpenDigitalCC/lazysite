@@ -4527,12 +4527,45 @@ sub report_hook_index {
                 . ' - their actions answer "cannot run now" until the index is rebuilt',
             'enable or save the extension in the manager (or run the upgrade again), which rebuilds the index' );
     }
-    elsif ($idx) {
+
+    # SM1459 R4: see _hook_index_stale.
+    my @stale = $idx ? _hook_index_stale( \%on, $hooks ) : ();
+    if (@stale) {
+        require Lazysite::Extensions::Hooks;
+        report( 'WARN',
+            'the extension index was built by a different engine than this one, and its hooks for '
+                . join( ', ', @stale ) . ' differ from what this engine declares - sign-in and actions through '
+                . 'them can be refused until it is rebuilt',
+            'rebuild it (the upgrade does, so does enabling or saving the extension in the manager): '
+                . Lazysite::Extensions::Hooks::rebuild_index_command( Lazysite::Paths::docroot_of($LZ) ) );
+    }
+    if ( !@missing && !@stale && $idx ) {
         my $n = scalar keys %$declared;
         report( 'OK', "the extension index is built ($n " . ( $n == 1 ? 'extension declares' : 'extensions declare' )
                 . ' capabilities or actions' . ( keys %$hooks ? ', ' . scalar( keys %$hooks ) . ' with hooks indexed' : '' ) . ')' );
     }
     return;
+}
+
+# SM1459 R4: AN INDEX BUILT BY AN OLDER ENGINE THAN THE ONE RUNNING. The request path never
+# rebuilds (a rebuild runs --describe and writes a file the web user need not own), so this
+# is where it is said. Returns the ids of the enabled engine extensions whose indexed hooks
+# are not what this engine's own descriptor declares ( \%on = the conf keys that are on,
+# $hooks = the index's `extensions` ). An extension with no entry is the check above's
+# finding, not this one's.
+# An engine that cannot be loaded here says nothing: the question cannot be asked.
+sub _hook_index_stale {
+    my ( $on, $hooks ) = @_;
+    return () unless eval { require Lazysite::Manager::Extensions; 1 };
+    my $engine = eval { Lazysite::Manager::Extensions::engine_hook_index() } or return ();
+    my $json   = JSON::PP->new->canonical;
+    my @stale;
+    for my $id ( sort keys %{ $engine->{extensions} } ) {
+        my ( $want, $have ) = ( $engine->{extensions}{$id}, $hooks->{$id} );
+        next unless ref $have eq 'HASH' && $on->{ $want->{key} // '' };
+        push @stale, $id if $json->encode( $want->{hooks} // {} ) ne $json->encode( ref $have->{hooks} eq 'HASH' ? $have->{hooks} : {} );
+    }
+    return @stale;
 }
 
 # Ruling 206 (SM1417, the 0.16.9 fault survey, items 9-21): A STORE THAT EXISTS

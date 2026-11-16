@@ -2936,11 +2936,14 @@ sub site_session_start {
     return $fail->( said( 'your {name} sign-in has ended - sign in again', 'your sign-in has ended - sign in again' ) ) if $g->{clear_session};
     no warnings 'once';
     local $Lazysite::Auth::Session::LAZYSITE_DIR = _lz();
+    # SM1459: the refusal says which of its causes it was; the page gets the cause class and
+    # what to do (no path), and the event log has the detail.
+    my $why;
     my ($cookie) = Lazysite::Auth::Session::mint_provider_session( provider => 'odoo',
         login => $login, name => ( $r->{identity}{name} // '' ), groups => ( $g->{ok} ? $g->{groups} : [] ),
-        ip => $a{ip}, ua => $a{user_agent} );
-    return $fail->( 'a site session cannot be made on this host - the auth secret is missing or the session '
-            . 'registry cannot be written; see the event log' )
+        ip => $a{ip}, ua => $a{user_agent}, refusal => \$why );
+    return $fail->( 'a site session cannot be made on this host - '
+            . ( length( $why // '' ) ? $why : 'the cause is not known' ) . '; see the event log' )
         unless defined $cookie;
     _site_audit( "odoo:$login", 'login', 'ok', $a{ip}, 'odoo sign-in' );
     return ($cookie);

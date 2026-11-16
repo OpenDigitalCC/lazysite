@@ -880,15 +880,27 @@ sub _audit_grant {
 #   -> ( $cookie, $ts, $sid ) or ()
 # The provider must be declared and on (G-1). Needs the auth secret, which only a
 # login mints; without one no session can be made.
+#
+# SM1459: A REFUSAL NAMES ITS CAUSE. There are four, and each leaves one WARN line in
+# the event log (the provider, and the path or the cause's remedy), so a refusal is
+# never silent. The caller that wants the cause for its own answer passes
+# `refusal => \my $why`: $why is set to a sentence naming the cause class and what to
+# do, with no path or secret in it (the page says it and "see the event log"; the
+# detail is the log's). Passing nothing changes nothing.
 sub mint_provider_session {
-    my (%a) = @_;
+    my (%a)   = @_;
     my $login = $a{login};
-    my $p     = _provider( $a{provider} ) or return ();
+    my $out   = ref $a{refusal} eq 'SCALAR' ? $a{refusal} : \my $ignored;
+    $$out = '';
+    my $p = _provider( $a{provider} ) or return _provider_absent( $out, $a{provider} );
+
     # SM1351: `<id>-<name>` for an instances provider
     my $id = $p->{provider} // $p->{extension};
-    return () unless provider_login_ok($login);
+    return _provider_refused( $out, $id, 'the provider reported a login that cannot be a session\'s',
+        'the sign-in did not report a usable login (empty, over 254 characters or holding a control character)' )
+        unless provider_login_ok($login);
     my $secret = _auth_secret_read();
-    return () unless length $secret;
+    return _secret_refused( $out, $id ) unless length $secret;
     require Lazysite::Auth::Credential;
     my $now     = $a{now} // time;
     my $sid     = Lazysite::Auth::Credential::generate_random_hex(8);
@@ -900,9 +912,54 @@ sub mint_provider_session {
             sid => $sid, user => "$id:$login", t => $now + 0, provider => $id, checked => $now + 0,
             name => _session_field( $a{name}, 100 ), groups => [@groups],
             ip   => _session_field( $a{ip},   45 ),  ua => _session_field( $a{ua}, 120 ),
-    } ) or return ();
+    } )
+        or return _provider_refused( $out, $id, 'the session registry cannot be written',
+        'the site\'s session registry cannot be written', file => _registry_file(), error => "$!",
+        hint => 'make lazysite/auth and sessions.jsonl writable by the site user; `lazysite check --docroot <docroot>` names the fix' );
     _audit_grant( "$id:$login", 'login-grant', $id, \@groups, $a{ip} ) if ( $p->{grants} // '' ) eq '1';
     return ( "$enc:$sig", $now, $sid );
+}
+
+# The provider is not usable: which of the ways, from Hooks::identity_provider_absence. An
+# index that is stale, or lacks the extension, sends the operator to rebuild it.
+sub _provider_absent {
+    my ( $out, $provider ) = @_;
+    require Lazysite::Extensions::Hooks;
+    require Lazysite::Paths;
+    my ( $class, $why ) = Lazysite::Extensions::Hooks::identity_provider_absence( $LAZYSITE_DIR, $provider );
+    $class = 'changed' unless length $class;    # usable a moment later: the index moved
+    $why = 'the sign-in provider could not be read from the extensions index; try again' unless length $why;
+    my @remedy;
+    if ( $class eq 'not-indexed' || $class eq 'stale-index' ) {
+        my $cmd = Lazysite::Extensions::Hooks::rebuild_index_command( Lazysite::Paths::docroot_of($LAZYSITE_DIR) );
+        @remedy = ( hint => "rebuild the extensions index: $cmd - or switch the extension on in the manager" );
+    }
+    return _provider_refused( $out, $provider, "the provider is not usable ($class)", $why, @remedy );
+}
+
+# There is no usable auth secret: absent (ENOENT, which cannot_read leaves silent), or
+# present and empty or unreadable (cannot_read has said which).
+sub _secret_refused {
+    my ( $out, $id ) = @_;
+    my $path = _auth_dir() . '/.secret';
+    return _provider_refused( $out, $id, 'the auth secret does not exist', 'the site has no auth secret yet',
+        file => $path, hint => 'a manager sign-in makes it; `lazysite check --docroot <docroot>` names the fix' )
+        unless -e $path;
+    return _provider_refused( $out, $id, 'the auth secret exists and is empty or cannot be read',
+        'the site\'s auth secret is empty or unreadable', file => $path,
+        hint => '`lazysite check --docroot <docroot>` names the fix' );
+}
+
+# One refusal of mint_provider_session: the WARN line (provider, the cause in the log's
+# words, the path and the remedy where there are any), the sentence for the caller's
+# page, and the empty list the caller already reads as "no session".
+sub _provider_refused {
+    my ( $out, $id, $cause, $why, %x ) = @_;
+    $$out = $why;
+    my $hint = delete $x{hint};
+    log_event( 'WARN', 'auth', "a provider sign-in was refused: $cause",
+        provider => ( $id // '-' ), %x, ( defined $hint ? ( remedy => $hint ) : () ) );
+    return ();
 }
 
 # renew_provider_session( provider => id, sid, name, groups => [...] ) -> 1 | 0
