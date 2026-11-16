@@ -53,6 +53,11 @@ Archive
 
 ## Unreleased
 
+- SM1453 (PENDING) **tools: the rollout reads the probe's cache verdict as a verdict**. When the ACL
+  probe finds only the front end's cache holding files the engine refuses, `lazysite probe` now
+  says `cache residue, clears itself`, counts it with the verified (exit 0; exposure stays exit 1)
+  and the rollout's summary reads `probe: N clean (K cache residue, clears itself), ...` where it
+  said the probe could not run. A test builds the verdict from lazysite-check.pl's own text.
 - SM1454 (R3) (PENDING) **tools: the full suite can run on an HPS lab VM, with a local fallback**.
   `tools/suite-lab.sh STAGE_DIR JOBS OUTFILE` is a suite runner for the gate's
   `LAZYSITE_SUITE_RUNNER` hook: when `LAZYSITE_SUITE_LAB=1` and a bounded check finds the lab

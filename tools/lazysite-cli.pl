@@ -1635,7 +1635,7 @@ sub cmd_probe {
     $targets ||= _targets_or_fail();
 
     my $tool = payload_root() . '/tools/lazysite-check.pl';
-    my ( @verified, @exposed, @unconfirmed, %why_sites, @whys );
+    my ( @verified, @cache, @exposed, @unconfirmed, %why_sites, @whys );
 
     my $me      = current_user();
     my $is_root = running_as_root();
@@ -1695,6 +1695,21 @@ sub cmd_probe {
             push @verified, $s->{name};
             print "  $s->{name}: front end honours the rule\n";
         }
+
+        # SM1453: THE CHECK'S THIRD VERDICT, read as a verdict. The probe RAN and
+        # nothing reaches past the gate: a file the engine refuses is still served
+        # because the front end's cache holds descriptors for files fetched while
+        # the folder was public, and a file created after the gate is refused
+        # (SM331, SM368, SM377). That is not "could not run" - it measured - and
+        # it is not an exposure, which stays exit 1 only (SM912). It counts with
+        # the verified (exit 0) and is said apart, so an operator is not sent
+        # looking for a cause. The marker is the check's own wording; t/tools/683
+        # builds the verdict FROM lazysite-check.pl so the two cannot drift.
+        elsif ( $out =~ /a file the engine refuses is still being served to anonymous visitors/ ) {
+            push @verified, $s->{name};
+            push @cache,    $s->{name};
+            print "  $s->{name}: cache residue, clears itself (nothing reaches past the gate)\n";
+        }
         else {
             push @unconfirmed, $s->{name};
             my $why = _probe_unconfirmed_reason( $out, $crc );
@@ -1707,6 +1722,8 @@ sub cmd_probe {
 
     printf "\n%d verified, %d exposed, %d not confirmed.\n",
         scalar @verified, scalar @exposed, scalar @unconfirmed;
+    printf "%d of the verified: cache residue, clears itself (%s).\n", scalar @cache, join( ', ', @cache )
+        if @cache;
 
     if (@exposed) {
         printf "SERVED ANONYMOUSLY DESPITE AN ACL: %s\n", join ', ', @exposed;

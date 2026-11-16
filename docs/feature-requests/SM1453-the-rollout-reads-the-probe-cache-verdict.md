@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-11-16
 raised-by: "the 0.17.0 rollout, read by the developer"
 area: tools
-status-note: "OPEN. Target 0.17.x edge. Tools only (tools/lazysite-cli.pl); no engine change, no new exposure."
+status-note: "BUILT, not yet released (n842). Target 0.17.x edge. Tools only; no engine change, no new exposure. The cache verdict counts with the verified (exit 0), said apart; t/tools/683 builds it from the check's text."
 ---
 
 # What happened
@@ -50,7 +50,12 @@ R2
 : t/tools/41 pins the cache wording in both tools, as it does the other two, so the check's
   wording and the rollout's match move together.
 
-# To settle when built
+# Settled when built
 
-- Whether a cache verdict counts toward exit 0 or keeps its own exit, given the fleet script reads
-  the exit code only (SM912 P2).
+- The cache verdict counts toward exit 0, with the verified: the probe ran and nothing is exposed,
+  and a fourth exit would give the fleet script, which reads the exit code only (SM912 P2), a
+  status it has no column for. It is said apart in words: `lazysite probe` prints `cache residue,
+  clears itself` per site and a line counting them, and the rollout's summary reads `N clean (K
+  cache residue, clears itself)`. Exposure stays exit 1 only; not measured stays exit 3.
+- R2 is t/tools/683, which builds the check's verdict from lazysite-check.pl's own source text
+  rather than pinning a copy, so the check's wording and the CLI's match cannot drift.

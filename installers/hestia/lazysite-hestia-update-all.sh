@@ -846,8 +846,13 @@ probe_site() {
     [ "$had_e" = 1 ] && set -e
     [ "$VERBOSE" = 1 ] && printf '%s\n' "$out"
     PROBE_VERDICT=none
+    PROBE_RESIDUE=''
     if [ "$rc" = 0 ]; then
         PROBE_VERDICT=ok
+        # SM1453: the probe ran and found only the front end's cache holding
+        # files it refuses - a verdict, counted clean and said apart. The
+        # marker is the CLI's own per-site line for it (t/tools/683 pins both).
+        printf '%s\n' "$out" | grep -q 'cache residue, clears itself' && PROBE_RESIDUE=1
     elif [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -q 'SERVED ANONYMOUSLY'; then
         PROBE_VERDICT=exposed
     fi
@@ -1385,14 +1390,15 @@ if [ -f "$LZS" ]; then
         # landed in the clean column and the summary certified a measurement that
         # never happened. Exit 3 is the probe saying so; it is not an exposure
         # and it is not a pass.
-        _probe_ok=0; _probe_bad=0; _probe_none=0
+        _probe_ok=0; _probe_bad=0; _probe_none=0; _probe_residue=0
         # SM1237: probe_site reads the verdict from the probe's own words, and
         # puts the reason for each could-not-run among the findings.
         for i in "${!DOMAINS[@]}"; do
             PROBE_TOOL_FAILED=''
             probe_site "${DOMAINS[$i]}"
             case "$PROBE_VERDICT" in
-                ok)      _probe_ok=$(( _probe_ok + 1 )) ;;
+                ok)      _probe_ok=$(( _probe_ok + 1 ))
+                         [ -z "$PROBE_RESIDUE" ] || _probe_residue=$(( _probe_residue + 1 )) ;;
                 exposed) _probe_bad=$(( _probe_bad + 1 )); ACL_PROBE_RC=1 ;;
                 *)       _probe_none=$(( _probe_none + 1 ))
                          [ -z "$PROBE_TOOL_FAILED" ] || ACL_PROBE_RC=1 ;;
@@ -1457,8 +1463,10 @@ printf '  %d updated, %d failed, %d not serviceable, %d skipped, %d out of scope
 [ -n "${_rep_clean:-}" ] && \
     printf '  repair: %d clean, %d need a human\n' "${_rep_clean:-0}" "${_rep_human:-0}"
 [ -n "${_probe_ok:-}" ] && \
-    printf '  probe:  %d clean, %d exposed, %d could not run%s\n' \
-        "${_probe_ok:-0}" "${_probe_bad:-0}" "${_probe_none:-0}" \
+    printf '  probe:  %d clean%s, %d exposed, %d could not run%s\n' \
+        "${_probe_ok:-0}" \
+        "$( [ "${_probe_residue:-0}" -gt 0 ] && printf ' (%d cache residue, clears itself)' "$_probe_residue" )" \
+        "${_probe_bad:-0}" "${_probe_none:-0}" \
         "$( [ "${_probe_none:-0}" -gt 0 ] && echo ' (the reason for each is under findings: "probe could not run")' )"
 [ -f "$LZS" ] && \
     printf '  check:  %d clean, %d with warnings or failures (%s check --domain D shows each)\n' \
