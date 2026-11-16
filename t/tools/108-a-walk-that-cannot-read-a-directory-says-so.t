@@ -49,8 +49,8 @@ like( $out, qr/^\[ warn \] [^\n]*\Q$doc\E\/docs\/locked \(Permission denied\)/m,
     'and so is one inside the docroot' );
 like( $out, qr/^\[ warn \] the db: template check could not read/m, 'each walk says so for itself' );
 like( $out, qr/nothing below them was looked at/, 'the finding says what it means for the result' );
-like( $out, qr/-> run the check as \S+, who owns what it could not read \(sudo -u \S+ \S.* check \.\.\.\), or as root/s,
-    'and how to run the check so it can' );
+like( $out, qr/-> run the check as root, or fix the permissions of what it could not read \(\S.*\): it is owned by \S+, who ran this check/s,
+    'and, the directory being the running user\'s own, that its permissions are the fault (SM1458)' );
 
 # Every walk goes through the one helper: the tool calls File::Find::find once,
 # inside find_noting, so a walk added later cannot print the raw warning again.

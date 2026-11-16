@@ -607,16 +607,7 @@ WHY
 # SM1236: the CLI as this host runs it, for a hint. LAZYSITE_CLI is set by the
 # CLI and the Hestia updater; otherwise `lazysite` when it is on PATH, otherwise
 # the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
-sub cli_spelling {
-    return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
-    for my $d ( split /:/, $ENV{PATH} // '' ) {
-        return 'lazysite' if length $d && -x join( '/', $d, 'lazysite' );
-    }
-    require Cwd;
-    require File::Basename;
-    my $cli = File::Basename::dirname( Cwd::abs_path($0) // $0 ) . '/lazysite-cli.pl';
-    return -f $cli ? "perl $cli" : 'lazysite';
-}
+sub cli_spelling { return Lazysite::Util::cli_spelling() }
 
 # SM1238: is this listed section's content still in the document root, where its
 # rule says it must not be? Only a rule that relocates content counts - a read

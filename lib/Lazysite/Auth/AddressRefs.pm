@@ -29,7 +29,8 @@ package Lazysite::Auth::AddressRefs;
 # handler catalogue, so it answers the same from the shell, the check and the
 # manager, and does not depend on the slices that enforce the rules being installed.
 #
-# rules($docroot) -> { rules => [ {where, ref, slot, name} ], faults => [ text ] }
+# rules($docroot) -> { rules => [ {where, ref, slot, name} ], faults => [ text ], unread => [ path ] }
+#   unread the paths the faults could not read, for a remedy that names their owner (SM1458)
 #   where  'page' | 'acl' | 'group' | 'conf' | 'binding'
 #   ref    page path (docroot-relative), acl path, group name, conf key, handler id
 #   slot   'allow' | 'deny' (the profile allowed or denied, SM1343: a profile has no
@@ -51,9 +52,10 @@ our @EXPORT_OK = qw(rules describe page_names);
 my %SLOT = ( addresses => 'allow', addresses_deny => 'deny' );
 
 sub _json {
-    my ( $path, $what, $faults ) = @_;
+    my ( $path, $what, $faults, $unread ) = @_;
     open my $fh, '<:raw', $path or do {
         unless ( $!{ENOENT} ) {
+            push @{$unread}, $path;
          # n818 (SM1440): who could not read it, and the owner: unix users to the CLI, the
          # web server's user and "the owner of the file" through a web door (ruling 243).
             my $err = "$!";
@@ -131,14 +133,17 @@ sub _conf_names {
 # deleted profile admits nobody, SM1138). Disabled handlers count: they can be
 # switched on again.
 sub _binding_rules {
-    my ( $path, $rules, $faults, $docroot ) = @_;
+    my ( $path, $rules, $faults, $docroot, $unread ) = @_;
     require Lazysite::Handlers;
     no warnings 'once';
     local $Lazysite::Handlers::DOCROOT = $docroot;
     my $fields = Lazysite::Handlers::address_profile_fields();
     return unless %$fields;
     open my $fh, '<:utf8', $path or do {
-        push @{$faults}, "handlers.conf could not be read ($!)" unless $!{ENOENT};
+        unless ( $!{ENOENT} ) {
+            push @{$faults}, "handlers.conf could not be read ($!)";
+            push @{$unread}, $path;
+        }
         return;
     };
     my ( $cur, @recs );
@@ -170,7 +175,7 @@ sub _binding_rules {
 
 sub rules {
     my ($docroot) = @_;
-    my ( @rules, @faults );
+    my ( @rules, @faults, @unread ); # @unread: the paths behind the faults, for the remedy
     my $lz   = Lazysite::Paths::lazysite_dir($docroot);
     my $auth = "$lz/auth";
 
@@ -217,8 +222,9 @@ sub rules {
     }
 
     push @faults, "could not read directory $_ ($unread{$_})" for sort keys %unread;
+    push @unread, sort keys %unread;
 
-    my $acls = _json( "$auth/acls.json", 'acls.json', \@faults );
+    my $acls = _json( "$auth/acls.json", 'acls.json', \@faults, \@unread );
     for my $path ( sort keys %{ $acls || {} } ) {
         my $e = $acls->{$path};
         next unless ref $e eq 'HASH';
@@ -227,7 +233,7 @@ sub rules {
         }
     }
 
-    my $groups = _json( "$auth/groups-settings.json", 'groups-settings.json', \@faults );
+    my $groups = _json( "$auth/groups-settings.json", 'groups-settings.json', \@faults, \@unread );
     for my $g ( sort keys %{ $groups || {} } ) {
         my $e = $groups->{$g};
         next unless ref $e eq 'HASH';
@@ -251,9 +257,9 @@ sub rules {
     push @rules, { where => 'conf', ref => 'bad_url_exempt', slot => 'match', name => $_ }
         for grep { lc $_ ne 'none' } _names( $conf{bad_url_exempt} );
 
-    _binding_rules( "$lz/forms/handlers.conf", \@rules, \@faults, $docroot );
+    _binding_rules( "$lz/forms/handlers.conf", \@rules, \@faults, $docroot, \@unread );
 
-    return { rules => \@rules, faults => \@faults };
+    return { rules => \@rules, faults => \@faults, unread => \@unread };
 }
 
 # "pages /a, /b; folders ...": one line saying where the given rules are, capped.

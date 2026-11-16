@@ -30,6 +30,10 @@ spit( "$d/lazysite/lazysite.conf", "site_name: T\ntrusted_proxies: 127.0.0.1\n" 
 spit( "$d/index.md", "---\ntitle: Home\nsubtitle: Home.\n---\nhi\n" );
 spit( "$d/lazysite/auth/acls.json", encode_json( { '/intranet/' => { owner => 'x', addresses => ['office'] } } ) );
 spit( "$d/lazysite/auth/address-profiles.json", encode_json( { office => { entries => [] } } ) );
+# SM1458: what the running user owns is a permissions fault and names nobody to run as; the
+# remedy that spells the command is for what ANOTHER user owns, here a root-owned file.
+plan skip_all => '/etc/shadow is not root-owned and unreadable here' if open( my $sh, '<', '/etc/shadow' ) || !-e '/etc/shadow';
+symlink '/etc/shadow', "$d/lazysite/auth/groups-settings.json" or die $!;
 my $priv = "$d-lazysite-private";
 make_path("$priv/a");
 chmod 0000, "$priv/a", "$d/lazysite/auth/acls.json", "$d/lazysite/auth/address-profiles.json" or die $!;

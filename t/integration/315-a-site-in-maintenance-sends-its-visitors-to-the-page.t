@@ -20,6 +20,7 @@
 use strict;
 use warnings;
 use Test::More;
+use Time::Local qw(timegm);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use MaintenanceRig qw(build_site cookie_for conf_set via_wrapper via_processor slurp spit);
@@ -27,6 +28,11 @@ use MaintenanceRig qw(build_site cookie_for conf_set via_wrapper via_processor s
 my $UNTIL = do {
     my @g = gmtime( time() + 7200 );
     sprintf '%04d-%02d-%02d %02d:%02d', $g[5] + 1900, $g[4] + 1, $g[3], $g[2], $g[1];
+};
+# The written time, to the minute, as an epoch: what Retry-After counts down to (SM1452).
+my $UNTIL_EPOCH = do {
+    my ( $y, $mo, $dd, $h, $mi ) = $UNTIL =~ /\A(\d+)-(\d+)-(\d+) (\d+):(\d+)\z/;
+    timegm( 0, $mi, $h, $dd, $mo - 1, $y );
 };
 
 sub loc { return $_[0]{headers}{location} // '' }
@@ -58,12 +64,18 @@ subtest 'Q1: a visitor is sent to the page by a temporary redirect, never cached
 
 subtest 'Q1: the page answers 503 with Retry-After, and is not cached' => sub {
     for my $how ( [ wrapper => \&via_wrapper ], [ processor => \&via_processor ] ) {
-        my $r = $how->[1]->( $d, uri => '/maintenance' );
+        # The bound is the clock read just before THIS request: the engine fixes Retry-After
+        # at render time, and a render (or the sites built before it) can take tens of
+        # seconds under instrumentation. The tolerance covers the render, not the run.
+        my $before = time;
+        my $r      = $how->[1]->( $d, uri => '/maintenance' );
         is( $r->{code}, 503, "$how->[0]: the maintenance page is a 503" );
         like( $r->{body}, qr/in maintenance/i, '...and says so' );
         my $ra = $r->{headers}{'retry-after'};
         ok( defined $ra && $ra =~ /\A\d+\z/, '...with a Retry-After in seconds' );
-        cmp_ok( abs( ( $ra // 0 ) - 7200 ), '<=', 120, '...which is the time to maintenance_until' );
+        my $want = $UNTIL_EPOCH - $before;
+        cmp_ok( $ra // 0, '<=', $want + 1,   '...which is no more than the time to maintenance_until' );
+        cmp_ok( $ra // 0, '>=', $want - 120, '...and no less, but for the render' );
         like( $r->{headers}{'cache-control'} // '', qr/no-store/, '...and is no-store' );
         unlike( $r->{headers}{'cache-control'} // '', qr/public|max-age=[1-9]/, '...never public' );
     }

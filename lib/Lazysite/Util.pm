@@ -187,6 +187,22 @@ sub path_owner_name {
     return undef;
 }
 
+# SM1236: the CLI as this host runs it, for a hint. LAZYSITE_CLI is set by the
+# CLI and the Hestia updater; otherwise `lazysite` when it is on PATH, otherwise
+# the CLI beside the running tool by path (the tarball puts no `lazysite` on PATH).
+# SM1458: one spelling for every piece of advice, here, so a sentence built in this
+# module (store_run_as) says the same as the tools' own.
+sub cli_spelling {
+    return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
+    for my $d ( split /:/, $ENV{PATH} // '' ) {
+        return 'lazysite' if length $d && -x join( '/', $d, 'lazysite' );
+    }
+    require Cwd;
+    require File::Basename;
+    my $cli = File::Basename::dirname( Cwd::abs_path($0) // $0 ) . '/lazysite-cli.pl';
+    return -f $cli ? "perl $cli" : 'lazysite';
+}
+
 # n825 (SM1447): THE USER TO RUN A COMMAND AS IS THE OWNER OF THE STORE FILES IT READS AND
 # WRITES, not of the directory holding them. On a Hestia host lazysite/auth/ is
 # ispadmin:www-data 2770 but acls.json and address-profiles.json are written by the CGI,
@@ -215,7 +231,34 @@ sub store_run_as {
         'The store files have different owners ('
             . join( '; ', map { "$_ owns " . join( ', ', @{ $files{$_} } ) } @order )
             . '), so no one user is the owner of them all: run it as the owner of the file it '
-            . 'changes, or give the files one owner (`lazysite check` names the fix).' );
+            . 'changes, or give the files one owner (`' . cli_spelling() . ' check` names the fix).' );
+}
+
+# SM1458: the check's advice for a walk that could not read something under the auth store:
+# who to run it as. $auth is the store directory; @paths are what could not be read (none:
+# the store files the check reads). THE USER NAMED IS NEVER THE ONE RUNNING IT (R1): the
+# running user's own files are skipped, so the advice names the owner of what it could not
+# read; where all of it is the running user's own, the permissions are the fault and it says
+# so. Nobody is named twice (R3): root is "the owner" and "or as root" at once.
+sub run_as_advice {
+    my ( $auth, @paths ) = @_;
+    my ($me) = getpwuid($>);
+    $me //= "uid $>";
+    my $cli = cli_spelling();
+    my @cand = @paths ? @paths : map { "$auth/$_" } qw(acls.json address-profiles.json address-lists.json.converted);
+    my @theirs = grep { my $o = path_owner_name($_); !defined $o || $o ne $me } @cand;
+    unless (@theirs) {
+        my @shown = @paths ? @paths : ($auth);
+        splice @shown, 3 if @shown > 3;
+        return "run the check as root, or fix the permissions of what it could not read ("
+            . join( ', ', @shown )
+            . "): it is owned by $me, who ran this check, so who runs it is not the fault";
+    }
+    my ( $u, $differ ) = store_run_as( "", @theirs );
+    my $what = @paths ? 'what it could not read' : 'the store files';
+    return "run the check as $u, who owns $what (sudo -u $u $cli check ...)"
+        . ( $u eq 'root'   ? ''          : ', or as root' )
+        . ( length $differ ? ". $differ" : '' );
 }
 
 # Is this process answering a web request (the manager API, MCP, any CGI door)? A

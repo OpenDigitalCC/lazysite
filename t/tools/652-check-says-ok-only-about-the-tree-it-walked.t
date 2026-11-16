@@ -60,7 +60,7 @@ subtest 'unreadable private-store directories: no ok from the walks that missed 
     unlike( $out, qr/$OK every form pattern in page content can be compiled/, 'no ok for the form patterns' ) or diag $out;
     unlike( $out, qr/$OK protected content is held outside the document root/, 'no ok for protected content' );
     like( $out, qr/the form-pattern check could not read 3 directories as \Q$me\E/, 'the warning names what was not read' );
-    like( $out, qr/run the check as \Q$me\E, who owns what it could not read/, 'and the user to run as' ) or diag $out;
+    like( $out, qr/run the check as root, or fix the permissions of what it could not read.*owned by \Q$me\E, who ran this check/, 'and the user to run as' ) or diag $out;
 };
 
 subtest 'a readable tree still gets its ok lines' => sub {

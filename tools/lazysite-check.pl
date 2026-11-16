@@ -2132,16 +2132,7 @@ sub _report_forwarded_trust {
 # SM1236: the CLI as this host runs it, for a hint. LAZYSITE_CLI is set by the
 # CLI and the Hestia updater; otherwise `lazysite` when it is on PATH, otherwise
 # the CLI beside this tool by path (the tarball puts no `lazysite` on PATH).
-sub cli_spelling {
-    return $ENV{LAZYSITE_CLI} if length( $ENV{LAZYSITE_CLI} // '' );
-    for my $d ( split /:/, $ENV{PATH} // '' ) {
-        return 'lazysite' if length $d && -x join( '/', $d, 'lazysite' );
-    }
-    require Cwd;
-    require File::Basename;
-    my $cli = File::Basename::dirname( Cwd::abs_path($0) // $0 ) . '/lazysite-cli.pl';
-    return -f $cli ? "perl $cli" : 'lazysite';
-}
+sub cli_spelling { require Lazysite::Util; return Lazysite::Util::cli_spelling() }
 
 sub conf_value {
     my ( $file, $key ) = @_;
@@ -2184,7 +2175,7 @@ sub report_address_rules {
         report( 'WARN',
             'address rules could not be looked for everywhere: ' . join( '; ', @{ $refs->{faults} } )
                 . ' - a rule that names an address profile may be in what was not read',
-            _run_as_remedy() );
+            _run_as_remedy( @{ $refs->{unread} } ) );
     }
     return unless @rules;    # nothing uses an address rule: nothing to say
 
@@ -2235,7 +2226,7 @@ sub report_address_rules {
         report( 'WARN',
             'cannot read address-profiles.json as ' . _running_as() . " ($err) while rules name "
                 . join( ', ', @names ) . ' - whether those profiles exist is unknown',
-            _run_as_remedy() );
+            _run_as_remedy($store) );
     }
     elsif ( $state eq 'undecodable' ) {
         report( 'WARN',
@@ -2262,7 +2253,7 @@ sub report_address_rules {
             report( 'WARN',
                 'could not check that every address profile a rule names is in the store: '
                     . join( '; ', @{ $refs->{faults} } ),
-                _run_as_remedy() );
+                _run_as_remedy( @{ $refs->{unread} } ) );
         }
         else {
             report( 'OK', 'every address profile a rule names is in the store' );
@@ -2288,7 +2279,7 @@ sub report_address_slots_against_old_kinds {
     if ( $state ne 'ok' ) {
         report( 'WARN', "cannot read $old ($state" . ( $err ? ": $err" : '' ) . ') - the rules cannot be '
                 . 'compared with the kinds the address lists had before 0.16.5',
-            _run_as_remedy() );
+            _run_as_remedy($old) );
         return;
     }
     require Lazysite::Auth::AddressRefs;
@@ -2308,7 +2299,7 @@ sub report_address_slots_against_old_kinds {
         report( 'WARN',
             'could not check whether every rule names its address profile in the slot its old list\'s kind meant: '
                 . join( '; ', @{ $refs->{faults} } ),
-            _run_as_remedy() );
+            _run_as_remedy( @{ $refs->{unread} } ) );
         return;
     }
     unless (@say) {
@@ -5188,13 +5179,8 @@ sub _running_as { return scalar( getpwuid($>) ) // "uid $>" }
 sub _run_as_remedy {
     my (@paths) = @_;
     require Lazysite::Util;
-    my $what = @paths ? "what it could not read" : "the store files";
-    my ( $u, $differ ) = @paths
-        ? Lazysite::Util::store_run_as( "", @paths )
-        : Lazysite::Util::store_run_as( Lazysite::Paths::lazysite_dir( $opt{docroot} ) . "/auth",
-        qw(acls.json address-profiles.json address-lists.json.converted) );
-    return "run the check as $u, who owns $what (sudo -u $u " . cli_spelling() . " check ...), or as root"
-        . ( length $differ ? ". $differ" : "" );
+    # SM1458: built in Util, where it is tested - never the running user, root said once.
+    return Lazysite::Util::run_as_advice( Lazysite::Paths::lazysite_dir( $opt{docroot} ) . "/auth", @paths );
 }
 
 # One anonymous GET. Returns (status, body). Cache directives on purpose: a

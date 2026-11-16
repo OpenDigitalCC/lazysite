@@ -96,8 +96,8 @@ subtest 'the check names the owner of the store files in its remedy' => sub {
     chmod 0000, "$d/lazysite/auth/acls.json" or die $!;
     my $out = run_child( [ $^X, "$root/tools/lazysite-check.pl", '--docroot', $d ], stderr => 'inherit' )->{out} // '';
     chmod 0660, "$d/lazysite/auth/acls.json";
-    like( $out, qr/run the check as \Q$me\E, who owns the store files \(sudo -u \Q$me\E (?:lazysite|perl \S+lazysite-cli\.pl) check \.\.\.\), or as root/,
-        'the remedy names the user' ) or diag $out;
+    like( $out, qr/run the check as root, or fix the permissions of what it could not read \(\S*acls\.json\): it is owned by \Q$me\E, who ran this check/,
+        'the remedy does not send the running user to run it as themselves (SM1458)' ) or diag $out;
     unlike( $out, qr/sudo -u USER/, 'no placeholder is left' );
 };
 

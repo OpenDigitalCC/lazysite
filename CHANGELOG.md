@@ -60,6 +60,16 @@ Archive
   group's wall time into its pass record and runs the groups cheapest first by the time of their
   last pass, groups never timed after, in map order. R2 (splitting a group over an hour) is not
   built and the filing stays open. t/tools/688 and 689.
+- SM1458 (PENDING) **check: the advice for what it could not read names the owner of it, and
+  the full command**. The address-rule and address-profile walks no longer advise "run the
+  check as X, who owns the store files" while running as X: they name the owner of what they
+  could not read, and where that is the running user's own, say its permissions are the fault.
+  The different-owners sentence spells the command as every other advice does, not a bare
+  `lazysite`, and where the owner is root the advice says root once. t/unit/lib/212 and
+  t/tools/690 fail on the old text.
+- SM1452 (PENDING) **tests: t/integration/315 does not race the clock**. Its Retry-After bound
+  is the time from the clock read just before the request to `maintenance_until`, and the
+  tolerance covers the render, not the run, as SM1450 did for t/unit/processor/185. Test only.
 - SM1457 (PENDING) **tools: the deploy reports what it did, and a test holds it to that**. The quiet
   rollout report lists only the deploy's own findings (a failure, a repair needing a human, a
   probe exposure or one that could not run, a refused permission, a site root that did not
