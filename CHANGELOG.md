@@ -53,6 +53,9 @@ Archive
 
 ## Unreleased
 
+- Docs: SM1453 (the rollout reads the ACL probe's cache verdict as a verdict, not as "could not
+  run") filed as a candidate.
+
 - Docs: SM1449 (a gate stopped part way resumes where it stopped) and SM1452
   (t/integration/315 does not race the clock) filed as candidates.
 
