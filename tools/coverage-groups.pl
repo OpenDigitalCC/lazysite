@@ -197,9 +197,9 @@ sub by_cost {
     my @k = map { [ $_, $i++, last_seconds( $store, $_->[0] ) ] } @rows;
     return map { $_->[0] } sort {
         defined $a->[2] && defined $b->[2] ? ( $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] )
-            : defined $a->[2] ? -1
-            : defined $b->[2] ? 1
-            :                   $a->[1] <=> $b->[1]
+            : defined $a->[2]              ? -1
+            : defined $b->[2]              ? 1
+            : $a->[1] <=> $b->[1]
     } @k;
 }
 

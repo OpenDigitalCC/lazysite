@@ -80,7 +80,7 @@ subtest 'a patch runs every lint and the selection for its diff, and nothing els
     # A recorded patch pass is not run again either (R2), under the patch's own key.
     ( $rc, $out ) = patch_gate($d);
     is( $rc, 0, 'the same patch again passes' ) or diag($out);
-    like( $out, qr/already passed.*not run again/, 'from the record' );
+    like( $out, qr/passed on this tree.*reused.*not run again/, 'from the record' );
     is_deeply( ran(), [], 'with nothing run' );
 
     # The same tree gated in full is another key: a patch pass is not a full one.
