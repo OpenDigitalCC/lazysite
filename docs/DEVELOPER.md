@@ -344,6 +344,28 @@ A patch to a stable line (0.17.1 after 0.17.0) is gated on its diff, not on the 
   `tools/release.sh confirm-register SMNNNN --ruling N` once on main; it rewrites the marker to
   "confirmed by the release manager on D Mon YYYY (ruling N)" and commits `docs/SECURITY.md`.
 
+## The suite on the HPS lab (SM1454 R3)
+
+The full suite is about 6,000 CPU-seconds; `tools/suite-lab.sh STAGE_DIR JOBS OUTFILE` can
+run it on an HPS lab VM instead of the dev host. It is a suite runner: the gate's
+`LAZYSITE_SUITE_RUNNER` hook runs it in place of its local prove, reads OUTFILE and takes
+the exit status. It does nothing unless `LAZYSITE_SUITE_LAB=1`, because the lab path makes
+network calls (the lab operator API and ssh) and belongs to whoever runs the gate on a host
+that keeps such calls visible. With it set, a bounded check runs first (not the lab's quiet
+hours 21:00-07:00 CET, the IPS answers, no open issue names `sch-001`, 20 GiB of guest
+memory free, the `~/.ssh/hps-lazysite` key exists); a miss prints
+`suite-lab: lab not available (REASON) - running locally` and runs `tools/suite-local.sh`,
+the gate's own prove. Otherwise it creates one 8 vCPU / 16 GiB VM (the catalogue's "large",
+capped at 75 %), sends the stage tree as a tar stream, installs the Perl modules and tools
+the suite loads with apt, runs `prove -lr -j8` and streams its output into OUTFILE. A
+failure while provisioning or preparing falls back to the local run; a failure once prove
+has started is a failure, as is an exit 0 without prove's `Result: PASS` line. The VM is
+destroyed on every exit; a destroy that fails is named on stderr with the command to run.
+The installed set is not cached (the lab has no image-build verb), so each run installs it
+(about 80 s). The VM has no `md-to-pdf`, so t/unit/extensions/41 and 44 fail there, and
+t/unit/manager/98 fails there for a reason not yet found: until those are settled a
+lab run of the suite is not clean.
+
 ## Where to start a change
 
 

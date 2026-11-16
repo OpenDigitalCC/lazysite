@@ -101,6 +101,13 @@ Archive
   once, so the thirty seconds are not waited out; `OdooDaemonTest::wait_until` takes the
   service's pid). The rest of the slowest in the suite are one CGI process per case
   (t/integration/112 to 117, t/unit/manager/226, 228) and are left. Tests only; no engine change.
+- SM1454 (R3) (PENDING) **tools: the full suite can run on an HPS lab VM, with a local fallback**.
+  `tools/suite-lab.sh STAGE_DIR JOBS OUTFILE` is a suite runner for the gate's
+  `LAZYSITE_SUITE_RUNNER` hook: when `LAZYSITE_SUITE_LAB=1` and a bounded check finds the lab
+  available, it runs the suite on a throwaway 8 vCPU / 16 GiB VM, writes prove's output to
+  OUTFILE, exits with prove's status and destroys the VM; otherwise it says `suite-lab: lab not
+  available (REASON) - running locally` and runs `tools/suite-local.sh`. A lab failure after the
+  tests started is a failure, never a fallback.
 
 - Docs: SM1453 (the rollout reads the ACL probe's cache verdict as a verdict, not as "could not
   run") filed as a candidate.
