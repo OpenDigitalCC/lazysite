@@ -26,7 +26,16 @@
 #   docs/feature-requests/*.md
 #                  the status-note of every filing whose id has an entry in the
 #                  released section and still says "SHIPPED (PENDING)" says
-#                  "SHIPPED (X.Y.Z)" (P22).
+#                  "SHIPPED (X.Y.Z)" (P22). A filing whose bullet is stamped with
+#                  its landed SHA here and whose status is `candidate` becomes
+#                  `shipped` - `partial` when the bullet names a part, `SM1454
+#                  (R3)` - its note opened "SHIPPED (X.Y.Z): " (SM1454 R6 b).
+#   docs/compliance/OBLIGATIONS.md, docs/compliance/TECHNICAL-FILE.md
+#                  a STABLE PATCH (X.Y.Z+1) of a release whose records were
+#                  walked at that release: reviewed_at_version, reviewed_on and
+#                  covers_version say the target, and a dated patch-walk clause
+#                  names the diff's runtime files and register entries (SM1454
+#                  R6 a). See compliance(). Edge and beta cuts leave them alone.
 #
 # THE GATE RUNS IT TOO, without notes: the subtitle and the FEATURES prose are
 # placeholders, everything else is what the build will write. So the gate tests
@@ -65,8 +74,10 @@ use Text::Wrap     qw(wrap);
 
 # THE RELEASE-MATERIAL ALLOWLIST. A release commit touches these and nothing
 # else: release.sh build refuses a commit whose diff names any other path, and a
-# main that moved past its gate only through these needs no new gate. The last
-# two are written by release.sh itself (the GATE-LOG row, the coverage record).
+# main that moved past its gate only through these needs no new gate.
+# GATE-LOG.md and coverage-last.json are written by release.sh itself (the row,
+# the coverage record); the two compliance records are stamped by compliance()
+# when the cut is a stable patch (SM1454 R6 a).
 my @ALLOWLIST = qw(
     CHANGELOG.md
     docs/releases/CHANGELOG-archive.md
@@ -78,6 +89,8 @@ my @ALLOWLIST = qw(
     docs/releases/GATE-LOG.md
     dist/config/coverage-last.json
     docs/feature-requests/
+    docs/compliance/OBLIGATIONS.md
+    docs/compliance/TECHNICAL-FILE.md
 );
 
 # THE CHECKS THAT READ THOSE FILES - every lint naming one of them (t/lint/214
@@ -146,8 +159,11 @@ my $notes =
 
 my @said;
 my @RELEASED_IDS;    # P22: the ids with an entry in the section being released
+my %STAMPED;         # SM1454 R6 b: id => 'shipped' | 'partial', for a bullet stamped here
+my $CLASSIFICATION;  # dist/config/classification.json, read on first use (runtime_file)
 changelog();
 filings();
+compliance();
 archive() if $PAT == 0;
 features();
 version_pair();
@@ -189,6 +205,17 @@ sub changelog {
         if ( !$sha ) { push @refused, "  $lines[$i]\n    $why"; next }
         $lines[$i] =~ s/^(- \S.*?\s)\(PENDING\)/$1($sha)/;
         $stamped++;
+
+        # SM1454 R6 b: what the stamp says the bullet shipped. A bullet that names a
+        # part of a filing - `SM1454 (R3)`, `SM1369 X4`, `SM12 partial` - is partial.
+        if ( $lines[$i] =~ /^- (SM\d+[a-z]?(?:[ ,\/+&]+SM\d+[a-z]?)*)(.*?)\s\(\Q$sha\E\)/ ) {
+            my ( $ids, $qual ) = ( $1, $2 );
+            my $kind = $qual =~ /\(\s*[A-Z]{1,2}\d+|\b[A-Z]\d+\b|\bpart(?:ial)?\b/ ? 'partial' : 'shipped';
+            # One part among the bullets keeps the filing partial.
+            for my $id ( $ids =~ /(SM\d+[a-z]?)/g ) {
+                $STAMPED{$id} = $kind unless ( $STAMPED{$id} // '' ) eq 'partial';
+            }
+        }
     }
     # P22: the filings these entries close are stamped with the version below.
     for my $i ( $u + 1 .. $end - 1 ) {
@@ -246,21 +273,193 @@ sub filings {
     opendir my $dh, $dir or return;
     my @files = sort grep { /\.md\z/ } readdir $dh;
     closedir $dh;
-    my $stamped = 0;
+    my ( $stamped, $moved ) = ( 0, 0 );
     for my $name (@files) {
         my $path = "$dir/$name";
         my $text = slurp($path);
         my ($fm) = $text =~ /\A---\n(.*?)\n---\n/s      or next;
         my ($id) = $fm   =~ /^id:\s*(SM\d+[a-z]?)\s*$/m or next;
         next unless $released{$id};
-        next unless $fm =~ /^status-note:\s*"SHIPPED \(PENDING\)/m;
-        ( my $new = $fm ) =~ s/^(status-note:\s*"SHIPPED )\(PENDING\)/$1($VERSION)/m;
+        my $new = $fm;
+
+        # SM1454 R6 b: a candidate whose bullet is stamped with its landed SHA here is
+        # not a candidate any more. t/lint/26 fails a released claim on a `candidate`,
+        # and 0.17.1 learned that after a 33-minute suite and a branch of its own.
+        if ( $STAMPED{$id} && $new =~ /^status:\s*candidate\s*$/m ) {
+            my $partial = $STAMPED{$id} eq 'partial';
+            my $says    = ( $partial ? 'PARTIALLY SHIPPED' : 'SHIPPED' ) . " ($VERSION)";
+            $new =~ s/^status:\s*candidate\s*$/status: @{[ $partial ? 'partial' : 'shipped' ]}/m;
+            if ( $new =~ /^status-note:\s*"(.*)"\s*$/m ) {
+                my $note = $1;
+                # A note a branch already wrote as SHIPPED (PENDING) is stamped below.
+                unless ( $note =~ /^(?:PARTIALLY )?SHIPPED \(PENDING\)/ ) {
+                    $note =~ s{^OPEN\b [.:;]? \s* (?: Target [ ] \S+ (?: [ ] (?:stable|beta|edge) )? \. \s* )?}{}x;
+                    $note = length $note ? "$says: $note" : "$says.";
+                    $new =~ s/^status-note:.*$/'status-note: "' . $note . '"'/me;
+                }
+            }
+            else {
+                my $note = $partial ? "$says: the CHANGELOG entry names the part." : "$says.";
+                $new =~ s/^(status:.*)$/$1\nstatus-note: "$note"/m;
+            }
+            $moved++;
+        }
+
+        $new =~ s/^(status-note:\s*"SHIPPED )\(PENDING\)/$1($VERSION)/m
+            and $stamped++;
+        next if $new eq $fm;
         $text =~ s/\A---\n\Q$fm\E\n---\n/---\n$new\n---\n/s or next;
         spit( $path, $text );
-        $stamped++;
     }
     push @said, "filings: $stamped status-note(s) stamped SHIPPED ($VERSION)";
+    push @said, "filings: $moved candidate(s) moved to shipped or partial" if $moved;
     return;
+}
+
+# --- the compliance records of a stable patch (SM1454 R6 a) ------------------
+
+# 0.17.1 was one line in the auth wrapper, and its gate stopped at the compliance
+# check: OBLIGATIONS.md (reviewed_at_version) and TECHNICAL-FILE.md (covers_version)
+# still said 0.17.0, so a branch of its own walked them by hand (SM1456) and was
+# landed before the gate could start again. For a PATCH the walk is mechanical, and
+# this does it, in the gate's stage and in the build's release commit alike:
+#
+#   - a STABLE cut X.Y.Z of the line's newest earlier release (the base, vX.Y.Z-1 or
+#     below) whose two records say they were reviewed AT THAT BASE: both are stamped
+#     with the target, OBLIGATIONS.md's reviewed_on with the date, and a dated
+#     patch-walk clause says what the diff from the base changes - the RUNTIME files
+#     (dist/config/classification.json decides: a file the manifest ships is runtime,
+#     the tooling, tests and docs it excludes are not) and the register entries
+#     docs/SECURITY.md gains. The clause is f0226a873's form.
+#   - REFUSED, nothing written, when a runtime file changed and the diff adds no
+#     register entry naming an SM number (the change was not assessed; ADR 0007), or
+#     when a record was not reviewed at the base (a patch of a walk nobody made).
+#   - LEFT FOR THE CHECK when the cut is certified or a new minor (X.Y.0): those
+#     claim a walk by hand, so the records are not touched and the compliance check,
+#     which runs next and still honours docs/compliance/SIGNOFF.md, names them.
+#   - A record already at the target was walked by hand: left as it is. Edge and beta
+#     cuts, and a tree with no compliance records, are not touched.
+#
+# It stamps that the diff was read against the register; it does not read the rows.
+# The clause says so, and the rows the diff does not touch stand as walked at the base.
+sub compliance {
+    return unless $opt{channel} eq 'stable' || $opt{channel} eq 'certified';
+    my @records = (
+        [ 'docs/compliance/OBLIGATIONS.md',    'reviewed_at_version' ],
+        [ 'docs/compliance/TECHNICAL-FILE.md', 'covers_version' ],
+    );
+    return unless grep { -f "$DIR/$_->[0]" } @records;
+
+    my @behind;
+    for my $r (@records) {
+        my ( $rel, $key ) = @$r;
+        refuse("$rel is missing; it is walked by hand") unless -f "$DIR/$rel";
+        my ($at) = slurp("$DIR/$rel") =~ /^\s*\Q$key\E:\s*["']?(\d+\.\d+\.\d+)/m;
+        refuse("$rel has no $key; it is walked by hand") unless defined $at;
+        push @behind, [ $rel, $key, $at ] if vcmp( $at, $VERSION ) < 0;
+    }
+    return unless @behind;
+
+    my $base = patch_base();
+    if ( $opt{channel} ne 'stable' || $PAT == 0 || !defined $base ) {
+        push @said, 'compliance: the records are behind '
+            . $VERSION . ' and this cut is '
+            . ( $opt{channel} ne 'stable' ? "a $opt{channel} cut" : $PAT == 0 ? 'a new minor' : 'a patch with no earlier release of its line' )
+            . ': walk them by hand (the compliance check says which)';
+        return;
+    }
+    ( my $bv = $base ) =~ s/^v//;
+    for my $r (@behind) {
+        my ( $rel, $key, $at ) = @$r;
+        refuse( "$rel says $key $at, not $bv, the release this patch is of: it was not walked at the base, "
+                . "so there is no walk to carry forward. Walk it by hand for $bv or this cut, then cut again." )
+            if vcmp( $at, $bv ) != 0;
+    }
+
+    my @files   = split /\n/, git_out( 'diff', '--name-only', $base, 'HEAD' ) // '';
+    my @runtime = grep { runtime_file($_) } @files;
+    my @entries = register_entries($base);
+    refuse( "a runtime file changed since $base and the diff adds no entry to the significant-change register "
+            . "(docs/SECURITY.md '### DATE - SMNNNN ...'): " . join( ', ', @runtime[ 0 .. ( $#runtime < 4 ? $#runtime : 4 ) ] )
+            . ( @runtime > 5 ? ", and @{[ @runtime - 5 ]} more" : '' )
+            . ". A change a site runs is assessed against the ADR 0007 triggers before it ships." )
+        if @runtime && !@entries;
+
+    my $files = @runtime ? join( ', ', map { "`$_`" } @runtime ) : 'none - the diff changes nothing a site runs';
+    my $regs = @entries ? join( '; ', @entries ) : 'none';
+    my $diff = scalar(@files) . ' file' . ( @files == 1 ? '' : 's' );
+
+    my %done;
+    for my $r (@behind) {
+        my ( $rel, $key ) = @$r;
+        my $path = "$DIR/$rel";
+        my $text = slurp($path);
+        $text =~ s/^(\s*\Q$key\E:\s*)\S+/$1$VERSION/m or refuse("$rel: cannot stamp $key");
+        if ( $key eq 'reviewed_at_version' ) {
+            $text =~ s/^(\s*reviewed_on:\s*)\S+/$1$DATE/m or refuse("$rel: has no reviewed_on to stamp");
+            my $section = "# Walked for $VERSION: what a person must confirm\n\n"
+                . "Patch-walked on $DATE by tools/release-material.pl for $VERSION, a **stable patch** of $bv, against the\n"
+                . "diff alone (`git diff $base HEAD`, $diff). Runtime files it changes: $files.\n"
+                . "Register entries it carries: $regs. The stamp says the diff was read against the register,\n"
+                . "not that a row was re-read: every row the diff does not touch stands as walked for $bv.\n\n";
+            $text =~ s/^(?=# Walked for )/$section/m or $text =~ s/\n*\z/\n\n$section/;
+            $text =~ s/\n+\z/\n/;
+        }
+        else {
+            my $clause = "patch-walked on $DATE against $VERSION, a stable patch of $bv (the diff from $base: runtime files: "
+                . ( @runtime ? join( ', ', @runtime ) : 'none' ) . "; register entries: $regs); ";
+            $text =~ s/^(status:\s+index - complete in coverage, )/$1$clause/m
+                or refuse("$rel: its status line is not 'index - complete in coverage, ...'; walk it by hand");
+        }
+        spit( $path, $text );
+        $done{$rel} = 1;
+    }
+    push @said, sprintf 'compliance: patch-walked %s for %s against %s (%s runtime file%s, %d register entr%s)',
+        join( ' and ', map { s{.*/}{}r } sort keys %done ), $VERSION, $base,
+        scalar(@runtime), @runtime == 1 ? '' : 's', scalar(@entries), @entries == 1 ? 'y' : 'ies';
+    return;
+}
+
+# The newest release tag of this version's line below it - v0.17.0 for 0.17.1 - or undef.
+sub patch_base {
+    my @tags = grep { /\Av\Q$MAJ.$MIN\E\.\d+\z/ && vcmp( substr( $_, 1 ), $VERSION ) < 0 }
+        split /\n/, git_out( 'tag', '-l', "v$MAJ.$MIN.*" ) // '';
+    my ($newest) = sort { vcmp( substr( $b, 1 ), substr( $a, 1 ) ) } @tags;
+    return $newest;
+}
+
+sub vcmp {
+    my ( $x, $y ) = map { [/(\d+)/g] } @_;
+    for my $i ( 0 .. 2 ) {
+        my $c = ( $x->[$i] // 0 ) <=> ( $y->[$i] // 0 );
+        return $c if $c;
+    }
+    return 0;
+}
+
+# The headings the diff from BASE adds to docs/SECURITY.md's register that name an SM
+# number: '2026-11-16 - SM1455 (PENDING): the bad-URL guard ...'.
+sub register_entries {
+    my ($base) = @_;
+    my $diff = git_out( 'diff', '-U0', '--no-color', $base, 'HEAD', '--', 'docs/SECURITY.md' ) // '';
+    return grep { /\bSM\d+/ } map { /^\+### (\d{4}-\d{2}-\d{2} .*)$/ ? $1 : () } split /\n/, $diff;
+}
+
+# Is this path one a site runs? dist/config/classification.json decides, as
+# tools/build-manifest.pl reads it: a root dotfile and every `exclude` pattern are
+# tooling and docs; a path an override or a rule classifies ships; a path nothing
+# classifies is counted as runtime, because the manifest build would refuse it.
+sub runtime_file {
+    my ($rel) = @_;
+    unless ($CLASSIFICATION) {
+        my $p = "$DIR/dist/config/classification.json";
+        require JSON::PP;
+        $CLASSIFICATION = eval { JSON::PP::decode_json( slurp($p) ) }
+            or refuse("cannot read $p to tell a runtime file from tooling: $@");
+    }
+    return 0 if $rel =~ m{\A\.[^/]*\z};
+    for my $pat ( @{ $CLASSIFICATION->{exclude} // [] } ) { return 0 if $rel =~ /$pat/ }
+    return 1;
 }
 
 # --- the archive, at a new minor ---------------------------------------------
