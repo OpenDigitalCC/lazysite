@@ -20,7 +20,9 @@
 #   tools/release-material.pl - the CHANGELOG section with every PENDING ref
 #   stamped, the FEATURES entry, VERSION/NEXT_VERSION, the practice briefing,
 #   the doc index, the archive at a new minor - with a placeholder subtitle, and
-#   runs the full suite, the bench, coverage, the manifest, SBOM and man-page
+#   runs the record checks first (the compliance check and the release-material
+#   lints, seconds - a fault in a record fails the gate before the suite starts),
+#   then the full suite, the bench, coverage, the manifest, SBOM and man-page
 #   checks on that tree. A pass writes a receipt for the commit under
 #   tmp/release-gate/VERSION/, with every log beside it. So the gate tests what
 #   will ship, and main can pass a gate at any moment.
@@ -104,8 +106,10 @@
 #   and the status exactly as it reads its own run, and the same record rule
 #   applies. A patch gate's small selection always runs locally.
 #
-#   confirm-register (SM1454 R4; the release manager, once, on main): marks a
-#   patch's drafted register entry confirmed - see tools/confirm-register.pl.
+#   confirm-register (SM1454 R4, R6 d; the developer agent, on the release manager's
+#   ruling): marks a patch's drafted register entry confirmed on a NEW BRANCH of
+#   main, claude/confirm-SMNNNN, held for vcs-review - the agent cannot commit on
+#   main. It prints the branch to land. See tools/confirm-register.pl.
 set -e
 
 # The repository this script belongs to - the one it gates, builds and tags.
@@ -926,33 +930,35 @@ if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; th
     abort_build "compliance records are not current for this cut; not releasing."
 fi
 
-# --- build: the checks that read the release material, on the release commit -
+# --- the checks that read the release material, before the suite -----------------
 #
 # Every lint that names a release-material path, and the briefing's unit test
-# (release-material.pl --lints; t/lint/214 keeps the list complete). Seconds to
-# a minute, against the gate's hour: the gate already ran them on the same
-# material with a placeholder subtitle, and this is the check that the notes'
-# prose, the GATE-LOG row and the coverage record broke nothing.
+# (release-material.pl --lints; t/lint/214 keeps the list complete): the ones that
+# read the CHANGELOG, the filings (t/lint/09, 26) and the rest of the material.
+# Seconds to a minute, against the gate's hour. SM1454 R6 c: they run in the gate
+# too, on the stage with the release material in it and BEFORE the suite, so a
+# fault in a record - a filing still `candidate` under a stamped bullet, a status-note
+# that contradicts its status - fails the gate in seconds, not after 33 minutes of
+# tests that would have found it last (0.17.1). In the build they are the check that
+# the notes' prose, the GATE-LOG row and the coverage record broke nothing.
 #
 # Lint 113 waits for a stable cut's download commit: the GATE-LOG row makes the
 # new version the newest stable, and download/ is replaced only after the
 # packages exist.
-if [ "$MODE" = build ]; then
-    MATERIAL_LINTS=$(perl "$STAGE/tools/release-material.pl" --lints --dir "$STAGE") \
-        || abort_build "the release-material checks could not be listed (above)."
-    if [ "$CHANNEL" = stable ]; then
-        MATERIAL_LINTS=$(printf '%s\n' "$MATERIAL_LINTS" | grep -v '^t/lint/113-')
-    fi
-    LINT_LOG="${STAGE}-material-lints.txt"
-    echo "==> the release-material checks on $RELEASE_SHA ($(printf '%s\n' "$MATERIAL_LINTS" | wc -l) files)"
-    # shellcheck disable=SC2086  # one argument per file name
-    if ! ( cd "$STAGE" && detached prove -l $MATERIAL_LINTS > "$LINT_LOG" 2>&1 ); then
-        grep -E '^#   Failed test|\(Wstat|^Failed|not ok' "$LINT_LOG" | head -20 >&2
-        abort_build "a check on the release material failed (log: $LINT_LOG)." \
-            "main is unchanged; nothing was tagged."
-    fi
-    grep -E '^Files=' "$LINT_LOG"
+MATERIAL_LINTS=$(perl "$STAGE/tools/release-material.pl" --lints --dir "$STAGE") \
+    || abort_build "the release-material checks could not be listed (above)."
+if [ "$CHANNEL" = stable ]; then
+    MATERIAL_LINTS=$(printf '%s\n' "$MATERIAL_LINTS" | grep -v '^t/lint/113-')
 fi
+LINT_LOG="${STAGE}-material-lints.txt"
+echo "==> the release-material checks on ${RELEASE_SHA:-$MATERIAL_SHA} ($(printf '%s\n' "$MATERIAL_LINTS" | wc -l) files)"
+# shellcheck disable=SC2086  # one argument per file name
+if ! ( cd "$STAGE" && detached prove -l $MATERIAL_LINTS > "$LINT_LOG" 2>&1 ); then
+    grep -E '^#   Failed test|\(Wstat|^Failed|not ok' "$LINT_LOG" | head -20 >&2
+    abort_build "a check on the release material failed (log: $LINT_LOG)." \
+        "main is unchanged; nothing was tagged."
+fi
+grep -E '^Files=' "$LINT_LOG"
 
 # --- the gate: the suite, the bench and coverage (gate only) -------------------
 if [ "$MODE" = gate ]; then
