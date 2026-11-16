@@ -255,8 +255,9 @@ for my $r (
 
     # SM1454 R4: AN ENTRY A PATCH'S BRANCH CARRIES IS DRAFTED, NOT YET CONFIRMED.
     # The developer agent drafts a register entry with the fix and says so, in the
-    # words tools/confirm-register.pl looks for; the release manager confirms it once,
-    # on main, with `tools/release.sh confirm-register SMNNNN --ruling N`. An entry
+    # words tools/confirm-register.pl looks for (t/lint/594 holds an entry to them); on
+    # the release manager's ruling the developer agent confirms it once, on a branch of
+    # its own, with `tools/release.sh confirm-register SMNNNN --ruling N`. An entry
     # awaiting that is NAMED here and does not stop a cut below certified: the
     # confirmation is a person's, recorded when the branch lands, not a second round.
     # A certified cut claims walked and confirmed records (ADR 0010), so it blocks.
