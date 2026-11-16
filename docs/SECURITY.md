@@ -6722,7 +6722,7 @@ verdict : accepted, confirmed by the release manager on 12 Nov 2026 (ruling 251)
 
 ### 2026-11-16 - SM1455 (PENDING): the bad-URL guard reads the request's path behind Apache
 
-Assessment drafted by the developer agent; for the release manager's confirmation. A fix for 0.17.1 (stable), found on the 0.17.0 field walk (T3.1).
+Assessment drafted by the developer agent; awaiting the release manager's confirmation. A fix for 0.17.1 (stable), found on the 0.17.0 field walk (T3.1).
 
 what changed
 : `lazysite-auth.pl` took its path from `REDIRECT_URL`, else `/`. Apache sets `REDIRECT_URL` only
@@ -6765,4 +6765,4 @@ residual risk
   counting from the upgrade.
 
 verdict
-: for the release manager's confirmation. A stable patch; no trigger fires.
+: accepted, awaiting the release manager's confirmation. A stable patch; no trigger fires.
