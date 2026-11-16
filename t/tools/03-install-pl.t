@@ -72,6 +72,48 @@ sub fresh_docroot {
     return ( "$dir/site", "$dir/cgi-bin", $dir );
 }
 
+# A site that has had its ordinary first install, for the subtests whose first
+# install is only where they start (the ones that assert on a first install run
+# their own, above and below). The install is run ONCE, into a directory of this
+# file's own, and put back from a tarball for each subtest that asks - a fresh
+# install is about two seconds and thirty subtests began with one. The state
+# file names files by absolute path, so the tree is restored to the SAME path
+# each time rather than copied elsewhere. Subtests run one after another, so one
+# path serves them all; it is emptied before every restore.
+my ( $FX, $FX_TAR );
+sub installed_docroot {
+    if ( !defined $FX ) {
+        $FX = tempdir( 'lazysite-install-fx-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+        make_path( "$FX/site", "$FX/cgi-bin" );
+        my ( $rc, $out ) = run_install( '--docroot', "$FX/site", '--cgibin', "$FX/cgi-bin" );
+        die "the shared first install failed ($rc):\n$out" if $rc != 0;
+        $FX_TAR = "$FX.tar";
+        system( 'tar', '-C', $FX, '-cpf', $FX_TAR, '.' ) == 0 or die "tar of the shared install: $?";
+    }
+    else {
+        remove_tree( "$FX/site", "$FX/cgi-bin" );
+        die "the shared install's tree was not emptied" if -e "$FX/site" || -e "$FX/cgi-bin";
+        system( 'tar', '-C', $FX, '-xpf', $FX_TAR ) == 0 or die "restore of the shared install: $?";
+    }
+    return ( "$FX/site", "$FX/cgi-bin", $FX );
+}
+END { unlink $FX_TAR if defined $FX_TAR }
+
+# Two installs inside one second give one backup name (the name carries the
+# second it was made in). Waits until the clock has passed the newest backup's
+# second - which an install taking two seconds has nearly always done already -
+# instead of a blind one-second sleep after each.
+sub wait_for_a_new_backup_name {
+    my ($docroot) = @_;
+    require Time::HiRes;
+    require POSIX;
+    my ($newest) = sort { $b cmp $a }
+        map { m{lazysite-backup-(\d{8}-\d{6})-} ? $1 : () } glob("$docroot/lazysite/backups/lazysite-backup-*.tar.gz");
+    return unless defined $newest;
+    Time::HiRes::sleep(0.05) while POSIX::strftime( '%Y%m%d-%H%M%S', gmtime ) le $newest;
+    return;
+}
+
 sub run_install {
     my @args = @_;
     # SM767: `prove -l` lends every child PERL5LIB=lib; production runs the
@@ -249,8 +291,7 @@ subtest 'upgrade (same version), no edits: all overwritten, state refreshed' => 
 # --- 3. Seed edited: preserve; code edited: overwrite ---
 
 subtest 'seed edited preserved; code edited overwritten' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     # Edit a seed file
     my $seed_path = "$docroot/contact.md";
@@ -281,8 +322,7 @@ subtest 'seed edited preserved; code edited overwritten' => sub {
 # --- 4. File removed from manifest (simulate by editing state) ---
 
 subtest 'upgrade: unedited orphan removed; edited orphan preserved' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     # Create two fake "previously installed" files and add them to state
     # so the next run sees them as "in stored but not in new manifest".
@@ -319,8 +359,7 @@ subtest 'upgrade: unedited orphan removed; edited orphan preserved' => sub {
 # --- 5. Backup created on upgrade ---
 
 subtest 'backup created, extracts, contains state file' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
     run_install( '--docroot', $docroot, '--cgibin', $cgibin );
 
     my @backups = glob("$docroot/lazysite/backups/lazysite-backup-*.tar.gz");
@@ -356,8 +395,7 @@ subtest 'backup created, extracts, contains state file' => sub {
 # --- 6. Retention: 4 runs with retention=3 -> oldest removed ---
 
 subtest 'backup_retention: 3 keeps 3 most recent' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
     open my $fh, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
     print $fh "\nbackup_retention: 3\n";
     close $fh;
@@ -365,7 +403,7 @@ subtest 'backup_retention: 3 keeps 3 most recent' => sub {
     for my $i ( 1 .. 4 ) {
         run_install( '--docroot', $docroot, '--cgibin', $cgibin );
         # Force distinct timestamps so backup filenames don't collide
-        sleep 1 if $i < 4;
+        wait_for_a_new_backup_name($docroot) if $i < 4;
     }
 
     my @backups = glob("$docroot/lazysite/backups/lazysite-backup-*.tar.gz");
@@ -373,15 +411,14 @@ subtest 'backup_retention: 3 keeps 3 most recent' => sub {
 };
 
 subtest 'backup_retention: 0 keeps all' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
     open my $fh, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
     print $fh "\nbackup_retention: 0\n";
     close $fh;
 
     for my $i ( 1 .. 3 ) {
         run_install( '--docroot', $docroot, '--cgibin', $cgibin );
-        sleep 1 if $i < 3;
+        wait_for_a_new_backup_name($docroot) if $i < 3;
     }
 
     my @backups = glob("$docroot/lazysite/backups/lazysite-backup-*.tar.gz");
@@ -391,8 +428,7 @@ subtest 'backup_retention: 0 keeps all' => sub {
 # --- 7. Restore most recent ---
 
 subtest 'restore most recent backup: files return to prior state' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     # Snapshot starting content of a seed file
     my $seed     = "$docroot/contact.md";
@@ -423,8 +459,7 @@ subtest 'restore most recent backup: files return to prior state' => sub {
 # --- 8. Restore specific backup ---
 
 subtest 'restore --backup PATH: named tarball restored' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     # Edit a seed, reinstall to back up the edited state
     my $seed = "$docroot/contact.md";
@@ -440,7 +475,7 @@ subtest 'restore --backup PATH: named tarball restored' => sub {
     open my $e2, '>', $seed or die $!;
     print $e2 "# mark B\n";
     close $e2;
-    sleep 1;
+    wait_for_a_new_backup_name($docroot);
     run_install( '--docroot', $docroot, '--cgibin', $cgibin );
 
     # Restore the first (older) backup explicitly
@@ -456,8 +491,7 @@ subtest 'restore --backup PATH: named tarball restored' => sub {
 # --- 9. --list-backups ---
 
 subtest '--list-backups shows expected output' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
     run_install( '--docroot', $docroot, '--cgibin', $cgibin );
 
     my ( $rc, $out ) = run_install( '--docroot', $docroot, '--list-backups' );
@@ -486,8 +520,7 @@ subtest '--dry-run does not modify filesystem' => sub {
 # --- 11. Manager CSS ships (manifest-tracked) to the web-served path ---
 
 subtest 'manager CSS installs to the web-served manager/assets path' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     my $css = "$docroot/manager/assets/manager-classic.css";
     ok( -f $css, 'manager.css is at the web-served /manager/assets/ path' );
@@ -504,8 +537,7 @@ subtest 'manager CSS installs to the web-served manager/assets path' => sub {
 # --- 12. cgi-bin extension endpoints link/install ---
 
 subtest 'cgi-bin: form-handler and payment-demo reachable' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     ok( -e "$cgibin/form-handler.pl",
         'form-handler.pl present in cgi-bin (symlink or copy)' );
@@ -542,8 +574,7 @@ subtest '--theme prints warning and does not abort' => sub {
 # --- 15. D013 runtime paths include layouts/ and lazysite-assets/ ---
 
 subtest 'runtime_paths: D013 directories created' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     ok( -d "$docroot/lazysite/layouts", 'layouts/ dir created' );
     ok( -d "$docroot/lazysite-assets",  'lazysite-assets/ dir created' );
@@ -555,8 +586,7 @@ subtest 'runtime_paths: D013 directories created' => sub {
 # Regression: the preserve action used to record the on-disk (user) SHA as the
 # baseline, so the next upgrade saw the file as "unedited" and clobbered it.
 subtest 'edited content preserved across repeated upgrades' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     my $index = "$docroot/index.md";
     open my $fh, '>', $index or die $!;
@@ -574,8 +604,7 @@ subtest 'edited content preserved across repeated upgrades' => sub {
 
 # --- an unwritable content file is non-fatal ---
 subtest 'unwritable content file does not abort the install' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     my $about = "$docroot/about.md";
 SKIP: {
@@ -800,8 +829,7 @@ subtest '--restore-full migrates a full backup to a new domain' => sub {
 # with the shipped boilerplate. Before the fix, an untracked dest was planned as a
 # fresh 'install' and overwrote the operator's homepage.
 subtest 'untracked pre-existing seed file preserved (not clobbered) on upgrade' => sub {
-    my ( $docroot, $cgibin ) = fresh_docroot();
-    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    my ( $docroot, $cgibin ) = installed_docroot();
 
     my $index = "$docroot/index.md";
     open my $fh, '>', $index or die $!;

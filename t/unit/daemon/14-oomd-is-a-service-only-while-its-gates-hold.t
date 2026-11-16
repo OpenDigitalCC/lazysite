@@ -186,7 +186,7 @@ subtest 'an upgraded package is a restart, once per version (the health verb\'s 
     local $Lazysite::Daemon::Service::Oomd::INSTALLED_VERSION = sub { '9.99-test' };
     conf_write();
     my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-    ok( wait_until( sub { oomd_up($d) }, 40 ), 'up' );
+    ok( wait_until( sub { oomd_up($d) }, 40, $svc ), 'up' );
     my $p1 = oomd_up($d)->{pid};
     ok( wait_until( sub { my $h = oomd_up($d); $h && $h->{pid} != $p1 }, 40 ), 'restarted because its version is not the installed one' );
     my $p2 = oomd_up($d)->{pid};

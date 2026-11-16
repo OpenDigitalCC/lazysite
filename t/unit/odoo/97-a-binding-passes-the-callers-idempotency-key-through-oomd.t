@@ -62,7 +62,7 @@ sub idem_files {
 sub plan_dirs { opendir my $dh, "$d/lazysite/odoo/plans" or return 0; return scalar grep { /\A[0-9a-f]{32}\z/ } readdir $dh }
 
 my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up' )
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up' )
     or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
 
 subtest 'a repeat with the same key does not write twice (immediate apply)' => sub {

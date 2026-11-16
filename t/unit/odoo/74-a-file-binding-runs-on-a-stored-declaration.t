@@ -99,7 +99,7 @@ subtest 'the stored declaration holds the operation\'s file parameters' => sub {
 };
 
 my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up' )
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up' )
     or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
 
 subtest 'a file call through oomd runs on the stored declaration and loads no OOM' => sub {

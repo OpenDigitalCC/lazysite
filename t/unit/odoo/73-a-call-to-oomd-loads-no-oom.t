@@ -98,7 +98,7 @@ subtest 'saving a binding stores its operation declaration, stamped' => sub {
 sub read_decl_for { my ($id) = @_; open my $fh, '<', "$d/lazysite/odoo/decl/$id.json" or return undef; local $/; return JSON::PP::decode_json(<$fh>) }
 
 my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up' )
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up' )
     or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
 
 subtest 'a daemon-path call loads no registry, no service, no OOM client' => sub {

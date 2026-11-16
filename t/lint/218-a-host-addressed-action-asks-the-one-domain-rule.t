@@ -110,9 +110,21 @@ ok( scalar( keys %BODY ) > 200, 'the subs of the manager surfaces were read' );
 
 # Does this code call that sub? `name(`, `name (`, `&name` or `\&name` - not the
 # name as a word, a package, a string or part of a variable.
+#
+# The names a text calls are read out of it ONCE (`word(` not preceded by a sigil
+# or a word character, and `&word`), and a question about a name is then a lookup.
+# The closures below ask every sub about a growing set of names; matching a
+# pattern per name over every body took a minute and a half.
+my ( $CALLS_TEXT, %CALLS_SET );
 sub calls {
     my ( $text, $name ) = @_;
-    return $text =~ /(?<![\$\@%\w])\b\Q$name\E\s*\(|\\?&\Q$name\E\b/ ? 1 : 0;
+    unless ( defined $CALLS_TEXT && $CALLS_TEXT eq $text ) {
+        $CALLS_TEXT = $text;
+        %CALLS_SET  = ();
+        $CALLS_SET{$_} = 1 for $text =~ /(?<![\$\@%\w])(\w+)\s*\(/g;
+        $CALLS_SET{$_} = 1 for $text =~ /&(\w+)/g;
+    }
+    return $CALLS_SET{$name} ? 1 : 0;
 }
 ok( !calls( q{my $conv = main->can('convert')}, 'main' ), 'calls(): a package name is not a call' );
 ok( calls( q{return main( @ARGV )},             'main' ), 'calls(): a call is' );

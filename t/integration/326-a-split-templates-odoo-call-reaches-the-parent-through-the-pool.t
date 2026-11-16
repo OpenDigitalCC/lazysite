@@ -109,7 +109,7 @@ symlink "$root/lazysite-processor.pl", "$cgibin/lazysite-processor.pl" or die "s
 
 # --- oomd, the warm-fork parent, the pool -------------------------------------------
 my $oomd = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'oomd is up' ) or BAIL_OUT('oomd did not start');
+ok( wait_until( sub { oomd_up($d) }, 30, $oomd ), 'oomd is up' ) or BAIL_OUT('oomd did not start');
 
 no warnings 'once';
 $Lazysite::Daemon::Service::OdooEndpoint::SCRIPT = "$root/lazysite-odoo.pl";

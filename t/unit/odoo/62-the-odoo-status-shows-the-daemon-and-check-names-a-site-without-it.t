@@ -51,7 +51,7 @@ subtest 'not running: the status says so, and check names the site' => sub {
 };
 
 my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'oomd is up' ) or BAIL_OUT('no oomd');
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'oomd is up' ) or BAIL_OUT('no oomd');
 
 subtest 'running: name, health, version, packs, workers and uptime' => sub {
     my $s = Lazysite::Odoo::action_odoo_status()->{daemon};

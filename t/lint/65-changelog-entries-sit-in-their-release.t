@@ -22,7 +22,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root changelog_text);
+use TestHelper qw(repo_root changelog_text run_child);
 
 my $root = repo_root();
 # -e not -d: a git WORKTREE has a .git file, and this lint must run there too
@@ -56,10 +56,40 @@ ok( @pairs > 10, 'found SHA-carrying entries to check (sanity)' );
 
 my %tag_exists = map { $_ => 1 } split /\n/, `git -C \Q$root\E tag -l 'v*'`;
 
+# ONE GIT PROCESS PER QUESTION, NOT PER ENTRY. This used to start `git cat-file`
+# for each SHA and `git merge-base --is-ancestor` for each SHA and tag - over
+# a thousand process starts. Now one `cat-file --batch-check` says which SHAs are
+# commits here (and their full ids), and the commits a tag reaches are listed
+# once per tag, the first time it is asked about. "Is an ancestor of the tag" and
+# "is in the tag's rev-list" are the same question.
+sub git_run {
+    my (@args) = @_;
+    my $r = run_child( [ 'git', '-C', $root, @args ], stderr => 'discard' );
+    return $r;
+}
+
+my %commit;    # SHA as the changelog spells it => full id, for each that is a commit here
+{
+    my %seen;
+    my @uniq = grep { !$seen{$_}++ } map { $_->[1] } @pairs;
+    my $r = run_child( [ 'git', '-C', $root, 'cat-file', '--batch-check' ],
+        stdin => join( '', map {"$_^{commit}\n"} @uniq ), stderr => 'discard' );
+    my @line = split /\n/, $r->{out};
+    is( scalar @line, scalar @uniq, 'git answered for every SHA asked about' );
+    for my $i ( 0 .. $#uniq ) {
+        $commit{ $uniq[$i] } = $1 if ( $line[$i] // '' ) =~ /^([0-9a-f]{40,64}) commit \d+$/;
+    }
+}
+
+my %reaches;    # tag => { full id => 1 } for every commit the tag reaches
 sub in_tag {
     my ( $sha, $tag ) = @_;
     return 0 unless $tag_exists{$tag};
-    return system("git -C \Q$root\E merge-base --is-ancestor $sha $tag 2>/dev/null") == 0;
+    $reaches{$tag} //= do {
+        my $r = git_run( 'rev-list', $tag, '--' );
+        $r->{status} == 0 ? { map { $_ => 1 } split /\n/, $r->{out} } : {};
+    };
+    return $reaches{$tag}{ $commit{$sha} } ? 1 : 0;
 }
 
 # Version list in file order (newest first), for previous-tag lookups.
@@ -71,7 +101,7 @@ for my $p (@pairs) {
 
     # A SHA the repo does not have (squashed history, other remote) is
     # t/lint/53's business, not this lint's - skip, never fail.
-    next if system("git -C \Q$root\E cat-file -e $sha^{commit} 2>/dev/null") != 0;
+    next unless $commit{$sha};
 
     if ( $sec eq 'unreleased' ) {
         # Must not be inside the NEWEST tag that has a section.

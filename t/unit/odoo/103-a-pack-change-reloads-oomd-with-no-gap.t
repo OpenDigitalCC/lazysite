@@ -80,7 +80,7 @@ $svc = oomd_start( sub {
         open STDERR, '>>', "$state/service.log";
         Lazysite::Daemon::Service::Oomd::run( docroot => $d );
 } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up' )
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up' )
     or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
 my $h0 = oomd_up($d);
 my $pid = $h0->{pid};
@@ -148,7 +148,7 @@ subtest 'an OOM before 0.39 starts with its environment and is told the change w
             open STDERR, '>>', "$state/service.log";
             Lazysite::Daemon::Service::Oomd::run( docroot => $d );
     } );
-    ok( wait_until( sub { oomd_up($d) }, 30 ), 'up' );
+    ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'up' );
     my $h = oomd_up($d);
     ok( has_ns( $h, $A ) && !has_ns( $h, $B ), 'its environment is odoo_packs' ) or diag explain $h->{namespaces};
     write_conf( $d, %SITE, odoo_packs => "$A,$B" );

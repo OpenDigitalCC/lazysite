@@ -120,12 +120,19 @@ sub oomd_up {
     return eval { Odoo::Ops::Daemon::Path->health( socket => $sock, timeout => 2 ) };
 }
 
+# wait_until( CODE, SECONDS, PID ): CODE's true answer, or 0 when SECONDS pass.
+# With PID - the service the thing is waited FOR, as oomd_start returned it - the
+# wait also ends, at once and with 0, when that service has exited: a service
+# that has gone will not bring the thing up, and waiting out the rest of the
+# seconds only delayed the same failure (t/tools/154 starts a daemon from an
+# OOM that cannot start one, and waited the thirty seconds for it).
 sub wait_until {
-    my ( $code, $secs ) = @_;
+    my ( $code, $secs, $pid ) = @_;
     my $until = Time::HiRes::time() + ( $secs // 20 );
     while ( Time::HiRes::time() < $until ) {
         my $r = $code->();
         return $r if $r;
+        return 0 if $pid && waitpid( $pid, POSIX::WNOHANG() ) == $pid;
         Time::HiRes::sleep(0.2);
     }
     return 0;

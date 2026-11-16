@@ -32,9 +32,15 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_child);
 
 my $root = repo_root();
+
+# What git prints for these arguments, run in the repository, no shell.
+sub git_out {
+    my (@args) = @_;
+    return run_child( [ 'git', '-C', $root, @args ], stderr => 'discard' )->{out};
+}
 plan skip_all => 'not a git checkout - tags cannot be resolved here'
     unless system("git -C \Q$root\E rev-parse --git-dir >/dev/null 2>&1") == 0;
 
@@ -106,23 +112,37 @@ if ( open my $ah, '<', "$root/docs/releases/CHANGELOG-archive.md" ) {
 # happens to follow it, months before the fix; it carries no changelog entry
 # and is not something a release announces. SM446 was filed in v0.10.21 and
 # fixed for 0.10.22, which is the ordinary shape, not a fault.
-my %shipped_sm;    # SM => [ tag, hash, hash, ... ] - every tagged commit
-for my $tag ( grep { /\S/ } split /\n/, `git -C \Q$root\E tag --list 'v*.*.*'` ) {
-    chomp $tag;
-    for my $line ( split /\n/, `git -C \Q$root\E log --format='%H %s' \Q$tag\E` ) {
-        my ( $h, $s ) = split / /, $line, 2;
-        next unless defined $s && $s =~ /^(SM\d+)\b/;
-        my $sm = $1;
-        next if $s =~ /^SM\d+[^:]*:\s*file\b/i;
-        # "SM802 filed, SM803 fixed" is the same filing in another spelling. The
-        # check credits a commit to the FIRST SM in its subject, so that commit's
-        # code - SM803's fix - was read as SM802's work, and SM802 was reported as
-        # shipped silently in v0.13.10, whose own section says it was "filed as
-        # candidates and not built". Found landing SM802 in 0.13.13.
-        next if $s =~ /^SM\d+\s+filed\b/i;
-        $shipped_sm{$sm} //= [$tag];
-        push @{ $shipped_sm{$sm} }, $h;
+#
+# ONE LOG, NOT ONE PER TAG. This walked the whole history once for each of the
+# ~300 release tags - the same commits read three hundred times. The commits
+# every tag reaches are one `git log --tags`, and the TAG that first reaches an
+# SM's work (the name in the message below, in tag-listing order as before) is
+# looked for only for an SM about to be reported, from the commits each tag
+# reaches.
+my @tags = grep { /\S/ } split /\n/, git_out( 'tag', '--list', 'v*.*.*' );
+my %shipped_sm;    # SM => [ hash, hash, ... ] - every tagged commit
+for my $line ( split /\n/, git_out( 'log', '--tags=v*.*.*', '--format=%H %s' ) ) {
+    my ( $h, $s ) = split / /, $line, 2;
+    next unless defined $s && $s =~ /^(SM\d+)\b/;
+    my $sm = $1;
+    next if $s =~ /^SM\d+[^:]*:\s*file\b/i;
+    # "SM802 filed, SM803 fixed" is the same filing in another spelling. The
+    # check credits a commit to the FIRST SM in its subject, so that commit's
+    # code - SM803's fix - was read as SM802's work, and SM802 was reported as
+    # shipped silently in v0.13.10, whose own section says it was "filed as
+    # candidates and not built". Found landing SM802 in 0.13.13.
+    next if $s =~ /^SM\d+\s+filed\b/i;
+    push @{ $shipped_sm{$sm} }, $h;
+}
+
+# The first tag, in listing order, that reaches any of these commits.
+sub first_tag_reaching {
+    my (@hashes) = @_;
+    my %want = map { $_ => 1 } @hashes;
+    for my $tag (@tags) {
+        return $tag if grep { $want{$_} } split /\n/, git_out( 'rev-list', $tag, '--' );
     }
+    return '?';
 }
 
 # A commit is WORK when it touches anything outside docs/. SM438's landing
@@ -156,10 +176,11 @@ for my $e ( entries_in( $unrel, $next_head ) ) {
         push @dupes, "$e->{sm} '$e->{title}' is already in $sec";
     }
     elsif ( $shipped_sm{ $e->{sm} } && !$released_sm{ $e->{sm} } ) {
-        my ( $tag, @hashes ) = @{ $shipped_sm{ $e->{sm} } };
-        push @stranded,
-            "$e->{sm} shipped in $tag and no released section mentions it"
-            if touches_code(@hashes);
+        my @hashes = @{ $shipped_sm{ $e->{sm} } };
+        if ( touches_code(@hashes) ) {
+            my $tag = first_tag_reaching(@hashes);
+            push @stranded, "$e->{sm} shipped in $tag and no released section mentions it";
+        }
     }
 }
 

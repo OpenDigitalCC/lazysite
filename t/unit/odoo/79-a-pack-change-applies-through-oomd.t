@@ -55,7 +55,7 @@ sub run_site {
     bind( $d, id => 'mark', operation => $opname, modes => 'authenticated', callers => 'staff',
         ( $apply ? ( apply => 'immediate' ) : () ), params => 'file=file' );
     my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-    ok( wait_until( sub { oomd_up($d) }, 30 ), "$label: the real oomd is up" )
+    ok( wait_until( sub { oomd_up($d) }, 30, $svc ), "$label: the real oomd is up" )
         or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
     my $mark = "$d/mark-$label.txt";
     my ($b) = Lazysite::Odoo::find_binding('mark');

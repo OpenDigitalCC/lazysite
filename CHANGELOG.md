@@ -79,6 +79,19 @@ Archive
   register entry drafted on the patch's branch passes the compliance check (named, advisory; it
   blocks a certified cut), and `tools/release.sh confirm-register SMNNNN --ruling N` records the
   release manager's confirmation in one commit on main. t/tools/680 to 682.
+- SM1454 (PENDING) **tests: the slow ones are trimmed (R5), 449 s to 123 s over six files, no
+  assertion removed.** Timed alone, before and after: `t/lint/218` 114 s to 1.3 s (its closures
+  matched a pattern per name over every sub body; the names a body calls are now read once), the
+  changelog lints `53` 88 s to 0.2 s, `65` 27 s to 1.0 s and `75` 10 s to 0.2 s (they started one
+  git process per ref, per SHA and per tag; each now asks git once for the whole set and looks
+  each up, with the same answers, checked against the old method), `t/tools/03` 125 s to 96 s (the
+  plain first install that fourteen subtests only start from is made once and restored from a
+  tarball to the same path; the one-second sleeps between backups wait for a new backup name
+  instead), and `t/tools/154` 85 s to 24 s (a daemon test waits for the service it started and
+  now stops waiting when that service has exited, which the OOM that cannot start one does at
+  once, so the thirty seconds are not waited out; `OdooDaemonTest::wait_until` takes the
+  service's pid). The rest of the slowest in the suite are one CGI process per case
+  (t/integration/112 to 117, t/unit/manager/226, 228) and are left. Tests only; no engine change.
 
 - Docs: SM1453 (the rollout reads the ACL probe's cache verdict as a verdict, not as "could not
   run") filed as a candidate.

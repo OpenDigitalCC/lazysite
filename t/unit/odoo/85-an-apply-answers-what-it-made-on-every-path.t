@@ -110,7 +110,7 @@ subtest 'through oomd' => sub {
     my $d = oomd_site( odoo_packs => $PACK );
     $Lazysite::Odoo::DOCROOT = $d;
     my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-    ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up' )
+    ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up' )
         or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
     paths( 'daemon', $d, undef );
     oomd_stop($svc);

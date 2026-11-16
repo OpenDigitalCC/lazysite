@@ -35,7 +35,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root changelog_text);
+use TestHelper qw(repo_root changelog_text run_child);
 
 my $root = repo_root();
 my $changelog = "$root/CHANGELOG.md";
@@ -68,10 +68,52 @@ cmp_ok( scalar @refs, '>', 20, 'the changelog names commits, and they were found
     or diag( 'If this drops to nothing the pattern has stopped matching and '
         . 'this test is checking an empty list - which would pass silently.' );
 
+# ONE GIT PROCESS PER QUESTION, NOT ONE PER REF. The three subtests below used
+# to start `git cat-file`, `git merge-base` and `git branch --contains` for each
+# of the ~2,500 refs - minutes of process starts to read one history. Each now
+# asks git once for the whole set (`cat-file --batch-check` for what exists,
+# `rev-list` for what a branch reaches) and looks each ref up. The answers are
+# the old ones: a ref exists when git finds exactly one object for it; it is on
+# a branch when a local branch (or the checked-out HEAD, which `branch
+# --contains` also lists) reaches it. An object that is not a commit (a tag
+# object) is still asked the old way, one by one.
+sub git_run {
+    my ( $stdin, @args ) = @_;
+    my $r = run_child( [ 'git', '-C', $root, @args ], stdin => $stdin, stderr => 'discard' );
+    return ( $r->{out}, $r->{status} );
+}
+
+my %obj;    # ref => [ full id, type ] for every ref git finds exactly one object for
+{
+    my %seen;
+    my @uniq = grep { !$seen{$_}++ } @refs;
+    my ($out) = git_run( join( '', map {"$_\n"} @uniq ), 'cat-file', '--batch-check' );
+    my @line = split /\n/, $out;
+    for my $i ( 0 .. $#uniq ) {
+        $obj{ $uniq[$i] } = [ $1, $2 ] if ( $line[$i] // '' ) =~ /^([0-9a-f]{40,64}) (\w+) \d+$/;
+    }
+    is( scalar @line, scalar @uniq, 'git answered for every ref asked about' );
+}
+
+sub exists_in_git { return $obj{ $_[0] } ? 1 : 0 }
+
+# Is this ref reached by the commits in $set? A commit by lookup; anything else
+# the old way, with $old_check->($ref) true when git says it is reached.
+sub reached {
+    my ( $ref, $set, $old_check ) = @_;
+    return $set->{ $obj{$ref}[0] } ? 1 : 0 if $obj{$ref}[1] eq 'commit';
+    return $old_check->($ref) ? 1 : 0;
+}
+
+sub rev_set {
+    my (@args) = @_;
+    my ( $out, $status ) = git_run( '', 'rev-list', @args );
+    return {} if $status != 0;
+    return { map { $_ => 1 } split /\n/, $out };
+}
+
 subtest 'every named commit exists' => sub {
-    my @gone = grep {
-        system("git -C \Q$root\E cat-file -e \Q$_\E 2>/dev/null") != 0
-    } @refs;
+    my @gone = grep { !exists_in_git($_) } @refs;
     is_deeply( \@gone, [],
         'no changelog entry cites a commit that does not exist' )
         or diag( join "\n  ",
@@ -114,12 +156,12 @@ subtest 'every named commit is reachable from main' => sub {
     my $main = system("git -C \Q$root\E rev-parse --verify -q main >/dev/null 2>&1") == 0
         ? 'main'
         : 'origin/main';
+    my $on_main = rev_set($main);
     my @unlanded = grep {
-        system( "git -C \Q$root\E merge-base --is-ancestor \Q$_\E \Q$main\E"
-                . " 2>/dev/null" ) != 0
-    } grep {
-        system("git -C \Q$root\E cat-file -e \Q$_\E 2>/dev/null") == 0
-    } @refs;
+        !reached( $_, $on_main, sub {
+            ( git_run( '', 'merge-base', '--is-ancestor', $_[0], $main ) )[1] == 0
+        } )
+    } grep { exists_in_git($_) } @refs;
 
     is_deeply( \@unlanded, [],
         "no changelog entry cites a commit that is not on $main" )
@@ -138,12 +180,13 @@ subtest 'every named commit is on a branch' => sub {
     # unreachable from any history a reader can follow, and will be collected.
     # This is SM325's test for tags, applied to the other place a SHA is
     # recorded.
+    my $on_a_branch = rev_set( '--branches', 'HEAD' );
     my @orphan = grep {
-        my $out = `git -C \Q$root\E branch --contains \Q$_\E 2>/dev/null`;
-        ( $? == 0 && $out =~ /\S/ ) ? 0 : 1;
-    } grep {
-        system("git -C \Q$root\E cat-file -e \Q$_\E 2>/dev/null") == 0
-    } @refs;
+        !reached( $_, $on_a_branch, sub {
+            my ( $out, $status ) = git_run( '', 'branch', '--contains', $_[0] );
+            $status == 0 && $out =~ /\S/;
+        } )
+    } grep { exists_in_git($_) } @refs;
 
     is_deeply( \@orphan, [],
         'no changelog entry cites a commit that no branch contains' )

@@ -63,7 +63,7 @@ sub partner_name {
 }
 
 my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up (started by the extension\'s service)' )
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up (started by the extension\'s service)' )
     or BAIL_OUT('oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d));
 
 subtest 'a read is answered by the daemon, not by this process' => sub {

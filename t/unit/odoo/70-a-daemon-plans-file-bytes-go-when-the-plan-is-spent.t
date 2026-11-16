@@ -53,7 +53,7 @@ sub dirs {
 }
 
 my $svc = oomd_start( sub { Lazysite::Daemon::Service::Oomd::run( docroot => $d ) } );
-ok( wait_until( sub { oomd_up($d) }, 30 ), 'the real oomd is up' )
+ok( wait_until( sub { oomd_up($d) }, 30, $svc ), 'the real oomd is up' )
     or BAIL_OUT( 'oomd did not start: ' . Lazysite::Daemon::Service::Oomd::failure_reason($d) );
 
 subtest 'a confirm removes the bytes from the daemon\'s run folder' => sub {
