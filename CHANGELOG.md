@@ -53,14 +53,16 @@ Archive
 
 ## Unreleased
 
-- SM1456 (PENDING) **docs: the compliance records cover 0.17.1, a stable patch.** OBLIGATIONS.md
+## 0.17.1 - STABLE: the bad-URL blocker counts probes behind Apache (2026-11-16)
+
+- SM1456 (f0226a87) **docs: the compliance records cover 0.17.1, a stable patch.** OBLIGATIONS.md
   and TECHNICAL-FILE.md are patch-walked against `git diff v0.17.0 main` and stamped 0.17.1: the
   one line that ships (SM1455) and the release tooling (SM1454) touch the register, threat-model,
   technical-file, significant-change and vulnerability-handling rows; the rest stand as walked
   for 0.17.0. SM1455's register entry and STRIDE row are drafted by the developer agent; for the
   release manager's confirmation. The bench is not re-captured and the Declaration is not
   stamped.
-- SM1455 (PENDING) **security: the bad-URL blocker counts probes behind Apache.** The auth
+- SM1455 (cc154218) **security: the bad-URL blocker counts probes behind Apache.** The auth
   wrapper took its path from `REDIRECT_URL`, which Apache sets only on an internal redirect and
   leaves unset on the two routes into the wrapper (the source-type rewrite `[PT]` and
   `FallbackResource`), so the blocker checked `/` for every request and never counted a probe:
@@ -69,7 +71,7 @@ Archive
   rules were never affected (the processor reads the right path). A real-Apache test
   (t/integration/732) sends probes by both routes; t/integration/14 stops setting
   `REDIRECT_URL` where Apache would not.
-- SM1454 (PENDING) **release: a patch gates on its diff, a tree is never run twice, and a patch's
+- SM1454 (3d1756c0) **release: a patch gates on its diff, a tree is never run twice, and a patch's
   register entry is confirmed once.** The 0.17.0 gate spent 2096 s in the full suite and under two
   minutes in every other stage; a one-line patch would have cost the same. R2: the suite stage keeps a pass by the tree id
   of the gated commit, the version, the channel and the suite mode (`tmp/release-gate/suite-passes/`),
@@ -86,7 +88,7 @@ Archive
   register entry drafted on the patch's branch passes the compliance check (named, advisory; it
   blocks a certified cut), and `tools/release.sh confirm-register SMNNNN --ruling N` records the
   release manager's confirmation in one commit on main. t/tools/680 to 682.
-- SM1454 (PENDING) **tests: the slow ones are trimmed (R5), 449 s to 123 s over six files, no
+- SM1454 (20edf21e) **tests: the slow ones are trimmed (R5), 449 s to 123 s over six files, no
   assertion removed.** Timed alone, before and after: `t/lint/218` 114 s to 1.3 s (its closures
   matched a pattern per name over every sub body; the names a body calls are now read once), the
   changelog lints `53` 88 s to 0.2 s, `65` 27 s to 1.0 s and `75` 10 s to 0.2 s (they started one

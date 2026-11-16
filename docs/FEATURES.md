@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.17.0"
+subtitle: "Everything lazysite has and does, and why - as of v0.17.1"
 brand: plain
 ---
 
@@ -2053,6 +2053,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.17.1** (2026-11-16, stable) - **The bad-URL blocker counts probes behind
+  Apache.** The bad-URL blocker counts a probe on a site behind Apache
+  (SM1455): the auth wrapper reads the request's path from REQUEST_URI when
+  Apache sets no REDIRECT_URL, so a scanner on /wp-login.php or a credential
+  file is counted and blocked at the threshold as it is behind nginx. A stable
+  patch gates on its diff from the last stable release (SM1454).
 - **0.17.0** (2026-11-15, stable) - **The stable release of the 0.16 line, with
   an unfinished backup named and a full backup that runs detached.** the
   0.16.12 beta as the new stable, replacing 0.16.0, with only the fixes of the
