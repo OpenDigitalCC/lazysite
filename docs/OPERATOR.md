@@ -46,6 +46,19 @@ sudo bash installers/hestia/lazysite-hestia-update-all.sh          # fleet code+
 Upgrades preserve edited content (the seed/conffile model) and skip unwritable
 files non-fatally.
 
+**What the fleet rollout reports.** The quiet report (the default) is the table, the
+summary and the deploy's own findings: a failure, a repair that needs a human, a probe
+that found an exposure or could not run, a step refused permission (one line per cause,
+naming the directory, its owner and "run the upgrade again as root or as OWNER"), a
+site whose root did not answer, and a `lazysite check` finding that has CHANGED since
+that site's last rollout. A site's standing check warnings are one line, `N standing
+check warnings on M sites - unchanged since the last rollout; full list: FILE`; the file
+holds every finding. "Changed" is read from `.rollout-check-findings`, which the rollout
+writes beside `.install-state.json` in each site's engine tree as the site's own user;
+a site with no record yet counts every warning as standing. A record that does not start
+with its header line is named as damaged: remove it and the next rollout starts afresh.
+`--verbose` prints every phase in full and neither reads nor writes the records.
+
 **Update channel.** Each site has an `update_channel`, and it names the
 **minimum maturity the site will accept**. The ladder is
 `edge` < `beta` < `stable` < `certified`:

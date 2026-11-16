@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-11-16
 raised-by: "the release manager, on the 0.17.1 deploy ('the deploy is very verbose again')"
 area: tools
-status-note: "OPEN. Target 0.17.x edge. Tools only (tools/lazysite-cli.pl rollout's quiet report); no engine change. The third time: SM701 (0.11.9), SM889 (2026-09-15)."
+status-note: "BUILT, not yet released (n842). Target 0.17.x edge. Tools only (the rollout's quiet report); no engine change. The third time: SM701 (0.11.9), SM889 (2026-09-15). t/tools/684 holds the budget; see Settled when built."
 ---
 
 # What happened
@@ -58,9 +58,43 @@ R3 - a test holds the budget
   budget (to settle: 15 lines), or when either fault is missing from it. A new check that
   reports through the rollout either fits the budget or goes to the file.
 
-# To settle when built
+# Settled when built
 
-- What "changed since the last rollout" compares against: the findings file of the previous run
-  per site, or the check's own last record.
-- Whether `--verbose` keeps today's full findings (it should: the verbose report is the
-  transcript, and nothing is lost).
+- WHAT "CHANGED" COMPARES AGAINST: a per-site record the rollout writes and reads, the check
+  findings it saw at that site's last rollout, one per line under a header
+  (`# lazysite rollout record: ...`), in `.rollout-check-findings` beside `.install-state.json`
+  in the site's engine tree (`lazysite_dir`: where install state lives, so no new location). It
+  is written as the site's own user (`sudo -n -u`, never root: SM139), only for a site whose
+  repair came back clean (its check was read in full), and replaced whole. Why a record and not
+  the previous findings file: the findings file is a temporary file of the run and is removed;
+  the full-list file is for people. Why not the check's own record: the check keeps none, and a
+  new store in the engine for this would be an engine change.
+- FIRST ROLLOUT, NO RECORD: every warning is standing, never new, and the line says how many
+  sites had no record. A clean site is given a record with a header and no lines, so its first
+  warning later is new. A record with no header is a damaged store (ruling 206): named with its
+  path and the remedy (remove it; the next rollout starts a new baseline), and that site's
+  check findings are all shown that time. Nothing guesses.
+- HOW A DEPLOY FINDING IS TOLD FROM A STANDING ONE: by source, never prose. Findings are labelled
+  where they are collected: the repair and probe phases print the check's lines; the deploy's
+  transcript is install steps until the heading the deploy prints before its final check
+  (`==> verifying install ...`, pinned by t/tools/684 against the deploy script), the check's
+  after it. Two designated markers stay the deploy's whichever phase printed them: a check
+  `[ FAIL ]` and `ROUTING CHECK SKIPPED` (the site root or an asset did not answer: the deploy
+  could not verify the site), the second pinned against lazysite-check.pl. NOISE_RE is
+  unchanged and t/tools/80 still pins that it does not match prose.
+- R2: one cause is one line. A directory the upgrade could not read, named by the check's
+  walks, the installer's address-profile walk and a move beneath it, is one line naming the
+  directory, its owner (read from the directory) and `run the upgrade again as root or as
+  OWNER`; the full-list file keeps every original line. The `trusted_proxies` reminder is a
+  check warning, so it is counted in the standing line, one count for all 31 sites; when it is
+  new it is the existing one grouped message with its sites, as any check finding.
+- R3 is t/tools/684: 32 sites carrying the filing's standing warnings (323 distinct site and
+  message pairs), the permission refusal (six messages, one cause) and the root that did not
+  answer. It runs the rollout's own deploy loop, repair and probe phases, summary and verdict,
+  extracted from the script, and fails when the report after the summary table is over 15 lines
+  (13 now), when either fault is missing, or when the standing line is. It also runs the second
+  and third rollout over the same fleet: a changed warning is reported alone, a fifth walk
+  naming the same directory is still one line, a damaged record is named. Verified failing on
+  the 0.17.1 script (118 lines after the table).
+- `--verbose` keeps today's output: it prints every phase and neither reads nor writes the
+  records, so a verbose rollout does not move the baseline.

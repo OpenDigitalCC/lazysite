@@ -676,17 +676,255 @@ PERL
     perl -e "$prog" "${FINDINGS_FULL:-}"
 }
 
-# report_findings - print every collected finding once, with the sites it
-# affects. Silent when there is nothing, because a heading over an empty list
-# is the kind of line this change exists to remove.
+# SM1457: THE QUIET REPORT'S FINDINGS ARE THE DEPLOY'S, AND A SITE'S STANDING
+# CHECK WARNINGS ARE ONE LINE.
+#
+# The 0.17.1 rollout updated 32 sites with 0 failed and printed about a hundred
+# lines of findings, nearly all of them each site's own `lazysite check`
+# warnings: the same before and after the upgrade, and neither caused nor fixable
+# by it. SM701 and SM889 had fixed the OUTPUT and left nothing that measured it,
+# so each new check that reports through the rollout grew it again.
+#
+# WHICH FINDING IS WHICH IS DECIDED BY ITS SOURCE, never by what it says (SM889's
+# cause was a word filter, and t/tools/80 pins that). collect_findings labels a
+# line "check SITE" when the CHECK produced it - the repair phase, the probe
+# phase, and the deploy's own final check, which the deploy introduces with a
+# heading of its own - and plainly "SITE" when a deploy step did. The check's
+# lines are compared with the record the previous rollout left for that site:
+# unchanged ones are counted, changed ones are findings. Everything is kept in
+# the full-list file.
+#
+# THE BASELINE is a record the rollout writes and reads in each site's own
+# engine tree, beside .install-state.json (where install state lives; no other
+# location), as the site's own user - never root, which would leave a root-owned
+# file in a tree the CGI writes (SM139). It holds the check findings the rollout
+# saw, one per line under a header; a missing record means no earlier rollout,
+# so a first rollout counts every warning as standing, never as new. A record
+# with no header is a damaged store (ruling 206): said, with its remedy, and the
+# site's findings are shown in full that time. --verbose reads and writes none.
+ROLLOUT_RECORD=.rollout-check-findings
+
+# as_owner USER COMMAND... - run as the site's user (the SM139 principle).
+as_owner() {
+    local u="$1"
+    shift
+    if [ "$u" = "$(id -un)" ]; then "$@"; else sudo -n -u "$u" "$@"; fi
+}
+
+# split_findings WORKDIR - sort the findings file into WORKDIR: reported.tsv (the
+# deploy's findings, label<TAB>message, causes collapsed), all.txt (every line,
+# for the full list), stats (standing warnings, sites, sites with no record) and
+# rec/SITE (the record to write). WORKDIR/paths holds site<TAB>record<TAB>write.
+split_findings() {
+    local prog
+    prog=$(cat <<'PERL'
+    use strict;
+    use warnings;
+    use File::Basename qw(dirname);
+    my ( $work, $findings ) = @ARGV;
+    my $HEADER = '# lazysite rollout record: the check findings seen at the last rollout (SM1457)';
+    my ( %path, %write );
+    if ( open my $ph, '<', "$work/paths" ) {
+        while ( my $l = <$ph> ) {
+            chomp $l;
+            my ( $d, $p, $w ) = split /\t/, $l;
+            next unless defined $d && length $d;
+            $path{$d}  = $p if defined $p && length $p;
+            $write{$d} = 1  if $w;
+        }
+        close $ph;
+    }
+    # ( \%baseline | undef, $error ): no record is (undef, ''), a damaged one an error.
+    my $read_record = sub {
+        my ($p) = @_;
+        return ( undef, '' ) unless defined $p && -e $p;
+        open my $fh, '<', $p or return ( undef, "cannot read $p: $!" );
+        my $first = <$fh>;
+        chomp $first if defined $first;
+        return ( undef, "$p does not start with its header line" ) unless defined $first && $first eq $HEADER;
+        my %b;
+        while ( my $l = <$fh> ) { chomp $l; $b{$l} = 1 if length $l }
+        return ( \%b, '' );
+    };
+    my ( @reported, @all, %seen, %check, @check_order );
+    open my $in, '<', $findings or die "$findings: $!";
+    while ( my $line = <$in> ) {
+        chomp $line;
+        my ( $label, $msg ) = split /\t/, $line, 2;
+        next unless defined $msg && length $msg;
+        my $site = ( split / /, $label )[-1] // $label;
+        $msg =~ s/\A\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\] //;
+        my $is_check = $label =~ /\Acheck / ? 1 : 0;
+        next if $seen{"$is_check\t$site\t$msg"}++;
+        if ($is_check) {
+            push @check_order, $site unless $check{$site};
+            push @{ $check{$site} }, $msg;
+        }
+        else {
+            push @reported, [ $label, $msg ];
+            push @all, [ $site, 'deploy', $msg ];
+        }
+    }
+    close $in;
+    my ( $standing, %standing_site, %norecord );
+    for my $site ( sort @check_order ) {
+        my @msgs = @{ $check{$site} };
+        my ( $base, $err ) = $read_record->( $path{$site} );
+        if ($err) {
+            push @reported,
+                [ $site,
+                    "the rollout's record of this site's check findings is damaged ($err) - its check findings are shown in full this time; remove the file and the next rollout starts a new baseline"
+                ];
+            for my $m (@msgs) {
+                push @reported, [ "check $site", $m ];
+                push @all, [ $site, 'changed', $m ];
+            }
+            next;
+        }
+        for my $m (@msgs) {
+            if ( !$base || $base->{$m} ) {
+                $standing++;
+                $standing_site{$site} = 1;
+                $norecord{$site} = 1 unless $base;
+                push @all, [ $site, 'standing', $m ];
+            }
+            else {
+                push @reported, [ "check $site", $m ];
+                push @all, [ $site, 'changed', $m ];
+            }
+        }
+    }
+    # The record for the next rollout: every check finding seen this time.
+    mkdir "$work/rec";
+    for my $site ( sort keys %write ) {
+        open my $fh, '>', "$work/rec/$site" or die "$work/rec/$site: $!";
+        print {$fh} "$HEADER\n";
+        my %u;
+        print {$fh} "$_\n" for grep { !$u{$_}++ } sort @{ $check{$site} || [] };
+        close $fh;
+    }
+    # ONE CAUSE, ONE FINDING (R2). A directory the upgrade could not read is named
+    # by several walks, each in its own words - the check's walks, the installer's
+    # address-profile walk, a move beneath it - and each is a line. They are one
+    # cause: the directory, its owner and the way out. The full list keeps every
+    # original line.
+    my $dirs_named = sub {
+        my ($msg) = @_;
+        my @d;
+        while ( $msg =~ /could not read \d+ director(?:y|ies) as \S+: (.*?) - (?:nothing|so) /g ) {
+            my $list = $1;
+            while ( $list =~ m{(/[^\s,()]+) \(([^()]*Permission denied[^()]*)\)}g ) { push @d, $1 }
+        }
+        push @d, $1 while $msg =~ /Can't opendir\((.*?)\): Permission denied/g;
+        return @d;
+    };
+    my ( %cause, @keep );
+    for my $r (@reported) {
+        my @d = $dirs_named->( $r->[1] );
+        if (@d) { $cause{ ( split / /, $r->[0] )[-1] }{$_} = 1 for @d; next }
+        push @keep, $r;
+    }
+    my @rest;
+    for my $r (@keep) {
+        my $site = ( split / /, $r->[0] )[-1];
+        if ( $r->[1] =~ /Permission denied/ ) {
+            my @p = $r->[1] =~ m{(?:^|[\s"(=\[:'])(/[^\s'",;()\[\]]*[^\s'",;()\[\].:])}g;
+            if (@p) {
+                for my $p (@p) {
+                    next if grep { $p eq $_ || index( $p, "$_/" ) == 0 } keys %{ $cause{$site} || {} };
+                    $cause{$site}{ -d $p ? $p : dirname($p) } = 1;
+                }
+                next;
+            }
+        }
+        push @rest, $r;
+    }
+    for my $site ( sort keys %cause ) {
+        my @dirs = sort keys %{ $cause{$site} };
+        @dirs = grep { my $d = $_; !grep { $_ ne $d && index( $d, "$_/" ) == 0 } @dirs } @dirs;
+        for my $d (@dirs) {
+            my @st    = stat $d;
+            my $owner = @st ? ( ( getpwuid $st[4] )[0] // "uid $st[4]" ) : undef;
+            push @rest,
+                [ $site,
+                    $d
+                        . ( defined $owner ? " is owned by $owner and" : '' )
+                        . ' the upgrade could not read or move under it (Permission denied) - run the upgrade again as root or as '
+                        . ( defined $owner ? $owner : 'the user that owns it' ) ];
+        }
+    }
+    open my $o, '>', "$work/reported.tsv" or die $!;
+    print {$o} "$_->[0]\t$_->[1]\n" for @rest;
+    close $o;
+    open my $al, '>', "$work/all.txt" or die $!;
+    print {$al} join( "\t", @$_ ), "\n" for sort { $a->[0] cmp $b->[0] || $a->[1] cmp $b->[1] || $a->[2] cmp $b->[2] } @all;
+    close $al;
+    open my $s, '>', "$work/stats" or die $!;
+    printf {$s} "%d %d %d\n", $standing // 0, scalar keys %standing_site, scalar keys %norecord;
+    close $s;
+PERL
+)
+    perl -e "$prog" "$1" "$FINDINGS_FILE"
+}
+
+# report_findings - print the deploy's findings once, with the sites each
+# affects, then ONE line for the standing check warnings (SM1457). Silent when
+# there is nothing, because a heading over an empty list is the kind of line this
+# change exists to remove. --verbose prints every line, as it always did.
 report_findings() {
-    [ -n "$FINDINGS_FILE" ] && [ -s "$FINDINGS_FILE" ] || return 0
+    [ -n "$FINDINGS_FILE" ] || return 0
+    local work='' reported="$FINDINGS_FILE" i d u rp err n_standing=0 n_sites=0 n_norec=0
+    if [ "${VERBOSE:-0}" != 1 ]; then
+        work=$(mktemp -d -t lzs-report.XXXXXX) || return 0
+        : > "$work/paths"
+        if declare -p DOMAINS >/dev/null 2>&1; then
+            for i in "${!DOMAINS[@]}"; do
+                d="${DOMAINS[$i]}"
+                [ -n "${DOCS[$i]:-}" ] || continue
+                printf '%s\t%s/%s\t%s\n' "$d" "$(lazysite_dir "${DOCS[$i]}")" "$ROLLOUT_RECORD" \
+                    "$( declare -p RECORD_OK >/dev/null 2>&1 && [ -n "${RECORD_OK[$d]:-}" ] && echo 1 )" >> "$work/paths"
+            done
+        fi
+        if split_findings "$work"; then
+            reported="$work/reported.tsv"
+            read -r n_standing n_sites n_norec < "$work/stats"
+            # Each site's record, written as the site's own user. A record that
+            # cannot be written is a fault with its remedy, not a silent skip.
+            if declare -p DOMAINS >/dev/null 2>&1; then
+                for i in "${!DOMAINS[@]}"; do
+                    d="${DOMAINS[$i]}"
+                    [ -f "$work/rec/$d" ] || continue
+                    u="${USERS[$i]}"
+                    rp="$(lazysite_dir "${DOCS[$i]}")/$ROLLOUT_RECORD"
+                    if ! err=$( { as_owner "$u" tee "$rp.new" < "$work/rec/$d" >/dev/null && as_owner "$u" mv -f "$rp.new" "$rp"; } 2>&1 ); then
+                        printf '%s\t%s\n' "$d" "the rollout could not write its record of this site's check findings to $rp (${err%%$'\n'*}) - until it can, every warning is counted as standing again; make that directory writable by $u, or run the upgrade again as root or as $u" >> "$reported"
+                    fi
+                done
+            fi
+        else
+            echo "  (the rollout could not sort its findings; every one is shown)" >&2
+            reported="$FINDINGS_FILE"
+        fi
+    fi
     # SM1235: where a finding that collapsed many paths keeps the full list. It
     # outlives the run (the findings file does not), and the finding names it.
     FINDINGS_FULL="${FINDINGS_FULL:-${LAZYSITE_FINDINGS_DIR:-${TMPDIR:-/tmp}}/lazysite-rollout-findings-$(date +%Y%m%d%H%M%S)-$$.txt}"
-    echo
-    echo '==> findings (one line per distinct message, with the sites it affects)'
-    group_findings < "$FINDINGS_FILE"
+    if [ -n "$work" ] && [ -s "$work/all.txt" ]; then
+        { printf '== every finding of this rollout: site, which (deploy: the deploy'"'"'s own; changed: a check finding that is new since the last rollout; standing: unchanged), message\n'; cat "$work/all.txt"; } > "$FINDINGS_FULL"
+    fi
+    if [ -s "$reported" ]; then
+        echo
+        echo '==> findings (one line per distinct message, with the sites it affects)'
+        group_findings < "$reported"
+    fi
+    if [ "$n_standing" -gt 0 ]; then
+        [ -s "$reported" ] || echo
+        printf '  %d standing check warning%s on %d site%s - unchanged since the last rollout; full list: %s%s\n' \
+            "$n_standing" "$( [ "$n_standing" = 1 ] || echo s )" "$n_sites" "$( [ "$n_sites" = 1 ] || echo s )" "$FINDINGS_FULL" \
+            "$( [ "$n_norec" -gt 0 ] && printf ' (%d site%s with no earlier rollout record: counted as standing)' "$n_norec" "$( [ "$n_norec" = 1 ] || echo s )" )"
+    fi
+    [ -z "$work" ] || rm -rf "$work"
+    return 0
 }
 
 # SM1194: record_xff_exposure USER DOMAIN DOCROOT - add the exposure, if any, to
@@ -741,13 +979,35 @@ xff_summary_line() {
 # Leading and trailing space is trimmed so the same message indented differently
 # by two phases still groups. (SM1237: a function of its own, so the probe phase,
 # which reads its output as well as filtering it, collects the same way.)
+#
+# SM1457: AND TAGGED BY SOURCE. A line the CHECK produced is labelled "check
+# SITE" and a line a deploy step produced "SITE", so the report can count the
+# check's standing warnings instead of listing them. The source is the phase:
+# the repair and probe phases print the check's lines and only those; the
+# deploy's own transcript is steps until the heading it introduces its final
+# check with, and the check's after it (t/tools/684 pins the heading against
+# the deploy script). Two designated markers stay the deploy's whatever
+# printed them: a check that SKIPPED ("ROUTING CHECK SKIPPED: the site root
+# did not answer" - the deploy could not verify the site) and a check FAIL.
 collect_findings() {
-    local label="$1" out="$2" line
+    local label="$1" out="$2" row n line kind first site mark
     if [ -n "$FINDINGS_FILE" ]; then
-        printf '%s\n' "$out" | grep -E "$NOISE_RE" \
-            | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-            | while IFS= read -r line; do
-                [ -n "$line" ] && printf '%s\t%s\n' "$label" "$line" >> "$FINDINGS_FILE"
+        site="${label##* }"
+        case "$label" in repair\ *|probe\ *) first=check ;; *) first=step ;; esac
+        mark=$(printf '%s\n' "$out" | grep -n -x -F -m1 -- '==> verifying install (permissions + health, auto-repair)' | cut -d: -f1) || true
+        printf '%s\n' "$out" | grep -nE "$NOISE_RE" \
+            | while IFS= read -r row; do
+                n="${row%%:*}"; line="${row#*:}"
+                line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
+                [ -n "$line" ] || continue
+                kind="$first"
+                if [ -n "$mark" ] && [ "$n" -gt "$mark" ]; then kind=check; fi
+                case "$line" in *'ROUTING CHECK SKIPPED:'*|'[ FAIL ]'*) kind=step ;; esac
+                if [ "$kind" = check ]; then
+                    printf 'check %s\t%s\n' "$site" "$line" >> "$FINDINGS_FILE"
+                else
+                    printf '%s\t%s\n' "$label" "$line" >> "$FINDINGS_FILE"
+                fi
             done || true
     else
         printf '%s\n' "$out" | grep -E "$NOISE_RE" | sed "s/^/  [$label] /" || true
@@ -1372,13 +1632,16 @@ if [ -f "$LZS" ]; then
     # third category where we touch it a little.
     echo "==> health: repair, then probe (in-scope sites only)"
     _rep_clean=0; _rep_fixed=0; _rep_human=0
+    # SM1457: a site whose repair came back clean has had its check read in
+    # full, so its record (the baseline for the next rollout) can be written.
+    declare -A RECORD_OK=()
     for i in "${!DOMAINS[@]}"; do
         set +e
         run_quiet "repair ${DOMAINS[$i]}" perl "$LZS" repair --domain "${DOMAINS[$i]}"
         _rc=$?
         set -e
         case "$_rc" in
-            0) _rep_clean=$(( _rep_clean + 1 )); settle_after_repair "$i" ;;
+            0) _rep_clean=$(( _rep_clean + 1 )); RECORD_OK[${DOMAINS[$i]}]=1; settle_after_repair "$i" ;;
             *) _rep_human=$(( _rep_human + 1 )); REPAIR_RC=1 ;;
         esac
     done

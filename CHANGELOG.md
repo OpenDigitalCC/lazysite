@@ -53,6 +53,15 @@ Archive
 
 ## Unreleased
 
+- SM1457 (PENDING) **tools: the deploy reports what it did, and a test holds it to that**. The quiet
+  rollout report lists only the deploy's own findings (a failure, a repair needing a human, a
+  probe exposure or one that could not run, a refused permission, a site root that did not
+  answer) and a `lazysite check` finding that changed since that site's last rollout; a site's
+  standing check warnings are one line with a count and the file that holds them all. One cause
+  is one finding: an unreadable directory named by several walks is one line naming it, its
+  owner and the fix. The baseline is `.rollout-check-findings`, written beside
+  `.install-state.json` as the site's own user. t/tools/684 runs a 32-site fleet with two real
+  faults and fails over 15 lines after the summary table. `--verbose` is unchanged.
 - SM1453 (PENDING) **tools: the rollout reads the probe's cache verdict as a verdict**. When the ACL
   probe finds only the front end's cache holding files the engine refuses, `lazysite probe` now
   says `cache residue, clears itself`, counts it with the verified (exit 0; exposure stays exit 1)
