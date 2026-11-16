@@ -53,6 +53,16 @@ Archive
 
 ## Unreleased
 
+- SM1455 (PENDING) **security: the bad-URL blocker counts probes behind Apache.** The auth
+  wrapper took its path from `REDIRECT_URL`, which Apache sets only on an internal redirect and
+  leaves unset on the two routes into the wrapper (the source-type rewrite `[PT]` and
+  `FallbackResource`), so the blocker checked `/` for every request and never counted a probe:
+  eleven requests for `/wp-login.php` from one address were all answered 404. The wrapper's path
+  is now `REDIRECT_URL`, else `REQUEST_URI` less its query, as the front door's is. Access
+  rules were never affected (the processor reads the right path). A real-Apache test
+  (t/integration/732) sends probes by both routes; t/integration/14 stops setting
+  `REDIRECT_URL` where Apache would not.
+
 - Docs: SM1453 (the rollout reads the ACL probe's cache verdict as a verdict, not as "could not
   run") filed as a candidate.
 

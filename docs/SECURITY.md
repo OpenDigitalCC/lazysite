@@ -165,6 +165,7 @@ Elevation of privilege | A member of a protected area writing a rule on a subfol
 Denial of service | An upgrade that moves the extensions directory and its key leaving a site's list, or one entry, under the old spelling, so each extension it names reads as off, and silently - the login rate limiter among them (SM1142) | `install.pl`'s one-time `extensions-rename` converts the list and its entries and moves the directory, and is recorded as done only when it ran without a warning; `login-rate-limit-on` runs after it; `lazysite check` names an old-spelling line by number and an old directory left beside the docroot, and says when the limiter is not in force (SM798) | 0.16.4 (t/tools/306, t/journey/06); a line written back by hand reads as off until it is corrected
 Elevation of privilege | A theme's source re-mirrored into the served asset mirror on every write to it (SM1335), so a symbolic link or a file type the web server runs that reaches a theme's `assets/` by any means - a shell, a restore, a WebDAV or manager write - is published under `/lazysite-assets/` with no activation, as SM1303's archive link was | `_mirror_theme_assets`, the one writer of every copy, refuses to switch in a copy whose `assets/` holds a symbolic link or a server-run file type (`_mirror_unsafe_entry`, SM1303's two checks; links listed, never followed) and keeps the copy it had; a served copy itself is refused to every writer, the operator included (`served_artifact_refusal`, SM1339) | 0.16.5 (t/unit/manager/430, 432, t/unit/dav/38); the refusal is a log line and a `mirrored: 0` answer, so a source that holds such an entry stops reaching its copies until it is removed
 Denial of service | The bad-URL blocker exempting loopback always (SM1321, ruling 83): on a site behind a front end that `trusted_proxies` does not cover, every visitor arrives as 127.0.0.1, so no probe is counted and the blocker is off for everyone | The blocker asks `request_address` under `trusted_proxies` (SM929), so behind a covered front end the exemption is the machine's own checks only; `lazysite check` warns when address rules exist and `trusted_proxies` trusts no front end (SM1141); `bad_url_exempt: none` removes loopback's exemption | 0.16.5 (t/unit/lib/98); the blocker was refusing every visitor on such a site before (T-03), so the change trades a self-inflicted refusal of everyone for no probe counting until `trusted_proxies` is set; the default trusts only the private ranges, not loopback, and a site with no address rules is not warned (UPGRADE.md, the 0.16.5 entry, says to name a front end on the same host)
+Denial of service | The bad-URL blocker believed on and off behind Apache (SM1455): the auth wrapper took its path from `REDIRECT_URL`, which Apache leaves unset on the rewrite [PT] and `FallbackResource` routes into it, so the guard asked about `/` on every request and never counted a probe | The wrapper's path is `REDIRECT_URL`, else `REQUEST_URI` less its query, the front door's precedence; t/integration/732 sends probes by both routes to real Apache, the template's own rules, and is refused at the threshold | 0.17.1 (t/integration/732, 14; drafted by the developer agent, for the release manager's confirmation); access rules were never affected (the processor reads the right path), so the exposure was scanner probes going uncounted, from the line's first release
 Elevation of privilege | An extension's own Perl run inside a core process (SM1369 X1): code that is not the extension's - core's, a system module's, a planted file's - run under its name, a disabled extension's entry or an edited index still honoured, a hook that dies taking the process with it | The declaration is validated before it is indexed; each module must be a regular file in the extension's payload lib, a real directory, found nowhere else on `@INC`, checked at the build and at the call; the payload lib is appended to `@INC`, never prepended; the extension and what it requires must be on at the call, read fresh; a dying hook is a failure, never an exception into core | 0.16.6 (t/unit/extensions/70, 71; t/tools/330; row confirmed, ruling 142): built with no caller and no live kind; in process a hook is a contract, not a sandbox, so trust is what is installed (ADR 0009); each later slice that adds a caller is assessed against boundary 15
 Information disclosure | An account reaching the primary - one granted nothing, or the primary's row - reading and writing every secondary domain's folder under the docroot through the primary's content (SM1372, the residual risk SM1332-SM1334 recorded) | The primary's content is the docroot less the other domains' content roots, one rule (`DomainAccess::foreign_root_of`) asked by the manager API, MCP and WebDAV, on reads, writes and walks; a listing leaves those folders out for a caller refused them (ruling 137) | Closed in 0.16.6 (t/unit/manager/446, t/unit/dav/39, t/unit/mcp/74; row confirmed, ruling 142); the operator group and an account granted a domain keep it; a secondary with no content root of its own serves the primary's content
 Denial of service | The site used as a mailer: a visitor typing a stranger's address in a form whose conf opts in to an acknowledgement, so the site mails it (SM1362) | The message is the form's fixed text with nothing of the submission in it; 3 an hour per address and 60 per site across every form and smtp handler, one record; the form's own per-address limit, render timestamp and honeypot first; a quarantined submission is never answered; an unreadable cap record refuses | 0.16.6 (t/unit/forms/68; row confirmed, ruling 142); opt-in per form; a visitor can still have the fixed text sent to an address they name, within the caps
@@ -6718,3 +6719,50 @@ verdict : accepted, confirmed by the release manager on 12 Nov 2026 (ruling 251)
   from the 0.16.12 beta with only the fixes of the 0.16.11 and 0.16.12 field passes (rulings
   227, 242), and is not security-critical: no change in it since 0.16.12 fixes a known
   vulnerability. The feature freeze (ruling 228) ends with the cut.
+
+### 2026-11-16 - SM1455 (PENDING): the bad-URL guard reads the request's path behind Apache
+
+Assessment drafted by the developer agent; for the release manager's confirmation. A fix for 0.17.1 (stable), found on the 0.17.0 field walk (T3.1).
+
+what changed
+: `lazysite-auth.pl` took its path from `REDIRECT_URL`, else `/`. Apache sets `REDIRECT_URL` only
+  on an internal redirect. Run against a real Apache 2.4 with the Hestia template's two routes
+  into the wrapper, the SM797 source-type `RewriteRule ... [PT]` and `FallbackResource`, it is
+  unset on both and `REQUEST_URI` carries the path. The bad-URL guard (SM128) therefore asked
+  whether `/` is a probe, for every request: eleven requests for `/wp-login.php` from one address
+  were all answered 404, and no hit file was written. The wrapper's path is now `REDIRECT_URL`,
+  else `REQUEST_URI` with its query removed, else `/`, the precedence the pool's front door and
+  the processor already had. The line is the one change; the other uses of the path in the
+  wrapper are its log lines.
+
+threat delta
+: What was believed on and was off: the blocker (SM128, on by default) did not count a probe
+  that reached a site through the auth wrapper behind Apache. The line predates the blocker
+  (it dates from 2026-04-18; SM128 shipped in 0.5.41), so the blocker never counted such a
+  probe on those routes. Not exposed: access rules, which the processor decides from the path
+  it reads correctly, so no page, file or area was reachable that a rule closed. The cost was
+  Denial of service, narrowed less than documented: a scanner's session stayed under the
+  threshold. The fix moves the control towards counting what it was meant to count, so the
+  false-positive surface (a visitor who requests probe paths several times is blocked) is the
+  documented one and now real. A real file is still spared and the loopback exemption and
+  `bad_url_exempt` are unchanged. No new interface, sign-in method or dependency, and no new
+  restricted data (the block store keeps the same address, count and time): no ADR 0007
+  trigger fires.
+
+controls
+: t/integration/732 runs real Apache with the template's two routing rules read out of
+  `installers/hestia/lazysite-cgi.tpl`, the real wrapper and the real processor, at
+  `bad_url_threshold: 3`: probes of `/wp-login.php` (the rewrite) and `/.kube/config`
+  (FallbackResource) are each refused at the threshold, the address is then refused for a
+  normal page, and a fresh address is served. It fails on the unfixed line (the third and
+  fourth subtests). t/integration/14 sends REQUEST_URI, with a query, where Apache would not
+  set REDIRECT_URL, and keeps one REDIRECT_URL case (an internal redirect); its first two
+  assertions fail on the unfixed line.
+
+residual risk
+: A site whose address rules leave `trusted_proxies` unset behind a front end still counts the
+  front end's address (SM1321, as recorded). Sites that were scanned before the fix start
+  counting from the upgrade.
+
+verdict
+: for the release manager's confirmation. A stable patch; no trigger fires.

@@ -22,26 +22,36 @@ open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $cf "bad_url_threshold: 1\nbad_url_window: 3600\n";   # block on the first probe
 close $cf;
 
+# SM1455: Apache sets REDIRECT_URL only on an internal redirect (an ErrorDocument,
+# say); on the rewrite [PT] and FallbackResource routes it is unset and the path is
+# REQUEST_URI, with its query. So a request sends REQUEST_URI, as Apache does, and
+# `redirect => 1` sends REDIRECT_URL (and no REQUEST_URI) as the internal redirect would.
+# The routes themselves, behind real Apache, are t/integration/732.
 sub req {
-    my ( $uri, $ip ) = @_;
+    my ( $uri, $ip, %o ) = @_;
+    my ( $path, $q ) = split /\?/, $uri, 2;
     local %ENV = (
         env_passthrough(),
         DOCUMENT_ROOT      => $docroot,
-        REDIRECT_URL       => $uri,
+        ( $o{redirect} ? ( REDIRECT_URL => $path ) : ( REQUEST_URI => $uri ) ),
         REQUEST_METHOD     => 'GET',
-        QUERY_STRING       => '',
+        QUERY_STRING       => $q // '',
         REMOTE_ADDR        => $ip,
         LAZYSITE_PROCESSOR => "$root/lazysite-processor.pl",
     );
     return qx($^X \Q$root/lazysite-auth.pl\E 2>/dev/null);
 }
 
-like( req( '/wp-login.php', '10.0.0.1' ), qr/403 Forbidden/,
-    'a probe blocks the source IP (403)' );
+like( req( '/wp-login.php?x=1', '10.0.0.1' ), qr/403 Forbidden/,
+    'a probe blocks the source IP (403), read from REQUEST_URI less its query' );
 like( req( '/', '10.0.0.1' ), qr/403 Forbidden/,
     'the now-blocked IP is refused for a normal URL too' );
 unlike( req( '/', '10.0.0.2' ), qr/403 Forbidden/,
     'a clean IP on a normal page is not blocked (passes through)' );
+
+# An internal redirect sets REDIRECT_URL, and that still wins.
+like( req( '/wp-login.php', '10.0.0.4', redirect => 1 ), qr/403 Forbidden/,
+    'a probe path in REDIRECT_URL (an internal redirect) blocks too' );
 
 # The block was recorded in the audit log.
 my $audit = '';

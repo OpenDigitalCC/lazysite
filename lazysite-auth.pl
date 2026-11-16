@@ -246,7 +246,10 @@ my $LOGIN_DELAY = 2;    # seconds sleep on failure
 # --- Main ---
 
 my $method = $ENV{REQUEST_METHOD} // 'GET';
-my $uri    = $ENV{REDIRECT_URL}   // '/';
+# SM1455: Apache sets REDIRECT_URL only on an internal redirect, not on the
+# rewrite [PT] or FallbackResource routes into this wrapper; REQUEST_URI is the
+# path there, less its query. Same precedence as the front door's.
+my $uri    = $ENV{REDIRECT_URL} // ( ( $ENV{REQUEST_URI} // '' ) =~ s/\?.*//sr ) || '/';
 my $query  = $ENV{QUERY_STRING}   // '';
 my $action = '';
 # Capture the FULL action token (including hyphens) so a short action like
