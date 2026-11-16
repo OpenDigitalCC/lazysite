@@ -74,6 +74,20 @@ Archive
   OUTFILE, exits with prove's status and destroys the VM; otherwise it says `suite-lab: lab not
   available (REASON) - running locally` and runs `tools/suite-local.sh`. A lab failure after the
   tests started is a failure, never a fallback.
+- SM1454 (R6) (PENDING) **release: a patch's records are written by the release, not by a branch**.
+  `tools/release-material.pl`, in the gate's stage and the build's release commit alike, now
+  stamps what 0.17.1 walked by hand. For a stable patch of a release at which OBLIGATIONS.md and
+  TECHNICAL-FILE.md were walked it sets `reviewed_at_version`, `reviewed_on` and `covers_version`
+  and prepends a dated patch-walk clause naming the diff's runtime files (`classification.json`
+  decides) and the register entries it carries; it refuses a runtime change with no register
+  entry naming an SM and records not walked at the base, and leaves a minor, a certified cut,
+  edge and beta to the compliance check. A `candidate` filing under a bullet it stamps becomes
+  `shipped`, or `partial` when the bullet names a part (`SM1454 (R3)`). The release-material
+  lints (t/lint/09 and 26 among them) now run in the gate, after the compliance check and before
+  the suite, so a record fault fails in seconds. `confirm-register` commits the confirmation on a
+  new branch `claude/confirm-SMNNNN` from main, held for vcs-review, and the developer agent runs
+  it on the release manager's ruling. t/lint/594 holds a drafted register entry to the marker
+  `confirm-register` reads. Tests t/tools/685 to 687, 682 and t/lint/594.
 - Docs: SM1454 R6 (a patch's compliance stamp and filing status are written by the release material, and its record checks run before the suite) filed from the 0.17.1 measurement.
 - Docs: SM1457 (the deploy reports what it did, and a test holds it to that) filed as a candidate.
 

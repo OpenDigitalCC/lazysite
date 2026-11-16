@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-16
 raised-by: "the release manager (ruling 258), after the 0.17.1 estimate"
 area: release
-status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). R3, the lab runner, is built on n840 for 0.17.x. Remains: R6, the compliance walk and the filing status a patch still makes by hand (0.17.1 measured both)."
+status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). R3, the lab runner, is built on n840 and R6 (the patch compliance stamp, the filing status, the record checks before the suite) on n845, both for 0.17.x. Status stays partial."
 ---
 
 # What happened
@@ -77,6 +77,13 @@ R6 - a patch's records are written by the release, not by a branch
   (c) Every check that can fail on the release material runs before the suite: the compliance
   check and the lints that read the CHANGELOG and the filings run on the stage first, so a record
   fault fails a gate in seconds, not after the suite.
+  (d) The confirmation of a drafted register entry is a branch, not a commit on main: an agent
+  cannot commit on main. `confirm-register` cuts `claude/confirm-SMNNNN` from main in a worktree
+  under tmp/, commits the one file, holds it for vcs-review and prints the branch; the developer
+  agent runs it on the release manager's ruling.
+  (e) A drafted entry carries its marker: t/lint/594 holds every `(PENDING)` register entry the
+  developer agent drafted, from 2026-11-16, to "awaiting the release manager's confirmation" (or
+  the confirmed wording) in its Assessment and its verdict, the words `confirm-register` reads.
 
 # To settle when built
 
