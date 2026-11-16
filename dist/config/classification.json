@@ -279,6 +279,8 @@
     "^tools/patch-plan\\.pl$",
     "^tools/confirm-register\\.pl$",
     "^tools/suite\\.sh$",
+    "^tools/suite-lab\\.sh$",
+    "^tools/suite-local\\.sh$",
     "^tools/overnight\\.sh$",
     "^tools/ext-compat\\.sh$",
     "^tools/vendor-oom\\.sh$",
