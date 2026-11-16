@@ -60,11 +60,11 @@ my @files = grep { !is_material($_) } run_out( 'git', 'diff', '--name-only', $ba
 
 # The first file that matches one of these decides, in file order.
 my @FULL = (
-    [ qr{^t/lib/},            'the test harness (t/lib/)' ],
-    [ qr{^t/lint/(?!.*\.t$)}, "a lint's own library" ],
-    [ qr{^tools/(?:release|gate-main|patch-plan|precheck[^/]*)\.(?:sh|pl)$}, 'the release and precheck tools' ],
-    [ qr{^(?:Makefile|cpanfile(?:\.snapshot)?)$}, 'the build control files' ],
-    [ qr{^(?:dist|debian)/},                      'the build control files' ],
+    [ qr{^t/lib/}x, 'the test harness (t/lib/)' ],
+    [ qr{^tools/ (?:release|gate-main|patch-plan|precheck[^/]*) \. (?:sh|pl) $}x, 'the release and precheck tools' ],
+    [ qr{^t/lint/(?!.*\.t$)}x,                     "a lint's own library" ],
+    [ qr{^(?:Makefile|cpanfile(?:\.snapshot)?)$}x, 'the build control files' ],
+    [ qr{^(?:dist|debian)/}x,                      'the build control files' ],
 );
 
 for my $f (@files) {
