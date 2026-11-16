@@ -915,7 +915,7 @@ sub mint_provider_session {
     } )
         or return _provider_refused( $out, $id, 'the session registry cannot be written',
         'the site\'s session registry cannot be written', file => _registry_file(), error => "$!",
-        hint => 'make lazysite/auth and sessions.jsonl writable by the site user; `lazysite check --docroot <docroot>` names the fix' );
+        hint => 'make lazysite/auth and sessions.jsonl writable by the site user; ' . _check_names_fix() );
     _audit_grant( "$id:$login", 'login-grant', $id, \@groups, $a{ip} ) if ( $p->{grants} // '' ) eq '1';
     return ( "$enc:$sig", $now, $sid );
 }
@@ -943,11 +943,20 @@ sub _secret_refused {
     my ( $out, $id ) = @_;
     my $path = _auth_dir() . '/.secret';
     return _provider_refused( $out, $id, 'the auth secret does not exist', 'the site has no auth secret yet',
-        file => $path, hint => 'a manager sign-in makes it; `lazysite check --docroot <docroot>` names the fix' )
+        file => $path, hint => 'a manager sign-in makes it; ' . _check_names_fix() )
         unless -e $path;
     return _provider_refused( $out, $id, 'the auth secret exists and is empty or cannot be read',
         'the site\'s auth secret is empty or unreadable', file => $path,
-        hint => '`lazysite check --docroot <docroot>` names the fix' );
+        hint => _check_names_fix() );
+}
+
+# The remedy sentence of a hint: the check spelled as every other advice spells it (SM1458:
+# cli_spelling, never a bare `lazysite`), with the real docroot where it is known.
+sub _check_names_fix {
+    require Lazysite::Paths;
+    my $dr = Lazysite::Paths::docroot_of($LAZYSITE_DIR);
+    my $cmd = Lazysite::Util::cli_spelling() . ' check' . ( defined $dr ? " --docroot $dr" : '' );
+    return "`$cmd` names the fix";
 }
 
 # One refusal of mint_provider_session: the WARN line (provider, the cause in the log's

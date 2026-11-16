@@ -77,7 +77,8 @@ Archive
   event-log line naming the provider and the path. The Odoo and OpenID Connect extensions' 503
   carries the reason (the cause and what to do, no path) in place of a fixed "auth secret missing or
   registry unwritable". `lazysite check` warns of an extensions index built by an older engine, with
-  the rebuild command. t/unit/auth/178, t/unit/odoo/63, t/tools/691.
+  the rebuild command. The log hints that name the check spell it as every other advice does
+  (SM1458), with the real docroot. t/unit/auth/178, t/unit/odoo/63, t/tools/691.
 - SM1457 (PENDING) **tools: the deploy reports what it did, and a test holds it to that**. The quiet
   rollout report lists only the deploy's own findings (a failure, a repair needing a human, a
   probe exposure or one that could not run, a refused permission, a site root that did not

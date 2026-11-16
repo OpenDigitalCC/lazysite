@@ -24,6 +24,7 @@ use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(site_tempdir);
 use Lazysite::Auth::Session ();
 
+$ENV{LAZYSITE_CLI} = 'perl /opt/probe/lazysite-cli.pl';    # the spelling the hints must carry
 $ENV{LAZYSITE_LOG_LEVEL} = 'ERROR';    # the unit's own stderr stays quiet; the sub below takes the lines
 
 my $D  = site_tempdir();
@@ -74,6 +75,17 @@ spit( "$LZ/auth/.secret", 'a' x 64 );
 }
 
 my %reason;
+
+# SM1458: a hint that names the check spells it as every other advice does (cli_spelling), with
+# the real docroot where it is known - never a bare `lazysite check` or a <docroot> placeholder.
+sub spelled_check {
+    my ( $l, $what ) = @_;
+    my $t = join ' ', @$l;
+    unlike( $t, qr/`lazysite check/, "$what: the hint is not a bare `lazysite check`" );
+    unlike( $t, qr/<docroot>/, "$what: ...and has no <docroot> placeholder" );
+    like( $t, qr{`perl /opt/probe/lazysite-cli\.pl check --docroot \Q$D\E` names the fix}, "$what: ...it spells the check with the real docroot" );
+    return;
+}
 
 # ---- 1. the provider is not in the index ----
 subtest 'not in the index (a site whose index is missing, or lists no such extension)' => sub {
@@ -144,13 +156,16 @@ subtest 'the auth secret' => sub {
     my $l = line_for(qr/does not exist/) or return fail('a missing secret leaves a line (ENOENT was silent)');
     like( join( ' ', @$l ), qr{file \Q$LZ\E/auth/\.secret}, '...naming the path' );
     like( join( ' ', @$l ), qr/provider probe/, '...and the provider' );
+    spelled_check( $l, 'a missing secret' );
     $reason{nosecret} = $why;
 
     spit( "$LZ/auth/.secret", '' );
     ( $r, $why ) = mint();
     is( scalar @$r, 0, 'an empty secret: refused' );
     like( $why, qr/empty or unreadable/, 'the reason says it is empty or unreadable' );
-    ok( line_for(qr/exists and is empty or cannot be read/), '...and a line says so' );
+    my $le = line_for(qr/exists and is empty or cannot be read/);
+    ok( $le, '...and a line says so' );
+    spelled_check( $le, 'an empty secret' ) if $le;
     $reason{emptysecret} = $why;
     spit( "$LZ/auth/.secret", 'a' x 64 );
 };
@@ -166,6 +181,7 @@ subtest 'the session registry' => sub {
     my $l = line_for(qr/registry cannot be written/) or return fail('a line names the registry');
     like( join( ' ', @$l ), qr{file \Q$LZ\E/auth/sessions\.jsonl}, '...naming the path' );
     like( join( ' ', @$l ), qr/error \S/, '...and the system error' );
+    spelled_check( $l, 'an unwritable registry' );
     $reason{registry} = $why;
     rmdir "$LZ/auth/sessions.jsonl";
 };
