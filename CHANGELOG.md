@@ -53,6 +53,9 @@ Archive
 
 ## Unreleased
 
+- Docs: SM1449 (a gate stopped part way resumes where it stopped) and SM1452
+  (t/integration/315 does not race the clock) filed as candidates.
+
 ## 0.17.0 - STABLE: the stable release of the 0.16 line, with an unfinished backup named and a full backup that runs detached (2026-11-15)
 
 - SM1451 (2138b509) **release: the coverage stage runs for certified only; a stable gates like a
