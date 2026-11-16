@@ -4,11 +4,11 @@ title: "SM1455: the bad-URL guard reads the request's path behind Apache"
 subtitle: "The auth wrapper took its path from REDIRECT_URL, which Apache does not set on the routes into it, so the blocker checked / for every request and never counted a probe."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-11-16
 raised-by: "the 0.17.0 field walk (T3.1), diagnosed by the developer"
 area: security
-status-note: "OPEN. Target 0.17.1 stable. One line in lazysite-auth.pl and a real-Apache test."
+status-note: "SHIPPED (0.17.1): lazysite-auth.pl reads REQUEST_URI, less its query, when REDIRECT_URL is unset, so the bad-URL guard counts probes behind Apache. t/integration/732 drives a real Apache with the shipped Hestia rules."
 ---
 
 # What happened

@@ -4,11 +4,11 @@ title: "SM1456: the compliance records cover 0.17.1"
 subtitle: "The gate's compliance check refuses 0.17.1 with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.0. Both are patch-walked against the diff from v0.17.0 and stamped 0.17.1; SM1455's register entry awaits the release manager."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-11-16
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1448)"
 area: release
-status-note: "OPEN. Target 0.17.1 stable. OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.1, patch-walked; SM1455's entry and STRIDE row drafted, for the release manager's confirmation. Docs only."
+status-note: "SHIPPED (0.17.1): OBLIGATIONS.md and TECHNICAL-FILE.md patch-walked against the diff from 0.17.0 and stamped 0.17.1. Docs only."
 ---
 
 # What was asked

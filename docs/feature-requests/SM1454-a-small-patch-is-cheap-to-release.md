@@ -4,11 +4,11 @@ title: "SM1454: a small patch is cheap to release"
 subtitle: "A one-line security fix cost over an hour of gate time, most of it a full suite on a tree that differs from a gated one by a line. A patch gates on its diff, a tree is never run twice, the full suite can run on the lab, and the slow tests are trimmed."
 brand: plain
 standard-margins: true
-status: candidate
+status: partial
 raised: 2026-11-16
 raised-by: "the release manager (ruling 258), after the 0.17.1 estimate"
 area: release
-status-note: "OPEN. R1 (--patch), R2 (the suite pass record) and R4 (confirm-register) built on n834, tools only; R3 (the lab runner) is n835's, R5 is not built. The first patch to use R1 is a full gate if it carries these tools: they are a trigger."
+status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). Remains: R3, the lab runner (n835, restacked after 0.17.1), and the compliance walk and filing status a patch still needs by hand (0.17.1 measured both)."
 ---
 
 # What happened
