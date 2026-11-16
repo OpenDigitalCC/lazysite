@@ -61,6 +61,7 @@ Archive
   available (REASON) - running locally` and runs `tools/suite-local.sh`. A lab failure after the
   tests started is a failure, never a fallback.
 - Docs: SM1454 R6 (a patch's compliance stamp and filing status are written by the release material, and its record checks run before the suite) filed from the 0.17.1 measurement.
+- Docs: SM1457 (the deploy reports what it did, and a test holds it to that) filed as a candidate.
 
 ## 0.17.1 - STABLE: the bad-URL blocker counts probes behind Apache (2026-11-16)
 
