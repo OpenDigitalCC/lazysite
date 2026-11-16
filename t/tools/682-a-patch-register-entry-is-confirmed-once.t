@@ -5,10 +5,12 @@
 # branch. The developer agent drafts the entry and says so - "awaiting the release
 # manager's confirmation" - and the compliance check passes it below certified while
 # naming it (it blocks a certified cut, which claims confirmed records, ADR 0010).
-# The release manager lands the branch and runs ONE command on main,
+# After the release manager's ruling the developer agent runs ONE command,
 # `tools/release.sh confirm-register SMNNNN --ruling N`, which rewrites the marker in
-# every entry for that SM number to the confirmed wording and commits that one file.
-# There is no second branch round.
+# every entry for that SM number to the confirmed wording and commits that one file
+# on a new branch, claude/confirm-SMNNNN, cut from main in a worktree and held for
+# vcs-review (SM1454 R6 d: an agent cannot commit on main). The branch is printed;
+# that is what lands.
 use strict;
 use warnings;
 use Test::More;
@@ -104,32 +106,57 @@ subtest 'the compliance check passes a drafted entry below certified, names it, 
     like( $out, qr/^  FAIL significant-change register: 3 entries are drafted/m, 'it blocks on them' );
 };
 
-subtest 'confirm-register rewrites the marker in each entry for the number, and commits that one file' => sub {
+subtest 'confirm-register commits the confirmation on a new branch of main, and holds it' => sub {
     my $d = repo();
     spit( "$d/unrelated.txt", "x\n" );    # untracked: not committed with it
-    my ( $rc, $out ) = confirm( $d, 'SM9001', '--ruling', '259', '--date', '2026-11-21' );
+    my $main = git( $d, 'rev-parse', 'main' );
+    my ( $rc, $out ) = confirm( $d, 'SM9001', '--ruling', '259', '--date', '2026-11-21', '--trailer', 'Assisted-by: Claude:test-model' );
     is( $rc, 0, 'confirmed' ) or return diag($out);
-    like( $out, qr/SM9001 - 3 markers confirmed \(confirmed by the release manager on 21 Nov 2026 \(ruling 259\)\), committed [0-9a-f]{12}/, 'saying how many and where' );
-    my $t = slurp("$d/docs/SECURITY.md");
-    is( scalar( () = $t =~ /confirmed by the release manager on 21 Nov 2026 \(ruling 259\)/g ), 3, 'three markers are the confirmed wording' );
+    like( $out, qr/SM9001 - 3 markers confirmed \(confirmed by the release manager on 21 Nov 2026 \(ruling 259\)\)/, 'saying how many' );
+    like( $out, qr/^confirm-register: branch claude\/confirm-SM9001 at ([0-9a-f]{12}), held for vcs-review - land it$/m, 'and the branch to land' );
+    is( git( $d, 'rev-parse', 'main' ), $main, 'main is as it was: nothing was committed on it' );
+    is( git( $d, 'rev-parse', 'refs/vcs-review/hold/claude/confirm-SM9001' ), git( $d, 'rev-parse', 'claude/confirm-SM9001' ), 'the branch is held at its tip' );
+    is( git( $d, 'rev-parse', 'claude/confirm-SM9001^' ), $main, 'it is cut from main, one commit' );
+
+    my $t = git( $d, 'show', 'claude/confirm-SM9001:docs/SECURITY.md' ) . "\n";
+    is( scalar( () = $t =~ /confirmed by the release manager on 21 Nov 2026 \(ruling 259\)/g ), 3, 'three markers on the branch are the confirmed wording' );
     is( scalar( () = $t =~ /awaiting the release manager's confirmation/g ), 1,
         'and the one left is SM90010\'s: a number that merely starts with the same digits is not named' );
     like( $t, qr/Assessment drafted by the developer agent \(n836\); confirmed by the release manager on 21 Nov 2026 \(ruling 259\)\./, 'in the wording every confirmed entry has' );
     like( $t, qr/verdict : accepted, confirmed by the release manager on 21 Nov 2026 \(ruling 259\)\. No trigger fired\./, 'the verdict line too' );
     like( $t, qr/\(n824\); confirmed by the release manager on 12 Nov 2026 \(ruling 251\)\./, 'an earlier entry is as it was' );
-    is( git( $d, 'log', '-1', '--format=%s' ), 'SM9001: register entry confirmed by the release manager (ruling 259)', 'one commit says what it did' );
-    is( git( $d, 'show', '--name-only', '--format=', 'HEAD' ), 'docs/SECURITY.md', 'and holds that one file' );
-    is( git( $d, 'status', '--porcelain' ), '?? unrelated.txt', 'nothing else was touched' );
+    like( slurp("$d/docs/SECURITY.md"), qr/awaiting the release manager's confirmation/, 'main\'s register still says awaiting' );
+    my $msg = git( $d, 'log', '-1', '--format=%B', 'claude/confirm-SM9001' );
+    like( $msg, qr/\ASM9001: register entry confirmed by the release manager \(ruling 259\)\n/, 'one commit says what it did' );
+    like( $msg, qr/\nAssisted-by: Claude:test-model\n*\z/, 'with the trailers it was given' );
+    is( git( $d, 'show', '--name-only', '--format=', 'claude/confirm-SM9001' ), 'docs/SECURITY.md', 'and holds that one file' );
+    is( git( $d, 'status', '--porcelain' ), '?? unrelated.txt', 'the checkout was not touched' );
+    unlike( git( $d, 'worktree', 'list' ), qr/wt-confirm/, 'and the worktree it used is gone' );
+    ok( !-e "$d/tmp/wt-confirm-SM9001", 'from the disk too' );
 
     ( $rc, $out ) = confirm( $d, 'SM9001', '--ruling', '259' );
     is( $rc, 1, 'confirming it again is refused' ) or diag($out);
-    like( $out, qr/nothing "awaiting the release manager's confirmation" - already confirmed, or never drafted/, 'saying why' );
+    like( $out, qr/branch claude\/confirm-SM9001 already exists/, 'saying why' );
+};
+
+subtest 'it works from a checkout on another branch with the register edited, and leaves both alone' => sub {
+    my $d = repo();
+    git( $d, 'checkout', '-q', '-b', 'a-branch' );
+    my $edited = slurp("$d/docs/SECURITY.md") . "\nan uncommitted edit\n";
+    spit( "$d/docs/SECURITY.md", $edited );
+    my ( $rc, $out ) = confirm( $d, 'SM9002', '--ruling', '260', '--date', '2026-11-22' );
+    is( $rc, 0, 'confirmed' ) or return diag($out);
+    is( git( $d, 'rev-parse', '--abbrev-ref', 'HEAD' ), 'a-branch', 'the checkout is still on its branch' );
+    is( slurp("$d/docs/SECURITY.md"), $edited, 'and its uncommitted edit is as it was' );
+    my $t = git( $d, 'show', 'claude/confirm-SM9002:docs/SECURITY.md' );
+    unlike( $t, qr/an uncommitted edit/, 'the branch is main\'s register, not the checkout\'s' );
+    like( $t, qr/SM9001, SM9002 \(0\.1\.1\)[^\n]*\n\nAssessment drafted by the developer agent \(n836\); confirmed by the release manager on 22 Nov 2026 \(ruling 260\)/, 'with the entry confirmed' );
 };
 
 subtest 'confirm-register refuses, and changes nothing' => sub {
-    my $d    = repo();
-    my $head = git( $d, 'rev-parse', 'HEAD' );
-    my $text = slurp("$d/docs/SECURITY.md");
+    my $d     = repo();
+    my $head  = git( $d, 'rev-parse', 'HEAD' );
+    my $text  = slurp("$d/docs/SECURITY.md");
     my %case = (
         'no ruling' => [ ['SM9001'], qr/--ruling N is needed/ ],
         'a bad date' => [ [ 'SM9001', '--ruling', '1', '--date', 'today' ], qr/--date wants YYYY-MM-DD/ ],
@@ -144,18 +171,20 @@ subtest 'confirm-register refuses, and changes nothing' => sub {
         like( $out, $want, "$name: saying why" );
     }
     is( git( $d, 'rev-parse', 'HEAD' ), $head, 'no commit was made' );
+    is( git( $d, 'branch', '--list', 'claude/*' ), '', 'no branch was made' );
+    is( git( $d, 'for-each-ref', 'refs/vcs-review' ), '', 'no hold either' );
     is( slurp("$d/docs/SECURITY.md"),   $text, 'and the register is as it was' );
 
-    spit( "$d/docs/SECURITY.md", "$text\nan edit\n" );
+    make_path("$d/tmp/wt-confirm-SM9001");
     my ( $rc, $out ) = confirm( $d, 'SM9001', '--ruling', '1' );
-    isnt( $rc, 0, 'uncommitted changes to the register: refused' );
-    like( $out, qr/docs\/SECURITY\.md has uncommitted changes/, 'saying so' );
-    git( $d, 'checkout', '-q', 'docs/SECURITY.md' );
+    isnt( $rc, 0, 'its worktree path taken: refused' );
+    like( $out, qr/tmp\/wt-confirm-SM9001 already exists/, 'saying so' );
+    rmdir "$d/tmp/wt-confirm-SM9001";
 
-    git( $d, 'checkout', '-q', '-b', 'a-branch' );
+    git( $d, 'branch', '-m', 'main', 'trunk' );
     ( $rc, $out ) = confirm( $d, 'SM9001', '--ruling', '1' );
-    isnt( $rc, 0, 'off main: refused' );
-    like( $out, qr/run it on main - .* is on 'a-branch'/, 'saying where it is' );
+    isnt( $rc, 0, 'a repository with no main: refused' );
+    like( $out, qr/has no branch main/, 'saying so' );
 };
 
 done_testing();
