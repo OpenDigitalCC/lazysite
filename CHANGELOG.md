@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1456 (PENDING) **docs: the compliance records cover 0.17.1, a stable patch.** OBLIGATIONS.md
+  and TECHNICAL-FILE.md are patch-walked against `git diff v0.17.0 main` and stamped 0.17.1: the
+  one line that ships (SM1455) and the release tooling (SM1454) touch the register, threat-model,
+  technical-file, significant-change and vulnerability-handling rows; the rest stand as walked
+  for 0.17.0. SM1455's register entry and STRIDE row are drafted by the developer agent; for the
+  release manager's confirmation. The bench is not re-captured and the Declaration is not
+  stamped.
 - SM1455 (PENDING) **security: the bad-URL blocker counts probes behind Apache.** The auth
   wrapper took its path from `REDIRECT_URL`, which Apache sets only on an internal redirect and
   leaves unset on the two routes into the wrapper (the source-type rewrite `[PT]` and
