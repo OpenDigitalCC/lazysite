@@ -2,7 +2,7 @@
 # tools/gate-main.sh - gate main's tip after a landing, so a receipt is
 # usually ready when a cut is called (SM950 (2)).
 #
-#   tools/gate-main.sh [--version X.Y.Z] [--beta|--final|--certified]
+#   tools/gate-main.sh [--version X.Y.Z] [--beta|--final|--certified] [--patch]
 #                      [--stage-dir DIR] [--ref REF]
 #
 # The developer agent runs this, in the background, after the release manager
@@ -29,6 +29,24 @@
 # second is refused while the first holds tmp/release-gate/.gate-main.lock.
 # The whole gate's output is in tmp/release-gate/VERSION/gate-main.log.
 #
+# SM1454 (a small patch is cheap to release):
+#
+#   --patch (stable only: --final) gates a patch on its diff from the line's last
+#   release - every lint, bench --check and the tests the precheck selects for the
+#   diff - instead of the whole suite, when that release's gate receipt passed and
+#   nothing in the diff judges the others (tools/release.sh, --patch). The receipt
+#   says `suite=patch (base vX.Y.Z, N files)`, or why the suite ran in full. A
+#   patch receipt does not satisfy a gate asked for without --patch: that one runs.
+#
+#   A tree is never run twice: the suite's pass is kept by the tree id and options
+#   (tmp/release-gate/suite-passes/), and a gate of a tree with a record skips the
+#   suite and names the record. LAZYSITE_SUITE_FRESH=1 ignores the records.
+#
+#   LAZYSITE_SUITE_RUNNER=CMD runs the full suite as `CMD STAGE_DIR JOBS OUTFILE`
+#   in place of the local prove: STAGE_DIR the staged tree, JOBS the parallelism,
+#   OUTFILE where it writes prove's output, ending in the "Files=N, Tests=M" line.
+#   Its exit status is the verdict (0 passed). Both are read as the local run's.
+#
 # Exit: 0 gated (or already gated), 1 the gate failed, 2 refused before
 # starting (bad arguments, version undecidable or burned, a run in progress).
 set -euo pipefail
@@ -41,6 +59,8 @@ VERSION=""
 CHANNEL=edge
 CHANNEL_FLAG=()
 STAGE_FLAG=()
+PATCH=0
+PATCH_FLAG=()
 
 refuse() {
     local line
@@ -82,13 +102,21 @@ while [ $# -gt 0 ]; do
             STAGE_FLAG=(--stage-dir "$2")
             shift 2
             ;;
+        --patch)
+            PATCH=1
+            PATCH_FLAG=(--patch)
+            shift
+            ;;
         -h | --help)
-            sed -n '2,33p' "$0" | sed 's/^# \?//'
+            sed -n '2,/^set -euo/{/^set -euo/!p;}' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         *) refuse "unknown argument '$1' (see --help)" ;;
     esac
 done
+
+[ "$PATCH" = 0 ] || [ "$CHANNEL" = stable ] \
+    || refuse "--patch is for a stable gate (--final); the $CHANNEL channel runs the whole suite."
 
 SHA=$(git -C "$ROOT" rev-parse --verify --quiet "$REF^{commit}") \
     || refuse "'$REF' does not name a commit in $ROOT"
@@ -131,13 +159,15 @@ GATE_DIR="$STATE_ROOT/tmp/release-gate"
 RECEIPT_DIR="$GATE_DIR/$VERSION"
 RECEIPT="$RECEIPT_DIR/receipt"
 field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
+# A patch receipt is a weaker fact than a full one: it answers a --patch gate, not a full one.
+receipt_serves() { [ "$PATCH" = 1 ] || case "$(field suite)" in patch*) return 1 ;; esac; }
 
 # A receipt with no material_tool is from a gate that did not write the release
 # material into what it tested (before SM971); build refuses it, so it is not
 # "already gated".
 if [ -f "$RECEIPT" ] && [ "$(field sha)" = "$SHA" ] && [ "$(field version)" = "$VERSION" ] \
     && [ "$(field channel)" = "$CHANNEL" ] && [ "$(field result)" = pass ] \
-    && [ -n "$(field material_tool)" ]; then
+    && [ -n "$(field material_tool)" ] && receipt_serves; then
     echo "gate-main: ${SHA:0:12} ($VERSION, $CHANNEL) is already gated - not running it again:"
     sed 's/^/    /' "$RECEIPT"
     exit 0
@@ -182,7 +212,7 @@ RC=0
 # 9>&- : the lock is this script's, not the gate's - a process the gate leaves
 # behind must not hold it for ever.
 setsid -w bash "$ROOT/tools/release.sh" gate "$VERSION" --commit "$SHA" \
-    "${CHANNEL_FLAG[@]}" "${STAGE_FLAG[@]}" </dev/null >"$LOG" 2>&1 9>&- 7>&- || RC=$?
+    "${CHANNEL_FLAG[@]}" "${STAGE_FLAG[@]}" "${PATCH_FLAG[@]}" </dev/null >"$LOG" 2>&1 9>&- 7>&- || RC=$?
 SECS=$(($(date +%s) - START))
 
 if [ "$RC" -ne 0 ] || [ "$(field sha)" != "$SHA" ] || [ "$(field result)" != pass ]; then

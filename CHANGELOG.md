@@ -62,6 +62,23 @@ Archive
   rules were never affected (the processor reads the right path). A real-Apache test
   (t/integration/732) sends probes by both routes; t/integration/14 stops setting
   `REDIRECT_URL` where Apache would not.
+- SM1454 (PENDING) **release: a patch gates on its diff, a tree is never run twice, and a patch's
+  register entry is confirmed once.** The 0.17.0 gate spent 2096 s in the full suite and under two
+  minutes in every other stage; a one-line patch would have cost the same. R2: the suite stage keeps a pass by the tree id
+  of the gated commit, the version, the channel and the suite mode (`tmp/release-gate/suite-passes/`),
+  a gate of a recorded tree says so in one line, skips the suite and names the record in the
+  receipt, only a pass writes one, and a damaged record refuses by name (ruling 206);
+  `LAZYSITE_SUITE_FRESH=1` ignores them. R1: `tools/gate-main.sh --patch` (and
+  `release.sh gate --final --patch`) gates a stable patch on its diff from the line's last release,
+  whose gate receipt must say pass: every lint, `bench --check` and the precheck's selection
+  (`tools/precheck-select.sh`, now shared with `tools/precheck.sh`; `tools/patch-plan.pl`); it runs
+  the whole suite, and says why, for a change to `t/lib/`, a lint's library, the release and
+  precheck tools, the build's control files or a file the area map does not cover. The receipt says
+  `suite=patch (base vX.Y.Z, N files)` or why it is full, and build accepts it for a stable whose
+  base is the receipt's. `LAZYSITE_SUITE_RUNNER` hands the full suite to an external runner. R4: a
+  register entry drafted on the patch's branch passes the compliance check (named, advisory; it
+  blocks a certified cut), and `tools/release.sh confirm-register SMNNNN --ruling N` records the
+  release manager's confirmation in one commit on main. t/tools/680 to 682.
 
 - Docs: SM1453 (the rollout reads the ACL probe's cache verdict as a verdict, not as "could not
   run") filed as a candidate.

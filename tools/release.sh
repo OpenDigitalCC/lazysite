@@ -9,10 +9,11 @@
 #   tag together. Nobody waits for a test: the gate has run before the call.
 #
 # Usage:
-#   tools/release.sh gate    VERSION [--commit SHA] [--beta|--final|--certified]
+#   tools/release.sh gate    VERSION [--commit SHA] [--beta|--final|--certified] [--patch]
 #   tools/release.sh build   VERSION --notes FILE   [--beta|--final|--certified]
 #                            [--security-critical]
 #   tools/release.sh publish VERSION
+#   tools/release.sh confirm-register SMNNNN --ruling N [--date YYYY-MM-DD]
 #
 #   GATE (Claude, detached, usually via tools/gate-main.sh): clones the commit
 #   into a stage, writes the release material into it with
@@ -71,6 +72,40 @@
 #   site's channel and policy. A release without it does not carry the key.
 #   It needs --final (or --certified): a security release is cut on stable so
 #   the standard deploy reaches every site (SM1314, ruling 45).
+#
+#   A TREE IS NEVER RUN TWICE (SM1454 R2). The gate's suite stage records a pass,
+#   keyed by the TREE id of the gated commit (not the commit: the release manager
+#   lands by rebase) with the version, channel and suite mode, under
+#   tmp/release-gate/suite-passes/ - one JSON file a key, as coverage-passes is. A
+#   gate whose key has a record says so in one line, skips the suite and names the
+#   record in the receipt (suite_from=). Only a PASS writes one (a temp file, then
+#   a rename); a failed, stopped or timed-out suite writes nothing. A record that
+#   cannot be read or does not agree with its key refuses the gate, naming the file:
+#   it is never taken as a pass (ruling 206). LAZYSITE_SUITE_FRESH=1 ignores the
+#   records, runs the suite and replaces the record.
+#
+#   --patch (SM1454 R1; gate, stable only) gates a patch on its diff. It takes the
+#   newest release tag of the version's line below VERSION (v0.17.0 for 0.17.1),
+#   needs that release's gate receipt to say pass, and runs every lint (t/lint/),
+#   bench --check and the precheck's selection of tests for the diff from that tag
+#   (tools/patch-plan.pl) - not the whole suite. It runs the whole suite instead, and
+#   says why in one line, when the plan says so: a change to the test harness, a
+#   lint's library, the release tools, the build's control files, or a file the
+#   precheck's area map does not cover. The receipt says `suite=patch (base vX.Y.Z,
+#   N files)` or why it is full; build takes a patch receipt only for a stable cut
+#   whose base tag, today, is the receipt's.
+#
+#   LAZYSITE_SUITE_RUNNER (SM1454, the lab runner): when set, the gate runs the
+#   FULL suite by `$LAZYSITE_SUITE_RUNNER STAGE_DIR JOBS OUTFILE` in place of its
+#   own prove. STAGE_DIR is the staged tree (release material in it), JOBS the
+#   parallelism the local run would use, OUTFILE a path the runner writes prove's
+#   output to, ending in prove's "Files=N, Tests=M" summary line. The runner's exit
+#   status is the verdict: 0 passed, anything else failed. The gate reads OUTFILE
+#   and the status exactly as it reads its own run, and the same record rule
+#   applies. A patch gate's small selection always runs locally.
+#
+#   confirm-register (SM1454 R4; the release manager, once, on main): marks a
+#   patch's drafted register entry confirmed - see tools/confirm-register.pl.
 set -e
 
 # The repository this script belongs to - the one it gates, builds and tags.
@@ -102,6 +137,7 @@ NOTES_FILE=""
 COMMIT_REF=""
 CHANNEL="edge"          # ladder: edge (default) < beta < stable < certified
 SECURITY_CRITICAL=()    # SM1305: (--security-critical) for build-manifest.pl, or empty
+PATCH=0                 # SM1454: --patch, a gate on the diff from the line's last release
 
 # SM303: THREE JOBS THAT SHARE ONLY A VERSION NUMBER.
 #
@@ -118,7 +154,7 @@ SECURITY_CRITICAL=()    # SM1305: (--security-critical) for build-manifest.pl, o
 # was on.
 MODE=""
 case "${1:-}" in
-    build|publish|gate) MODE=$1; shift ;;
+    build|publish|gate|confirm-register) MODE=$1; shift ;;
     -h|--help)     ;;
     *)
         # Not a silent fallback to either. The old form's failure modes are the
@@ -137,6 +173,11 @@ case "${1:-}" in
         fi
         ;;
 esac
+
+# SM1454 R4: the register confirmation is one tool's job; its options are its own.
+if [ "$MODE" = confirm-register ]; then
+    exec perl "$ORIGIN/tools/confirm-register.pl" --repo "$ORIGIN" "$@"
+fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -172,8 +213,12 @@ while [ $# -gt 0 ]; do
             SECURITY_CRITICAL=(--security-critical)
             shift
             ;;
+        --patch)
+            PATCH=1
+            shift
+            ;;
         -h|--help)
-            sed -n '2,73p' "$0" | sed 's/^# \?//'
+            sed -n '2,/^set -e/{/^set -e/!p;}' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)
@@ -255,7 +300,7 @@ if [ "$MODE" = publish ]; then
 fi
 
 if [ -z "$MODE" ]; then
-    sed -n '2,73p' "$0" | sed 's/^# \?//'
+    sed -n '2,/^set -e/{/^set -e/!p;}' "$0" | sed 's/^# \?//'
     exit 0
 fi
 
@@ -312,8 +357,56 @@ RECEIPT_DIR="$STATE_ROOT/tmp/release-gate/$VERSION"
 RECEIPT="$RECEIPT_DIR/receipt"
 receipt_field() { sed -n "s/^$1=//p" "$RECEIPT" 2>/dev/null | head -1; }
 
+# SM1454: the newest release tag of VERSION's line (X.Y) below VERSION - v0.17.0
+# for 0.17.1 - or nothing. The tag a patch is gated against, and the one a build
+# of a patch receipt checks is still the newest.
+patch_base_tag() {
+    { git -C "$ORIGIN" tag -l "v${1%.*}.*"; echo "v$1"; } \
+        | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -Vu \
+        | awk -v t="v$1" '$0 == t { print prev; exit } { prev = $0 }'
+}
+
 # The release date, written into the CHANGELOG heading and the FEATURES entry.
 REL_DATE=$(date +%Y-%m-%d)
+
+if [ "$PATCH" = 1 ] && [ "$MODE" != gate ]; then
+    echo "release.sh: --patch is a gate option; build reads the receipt it leaves" >&2
+    exit 2
+fi
+
+PATCH_BASE=""
+PATCH_BASE_SHA=""
+if [ "$MODE" = gate ] && [ "$PATCH" = 1 ]; then
+    # SM1454 R1: a patch is gated on its diff from the line's last release, and only
+    # a stable patch is. Edge and beta cut from main's tip with the whole suite, and
+    # a certified cut keeps the suite and coverage (SM1454).
+    if [ "$CHANNEL" != stable ]; then
+        echo "release.sh: --patch is for a stable gate (--final); the $CHANNEL channel runs the whole suite." >&2
+        exit 2
+    fi
+    PATCH_BASE=$(patch_base_tag "$VERSION")
+    if [ -z "$PATCH_BASE" ]; then
+        echo "release.sh: --patch needs an earlier release of the ${VERSION%.*} line to gate against; there is none below v$VERSION." >&2
+        exit 2
+    fi
+    BASE_RECEIPT="$STATE_ROOT/tmp/release-gate/${PATCH_BASE#v}/receipt"
+    if [ ! -f "$BASE_RECEIPT" ]; then
+        echo "release.sh: --patch gates the diff from $PATCH_BASE, whose gate receipt is missing:" >&2
+        echo "release.sh:   $BASE_RECEIPT" >&2
+        echo "release.sh: without it nothing says the base passed; gate this release in full (no --patch)." >&2
+        exit 2
+    fi
+    BASE_RESULT=$(sed -n 's/^result=//p' "$BASE_RECEIPT" | head -1)
+    if [ "$BASE_RESULT" != pass ]; then
+        echo "release.sh: --patch gates the diff from $PATCH_BASE, whose gate receipt does not say pass" >&2
+        echo "release.sh:   ($BASE_RECEIPT: result=${BASE_RESULT:-none}); gate this release in full (no --patch)." >&2
+        exit 2
+    fi
+    PATCH_BASE_SHA=$(git -C "$ORIGIN" rev-parse --verify --quiet "$PATCH_BASE^{commit}") || {
+        echo "release.sh: $PATCH_BASE does not name a commit in $ORIGIN" >&2
+        exit 2
+    }
+fi
 
 if [ "$MODE" = gate ]; then
     # The gate has no notes - its subtitle and FEATURES prose are placeholders -
@@ -401,7 +494,19 @@ if [ "$MODE" = build ]; then
             esac
             ;;
     esac
+    # SM1454: a patch receipt says which release it was gated against. It counts for
+    # a stable cut whose base is that release still - a newer one on the line means
+    # the diff the gate read is not the one this cut makes.
+    if [ -n "$(receipt_field suite_base)" ]; then
+        NOW_BASE=$(patch_base_tag "$VERSION")
+        if [ "$CHANNEL" != stable ] || [ "$NOW_BASE" != "$(receipt_field suite_base)" ]; then
+            echo "release.sh: the gate receipt is a patch gate against $(receipt_field suite_base) (channel $(receipt_field channel));" >&2
+            echo "release.sh: this build's base is ${NOW_BASE:-none} on channel $CHANNEL. Gate again: tools/gate-main.sh --version $VERSION --final [--patch]" >&2
+            exit 1
+        fi
+    fi
     echo "==> Gate passed for ${TARGET_SHA:0:12} ($(receipt_field finished)): $(receipt_field files) files, $(receipt_field tests) tests"
+    [ -z "$(receipt_field suite)" ] || echo "==>   suite: $(receipt_field suite) ($(receipt_field suite_from))"
     echo "==>   coverage: $(receipt_field coverage) $(receipt_field coverage_from)"
     echo "==>   receipt and logs: $RECEIPT_DIR"
 
@@ -909,6 +1014,47 @@ coverage_store() {
     ' "$record" "$store" "$sha" "$version" "$digest"
 }
 
+# SM1454 R2: A TREE IS NEVER RUN TWICE. The suite's pass is kept by the tree id of
+# the gated commit, the version, the channel and the suite mode - what the suite
+# ran on and over - one JSON file a key, beside coverage-passes. A record is read
+# strictly: one that is not JSON, not a pass, or not for its own key is a fault
+# the gate refuses on, naming the file (ruling 206); it is never a pass and never
+# quietly replaced (LAZYSITE_SUITE_FRESH=1 is the way to replace it).
+SUITE_STORE="$STATE_ROOT/tmp/release-gate/suite-passes"
+
+# files and tests of a good record, or the reason it is not one on stderr.
+suite_record_read() {
+    perl -MJSON::PP -e '
+        my ( $file, $key, $tree ) = @ARGV;
+        open my $f, "<", $file or die "cannot read it: $!\n";
+        local $/; my $text = <$f>;
+        my $j = eval { JSON::PP->new->decode( $text // "" ) };
+        die "it is not a JSON object\n" unless ref $j eq "HASH";
+        die "it does not say result pass\n" unless ( $j->{result} // "" ) eq "pass";
+        die "it is for another key\n" unless ( $j->{key} // "" ) eq $key && ( $j->{tree} // "" ) eq $tree;
+        for my $k (qw(files tests)) { die "it has no $k\n" unless defined $j->{$k} && $j->{$k} =~ /^[0-9]+$/ }
+        print "$j->{files} $j->{tests}\n";
+    ' "$@"
+}
+
+# Keep a pass: a temp file in the store, then a rename, so a stopped writer leaves
+# no half record for the next gate to meet.
+suite_record_write() {
+    local store=$1
+    mkdir -p "$store"
+    perl -MJSON::PP -e '
+        my ( $store, $key, $tree, $sha, $ver, $ch, $mode, $files, $tests ) = @ARGV;
+        my $out = "$store/$key.json";
+        open my $o, ">", "$out.$$" or die "$out: $!\n";
+        print {$o} JSON::PP->new->canonical->pretty->encode( {
+            key => $key, tree => $tree, result => "pass", measured_at_sha => $sha,
+            version => $ver, channel => $ch, suite => $mode, files => $files + 0, tests => $tests + 0,
+            captured => scalar gmtime() . " UTC" } );
+        close $o or die "$out: $!\n";
+        rename "$out.$$", $out or die "$out: $!\n";
+    ' "$@"
+}
+
 mkdir -p "$RECEIPT_DIR"
 rm -f "$RECEIPT"
 
@@ -943,20 +1089,103 @@ rm -f "$RECEIPT"
 # tee succeeds whatever prove did. That is the failure mode this whole gate
 # exists to prevent, one layer up: a check that reports success without checking.
 GATE_OUT="$STAGE/.gate-output.txt"
-echo "==> Running full test suite"
-# SM950 (1): -j4, as the handoff runs it - 17 minutes serial, about 6 parallel.
-# The suite is parallel-safe (SM269 phase 1); the host has the memory since
-# 2026-10-07. prove's summary line is the same either way.
-if ! ( cd "$STAGE" && set -o pipefail && detached prove -lr -j4 t/ 2>&1 | tee "$GATE_OUT" ); then
-    abort_build "test suite failed; not releasing."
+
+# SM1454 R1: WHAT THE SUITE STAGE RUNS. The whole suite, or - for a stable patch
+# gated with --patch - every lint and the tests the precheck selects for the diff
+# from the line's last release (tools/patch-plan.pl, run on the staged tree). A
+# plan that says the whole suite is one line here and in the receipt.
+SUITE_MODE=full
+SUITE_LINE=full
+SUITE_BASE_FIELD=""
+SUITE_TESTS=()
+if [ "$PATCH" = 1 ]; then
+    if [ ! -f "$STAGE/tools/patch-plan.pl" ]; then
+        abort_build "--patch needs tools/patch-plan.pl, which $TARGET_SHA does not have; gate without --patch."
+    fi
+    PLAN=$(perl "$STAGE/tools/patch-plan.pl" "$PATCH_BASE_SHA" "$TARGET_SHA") \
+        || abort_build "the patch plan could not be made (above); not releasing."
+    PLAN_HEAD=$(printf '%s\n' "$PLAN" | head -1)
+    PLAN_WORD=${PLAN_HEAD%%$'\t'*}
+    PLAN_REST=${PLAN_HEAD#*$'\t'}
+    case "$PLAN_WORD" in
+        patch)
+            SUITE_MODE="patch"
+            SUITE_LINE="patch (base $PATCH_BASE, $PLAN_REST)"
+            SUITE_BASE_FIELD="$PATCH_BASE"
+            mapfile -t SUITE_TESTS < <(printf '%s\n' "$PLAN" | tail -n +2 | grep . || true)
+            printf '%s\n' "${SUITE_TESTS[@]}" > "$RECEIPT_DIR/suite-selection.txt"
+            echo "==> --patch: every lint and ${#SUITE_TESTS[@]} selected tests ($PLAN_REST since $PATCH_BASE)"
+            ;;
+        full)
+            SUITE_LINE="full (--patch: $PLAN_REST)"
+            echo "==> --patch: the full suite - $PLAN_REST"
+            ;;
+        *) abort_build "the patch plan said '$PLAN_HEAD'; not releasing." ;;
+    esac
 fi
 
-# "Files=455, Tests=8266, ..." - prove's own summary, read rather than recomputed.
-GATE_FILES=$(sed -n 's/^Files=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
-GATE_TESTS=$(sed -n 's/^Files=[0-9]*, Tests=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
-if [ -z "$GATE_FILES" ] || [ -z "$GATE_TESTS" ]; then
-    abort_build "could not read the gate summary from prove output." \
-        "refusing to record a release as validated without it."
+# SM1454 R2: a recorded pass for this tree, version, channel and mode is not run again.
+SUITE_TREE=$(git -C "$STAGE" rev-parse "$TARGET_SHA^{tree}")
+# A patch pass names its base: the same tree gated against another release ran other tests.
+SUITE_KEY_MODE=$SUITE_MODE
+[ "$SUITE_MODE" != patch ] || SUITE_KEY_MODE="patch:$PATCH_BASE_SHA"
+SUITE_KEY=$(printf 'tree=%s\nversion=%s\nchannel=%s\nsuite=%s\n' "$SUITE_TREE" "$VERSION" "$CHANNEL" "$SUITE_KEY_MODE" | sha256sum | awk '{print $1}')
+SUITE_RECORD="$SUITE_STORE/$SUITE_KEY.json"
+SUITE_FROM="this gate"
+SUITE_SKIPPED=0
+if [ "${LAZYSITE_SUITE_FRESH:-}" != 1 ] && [ -e "$SUITE_RECORD" ]; then
+    if ! SUITE_SUMMARY=$(suite_record_read "$SUITE_RECORD" "$SUITE_KEY" "$SUITE_TREE" 2>&1); then
+        abort_build "the suite record $SUITE_RECORD is unreadable or malformed: $SUITE_SUMMARY" \
+            "It is not taken as a pass. Remove it, or gate again with LAZYSITE_SUITE_FRESH=1 to run the suite and replace it."
+    fi
+    GATE_FILES=${SUITE_SUMMARY% *}
+    GATE_TESTS=${SUITE_SUMMARY#* }
+    SUITE_FROM="recorded pass $SUITE_RECORD"
+    SUITE_SKIPPED=1
+    echo "==> suite: tree ${SUITE_TREE:0:12} already passed ($GATE_FILES files, $GATE_TESTS tests) - not run again; record $SUITE_RECORD"
+    echo "suite: skipped - $SUITE_FROM" > "$GATE_OUT"
+fi
+
+if [ "$SUITE_SKIPPED" = 0 ]; then
+    # SM1454 (the lab runner): LAZYSITE_SUITE_RUNNER takes the FULL suite - see the
+    # header. Its status and OUTFILE are read as the local run's are, below.
+    if [ "$SUITE_MODE" = full ] && [ -n "${LAZYSITE_SUITE_RUNNER:-}" ]; then
+        echo "==> Running full test suite through $LAZYSITE_SUITE_RUNNER"
+        RUNNER_RC=0
+        detached "$LAZYSITE_SUITE_RUNNER" "$STAGE" 4 "$GATE_OUT" || RUNNER_RC=$?
+        [ ! -f "$GATE_OUT" ] || cat "$GATE_OUT"
+        if [ "$RUNNER_RC" -ne 0 ]; then
+            abort_build "test suite failed (the runner exited $RUNNER_RC); not releasing."
+        fi
+    elif [ "$SUITE_MODE" = patch ]; then
+        echo "==> Running the patch gate's tests: t/lint/ and ${#SUITE_TESTS[@]} selected"
+        if ! ( cd "$STAGE" && set -o pipefail && detached prove -lr -j4 t/lint "${SUITE_TESTS[@]}" 2>&1 | tee "$GATE_OUT" ); then
+            abort_build "test suite failed; not releasing."
+        fi
+    else
+        echo "==> Running full test suite"
+        # SM950 (1): -j4, as the handoff runs it - 17 minutes serial, about 6 parallel.
+        # The suite is parallel-safe (SM269 phase 1); the host has the memory since
+        # 2026-10-07. prove's summary line is the same either way.
+        if ! ( cd "$STAGE" && set -o pipefail && detached prove -lr -j4 t/ 2>&1 | tee "$GATE_OUT" ); then
+            abort_build "test suite failed; not releasing."
+        fi
+    fi
+
+    # "Files=455, Tests=8266, ..." - prove's own summary, read rather than recomputed.
+    GATE_FILES=$(sed -n 's/^Files=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
+    GATE_TESTS=$(sed -n 's/^Files=[0-9]*, Tests=\([0-9]*\),.*/\1/p' "$GATE_OUT" | tail -1)
+    if [ -z "$GATE_FILES" ] || [ -z "$GATE_TESTS" ]; then
+        abort_build "could not read the gate summary from prove output." \
+            "refusing to record a release as validated without it."
+    fi
+
+    # SM1454 R2: only a PASS is kept, here, with the summary read - a failed, stopped
+    # or timed-out run aborted above and leaves nothing. Not a gate failure if the
+    # store cannot be written: the next gate runs the suite again, and says so.
+    suite_record_write "$SUITE_STORE" "$SUITE_KEY" "$SUITE_TREE" "$TARGET_SHA" "$VERSION" "$CHANNEL" \
+        "$SUITE_KEY_MODE" "$GATE_FILES" "$GATE_TESTS" \
+        || echo "release.sh: WARNING - the suite pass was not kept for reuse" >&2
 fi
 echo "==> Gate: $GATE_FILES files, $GATE_TESTS tests, at $TARGET_SHA"
 
@@ -1232,6 +1461,9 @@ git -C "$STAGE" show --stat --format='%H %s' "$MATERIAL_SHA" > "$RECEIPT_DIR/mat
     echo "files=$GATE_FILES"
     echo "tests=$GATE_TESTS"
     echo "result=pass"
+    echo "suite=$SUITE_LINE"
+    echo "suite_from=$SUITE_FROM"
+    [ -z "$SUITE_BASE_FIELD" ] || echo "suite_base=$SUITE_BASE_FIELD"
     echo "coverage=$COV_MODE"
     echo "coverage_from=$COV_FROM"
     echo "material_tool=$MATERIAL_TOOL"

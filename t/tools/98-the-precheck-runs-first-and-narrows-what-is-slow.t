@@ -24,7 +24,7 @@ use TestHelper qw(repo_root);
 my $root = repo_root();
 sub slurp { open my $f, '<', $_[0] or die "$_[0]: $!"; local $/; my $t = <$f>; close $f; $t }
 my $h = slurp("$root/tools/handoff.sh");
-my $p = slurp("$root/tools/precheck.sh");
+my $p = slurp("$root/tools/precheck.sh") . slurp("$root/tools/precheck-select.sh");
 
 # SM1061: the whole suite is no longer the handoff's - it runs only with --full,
 # through tools/suite.sh - so the pre-check is what a default handoff tests with.

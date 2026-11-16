@@ -320,6 +320,30 @@ A gate must not start where it cannot finish, and a failure must be cheap to rea
   file, first failed assertion, first diagnostic, class ENV or TEST. The
   nightly inbox note and the gate's failure message use it.
 
+## Patch releases (SM1454)
+
+A patch to a stable line (0.17.1 after 0.17.0) is gated on its diff, not on the whole suite.
+
+- **`tools/gate-main.sh --final --patch`** takes the newest release tag of the line below the
+  target (v0.17.0), needs that release's gate receipt to say `result=pass`, and runs every lint,
+  `bench --check` and the tests `tools/precheck-select.sh` picks for the diff from that tag (the
+  tests that name a changed file, the changed tests, and each touched area's tests, slow ones
+  included). It is the whole suite instead, with the reason in one line and in the receipt, when
+  the diff changes `t/lib/`, a file under `t/lint/` that is not a test, `tools/release.sh`,
+  `tools/gate-main.sh`, `tools/patch-plan.pl`, `tools/precheck*`, `Makefile`, `cpanfile`, `dist/`
+  or `debian/`, or any file `tools/precheck-areas.pl` has no row for (documents, the changelog
+  and `download/` are not counted). Edge, beta and certified gates refuse `--patch`.
+- **A tree is never run twice.** A suite pass is kept under `tmp/release-gate/suite-passes/` by
+  tree id, version, channel and mode; a gate of that tree skips the suite and the receipt names the
+  record. A record that does not read is a refusal naming the file; `LAZYSITE_SUITE_FRESH=1` runs
+  the suite and replaces it.
+- **Its register entry is drafted on the branch.** Put the entry in `docs/SECURITY.md` with the
+  fix, as drafted by the developer agent and "awaiting the release manager's confirmation" in
+  both its Assessment line and its verdict line. The compliance check names it and passes it
+  (it blocks a certified cut). The release manager, after landing, runs
+  `tools/release.sh confirm-register SMNNNN --ruling N` once on main; it rewrites the marker to
+  "confirmed by the release manager on D Mon YYYY (ruling N)" and commits `docs/SECURITY.md`.
+
 ## Where to start a change
 
 

@@ -3,6 +3,7 @@
 #
 #   perl tools/precheck-areas.pl FILE...   # the test files for the areas FILE... touch
 #   perl tools/precheck-areas.pl --rows    # the map, one row a line: PREFIX<TAB>SELECTORS
+#   perl tools/precheck-areas.pl --uncovered FILE...   # the FILEs the map says nothing of (SM1454)
 #
 # The precheck ran the tests that NAME a changed file. That missed the case that
 # mattered on 2026-10-12: a change to lazysite-processor/sources.pm broke
@@ -174,8 +175,26 @@ sub row_for {
     return $best;
 }
 
+# SM1454: a changed file the patch gate can say something about: it has a row, it is
+# a test (selected by name), or it is a document or the version pair, which no test
+# runs but every lint reads. Anything else is a file this map knows nothing of, and
+# a patch gate then runs the whole suite.
+sub covered {
+    my ($path) = @_;
+    return 1 if row_for($path);
+    return 1 if $path =~ m{^t/.*\.t$};
+    return 1 if $path =~ m{^(?:docs/.*)?[^/]+\.md$};
+    return 1 if $path eq 'VERSION' || $path eq 'NEXT_VERSION';
+    return 0;
+}
+
 sub main {
     my @args = @_;
+    if ( @args && $args[0] eq '--uncovered' ) {
+        shift @args;
+        print "$_\n" for grep { !covered($_) } @args;
+        return 0;
+    }
     if ( @args && $args[0] eq '--rows' ) {
         print join( "\t", $_->[0], @{$_}[ 1 .. $#$_ ] ), "\n" for @MAP;
         return 0;

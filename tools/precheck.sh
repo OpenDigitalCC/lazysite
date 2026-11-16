@@ -55,42 +55,14 @@ for f in $PERL; do
   perl $INC -c "$f" >/dev/null 2>&1 || { echo "precheck: does not compile: $f"; RC=1; }
 done
 
-# Tests that name a changed file - by its file name, or a module by its package
-# name. Stems ("release") matched half the suite; full names do not.
-RELATED=""
-for f in $CHANGED; do
-  [ -f "$f" ] || continue
-  case "$f" in t/*) continue ;; esac
-  pat=$(basename "$f")
-  case "$f" in lib/*.pm) pat="$pat
-$(echo "${f#lib/}" | sed 's#/#::#g; s#\.pm$##')" ;; esac
-  RELATED="$RELATED $(grep -rlF --include='*.t' -e "$pat" t/unit t/integration t/tools 2>/dev/null)"
-done
-RELATED=$( (printf '%s\n' $RELATED; printf '%s\n' $PERL | grep '^t/.*\.t$' | grep -v '^t/lint/') | sort -u | grep . || true)
-
-# SM1061: and the tests that cover each AREA the change touches, from the one
-# declared map (tools/precheck-areas.pl; t/lint/255 keeps it complete). A test
-# can break without naming a changed file - t/unit/processor/101 did, on a
-# change to lazysite-processor/sources.pm - and the suite no longer runs in the
-# handoff to catch it.
+# The tests the change selects: those that name a changed file, the changed tests
+# themselves, and those that cover each AREA it touches (SM1061). One selection,
+# tools/precheck-select.sh, shared with a patch gate (SM1454). It leaves out the
+# tests measured over 20 s (2026-10-07, prove --timer at -j4): the whole suite
+# still runs every one, nightly and for a release; the pre-check is for what can
+# be known in minutes.
 # shellcheck disable=SC2086
-AREA=$(perl tools/precheck-areas.pl $CHANGED) || { echo "precheck: tools/precheck-areas.pl failed"; RC=1; }
-RELATED=$(printf '%s\n' $RELATED $AREA | sort -u | grep . || true)
-
-# Left to the full suite: tests measured over 20 s (2026-10-07, prove --timer
-# at -j4). The whole suite still runs every one (nightly, and for a release);
-# the pre-check is for what can be known in minutes. t/unit/tools/76 is ~80 s whenever
-# tools/coverage-inputs.pl has changed (its PPI cache is keyed on that file).
-SLOW='t/tools/60-coverage-cannot-report-what-it-did-not-measure.t
-t/smoke/01-all-starter-pages.t
-t/tools/01-build-manifest.t
-t/tools/03-install-pl.t
-t/unit/extensions/41-a-composed-document-is-refused-not-quietly-shortened.t
-t/tools/36-check-verifies-install-dirs.t
-t/tools/35-install-dirs-declared.t
-t/tools/31-webserver-glue.t
-t/unit/tools/76-the-coverage-skip-actually-fires.t'
-RELATED=$(printf '%s\n' $RELATED | grep -vxF "$SLOW" || true)
+RELATED=$(bash tools/precheck-select.sh $CHANGED) || { echo "precheck: tools/precheck-select.sh failed"; RC=1; }
 
 # The three changelog lints read the whole 1 MB CHANGELOG (lint 53 alone ~57 s);
 # they matter only when it changed.

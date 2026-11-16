@@ -252,6 +252,23 @@ for my $r (
                     . "and it does not mention $VERSION - confirm no trigger fired" );
         }
     }
+
+    # SM1454 R4: AN ENTRY A PATCH'S BRANCH CARRIES IS DRAFTED, NOT YET CONFIRMED.
+    # The developer agent drafts a register entry with the fix and says so, in the
+    # words tools/confirm-register.pl looks for; the release manager confirms it once,
+    # on main, with `tools/release.sh confirm-register SMNNNN --ruling N`. An entry
+    # awaiting that is NAMED here and does not stop a cut below certified: the
+    # confirmation is a person's, recorded when the branch lands, not a second round.
+    # A certified cut claims walked and confirmed records (ADR 0010), so it blocks.
+    my @awaiting = map { /\A### ([^\n]*)/ ? $1 : () }
+        grep { index( $_, "awaiting the release manager's confirmation" ) >= 0 } split /(?=^### )/m, $sec;
+    if (@awaiting) {
+        my $msg = 'significant-change register: ' . scalar(@awaiting) . ' entr'
+            . ( @awaiting == 1 ? 'y is' : 'ies are' ) . " drafted and awaiting the release manager's confirmation ("
+            . join( '; ', map { length > 70 ? substr( $_, 0, 67 ) . '...' : $_ } @awaiting )
+            . '): tools/release.sh confirm-register SMNNNN --ruling N';
+        $CHANNEL eq 'certified' ? blocking($msg) : advisory("$msg (blocking at certified)");
+    }
 }
 
 # --- 4. the feature timeline has not fallen behind --------------------------

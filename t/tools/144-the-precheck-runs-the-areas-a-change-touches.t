@@ -107,6 +107,7 @@ sub precheck_runs {
     make_path( "$d/tools", "$d/tmp" );
     copy( "$root/tools/precheck.sh",       "$d/tools/precheck.sh" )       or die $!;
     copy( "$root/tools/precheck-areas.pl", "$d/tools/precheck-areas.pl" ) or die $!;
+    copy( "$root/tools/precheck-select.sh", "$d/tools/precheck-select.sh" ) or die $!;
     spit( "$d/$_",                 $base->{$_} ) for keys %$base;
     spit( "$d/t/lint/01-a-lint.t", "1;\n" );
     spit( "$d/bin/prove", qq{#!/bin/sh\necho "\$*" > "\$STUB_CALLS"\necho "Files=1, Tests=1"\n} );
