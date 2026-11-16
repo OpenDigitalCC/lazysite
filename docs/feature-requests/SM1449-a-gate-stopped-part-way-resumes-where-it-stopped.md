@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-11-13
 raised-by: "the release manager, after the 0.17.0 stable gate was stopped part way"
 area: release
-status-note: "OPEN. Target 0.17.x edge. Tools only (tools/gate-main.sh, tools/coverage-groups.pl, tools/coverage-parts.sh); no engine code. Since ruling 256 (SM1451) coverage runs for certified only, so R1 is the request every gate gains from; R2 and R3 matter for a certified gate."
+status-note: "PARTIAL. R1 and R3 built on n846 (the suite pass record is SM1454 R2, now named with its time; coverage groups run cheapest first). R2, splitting a group over an hour, is OPEN. Tools only; no engine code."
 ---
 
 # What happened

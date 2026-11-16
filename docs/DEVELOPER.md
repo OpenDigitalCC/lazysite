@@ -314,6 +314,15 @@ A gate must not start where it cannot finish, and a failure must be cheap to rea
   its inputs digest matches a recorded pass (the gate reuses one), uses 4 jobs
   when MemAvailable is at least 8 GB and else 2, and a killed `cover` is
   reported as `KILLED (memory/signal)`: not a test failure, not a shortfall.
+- **A stopped gate resumes where it stopped** (SM1449 R1, R3). The suite stage keeps a
+  pass by tree id (see "A tree is never run twice", below), so a gate rerun on a tree that
+  passed prints `suite: passed on this tree (TREE) at WHEN, reused`, skips the suite, and puts
+  `suite_from=` and `suite_passed_at=` in the receipt: the release evidence says what was reused
+  and from when. A suite stopped or failed keeps nothing. Coverage groups run cheapest first:
+  `coverage-parts.sh` stamps each measured group's wall time into its pass record (`seconds`),
+  and the next run orders the groups by the time of each one's last pass, shortest first; groups
+  never timed come after, in map order (`tools/coverage.sh --groups` lists them in that order).
+  Splitting a group that takes over an hour (R2) is not built.
 - **The overnight run** does nothing when main is the commit the last green
   night tested and the queue is empty.
 - **The digest.** `perl tools/failure-digest.pl LOG` prints at most 20 lines:

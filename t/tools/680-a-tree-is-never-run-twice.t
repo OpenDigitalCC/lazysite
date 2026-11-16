@@ -43,7 +43,7 @@ subtest 'a passing suite is recorded, and the same tree is not run again' => sub
     ( $rc, $out ) = gate($d);
     is( $rc,    0, 'the second gate of the same tree passes' ) or return diag($out);
     is( runs(), 1, 'WITHOUT running the suite again' );
-    my @lines = grep { /already passed/ } split /\n/, $out;
+    my @lines = grep { /passed on this tree/ } split /\n/, $out;
     is( scalar @lines, 1, 'and says so in one line' );
     like( $lines[0], qr/not run again; record \Q$rec[0]\E$/, 'which names the record' );
     my $r = receipt($d);

@@ -30,6 +30,12 @@
 # lock), taken here unless the gate already holds them (LAZYSITE_HEAVY_HELD=1).
 # Exit 3 from the guard is "not now" - a skip, not a failure.
 #
+# SM1449 R3: CHEAPEST FIRST. A measured group's wall time is stamped into its pass
+# record ("seconds"); the groups run in the order of the last recorded time of each,
+# shortest first, and a group never timed runs after the timed ones, in map order
+# (tools/coverage-groups.pl --state gives the order). A stopped run has then
+# recorded the cheap groups before it reached the long one.
+#
 # Markers release.sh reads, as coverage.sh printed them for the whole suite:
 #   "coverage: SKIPPED - every group matched a recorded pass"   -> reused
 #   "COVERAGE BELOW FLOOR" / "coverage: KILLED (memory/signal)" -> as before
@@ -166,6 +172,9 @@ while IFS="$(printf '\t')" read -r name digest state note; do
         break
     fi
     GSECS=$(( $(date +%s) - G0 ))
+    # SM1449 R3: the time is kept in the record; the next run starts the cheapest group first.
+    perl "$GROUPS_PL" --stamp "$STORE/$name/$digest.json" "$GSECS" \
+        || echo "coverage: group $name: WARNING - its time was not recorded; it runs in map order next time" >&2
     echo "coverage: group $name: PASSED and recorded (${GSECS}s)"
     MEASURED=$((MEASURED + 1))
     TIMES="${TIMES:+$TIMES, }$name ${GSECS}s"

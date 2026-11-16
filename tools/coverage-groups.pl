@@ -7,6 +7,9 @@
 #   perl tools/coverage-groups.pl --floor GROUP     the group's floor lines, flat, as coverage.sh reads them
 #   perl tools/coverage-groups.pl --digest GROUP    "DIGEST GROUP" (or `all`: one digest over every group's)
 #   perl tools/coverage-groups.pl --state [STORE]   GROUP<TAB>DIGEST<TAB>pass|stale|nothing-gated<TAB>note
+#                                                   cheapest first (SM1449 R3: by the recorded time of the
+#                                                   group's last pass; groups never timed after, in map order)
+#   perl tools/coverage-groups.pl --stamp FILE SECS add "seconds" to a pass record (coverage-parts.sh does)
 #
 # THE RULING (release manager, 2026-10-15): "maybe it can be broken down into
 # smaller parts, as i am sure it all isnt needed for every change." A full
@@ -160,10 +163,50 @@ sub recorded_pass {
     return $t =~ /"captured"\s*:\s*"([^"]*)"/ ? $1 : 'recorded';
 }
 
+# SM1449 R3: how long the group's last pass took. coverage-parts.sh stamps the
+# seconds a measured group took into its record (--stamp); the newest record of
+# the group that carries one is its last pass. undef: never timed.
+sub last_seconds {
+    my ( $store, $name ) = @_;
+    my ($newest) = sort { ( stat $b )[9] <=> ( stat $a )[9] || $b cmp $a }
+        grep { ( slurp($_) =~ /"seconds"\s*:\s*[0-9]+/ ) && ( slurp($_) =~ /"result"\s*:\s*"pass"/ ) } glob "$store/$name/*.json";
+    return unless $newest;
+    return slurp($newest) =~ /"seconds"\s*:\s*([0-9]+)/ ? $1 + 0 : undef;
+}
+
+# Add "seconds" to a group's pass record, whole file or nothing.
+sub stamp {
+    my ( $file, $secs ) = @_;
+    die "--stamp FILE SECONDS\n" unless defined $file && defined $secs && $secs =~ /^[0-9]+$/;
+    require JSON::PP;
+    my $j = eval { JSON::PP->new->decode( slurp($file) ) };
+    die "$file: not a JSON object, so not stamped\n" unless ref $j eq 'HASH';
+    $j->{seconds} = $secs + 0;
+    open my $o, '>', "$file.$$" or die "$file: $!\n";
+    print {$o} JSON::PP->new->canonical->pretty->encode($j);
+    close $o or die "$file: $!\n";
+    rename "$file.$$", $file or die "$file: $!\n";
+    return;
+}
+
+# CHEAPEST FIRST: groups with a timed last pass, shortest first; the rest after
+# them, in the order of @GROUPS.
+sub by_cost {
+    my ( $store, @rows ) = @_;
+    my $i = 0;
+    my @k = map { [ $_, $i++, last_seconds( $store, $_->[0] ) ] } @rows;
+    return map { $_->[0] } sort {
+        defined $a->[2] && defined $b->[2] ? ( $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] )
+            : defined $a->[2] ? -1
+            : defined $b->[2] ? 1
+            :                   $a->[1] <=> $b->[1]
+    } @k;
+}
+
 sub group_state {
     my ($store) = @_;
     my @out;
-    for my $g (@GROUPS) {
+    for my $g ( by_cost( $store, @GROUPS ) ) {
         my $name = $g->[0];
         my $d    = digest($name);
         my @gf   = gated_files($name);
@@ -182,12 +225,13 @@ sub run {
     if ( $cmd eq '--tests' ) { print "$_\n" for tests_for( $arg // die "--tests GROUP\n" ); return 0 }
     if ( $cmd eq '--floor' ) { print "$_\n" for floor_lines( $arg // die "--floor GROUP\n" ); return 0 }
     if ( $cmd eq '--digest' ) { $arg // die "--digest GROUP|all\n"; print digest($arg), " $arg\n"; return 0 }
+    if ( $cmd eq '--stamp' ) { stamp( $arg, $_[2] ); return 0 }
     if ( $cmd eq '--state' ) {
         my $store = $arg // $ENV{LAZYSITE_COVER_STORE} // "$ROOT/tmp/release-gate/coverage-passes";
         print join( "\t", @$_ ), "\n" for group_state($store);
         return 0;
     }
-    print STDERR "usage: coverage-groups.pl --list | --files G | --tests G | --floor G | --digest G|all | --state [STORE]\n";
+    print STDERR "usage: coverage-groups.pl --list | --files G | --tests G | --floor G | --digest G|all | --state [STORE] | --stamp FILE SECS\n";
     return 2;
 }
 

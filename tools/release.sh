@@ -1039,7 +1039,7 @@ suite_record_read() {
         die "it does not say result pass\n" unless ( $j->{result} // "" ) eq "pass";
         die "it is for another key\n" unless ( $j->{key} // "" ) eq $key && ( $j->{tree} // "" ) eq $tree;
         for my $k (qw(files tests)) { die "it has no $k\n" unless defined $j->{$k} && $j->{$k} =~ /^[0-9]+$/ }
-        print "$j->{files} $j->{tests}\n";
+        print "$j->{files} $j->{tests} ", ( $j->{captured} // "an unrecorded time" ), "\n";
     ' "$@"
 }
 
@@ -1144,11 +1144,13 @@ if [ "${LAZYSITE_SUITE_FRESH:-}" != 1 ] && [ -e "$SUITE_RECORD" ]; then
         abort_build "the suite record $SUITE_RECORD is unreadable or malformed: $SUITE_SUMMARY" \
             "It is not taken as a pass. Remove it, or gate again with LAZYSITE_SUITE_FRESH=1 to run the suite and replace it."
     fi
-    GATE_FILES=${SUITE_SUMMARY% *}
-    GATE_TESTS=${SUITE_SUMMARY#* }
+    GATE_FILES=${SUITE_SUMMARY%% *}
+    SUITE_REST=${SUITE_SUMMARY#* }
+    GATE_TESTS=${SUITE_REST%% *}
+    SUITE_WHEN=${SUITE_REST#* }
     SUITE_FROM="recorded pass $SUITE_RECORD"
     SUITE_SKIPPED=1
-    echo "==> suite: tree ${SUITE_TREE:0:12} already passed ($GATE_FILES files, $GATE_TESTS tests) - not run again; record $SUITE_RECORD"
+    echo "==> suite: passed on this tree (${SUITE_TREE:0:12}) at $SUITE_WHEN, reused ($GATE_FILES files, $GATE_TESTS tests) - not run again; record $SUITE_RECORD"
     echo "suite: skipped - $SUITE_FROM" > "$GATE_OUT"
 fi
 
@@ -1469,6 +1471,7 @@ git -C "$STAGE" show --stat --format='%H %s' "$MATERIAL_SHA" > "$RECEIPT_DIR/mat
     echo "result=pass"
     echo "suite=$SUITE_LINE"
     echo "suite_from=$SUITE_FROM"
+    [ -z "${SUITE_WHEN:-}" ] || echo "suite_passed_at=$SUITE_WHEN"
     [ -z "$SUITE_BASE_FIELD" ] || echo "suite_base=$SUITE_BASE_FIELD"
     echo "coverage=$COV_MODE"
     echo "coverage_from=$COV_FROM"

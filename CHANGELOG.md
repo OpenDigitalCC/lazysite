@@ -53,6 +53,13 @@ Archive
 
 ## Unreleased
 
+- SM1449 (R1, R3) (PENDING) **tools: a stopped gate resumes where it stopped**. R1: the suite
+  pass record SM1454 R2 keeps by tree id is now named when it is reused - `suite: passed on this
+  tree (TREE) at WHEN, reused` - and the receipt carries `suite_passed_at=`, so the release
+  evidence says what was reused and from when. R3: `tools/coverage-parts.sh` stamps each measured
+  group's wall time into its pass record and runs the groups cheapest first by the time of their
+  last pass, groups never timed after, in map order. R2 (splitting a group over an hour) is not
+  built and the filing stays open. t/tools/688 and 689.
 - SM1457 (PENDING) **tools: the deploy reports what it did, and a test holds it to that**. The quiet
   rollout report lists only the deploy's own findings (a failure, a repair needing a human, a
   probe exposure or one that could not run, a refused permission, a site root that did not
