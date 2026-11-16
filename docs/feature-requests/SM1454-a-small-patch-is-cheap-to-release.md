@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-16
 raised-by: "the release manager (ruling 258), after the 0.17.1 estimate"
 area: release
-status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). Remains: R3, the lab runner (n835, restacked after 0.17.1), and the compliance walk and filing status a patch still needs by hand (0.17.1 measured both)."
+status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). R3, the lab runner, is built on n840 for 0.17.x. Remains: R6, the compliance walk and the filing status a patch still makes by hand (0.17.1 measured both)."
 ---
 
 # What happened
@@ -19,6 +19,15 @@ on 0.17.0: the gate's full suite is 2096 s wall clock (6007 CPU-s at -j4, nice 1
 development host); every other gate stage together is under two minutes; the build is 2.5 minutes;
 the precheck on a branch is about 133 s. The suite runs again at the gate though the base tree
 passed it at its own release gate and the change is one file.
+
+Measured on 0.17.1, the first patch released with R1, R2, R4 and R5: three gates and two
+extra branches between the first gate and the build, about 2h40. The first gate stopped in 10 s
+at the compliance check (the obligations register and the technical file still said 0.17.0),
+which needed a walk on its own branch (SM1456). The second ran the full suite for 33 min and
+failed on one lint (t/lint/26: three filings still `candidate` once the release material
+stamped their CHANGELOG bullets), which needed a third branch. The third passed in 31 min. Each
+round was a landing and a full suite, because the patch shipped its own release tools (R1's
+trigger) and each fix changed the tree (R2's key).
 
 # The requests
 
@@ -50,6 +59,24 @@ R4 - one branch, one confirmation
 R5 - the slow tests are trimmed
 : The tests over 20 s at -j4 (tools/precheck.sh's SLOW list) and the changelog lints are made
   faster without losing an assertion, measured before and after.
+
+R6 - a patch's records are written by the release, not by a branch
+: The two steps that cost 0.17.1 two rounds are done by tools/release-material.pl in the gate's
+  stage and in the build's release commit, so they are never a branch of their own and never a
+  failed gate.
+  (a) A stable patch's compliance stamp: when the target is a patch of the line's last stable
+  release and the obligations register and the technical file were walked for that release, the
+  material stamps reviewed_at_version and covers_version to the target and prepends a dated
+  patch-walk clause naming the diff's runtime files and the register entries it carries. A
+  runtime change with no register entry, or a minor or certified cut, still needs the walk by
+  hand, and the check says so before the suite starts.
+  (b) Filing status: a filing whose CHANGELOG bullet the material stamps with a landed SHA and
+  whose status is `candidate` is set to `shipped`, its status-note opened with "SHIPPED (X.Y.Z)",
+  as it already stamps status-notes of filings marked shipped. A bullet marked as one part of a
+  filing (`SM1454 (R3)`) sets `partial` instead.
+  (c) Every check that can fail on the release material runs before the suite: the compliance
+  check and the lints that read the CHANGELOG and the filings run on the stage first, so a record
+  fault fails a gate in seconds, not after the suite.
 
 # To settle when built
 

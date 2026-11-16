@@ -60,6 +60,7 @@ Archive
   OUTFILE, exits with prove's status and destroys the VM; otherwise it says `suite-lab: lab not
   available (REASON) - running locally` and runs `tools/suite-local.sh`. A lab failure after the
   tests started is a failure, never a fallback.
+- Docs: SM1454 R6 (a patch's compliance stamp and filing status are written by the release material, and its record checks run before the suite) filed from the 0.17.1 measurement.
 
 ## 0.17.1 - STABLE: the bad-URL blocker counts probes behind Apache (2026-11-16)
 
