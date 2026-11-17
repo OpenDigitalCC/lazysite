@@ -85,6 +85,10 @@ Archive
   it as a `<fieldset>` with a `<legend>`, the intro naming it by `aria-describedby`. It adds no
   field and no rule, so what a handler receives is unchanged; `validate_page` reads the line as
   a delimiter. Limit 2 was built earlier. t/tools/720.
+- SM1470 (PENDING) **manager: a user row with many groups keeps its Edit button**. The
+  `.mg-acc-line` row on the Users page wrapped only at narrow widths, so an account with many
+  role chips pushed its Edit button out of view. The row now wraps at every width and a button
+  in it never shrinks, in all three manager styles. t/tools/745.
 - SM1449 (R1, R3) (PENDING) **tools: a stopped gate resumes where it stopped**. R1: the suite
   pass record SM1454 R2 keeps by tree id is now named when it is reused - `suite: passed on this
   tree (TREE) at WHEN, reused` - and the receipt carries `suite_passed_at=`, so the release

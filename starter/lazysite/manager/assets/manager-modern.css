@@ -687,7 +687,7 @@ a.mg-row-name:hover { color: var(--mg-accent-deep); }
 /* ============================================================ Tree (accounts) */
 .mg-acc { border-bottom: 1px solid var(--mg-border-light); }
 .mg-acc:last-child { border-bottom: none; }
-.mg-acc-line { cursor: default; padding: 6px 12px; min-height: 44px; display: flex; align-items: center; gap: 8px; list-style: none; font-size: 14px; }
+.mg-acc-line { cursor: default; padding: 6px 12px; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; list-style: none; font-size: 14px; }
 summary.mg-acc-line { cursor: pointer; }
 .mg-acc > summary::-webkit-details-marker { display: none; }
 summary.mg-acc-line::before { content: '+'; color: var(--mg-accent-deep); font: 600 14px/1 var(--mg-mono); width: 1em; text-align: center; }
@@ -695,6 +695,11 @@ summary.mg-acc-line::before { content: '+'; color: var(--mg-accent-deep); font: 
 summary.mg-acc-line:hover { background: var(--mg-surface-alt); }
 .mg-acc-name { font-weight: 600; }
 .mg-acc-spacer { flex: 1 1 auto; }
+/* SM1470: an account row carries any number of role chips. The row wraps at every
+   width (not only the narrow-width query), and the row's button never shrinks or
+   leaves it, so the chips take further lines and Edit stays visible and clickable. */
+.mg-acc-line .mg-btn { flex: 0 0 auto; }
+.mg-acc-name { min-width: 0; overflow-wrap: anywhere; }
 .mg-acc-kids { margin-left: 18px; border-left: 1px solid var(--mg-border); }
 .mg-acc-body { padding: 10px 12px 14px 24px; background: var(--mg-surface-alt); }
 .mg-acc-note { color: var(--mg-text-muted); font-style: italic; font-size: var(--mg-text-sm); }
