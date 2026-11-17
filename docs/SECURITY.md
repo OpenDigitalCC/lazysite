@@ -6766,3 +6766,65 @@ residual risk
 
 verdict
 : accepted, confirmed by the release manager on 16 Nov 2026 (ruling 261). A stable patch; no trigger fires.
+
+### 2026-11-17 - SM1459 (PENDING): a refused provider sign-in names its cause, and the rest of 0.17.2
+
+Assessment drafted by the developer agent for 0.17.2's cut; awaiting the release manager's confirmation. 0.17.2 is an **edge** cut from main after the 0.17.1 stable, not security-critical. The walk read the CHANGELOG's `## Unreleased` section and `git diff v0.17.1 main`. SM1459 is the one change in the auth area and has the weight of this entry; the rest is named under it. Each change was checked against the code it names, and none of ADR 0007's four triggers (new interface, sign-in method, dependency, processing of restricted data) fires.
+
+what changed
+: SM1459. `Lazysite::Auth::Session::mint_provider_session` refuses for four reasons: the
+  provider is not usable (not in the extensions index, the index built by an older engine, the
+  extension or one it requires switched off), the login is not a session's, there is no usable
+  auth secret, the session registry cannot be written. Until now every refusal was `return ()`,
+  silent in the log, and the Odoo extension answered all of them with one fixed sentence. Each
+  refusal now leaves one WARN line in the event log (the provider, the cause, and the path and
+  the remedy where there are any), and the caller may pass `refusal => \$why` to receive a
+  sentence naming the cause class and what to do. The Odoo extension's 503 and the OpenID
+  Connect callback's 503 carry that sentence. `Hooks::identity_provider_absence` and
+  `rebuild_index_command` are the two new read-only helpers behind it, and `lazysite check`
+  warns when the extensions index was built by an older engine than the one running, with the
+  rebuild command. What decides whether a session is made is unchanged: the same conditions
+  refuse, in the same order, and the return value of `mint_provider_session` is the same.
+: SM1458. The check's advice for a walk that could not read part of the store names the owner of
+  what it could not read and never the user running it, spells the command through
+  `cli_spelling` (moved into `Lazysite::Util`), and says root once. Text and a helper; no
+  decision, rule or write path moves.
+: SM1457 and SM1453. The deploy's rollout report and the probe's cache verdict: tools and
+  their reporting, run by the operator as the site's user; no served path. SM1454 (R3, R6) and
+  SM1449 (R1, R3): release and gate tooling (the lab suite runner, the patch's records, the
+  suite-pass record, the coverage groups); nothing a site runs. SM1452: one test. Filings.
+
+threat delta
+: SM1459, Information disclosure, the one question. A person who finished a provider sign-in
+  (Odoo, OpenID Connect) and was refused now reads a sentence that names the cause class: the
+  provider's extension is switched off, the extensions index is stale, the site has no auth
+  secret, the registry cannot be written. That is the site's configuration state, told to a
+  person who holds a valid account at the site's identity provider, on the page they were
+  already shown a 503. The sentence carries no path, no secret and no `$!` text (the unit test
+  asserts that it names no path); the path, the system error and the remedy command go only to the event log,
+  which an operator reads. The residual is the class itself, which tells a visitor the site is
+  misconfigured, not how to reach anything. Repudiation and operability, improved: a refusal
+  that was silent is one line in the log, and the check says when the index is old. No change to
+  who gets a session: a refusal is a refusal as before, so Spoofing and Elevation of privilege
+  are not touched. SM1458: Information disclosure held at ruling 243 (the tools name a unix
+  user to the person who ran them, and no web door does). No new interface, sign-in method or
+  dependency, and no new restricted data: no ADR 0007 trigger fires.
+
+controls
+: SM1459: t/unit/auth/178 (each of the four causes gives its own reason and one log line, and the
+  page's sentence names no path), t/unit/odoo/63 (the Odoo 503 carries the reason), t/tools/691
+  (the check names an index an older engine built). SM1458: t/unit/lib/212 and t/tools/690.
+  SM1457 and SM1453: t/tools/683 and 684. SM1454, SM1449: t/tools/685 to 689. Each new test names
+  in its header the change that makes it fail. No STRIDE row is added at this walk and no trust
+  boundary changes: the page's sentence is the existing sign-in refusal with its cause.
+
+residual risk
+: The cause class on the refusal page, as above. An index that is stale is still rebuilt by the
+  upgrade and by the manager, never on a request, so a site that takes the engine without
+  running the upgrade stays refused until it is rebuilt; the log and the check now say so. The
+  Declaration of Conformity is an unsigned draft stamped 0.17.0, advisory on edge and blocking at
+  the certified cut (ADR 0010).
+
+verdict
+: accepted, awaiting the release manager's confirmation. No trigger fires. 0.17.2 is an edge
+  cut and is not security-critical: no change in it fixes a known vulnerability.
