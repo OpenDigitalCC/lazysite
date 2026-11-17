@@ -53,6 +53,84 @@ Archive
 
 ## Unreleased
 
+- SM1473 (PENDING) **webdav: a binary upload writes no UTF-8 warnings**. A PUT ran the page-parse
+  and address-profile checks on every file through a `:encoding(UTF-8)` read, so an image or
+  archive was decoded twice and warned once per bad byte sequence (hundreds of MB of error log).
+  Only a page, a form config and a nav file are read now, raw then as the processor reads them;
+  the refusals are unchanged.
+- Docs: SM1469 (a form field can be hidden or read-only) filed as a candidate.
+- SM1449 (R1, R3) (PENDING) **tools: a stopped gate resumes where it stopped**. R1: the suite
+  pass record SM1454 R2 keeps by tree id is now named when it is reused - `suite: passed on this
+  tree (TREE) at WHEN, reused` - and the receipt carries `suite_passed_at=`, so the release
+  evidence says what was reused and from when. R3: `tools/coverage-parts.sh` stamps each measured
+  group's wall time into its pass record and runs the groups cheapest first by the time of their
+  last pass, groups never timed after, in map order. R2 (splitting a group over an hour) is not
+  built and the filing stays open. t/tools/688 and 689.
+- SM1458 (PENDING) **check: the advice for what it could not read names the owner of it, and
+  the full command**. The address-rule and address-profile walks no longer advise "run the
+  check as X, who owns the store files" while running as X: they name the owner of what they
+  could not read, and where that is the running user's own, say its permissions are the fault.
+  The different-owners sentence spells the command as every other advice does, not a bare
+  `lazysite`, and where the owner is root the advice says root once. t/unit/lib/212 and
+  t/tools/690 fail on the old text.
+- SM1452 (PENDING) **tests: t/integration/315 does not race the clock**. Its Retry-After bound
+  is the time from the clock read just before the request to `maintenance_until`, and the
+  tolerance covers the render, not the run, as SM1450 did for t/unit/processor/185. Test only.
+- SM1459 (PENDING) **auth: a refused provider sign-in names its cause**. `mint_provider_session`
+  refuses for four reasons - the provider is not usable (not in the extensions index, the extension
+  or one it requires off), the login is not a session's, there is no auth secret (a missing
+  `.secret` was silent), the registry cannot be written - and each now gives its own reason and one
+  event-log line naming the provider and the path. The Odoo and OpenID Connect extensions' 503
+  carries the reason (the cause and what to do, no path) in place of a fixed "auth secret missing or
+  registry unwritable". `lazysite check` warns of an extensions index built by an older engine, with
+  the rebuild command. The log hints that name the check spell it as every other advice does
+  (SM1458), with the real docroot. t/unit/auth/178, t/unit/odoo/63, t/tools/691.
+- SM1457 (PENDING) **tools: the deploy reports what it did, and a test holds it to that**. The quiet
+  rollout report lists only the deploy's own findings (a failure, a repair needing a human, a
+  probe exposure or one that could not run, a refused permission, a site root that did not
+  answer) and a `lazysite check` finding that changed since that site's last rollout; a site's
+  standing check warnings are one line with a count and the file that holds them all. One cause
+  is one finding: an unreadable directory named by several walks is one line naming it, its
+  owner and the fix. The baseline is `.rollout-check-findings`, written beside
+  `.install-state.json` as the site's own user. t/tools/684 runs a 32-site fleet with two real
+  faults and fails over 15 lines after the summary table. `--verbose` is unchanged.
+- SM1453 (PENDING) **tools: the rollout reads the probe's cache verdict as a verdict**. When the ACL
+  probe finds only the front end's cache holding files the engine refuses, `lazysite probe` now
+  says `cache residue, clears itself`, counts it with the verified (exit 0; exposure stays exit 1)
+  and the rollout's summary reads `probe: N clean (K cache residue, clears itself), ...` where it
+  said the probe could not run. A test builds the verdict from lazysite-check.pl's own text.
+- SM1454 (R3) (PENDING) **tools: the full suite can run on an HPS lab VM, with a local fallback**.
+  `tools/suite-lab.sh STAGE_DIR JOBS OUTFILE` is a suite runner for the gate's
+  `LAZYSITE_SUITE_RUNNER` hook: when `LAZYSITE_SUITE_LAB=1` and a bounded check finds the lab
+  available, it runs the suite on a throwaway 8 vCPU / 16 GiB VM, writes prove's output to
+  OUTFILE, exits with prove's status and destroys the VM; otherwise it says `suite-lab: lab not
+  available (REASON) - running locally` and runs `tools/suite-local.sh`. A lab failure after the
+  tests started is a failure, never a fallback.
+- SM1454 (R6) (PENDING) **release: a patch's records are written by the release, not by a branch**.
+  `tools/release-material.pl`, in the gate's stage and the build's release commit alike, now
+  stamps what 0.17.1 walked by hand. For a stable patch of a release at which OBLIGATIONS.md and
+  TECHNICAL-FILE.md were walked it sets `reviewed_at_version`, `reviewed_on` and `covers_version`
+  and prepends a dated patch-walk clause naming the diff's runtime files (`classification.json`
+  decides) and the register entries it carries; it refuses a runtime change with no register
+  entry naming an SM and records not walked at the base, and leaves a minor, a certified cut,
+  edge and beta to the compliance check. A `candidate` filing under a bullet it stamps becomes
+  `shipped`, or `partial` when the bullet names a part (`SM1454 (R3)`). The release-material
+  lints (t/lint/09 and 26 among them) now run in the gate, after the compliance check and before
+  the suite, so a record fault fails in seconds. `confirm-register` commits the confirmation on a
+  new branch `claude/confirm-SMNNNN` from main, held for vcs-review, and the developer agent runs
+  it on the release manager's ruling. t/lint/594 holds a drafted register entry to the marker
+  `confirm-register` reads. Tests t/tools/685 to 687, 682 and t/lint/594.
+- SM1454 (R7) (PENDING) **release: an edge or beta patch's records are written by the release too**
+  (ruling 262). R6 stamped the compliance records only for a stable patch, so the 0.17.2 edge gate
+  stopped at the check with the records at 0.17.1. `tools/release-material.pl` now stamps a patch
+  (X.Y.Z, Z above 0) on the edge and beta channels as it does on stable, from the line's newest
+  earlier release whatever its channel, and its clause names the channel ("an **edge patch** of
+  0.17.1"). The same refusals stand (a runtime change with no register entry naming an SM, records
+  not walked at the base); a new minor and a certified cut stay with the hand walk. Test
+  t/tools/692; t/tools/685 no longer expects edge and beta to be left alone.
+- Docs: SM1454 R6 (a patch's compliance stamp and filing status are written by the release material, and its record checks run before the suite) filed from the 0.17.1 measurement.
+- Docs: SM1457 (the deploy reports what it did, and a test holds it to that) filed as a candidate.
+
 ## 0.17.1 - STABLE: the bad-URL blocker counts probes behind Apache (2026-11-16)
 
 - SM1456 (f0226a87) **docs: the compliance records cover 0.17.1, a stable patch.** OBLIGATIONS.md

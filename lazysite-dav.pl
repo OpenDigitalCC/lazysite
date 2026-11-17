@@ -737,48 +737,38 @@ sub do_put {
     #
     # Refused BEFORE the rename, so nothing lands, and 415 rather than 400: the
     # request was well formed, its CONTENT is what cannot be served.
-    {
+    # A page is judged by the three refusals below on text read ONCE, raw and then as
+    # the processor reads it (Q15f). Never through a `:encoding(UTF-8)` layer: that
+    # warns on every bad byte, and a binary upload (an image, an archive) has
+    # thousands. Only a page is read at all - the refusals judge pages (SM1473).
+    my $page_text;
+    if ( $a{rel} =~ /\.md\z/i ) {
         require Lazysite::Manager::Common;
-        if ( open my $bf, '<:encoding(UTF-8)', $tmp ) {
-            my $body = do { local $/; <$bf> };
-            close $bf;
-            if ( my ( $err, $why )
-                = Lazysite::Manager::Common::page_parse_refusal( $a{rel}, $body ) )
-            {
-                unlink $tmp;
-                $REFUSAL_DETAIL = $why;
-                return send_status( 415, body => "$err\n" );
-            }
-        }
+        $page_text = _tmp_text($tmp);
+        unless ( defined $page_text ) { unlink $tmp; return _write_failure( 'read the file back', $!, $r->{abs} ) }
     }
-    # n812, ruling 234: a page's `addresses:` names profiles that exist; the same refusal
-    # the choke point makes (Manager::Common::page_address_profile_refusal), before the
-    # rename, so nothing lands.
-    {
-        require Lazysite::Manager::Common;
-        if ( open my $af, '<:encoding(UTF-8)', $tmp ) {
-            my $text = do { local $/; <$af> };
-            close $af;
-            if ( my ( $err, $why ) = Lazysite::Manager::Common::page_address_profile_refusal( $a{rel}, $text ) ) {
-                unlink $tmp;
-                $REFUSAL_DETAIL = $why;
-                return send_status( 415, body => "$err\n" );
-            }
+    if ( defined $page_text ) {
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::page_parse_refusal( $a{rel}, $page_text ) ) {
+            unlink $tmp;
+            $REFUSAL_DETAIL = $why;
+            return send_status( 415, body => "$err\n" );
+        }
+        # n812, ruling 234: a page's `addresses:` names profiles that exist; the same
+        # refusal the choke point makes (Manager::Common::page_address_profile_refusal),
+        # before the rename, so nothing lands.
+        if ( my ( $err, $why ) = Lazysite::Manager::Common::page_address_profile_refusal( $a{rel}, $page_text ) ) {
+            unlink $tmp;
+            $REFUSAL_DETAIL = $why;
+            return send_status( 415, body => "$err\n" );
         }
     }
     # SM976 Q15e ("Refuse new binding"): a page that newly binds a form this
     # account does not reach is refused, as at the choke point - the same rule
     # (Manager::Common::form_bind_refusal), asked with the account's scopes. A
     # page that cannot be read back cannot be judged, so it does not land.
-    {
-        require Lazysite::Manager::Common;
-        my $text;
-        if ( open my $ff, '<:raw', $tmp ) { $text = do { local $/; <$ff> }; close $ff }
-        else { unlink $tmp; return _write_failure( 'read the file back', $!, $r->{abs} ) }
-        # Q15f: the bytes landed raw; read them as the processor will.
-        $text = Lazysite::Manager::Common::text_as_processor_reads($text);
+    if ( defined $page_text ) {
         if ( my ( $err, $why ) = Lazysite::Manager::Common::form_bind_refusal(
-                $a{rel}, $text, scopes => ( ref $a{scope} eq 'ARRAY' ? $a{scope} : [] ) ) )
+                $a{rel}, $page_text, scopes => ( ref $a{scope} eq 'ARRAY' ? $a{scope} : [] ) ) )
         {
             unlink $tmp;
             $REFUSAL_DETAIL = $why;
@@ -794,9 +784,9 @@ sub do_put {
         require Lazysite::Handlers;
         no warnings 'once';
         local $Lazysite::Handlers::DOCROOT = $DOCROOT;
-        if ( open my $cf, '<:encoding(UTF-8)', $tmp ) {
-            my $text = do { local $/; <$cf> };
-            close $cf;
+        {
+            my $text = _tmp_text($tmp);
+            $text = '' unless defined $text;
             my $problems = Lazysite::Handlers::form_conf_problems($text);
             if (@$problems) {
                 unlink $tmp;
@@ -811,8 +801,7 @@ sub do_put {
     # was well formed and its content is what the engine cannot take.
     if ( ( $a{conf}{nav_files} || {} )->{ $a{rel} } ) {
         require Lazysite::Manager::Nav;
-        my $text;
-        if ( open my $nf, '<:encoding(UTF-8)', $tmp ) { $text = do { local $/; <$nf> }; close $nf }
+        my $text = _tmp_text($tmp);
         if ( my ( $err, $why ) = Lazysite::Manager::Nav::nav_url_refusal( $a{rel}, $text // '' ) ) {
             unlink $tmp;
             $REFUSAL_DETAIL = $why;
@@ -929,6 +918,18 @@ sub _follow_source {
 # COPY or MOVE whose destination, is a host's served copy of a theme - sent, and
 # its code returned - or undef. The copies are written from the theme's source
 # and replaced whole at its next write, so the answer names the source.
+# The bytes of a file on disk as the processor will read them: raw, then
+# Manager::Common::text_as_processor_reads. No decoding layer, so no warning on
+# bytes that are not UTF-8. undef when the file cannot be opened ($! is set).
+sub _tmp_text {
+    my ($path) = @_;
+    open my $fh, '<:raw', $path or return undef;
+    my $bytes = do { local $/; <$fh> };
+    close $fh;
+    require Lazysite::Manager::Common;
+    return Lazysite::Manager::Common::text_as_processor_reads($bytes);
+}
+
 sub _served_copy_refusal {
     my ( $method, $rel ) = @_;
     my @paths;
