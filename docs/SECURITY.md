@@ -6769,7 +6769,7 @@ verdict
 
 ### 2026-11-17 - SM1473 (PENDING): a WebDAV PUT reads only the files its checks judge
 
-Assessment drafted by the developer agent; for the release manager's confirmation. A fix for 0.17.2 (stable), found when a production site's error log grew by hundreds of megabytes.
+Assessment drafted by the developer agent; confirmed by the release manager on 17 Nov 2026 (ruling 273). A fix for 0.17.2 (stable), found when a production site's error log grew by hundreds of megabytes.
 
 what changed
 : After the streamed write, the PUT path of `lazysite-dav.pl` ran its content checks on every
