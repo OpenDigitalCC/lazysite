@@ -4,11 +4,11 @@ title: "SM1473: a binary upload over WebDAV writes no warnings"
 subtitle: "A PUT of an image, PDF or archive was decoded as UTF-8 twice and Perl warned once per bad byte sequence, filling the error log."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-11-17
 raised-by: "the release manager"
 area: webdav
-status-note: "OPEN. Built on branch claude/n863-a-binary-upload-over-webdav-writes-no-warnings (awaiting the release manager). Only pages, form configs and nav files are read after a PUT, raw and then as the processor reads them."
+status-note: "SHIPPED (0.17.2, a stable patch of 0.17.1): only pages, form configs and nav files are read after a WebDAV PUT, raw and then as the processor reads them; a binary upload writes no warnings. Register entry confirmed (ruling 273)."
 ---
 
 # What happened

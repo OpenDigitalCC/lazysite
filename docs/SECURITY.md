@@ -6803,4 +6803,4 @@ residual risk
   `:encoding(UTF-8)` (checked in the filing).
 
 verdict
-: awaiting the release manager's confirmation. A stable patch; no trigger fires.
+: confirmed by the release manager on 17 Nov 2026 (ruling 273). A stable patch; no trigger fires.

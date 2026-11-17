@@ -4,11 +4,11 @@ title: "SM1474: the compliance records cover 0.17.2"
 subtitle: "The gate's compliance check refuses 0.17.2 with OBLIGATIONS.md and TECHNICAL-FILE.md at 0.17.1. Both are patch-walked against the diff from v0.17.1 and stamped 0.17.2; SM1473's register entry awaits the release manager."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
 raised: 2026-11-17
 raised-by: "the compliance check, which refuses a release whose records are behind its version (SM1448)"
 area: release
-status-note: "OPEN. Built on branch claude/p0172-stable-patch-sm1473 (awaiting the release manager): OBLIGATIONS.md and TECHNICAL-FILE.md patch-walked against the diff from 0.17.1 and stamped 0.17.2. Docs only."
+status-note: "SHIPPED (0.17.2): OBLIGATIONS.md and TECHNICAL-FILE.md patch-walked against the diff from 0.17.1 and stamped 0.17.2. Docs only."
 ---
 
 # What was asked
