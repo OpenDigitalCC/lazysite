@@ -6828,3 +6828,41 @@ residual risk
 verdict
 : accepted, awaiting the release manager's confirmation. No trigger fires. 0.17.2 is an edge
   cut and is not security-critical: no change in it fixes a known vulnerability.
+
+### 2026-11-17 - SM1473 (PENDING): a WebDAV PUT reads only the files its checks judge
+
+Assessment drafted by the developer agent; confirmed by the release manager on 17 Nov 2026 (ruling 273). A fix for 0.17.2 (stable), found when a production site's error log grew by hundreds of megabytes.
+
+what changed
+: After the streamed write, the PUT path of `lazysite-dav.pl` ran its content checks on every
+  uploaded file, two of them through a `<:encoding(UTF-8)` layer, so a binary upload (an image,
+  an archive) was decoded as UTF-8 twice and Perl warned once per invalid sequence. A page
+  (`.md`) is now read once, raw, then as the processor reads it
+  (`Manager::Common::text_as_processor_reads`), and that one text feeds the page-parse,
+  address-profile and form-binding refusals; a form config and a navigation file are read the
+  same way; any other file is not read after the write. No decoding layer is used. The
+  refusals themselves, their order and the status each answers with are unchanged, and the
+  byte-level refusal of a page that is not valid UTF-8 (`page_bytes_refusal`) is untouched and
+  still runs first.
+
+threat delta
+: Denial of service narrowed: an authenticated writer's upload of a large binary no longer
+  fills the error log, and is no longer read and decoded twice. Nothing is exposed that was
+  closed: a PUT reads fewer files than before, the refusals are the same functions on the same
+  text for the files they judge (a page, a form config, a navigation file), and what lands on
+  disk is unchanged. No new input, interface, sign-in method, dependency or restricted data and
+  no change of trust: the account, its scopes and the write rule are as they were. No ADR 0007
+  trigger fires.
+
+controls
+: t/tools/750 uploads a small and a 256 KiB binary with invalid UTF-8 and finds no "does not
+  map to Unicode" line in the error log, sends a page with invalid UTF-8 and finds it still
+  refused with 415, and an unparseable page still refused. It fails on the code before the fix.
+
+residual risk
+: None added. The manager and MCP save paths already read through `text_as_processor_reads`
+  and `invalid_utf8_offset`, which never warn, and no other file under `lib/` reads through
+  `:encoding(UTF-8)` (checked in the filing).
+
+verdict
+: confirmed by the release manager on 17 Nov 2026 (ruling 273). A stable patch; no trigger fires.
