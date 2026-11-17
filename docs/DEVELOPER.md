@@ -342,6 +342,24 @@ A patch to a stable line (0.17.1 after 0.17.0) is gated on its diff, not on the 
   `tools/gate-main.sh`, `tools/patch-plan.pl`, `tools/precheck*`, `Makefile`, `cpanfile`, `dist/`
   or `debian/`, or any file `tools/precheck-areas.pl` has no row for (documents, the changelog
   and `download/` are not counted). Edge, beta and certified gates refuse `--patch`.
+- **A stable patch is built from its branch (SM1475).** Main carries the next release's
+  unreleased work, so a patch is gated and built where it is, on its own branch:
+  `tools/gate-main.sh --ref BRANCH --version X.Y.Z --final --patch`, then
+  `tools/release.sh build X.Y.Z --notes FILE --final --ref BRANCH`. `--ref` is the name
+  `gate-main.sh` already uses for the same thing. Build refuses `--ref` off stable and for main,
+  unless the gate receipt for the version is a `--patch` receipt (it names `suite_base`) for the
+  branch's current tip, the branch descends from the base tag (the newest release of the line
+  below the target) and its `download/` holds that base's stable set. It then does what a build
+  does, on the branch: the release commit and the stable `download/` commit go on the branch's
+  tip (in a worktree of it; one checked out elsewhere moves with it and must be clean), the tag
+  is on the release commit, the branch ref moves to the `download/` commit, and the release
+  material tool and the checks are the branch tip's own. **Local main is not moved.** The build
+  ends by printing the way the release commit reaches main: a branch made from main
+  (`claude/land-vX.Y.Z`, with its worktree and the SHAs, ready to run) that merges the branch's
+  new tip, which the release manager lands by fast-forward. `publish` is unchanged: it pushes
+  main and the tag together, and refuses while the tag's commit is not reachable from local main,
+  so a stable tag never reaches origin ahead of main; after the merge has landed the tag is
+  reachable and one `publish` pushes both. The patch branch itself is not pushed.
 - **A tree is never run twice.** A suite pass is kept under `tmp/release-gate/suite-passes/` by
   tree id, version, channel and mode; a gate of that tree skips the suite and the receipt names the
   record. A record that does not read is a refusal naming the file; `LAZYSITE_SUITE_FRESH=1` runs

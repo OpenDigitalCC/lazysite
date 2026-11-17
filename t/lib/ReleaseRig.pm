@@ -18,7 +18,7 @@ use File::Temp  qw(tempdir);
 use Digest::SHA qw(sha256_hex);
 use TestHelper  qw(repo_root run_cmd);
 
-our @EXPORT_OK = qw(spit slurp git commit logger rig_repo rig_release rig_receipt rig_base_receipt rig_notes rig_tags rig_runs);
+our @EXPORT_OK = qw(spit slurp git commit logger rig_repo rig_release rig_receipt rig_base_receipt rig_notes rig_tags rig_runs rig_patch_branch);
 
 my $root = repo_root();
 
@@ -163,5 +163,25 @@ sub rig_tags { git( $_[0], 'tag', '-l', 'v0.1.1' ) }
 
 # The labels a run logged, in order of arrival, as a sorted list.
 sub rig_runs { my ($log) = @_; return [ sort grep { length } split /\n/, slurp($log) ] }
+
+# SM1475: a stable patch branch NAME in $d, from $o{from} (the base tag by default), with one
+# commit - a fix and its PENDING changelog bullet, plus %{$o{files}} (path => text, undef
+# removes it). The commit is made in a throwaway worktree, so nothing is checked out in $d.
+# Returns the branch's tip.
+sub rig_patch_branch {
+    my ( $d, $name, %o ) = @_;
+    my $wt = tempdir( CLEANUP => 1 ) . '/wt';
+    git( $d, 'worktree', 'add', '-q', '-b', $name, $wt, $o{from} // 'v0.1.0' );
+    spit( "$wt/docs/fix.md", "the fix\n" );
+    my $cl = slurp("$wt/CHANGELOG.md");
+    $cl =~ s{^## Unreleased\n\n}{## Unreleased\n\n- SM3 (PENDING) **three.**\n\n}m or die 'no Unreleased section';
+    spit( "$wt/CHANGELOG.md", $cl );
+    for my $p ( keys %{ $o{files} // {} } ) {
+        defined $o{files}{$p} ? spit( "$wt/$p", $o{files}{$p} ) : unlink "$wt/$p";
+    }
+    my $tip = commit( $wt, 'SM3: the fix' );
+    git( $d, 'worktree', 'remove', '--force', $wt );
+    return $tip;
+}
 
 1;

@@ -56,6 +56,12 @@ Archive
 - Docs: SM1472 (a signed-in Odoo call does not ask Odoo who the person is each time) filed as a candidate.
 - Docs: SM1471 (the dev server runs the Odoo endpoint as a pooled site does) filed as a candidate.
 - Docs: SM1469 (a form field can be hidden or read-only) filed as a candidate.
+- SM1475 (PENDING) **a stable patch is built from its branch.** `tools/release.sh build VERSION
+  --notes FILE --final --ref BRANCH` puts the release commit, the stable `download/` commit and
+  the tag on the patch branch it was gated on and does not move local main; the build prints the
+  merge that brings the release to main. Refused off stable, for main, and unless the gate receipt
+  is a `--patch` receipt for the branch's current tip on the newest stable base. `publish` is
+  unchanged and refuses until the tag is reachable from main. Release tooling only. t/tools/765-767.
 - SM1460 (PENDING) **the auth session's hints spell the check in full**. The four hints in
   `Lazysite::Auth::Session` that said "(lazysite check --docroot names it)" or "lazysite check
   --docroot <docroot> names it" now name `<cli> check --docroot <the site's docroot>` as this host

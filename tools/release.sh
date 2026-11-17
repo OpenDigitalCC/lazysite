@@ -11,7 +11,7 @@
 # Usage:
 #   tools/release.sh gate    VERSION [--commit SHA] [--beta|--final|--certified] [--patch]
 #   tools/release.sh build   VERSION --notes FILE   [--beta|--final|--certified]
-#                            [--security-critical]
+#                            [--security-critical] [--ref BRANCH]
 #   tools/release.sh publish VERSION
 #   tools/release.sh confirm-register SMNNNN --ruling N [--date YYYY-MM-DD]
 #
@@ -37,10 +37,26 @@
 #   local main to it. A stable cut adds a second commit replacing download/.
 #   Any failure leaves main and the tags exactly as they were.
 #
+#   BUILD --ref BRANCH (SM1475; a STABLE PATCH only): main carries the next release's
+#   unreleased work, so a patch is built on its own branch, the one its gate ran on
+#   (tools/gate-main.sh --ref BRANCH --final --patch; --ref is that tool's name for it).
+#   Refused off --final, for main, and unless the gate receipt for VERSION is a --patch
+#   receipt for BRANCH's current tip, BRANCH descends from the patch base (the newest
+#   release of the line below VERSION) and its download/ holds that base's stable set.
+#   Everything else is the build above, with BRANCH where it says main: the release
+#   material tool and checks are the branch tip's own, the release commit and the
+#   download/ commit go on its tip, the tag on the release commit, and the BRANCH ref
+#   moves to the download/ commit. LOCAL MAIN IS NOT MOVED: the build ends by printing
+#   the merge that brings the release commit to main (a branch from main that merges
+#   BRANCH's new tip, landed by fast-forward), with the real branch and SHAs.
+#
 #   PUBLISH (the release manager - the one step that is theirs, and the only one
 #   that touches the network): pushes main and the tag together, atomically.
 #   Refused when origin's main is not an ancestor of local main (no force) or
-#   the tag is already on origin (a burned version is never reused, SM064).
+#   the tag is already on origin (a burned version is never reused, SM064), or the
+#   tag's commit is not reachable from local main - a patch tag built with --ref is
+#   not until its merge has landed, so a stable tag never sits on origin ahead of main.
+#   It pushes main and the tag only; the patch branch is not pushed.
 #
 #   NOTES FILE (build): a header block ended by a blank line, then the tag
 #   annotation. Subtitle and Features are required; Assisted-by (required) and
@@ -142,6 +158,7 @@ COMMIT_REF=""
 CHANNEL="edge"          # ladder: edge (default) < beta < stable < certified
 SECURITY_CRITICAL=()    # SM1305: (--security-critical) for build-manifest.pl, or empty
 PATCH=0                 # SM1454: --patch, a gate on the diff from the line's last release
+REF_BRANCH=""           # SM1475: build --ref BRANCH, a stable patch built on its own branch
 
 # SM303: THREE JOBS THAT SHARE ONLY A VERSION NUMBER.
 #
@@ -187,6 +204,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --notes)
             NOTES_FILE="$2"
+            shift 2
+            ;;
+        --ref)
+            REF_BRANCH="$2"
             shift 2
             ;;
         --commit)
@@ -269,6 +290,8 @@ if [ "$MODE" = publish ]; then
     if [ -z "$LOCAL_MAIN" ] || ! git -C "$ORIGIN" merge-base --is-ancestor "$TAG_SHA" "$LOCAL_MAIN"; then
         echo "release.sh: $TAG ($TAG_SHA) is not on local main. build puts the release" >&2
         echo "release.sh: commit on main; a tag anywhere else is a release no branch traces." >&2
+        echo "release.sh: A stable patch built with --ref is on its branch until the merge" >&2
+        echo "release.sh: build printed has landed on main (SM1475); publish after that." >&2
         exit 1
     fi
 
@@ -378,6 +401,11 @@ if [ "$PATCH" = 1 ] && [ "$MODE" != gate ]; then
     exit 2
 fi
 
+if [ -n "$REF_BRANCH" ] && [ "$MODE" != build ]; then
+    echo "release.sh: --ref is a build option (the gate takes --commit)" >&2
+    exit 2
+fi
+
 PATCH_BASE=""
 PATCH_BASE_SHA=""
 if [ "$MODE" = gate ] && [ "$PATCH" = 1 ]; then
@@ -442,20 +470,37 @@ if [ "$MODE" = build ]; then
     fi
     NOTES_FILE=$(cd "$(dirname "$NOTES_FILE")" && pwd)/$(basename "$NOTES_FILE")
 
-    MAIN_SHA=$(git -C "$ORIGIN" rev-parse --verify --quiet refs/heads/main) || {
-        echo "release.sh: no local main in $ORIGIN" >&2
+    # SM1475: A STABLE PATCH IS BUILT FROM ITS BRANCH. With --ref the release goes on
+    # the branch's tip - the commit its gate receipt names - and the tool, the checks,
+    # the stage and the landing below are that branch's, as they are main's otherwise.
+    # Local main is not moved: the release commit reaches it by the merge the end of
+    # the build prints.
+    BASE_NAME=main
+    if [ -n "$REF_BRANCH" ]; then
+        BASE_NAME=${REF_BRANCH#refs/heads/}
+        if [ "$CHANNEL" != stable ]; then
+            echo "release.sh: --ref is for a stable patch (--final); the $CHANNEL channel is built from main's tip." >&2
+            exit 2
+        fi
+        if [ "$BASE_NAME" = main ]; then
+            echo "release.sh: --ref names the patch branch; main is built without --ref." >&2
+            exit 2
+        fi
+    fi
+    BASE_SHA=$(git -C "$ORIGIN" rev-parse --verify --quiet "refs/heads/$BASE_NAME") || {
+        echo "release.sh: no local $BASE_NAME in $ORIGIN" >&2
         exit 1
     }
-    if ! git -C "$ORIGIN" cat-file -e "$MAIN_SHA:tools/release-material.pl" 2>/dev/null; then
-        echo "release.sh: main ($MAIN_SHA) has no tools/release-material.pl to build with" >&2
+    if ! git -C "$ORIGIN" cat-file -e "$BASE_SHA:tools/release-material.pl" 2>/dev/null; then
+        echo "release.sh: $BASE_NAME ($BASE_SHA) has no tools/release-material.pl to build with" >&2
         exit 1
     fi
-    material_at_main() { git -C "$ORIGIN" show "$MAIN_SHA:tools/release-material.pl" | perl - "$@"; }
+    material_at_base() { git -C "$ORIGIN" show "$BASE_SHA:tools/release-material.pl" | perl - "$@"; }
 
     # The notes are read before anything else, so a missing header is a
     # second's refusal rather than a stage's.
-    if ! TRAILERS=$(material_at_main --notes "$NOTES_FILE" --print trailers) \
-        || ! SUBTITLE=$(material_at_main --notes "$NOTES_FILE" --print subtitle); then
+    if ! TRAILERS=$(material_at_base --notes "$NOTES_FILE" --print trailers) \
+        || ! SUBTITLE=$(material_at_base --notes "$NOTES_FILE" --print subtitle); then
         echo "release.sh: the notes file is not usable (above)" >&2
         exit 2
     fi
@@ -464,7 +509,7 @@ if [ "$MODE" = build ]; then
         echo "release.sh: carries the same trailers as every other commit Claude makes." >&2
         exit 2
     fi
-    if ! material_at_main --notes "$NOTES_FILE" --print annotation | grep -q '[^[:space:]]'; then
+    if ! material_at_base --notes "$NOTES_FILE" --print annotation | grep -q '[^[:space:]]'; then
         echo "release.sh: the notes file has nothing after its header - that is the tag annotation" >&2
         exit 2
     fi
@@ -509,6 +554,38 @@ if [ "$MODE" = build ]; then
             exit 1
         fi
     fi
+    # SM1475: a branch is built only from the --patch receipt of its own tip, on the
+    # newest stable release, and only when it grew from that release. Checked after
+    # the receipt above (its suite_base is the line's newest tag, or it was refused).
+    if [ -n "$REF_BRANCH" ]; then
+        PATCH_BASE=$(patch_base_tag "$VERSION")
+        if [ -z "$(receipt_field suite_base)" ]; then
+            echo "release.sh: --ref builds a stable patch, and the gate receipt for $VERSION is not a --patch receipt." >&2
+            echo "release.sh: Gate the branch: tools/gate-main.sh --ref $BASE_NAME --version $VERSION --final --patch" >&2
+            exit 1
+        fi
+        if [ "$TARGET_SHA" != "$BASE_SHA" ]; then
+            echo "release.sh: the gate receipt is for ${TARGET_SHA:0:12}, and $BASE_NAME is at $BASE_SHA." >&2
+            echo "release.sh: Gate the branch's tip: tools/gate-main.sh --ref $BASE_NAME --version $VERSION --final --patch" >&2
+            exit 1
+        fi
+        PATCH_BASE_SHA=$(git -C "$ORIGIN" rev-parse --verify --quiet "$PATCH_BASE^{commit}") || {
+            echo "release.sh: $PATCH_BASE does not name a commit in $ORIGIN" >&2
+            exit 1
+        }
+        if ! git -C "$ORIGIN" merge-base --is-ancestor "$PATCH_BASE_SHA" "$BASE_SHA"; then
+            echo "release.sh: $BASE_NAME ($BASE_SHA) does not descend from the patch base $PATCH_BASE;" >&2
+            echo "release.sh: a stable patch is the base release plus its fixes." >&2
+            exit 1
+        fi
+        # The newest stable is the set the branch's download/ holds (lint 113 keeps it).
+        DL_NOW=$(git -C "$ORIGIN" ls-tree --name-only "$BASE_SHA" download/ \
+            | sed -n 's|^download/lazysite-\([0-9][0-9.]*[0-9]\)\.tar\.gz$|\1|p' | head -1)
+        if [ "$DL_NOW" != "${PATCH_BASE#v}" ]; then
+            echo "release.sh: $PATCH_BASE is not the newest stable release on $BASE_NAME: its download/ holds ${DL_NOW:-no set}." >&2
+            exit 1
+        fi
+    fi
     echo "==> Gate passed for ${TARGET_SHA:0:12} ($(receipt_field finished)): $(receipt_field files) files, $(receipt_field tests) tests"
     [ -z "$(receipt_field suite)" ] || echo "==>   suite: $(receipt_field suite) ($(receipt_field suite_from))"
     echo "==>   coverage: $(receipt_field coverage) $(receipt_field coverage_from)"
@@ -519,14 +596,14 @@ if [ "$MODE" = build ]; then
     # lints that read them, so a landing that only touched them - a PENDING ref
     # stamped by hand after the generator refused it, a FEATURES wording fix -
     # changes nothing the hour-long gate measured. Anything else needs a gate.
-    if [ "$TARGET_SHA" != "$MAIN_SHA" ]; then
-        if ! git -C "$ORIGIN" merge-base --is-ancestor "$TARGET_SHA" "$MAIN_SHA" 2>/dev/null; then
-            echo "release.sh: main ($MAIN_SHA) does not descend from the gated commit" >&2
+    if [ "$TARGET_SHA" != "$BASE_SHA" ]; then
+        if ! git -C "$ORIGIN" merge-base --is-ancestor "$TARGET_SHA" "$BASE_SHA" 2>/dev/null; then
+            echo "release.sh: main ($BASE_SHA) does not descend from the gated commit" >&2
             echo "release.sh: ($TARGET_SHA). Gate main's tip: tools/gate-main.sh --version $VERSION" >&2
             exit 1
         fi
-        MOVED=$(git -C "$ORIGIN" log --format= --name-only "$TARGET_SHA..$MAIN_SHA" | sort -u | grep . || true)
-        OUTSIDE=$(printf '%s\n' "$MOVED" | grep -vxF -f <(material_at_main --paths) || true)
+        MOVED=$(git -C "$ORIGIN" log --format= --name-only "$TARGET_SHA..$BASE_SHA" | sort -u | grep . || true)
+        OUTSIDE=$(printf '%s\n' "$MOVED" | grep -vxF -f <(material_at_base --paths) || true)
         if [ -n "$OUTSIDE" ]; then
             echo "release.sh: main has moved past the gated commit ${TARGET_SHA:0:12} and changed" >&2
             echo "release.sh: more than release material - a new gate is needed:" >&2
@@ -538,15 +615,15 @@ if [ "$MODE" = build ]; then
         printf '%s\n' "$MOVED" | sed 's/^/      /'
     fi
 
-    # Where main is checked out, if anywhere: the build moves main, and a
-    # worktree on main moves with it - which needs that worktree clean. Asked
-    # now, not after the packages are built.
-    MAIN_WT=$(git -C "$ORIGIN" worktree list --porcelain \
-        | awk '/^worktree /{ wt = substr($0, 10) } $0 == "branch refs/heads/main" { print wt }')
-    if [ -n "$MAIN_WT" ] && [ -n "$(git -C "$MAIN_WT" status --porcelain --untracked-files=no)" ]; then
-        echo "release.sh: main is checked out at $MAIN_WT with uncommitted changes, and" >&2
-        echo "release.sh: build moves main. Commit or move them first:" >&2
-        git -C "$MAIN_WT" status --short --untracked-files=no >&2
+    # Where the base (main, or the --ref branch) is checked out, if anywhere: the
+    # build moves it, and a worktree on it moves with it - which needs that
+    # worktree clean. Asked now, not after the packages are built.
+    BASE_WT=$(git -C "$ORIGIN" worktree list --porcelain \
+        | awk -v b="branch refs/heads/$BASE_NAME" '/^worktree /{ wt = substr($0, 10) } $0 == b { print wt }')
+    if [ -n "$BASE_WT" ] && [ -n "$(git -C "$BASE_WT" status --porcelain --untracked-files=no)" ]; then
+        echo "release.sh: $BASE_NAME is checked out at $BASE_WT with uncommitted changes, and" >&2
+        echo "release.sh: build moves $BASE_NAME. Commit or move them first:" >&2
+        git -C "$BASE_WT" status --short --untracked-files=no >&2
         exit 1
     fi
 fi
@@ -770,8 +847,8 @@ if [ "$MODE" = gate ]; then
     fi
     echo "==> Target commit: $TARGET_SHA"
 else
-    echo "==> Staging a worktree of main ($MAIN_SHA) at $STAGE"
-    git -C "$ORIGIN" worktree add --quiet --detach "$STAGE" "$MAIN_SHA"
+    echo "==> Staging a worktree of $BASE_NAME ($BASE_SHA) at $STAGE"
+    git -C "$ORIGIN" worktree add --quiet --detach "$STAGE" "$BASE_SHA"
 fi
 
 # --- the release material (SM971) ---------------------------------------------
@@ -794,7 +871,7 @@ if [ -z "$MATERIAL_TOOL" ]; then
 fi
 if [ "$MODE" = build ] && [ "$MATERIAL_TOOL" != "$(receipt_field material_tool)" ]; then
     abort_build "tools/release-material.pl differs from the one the gate ran" \
-        "(gate $(receipt_field material_tool), build $MATERIAL_TOOL); gate main's tip again."
+        "(gate $(receipt_field material_tool), build $MATERIAL_TOOL); gate ${BASE_NAME}'s tip again."
 fi
 MATERIAL_ARGS=("$VERSION" --dir "$STAGE" --channel "$CHANNEL" --date "$REL_DATE")
 if [ "$MODE" = build ]; then
@@ -874,7 +951,7 @@ if [ "$MODE" = build ]; then
     {
         printf 'lazysite %s (%s): %s\n\n' "$VERSION" "$CHANNEL" "$SUBTITLE"
         printf 'The release material for %s, written by tools/release-material.pl on\n' "$VERSION"
-        printf 'main at %s. Gated at %s: %s files, %s tests,\n' "${MAIN_SHA:0:12}" "${TARGET_SHA:0:12}" "$GATE_FILES" "$GATE_TESTS"
+        printf '%s at %s. Gated at %s: %s files, %s tests,\n' "$BASE_NAME" "${BASE_SHA:0:12}" "${TARGET_SHA:0:12}" "$GATE_FILES" "$GATE_TESTS"
         printf 'coverage %s. The GATE-LOG row and the coverage record are the gate'"'"'s.\n\n' "$(receipt_field coverage)"
         git -C "$STAGE" status --porcelain | awk '{ print "  " $2 }'
         printf '\n%s\n' "$TRAILERS"
@@ -882,15 +959,15 @@ if [ "$MODE" = build ]; then
     git -C "$STAGE" add -A
     git -C "$STAGE" commit --quiet -F "$COMMIT_MSG"
     RELEASE_SHA=$(git -C "$STAGE" rev-parse HEAD)
-    echo "==> Release commit $RELEASE_SHA on main $MAIN_SHA (not yet on main)"
+    echo "==> Release commit $RELEASE_SHA on $BASE_NAME $BASE_SHA (not yet on $BASE_NAME)"
 
     # NOTHING BUT RELEASE MATERIAL. A release commit is reviewed by nobody - the
     # release manager decided the cut, not its diff - so what it may touch is a
     # fixed list, checked rather than trusted.
-    OUTSIDE=$(outside_of "$MAIN_SHA" "$RELEASE_SHA" "$(material_paths)")
+    OUTSIDE=$(outside_of "$BASE_SHA" "$RELEASE_SHA" "$(material_paths)")
     if [ -n "$OUTSIDE" ]; then
         abort_build "the release commit touches paths outside the release-material allowlist:" \
-            "$(printf '%s ' $OUTSIDE)" "main is unchanged; nothing was tagged."
+            "$(printf '%s ' $OUTSIDE)" "$BASE_NAME is unchanged; nothing was tagged."
     fi
     echo "==> The release commit touches only release material"
 fi
@@ -956,7 +1033,7 @@ echo "==> the release-material checks on ${RELEASE_SHA:-$MATERIAL_SHA} ($(printf
 if ! ( cd "$STAGE" && detached prove -l $MATERIAL_LINTS > "$LINT_LOG" 2>&1 ); then
     grep -E '^#   Failed test|\(Wstat|^Failed|not ok' "$LINT_LOG" | head -20 >&2
     abort_build "a check on the release material failed (log: $LINT_LOG)." \
-        "main is unchanged; nothing was tagged."
+        "$BASE_NAME is unchanged; nothing was tagged."
 fi
 grep -E '^Files=' "$LINT_LOG"
 
@@ -1642,7 +1719,7 @@ fi
 # only be filled once the packages exist, so it is a second commit on top of the
 # release commit, touching download/ and nothing else; the tag stays on the
 # release commit. Lint 113, held back from the release commit, runs here.
-NEW_MAIN="$RELEASE_SHA"
+NEW_TIP="$RELEASE_SHA"
 if [ "$CHANNEL" = stable ]; then
     DL="$STAGE/download"
     OLD_DL=$(find "$DL" -maxdepth 1 -name 'lazysite-*.tar.gz' 2>/dev/null \
@@ -1664,52 +1741,53 @@ if [ "$CHANNEL" = stable ]; then
     } > "${STAGE}-download-commit.txt"
     git -C "$STAGE" add -A download
     git -C "$STAGE" commit --quiet -F "${STAGE}-download-commit.txt"
-    NEW_MAIN=$(git -C "$STAGE" rev-parse HEAD)
-    OUTSIDE=$(outside_of "$RELEASE_SHA" "$NEW_MAIN" "download/")
+    NEW_TIP=$(git -C "$STAGE" rev-parse HEAD)
+    OUTSIDE=$(outside_of "$RELEASE_SHA" "$NEW_TIP" "download/")
     if [ -n "$OUTSIDE" ]; then
         abort_build "the download commit touches more than download/: $(printf '%s ' $OUTSIDE)" \
-            "main is unchanged; nothing was tagged."
+            "$BASE_NAME is unchanged; nothing was tagged."
     fi
     if ! ( cd "$STAGE" && detached prove -l t/lint/113-*.t > "${STAGE}-download-lint.txt" 2>&1 ); then
         cat "${STAGE}-download-lint.txt" >&2
-        abort_build "lint 113 refused the download set; main is unchanged; nothing was tagged."
+        abort_build "lint 113 refused the download set; $BASE_NAME is unchanged; nothing was tagged."
     fi
-    echo "==> download/ commit $NEW_MAIN (the $VERSION stable set)"
+    echo "==> download/ commit $NEW_TIP (the $VERSION stable set)"
 fi
 
-# --- tag the release commit, then move main to it ------------------------------
+# --- tag the release commit, then move the base (main, or the --ref branch) to it ------------------------------
 #
-# The LAST step, after every check and every package: until here main and the
+# The LAST step, after every check and every package: until here the base and the
 # tags are exactly as they were, whatever failed. The tag goes first because a
-# local tag is free to remove; if main cannot move, it is removed again.
+# local tag is free to remove; if the base cannot move, it is removed again.
 #
-# Main moves by fast-forward only. Where a worktree has main checked out (the
+# The base moves by fast-forward only (SM1475: with --ref it is the patch branch,
+# and local main is never touched). Where a worktree has it checked out (the
 # developer's, after a handoff), that worktree moves with it - it was checked
 # clean before anything started; elsewhere the ref moves, and only if it still
 # names the commit this build started from.
 ANNOT_FILE="${STAGE}-annotation.txt"
 perl "$STAGE/tools/release-material.pl" --notes "$NOTES_FILE" --print annotation > "$ANNOT_FILE"
 
-land_main() {
-    if [ "$(git -C "$ORIGIN" rev-parse refs/heads/main)" != "$MAIN_SHA" ]; then
-        echo "release.sh: main moved while this build ran" >&2
+land_base() {
+    if [ "$(git -C "$ORIGIN" rev-parse "refs/heads/$BASE_NAME")" != "$BASE_SHA" ]; then
+        echo "release.sh: $BASE_NAME moved while this build ran" >&2
         return 1
     fi
-    if [ -n "$MAIN_WT" ]; then
-        git -C "$MAIN_WT" merge --ff-only --quiet "$NEW_MAIN"
+    if [ -n "$BASE_WT" ]; then
+        git -C "$BASE_WT" merge --ff-only --quiet "$NEW_TIP"
     else
-        git -C "$ORIGIN" update-ref refs/heads/main "$NEW_MAIN" "$MAIN_SHA"
+        git -C "$ORIGIN" update-ref "refs/heads/$BASE_NAME" "$NEW_TIP" "$BASE_SHA"
     fi
 }
 
 echo "==> Tagging $TAG on the release commit $RELEASE_SHA"
 git -C "$ORIGIN" tag -a "$TAG" -F "$ANNOT_FILE" "$RELEASE_SHA"
-if ! land_main; then
+if ! land_base; then
     git -C "$ORIGIN" tag -d "$TAG" >/dev/null
-    abort_build "main could not be moved to $NEW_MAIN; the tag was removed again" \
-        "and main is still $MAIN_SHA."
+    abort_build "$BASE_NAME could not be moved to $NEW_TIP; the tag was removed again" \
+        "and $BASE_NAME is still $BASE_SHA."
 fi
-echo "==> main is now $NEW_MAIN (was $MAIN_SHA)"
+echo "==> $BASE_NAME is now $NEW_TIP (was $BASE_SHA)"
 
 # --- final artefact copy ---
 
@@ -1749,9 +1827,9 @@ fi
 
 echo ""
 echo "==> Built $TAG"
-printf "    release commit: %s (on main)\n" "$RELEASE_SHA"
+printf "    release commit: %s (on %s)\n" "$RELEASE_SHA" "$BASE_NAME"
 printf "    gated commit:   %s\n" "$TARGET_SHA"
-printf "    main:           %s\n" "$NEW_MAIN"
+printf "    %-15s %s\n" "$BASE_NAME:" "$NEW_TIP"
 printf "    tag:            %s (LOCAL)\n" "$TAG"
 printf "    tarball:        %s\n" "$FINAL_DIST/lazysite-$VERSION.tar.gz"
 printf "    sha256:         %s\n" "$SHA256"
@@ -1762,5 +1840,21 @@ done
     && printf "    skill:          lazysite-skill-%s.zip (claude.ai, carries the deb)\n" "$VERSION"
 printf "    gate:           %s files, %s tests\n" "$GATE_FILES" "$GATE_TESTS"
 echo ""
-echo "==> The release manager's step - pushes main and $TAG together:"
-echo "    tools/release.sh publish $VERSION"
+if [ -n "$REF_BRANCH" ]; then
+    # SM1475: the release commit is on the patch branch; main does not have it yet.
+    # Real branch, path and SHAs, so the line can be run as printed.
+    MAIN_NOW=$(git -C "$ORIGIN" rev-parse refs/heads/main)
+    LAND_BRANCH="claude/land-$TAG"
+    LAND_WT="$STATE_ROOT/tmp/wt-land-$TAG"
+    echo "==> $TAG is on $BASE_NAME, not on main (main is still $MAIN_NOW)."
+    echo "==> The developer agent makes a branch from main that merges $BASE_NAME's new tip,"
+    echo "==> and the release manager lands it on main by fast-forward:"
+    echo "    git -C $ORIGIN worktree add -b $LAND_BRANCH $LAND_WT $MAIN_NOW"
+    echo "    git -C $LAND_WT merge --no-edit $NEW_TIP"
+    echo "==> Then the release manager's step - pushes main and $TAG together"
+    echo "==> (publish refuses until $TAG is on main):"
+    echo "    tools/release.sh publish $VERSION"
+else
+    echo "==> The release manager's step - pushes main and $TAG together:"
+    echo "    tools/release.sh publish $VERSION"
+fi
