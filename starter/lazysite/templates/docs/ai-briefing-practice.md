@@ -6,12 +6,12 @@ register:
 ---
 <!-- lazysite:field-practice-import
      generator: tools/import-field-practice.pl
-     engine-version: 0.17.2
+     engine-version: 0.17.3
      imported: 2026-11-17
      agent: the lazysite site agent (Claude Code)
      source: docs/practice/authoring-practice.md sha256=7a25c9bd08bd3cd5ec37cc427f264f943494eb81c315743d1c84b272cf9e6334 modified=2026-11-17
      source: docs/practice/app-practice.md sha256=a1618a0b4f96a44a245143ef650c4612c72032c404a2b040b9bbb63e9ef62f3e modified=2026-11-06
-     body-sha256: fe71ed5259b9963003d8a2eb9ee23f44fe672f90187c82bda5994d82280aabce
+     body-sha256: 9cb24f68aeac61a5b6aead68a15ca12333e413734a0d0f7c719cd9030a3f4c5a
 -->
 
 ## What this is, and what it is not
@@ -20,7 +20,7 @@ These are **one agent's field notes** from building and breaking real sites and 
 
 **Where these notes conflict with the engine's reference docs, the reference docs win, and the conflict is a bug in these notes.** Report it rather than working around it - a stale line here is worse than no line, because it will be trusted.
 
-This copy was **generated for engine 0.17.2**. The last section, *Where this came from*, names the sources, the agent and the dates.
+This copy was **generated for engine 0.17.3**. The last section, *Where this came from*, names the sources, the agent and the dates.
 
 ## How the sections are marked
 

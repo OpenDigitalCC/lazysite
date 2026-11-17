@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.17.1"
+subtitle: "Everything lazysite has and does, and why - as of v0.17.2"
 brand: plain
 ---
 
@@ -2061,6 +2061,12 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.17.2** (2026-11-17, stable) - **A binary upload over WebDAV writes no
+  warnings.** A binary upload over WebDAV writes nothing to the error log
+  (SM1473): a PUT ran the page checks on every file through a UTF-8 decode, so
+  an image, PDF or archive was decoded twice and warned once per bad byte,
+  filling the web server's error log. Only a page, a form config and a nav file
+  are read now, and none warns.
 - **0.17.1** (2026-11-16, stable) - **The bad-URL blocker counts probes behind
   Apache.** The bad-URL blocker counts a probe on a site behind Apache
   (SM1455): the auth wrapper reads the request's path from REQUEST_URI when
