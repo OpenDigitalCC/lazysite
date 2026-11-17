@@ -51,6 +51,7 @@ sub renderer_takes {
 
 sub validator_flags {
     my ($rules) = @_;
+    $rules .= ' value:"v"' if $rules eq 'type:hidden';    # SM1469: bare, it is refused for having no value
     my $page = "---\ntitle: T\nform: f\n---\n\n::: form\nx | X | $rules\nsubmit | Send\n:::\n";
     my $r = Lazysite::Validate::validate_content( content => $page );
     return scalar grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{issues} };
@@ -67,7 +68,7 @@ sub validator_flags {
     my ( @bare, @valued );
     for my $w ( sort keys %word ) {
         push @bare, $w if renderer_takes($w);
-        for my $v ( 'x', '1', 'user', 'a,b' ) {
+        for my $v ( 'x', '1', 'user', 'a,b', 'hidden' ) {
             push @valued, "$w:$v" if renderer_takes("$w:$v");
         }
     }
@@ -79,7 +80,7 @@ sub validator_flags {
         ok( $b{$must}, "the renderer takes the bare rule '$must'" );
     }
     my %v = map { ( $_ =~ /\A([a-z-]+):/ )[0] => 1 } @valued;
-    for my $must (qw(accept capture select radio checklist checklist-qty max min pattern placeholder value prefill)) {
+    for my $must (qw(accept capture select radio checklist checklist-qty max min pattern placeholder value prefill type)) {
         ok( $v{$must}, "the renderer takes the valued rule '$must:'" );
     }
 
@@ -96,7 +97,7 @@ sub validator_flags {
     # for every word in forms.pm with every shape of value.
     my @disagree;
     for my $w ( sort keys %word ) {
-        for my $v ( 'x', '1', '12', 'user', 'environment', 'front', 'a,b', 'a b', '' ) {
+        for my $v ( 'x', '1', '12', 'user', 'environment', 'front', 'hidden', 'a,b', 'a b', '' ) {
             my $tok = "$w:$v";
             push @disagree, $tok
                 if renderer_takes($tok) != Lazysite::Validate::form_value_rule_known($tok);

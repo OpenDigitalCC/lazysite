@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-11-17
 raised-by: "the release manager"
 area: forms
-status-note: "CANDIDATE, filed 2026-11-17. Nothing built. Target 0.17.x edge. Questions for a ruling below; SM923 (sections, n856) is in the same grammar."
+status-note: "R1 (type:hidden) built on branch n860, awaiting release. R2 (readonly) and both questions are WONT-DO, ruled 264: a readonly field looks protected and is not, and a value trusted from the browser is a risk, so the engine offers none."
 ---
 
 # What the grammar has
@@ -36,9 +36,9 @@ R1
 : `type:hidden` - rendered as `<input type="hidden">` with its `value:` or `prefill:` value; it
   reaches the handler as any field does, and appears in the submission like any other.
 
-R2
-: `readonly` - a visible field the visitor cannot change in the browser (`readonly` attribute),
-  for a value the visitor should see but not edit.
+R2 - WONT-DO (ruling 264)
+: WONT-DO, ruled. `readonly` - a visible field the visitor cannot change in the browser,
+  looks protected and is not: anyone can send another value. The engine offers none.
 
 # What a build must keep true
 
@@ -49,7 +49,10 @@ R2
 - validate_page and its marked copies (Lazysite::Validate::form_rule_tokens and
   form_value_rule_known, held by t/lint/276) know the new rule, or a valid page is warned about.
 
-# Questions for a ruling
+# Questions for a ruling - both WONT-DO (ruling 264)
+
+Ruled: a value the engine would have to trust from the browser is a risk, so the engine offers
+no server-set, signed or refused-when-changed value, and no readonly field.
 
 1. For a value that must not be altered (a price, a product the handler acts on), should the
    engine also offer a server-side form: a value the handler sets from the page's declaration,

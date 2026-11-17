@@ -70,6 +70,9 @@ The name must be alphanumeric with hyphens and underscores. Without
   `lazysite-validate.pl` on the page (or `validate_page` over MCP) and it names the
   field and the character; `lazysite check` reports the ones already published.
 - `placeholder:TEXT` - greyed-out hint text inside the field
+- `type:hidden` - a field the visitor does not see, carrying its `value:` or `prefill:`
+  value (one of them is required). **It is whatever the browser sends and proves
+  nothing**: never treat a hidden field as proof of a price, a product or an identity.
 - `max:N` - maxlength for text inputs (default 1000); the max **value** for `number`
 - `min:N` - the min **value** for `number`
 - `file` - renders a file picker (`<input type="file">`) for **binary uploads**

@@ -334,6 +334,10 @@ sub _form_rules_from_tokens {
         if    ( $r eq 'required' ) { $rules{required} = 1; }
         elsif ( $r eq 'optional' ) { $rules{optional} = 1; }
         elsif ( $r eq 'email' )    { $rules{type}     = 'email'; }
+
+        # SM1469: `type:hidden`, a field the page carries and the visitor is not
+        # shown. Its value is whatever the browser sends, so it proves nothing.
+        elsif ( $r eq 'type:hidden' ) { $rules{type} = 'hidden'; }
         elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type}     = $1; }
         elsif ( $r eq 'textarea' )                              { $rules{textarea} = 1; }
         elsif ( $r eq 'file' )                                  { $rules{file}     = 1; }
@@ -572,6 +576,11 @@ sub _form_field_input {
     my $field_html;
     my $type  = $rules{type} || 'text';
     my $attrs = '';
+
+    # SM1469: a hidden input carries its value and nothing else - no bound,
+    # placeholder or required, none of which a browser applies to it.
+    return qq(    <input type="hidden" name="$name" id="$name"$val_attr>\n)
+        if $type eq 'hidden';
     if ( $type eq 'number' ) {
         # For numbers, min/max are value bounds (not maxlength).
         $attrs .= qq( min="$rules{min}") if defined $rules{min};
@@ -874,6 +883,12 @@ sub _render_form {
         }
         my $field_html
             = $render->( $name, $value, $max, $req_attr, $ph_attr, $val_attr, $eff_pat, %rules );
+
+        # SM1469: a hidden field has no label and no wrapper to see.
+        if ( ( $rules{type} // '' ) eq 'hidden' ) {
+            push @{ $steps[-1]{fields} }, $field_html;
+            next;
+        }
 
         push @{ $steps[-1]{fields} }, qq(  <div class="form-field">\n)
             . qq(    <label for="$name">$label$req_mark</label>\n)

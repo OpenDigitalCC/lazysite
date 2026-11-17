@@ -174,6 +174,25 @@ put it last among a field's rules.
   what somebody claims, never as something the site has verified - if the value
   must be trusted, check it after the submission arrives.
 
+`type:hidden`
+: A field the visitor does not see: no label, no box. It carries the value of
+  its `value:` or its `prefill:`, so a page can send a campaign, a product or a
+  reference with the submission. It reaches the handler and appears in the
+  submission like any other field. A hidden field with neither `value:` nor
+  `prefill:` is refused by `validate_page`.
+
+  ```markdown
+  campaign | Campaign | type:hidden value:"spring"
+  ref      | Reference | type:hidden prefill:ref
+  ```
+
+  **A hidden value is whatever the browser sends, and proves nothing.** Anyone
+  can edit the request and send another value, so a handler must never treat a
+  hidden field as proof of anything - not a price, not a product it acts on, not
+  who the visitor is. The engine offers no read-only field and no signed or
+  server-held value for the same reason: a value the engine would have to trust
+  from the browser is a risk.
+
 ## Example
 
 ```markdown

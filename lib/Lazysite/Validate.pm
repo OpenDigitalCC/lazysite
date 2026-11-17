@@ -750,7 +750,7 @@ sub form_value_rule_known {
     my ($tok) = @_;
     return ( defined $tok
             && $tok =~ m{\A(?: accept:. | capture:(?:user|environment)\z | select:. | radio:.
-                | checklist-qty:. | checklist:. | max:\d | min:\d | pattern:. | placeholder:.
+                | checklist-qty:. | checklist:. | type:hidden\z | max:\d | min:\d | pattern:. | placeholder:.
                 | value: | prefill:\S )}sx )
         ? 1 : 0;
 }
@@ -786,7 +786,16 @@ sub _form_block_findings {
         # SM921: the pattern a browser gets is the `pattern:` token's value,
         # read by the same cut - so a quoted one ends where the renderer's
         # ends, and an escaped quote in it is a quote, as it is there.
-        for my $tok ( form_rule_tokens($rules) ) {
+        my @toks = form_rule_tokens($rules);
+
+        # SM1469: a hidden field the page gives no value is a field that
+        # always sends nothing, so it is refused rather than left to do so.
+        if ( grep { $_ eq 'type:hidden' } @toks ) {
+            push @f, { what => 'hidden',
+                message => "the hidden field '$name' has no value: give it value: or prefill:" }
+                unless grep { /\A(?:value:\S|prefill:\S)/ } @toks;
+        }
+        for my $tok ( @toks ) {
             if ( $tok =~ /\Apattern:(.+)/s ) {
                 my $pat = $1;
                 if ( my $why = html_pattern_problem($pat) ) {

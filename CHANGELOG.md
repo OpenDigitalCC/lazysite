@@ -71,6 +71,7 @@ Archive
   documents loading the engine's real `| json` and `| url_safe` from an installed engine by
   requiring `lazysite-processor/include.pm` (no -I, no site, no Lazysite:: module loaded), and
   t/tools/700 holds it: the documented load, the filters' answers, and a Template that uses them.
+- SM1469 (R1) (PENDING) **forms: a field can be hidden**. `type:hidden` renders a hidden input with its `value:` or `prefill:` value and no label; validate_page refuses a hidden field with neither. The value is whatever the browser sends and proves nothing. R2 (readonly) and the two questions are WONT-DO (ruling 264).
 - SM1449 (R1, R3) (PENDING) **tools: a stopped gate resumes where it stopped**. R1: the suite
   pass record SM1454 R2 keeps by tree id is now named when it is reused - `suite: passed on this
   tree (TREE) at WHEN, reused` - and the receipt carries `suite_passed_at=`, so the release
