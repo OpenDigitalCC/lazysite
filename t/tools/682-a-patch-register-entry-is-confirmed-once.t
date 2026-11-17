@@ -87,6 +87,11 @@ subtest 'the compliance check passes a drafted entry below certified, names it, 
         make_path( dirname("$scratch/$rel") );
         copy( "$root/$rel", "$scratch/$rel" ) or die "copy $rel: $!";
     }
+    # The real register may hold drafted entries awaiting confirmation (a patch's own, until
+    # the manager confirms it); the base case is a register with none, so confirm them here.
+    my $reg = slurp("$scratch/docs/SECURITY.md");
+    $reg =~ s/awaiting the release manager's confirmation/confirmed by the release manager on 1 Jan 2026 (ruling 1)/g;
+    spit( "$scratch/docs/SECURITY.md", $reg );
     my $run = sub { my $o = run_cmd( $^X, "$scratch/tools/lazysite-compliance.pl", '--check', '--channel', $_[0] ); return ( $? >> 8, $o ) };
 
     my ( $rc, $out ) = $run->('stable');
