@@ -795,7 +795,7 @@ sub _form_block_findings {
                 message => "the hidden field '$name' has no value: give it value: or prefill:" }
                 unless grep { /\A(?:value:\S|prefill:\S)/ } @toks;
         }
-        for my $tok ( @toks ) {
+        for my $tok (@toks) {
             if ( $tok =~ /\Apattern:(.+)/s ) {
                 my $pat = $1;
                 if ( my $why = html_pattern_problem($pat) ) {
