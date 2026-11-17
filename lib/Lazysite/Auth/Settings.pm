@@ -1294,7 +1294,7 @@ sub _consume_lock {
     open my $lk, '>', $path or do {
         log_event( 'WARN', 'auth',
             "cannot open the auth store lock ($!) - every account change and single-use "
-                . 'secret is refused until it is repaired (lazysite check --docroot names it)',
+                . 'secret is refused until it is repaired (`' . Lazysite::Util::check_command($AUTH_DIR) . '` names it)',
             file => 'lazysite/auth/.consume.lock' );
         return undef;
     };

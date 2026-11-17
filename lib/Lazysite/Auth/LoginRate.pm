@@ -103,7 +103,7 @@ sub check_login_rate {
         log_event( 'WARN', 'auth',
             'sign-in refused: the login rate limiter cannot count - DB_File is not '
                 . 'installed (Debian: libdb-file-perl); every sign-in is refused until it is '
-                . 'repaired (lazysite check --docroot names it)' );
+                . 'repaired (`' . Lazysite::Util::check_command($AUTH_DIR) . '` names it)' );
         return 0;
     }
     # SM1240: THE COUNTER IS CREATED 0660, IN THE AUTH DIRECTORY'S GROUP.

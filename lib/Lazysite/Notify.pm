@@ -178,7 +178,7 @@ sub _template {
         # is the site not overriding, and the fallback is right.
         open my $fh, '<:utf8', $path or do {
             cannot_read( "the notice template lazysite/notify-templates/$key.tt (the built-in is used "
-                    . 'until it is repaired; lazysite check --docroot names it)', $path ); # quiet on ENOENT
+                    . 'until it is repaired; `' . Lazysite::Util::check_command($path) . '` names it)', $path ); # quiet on ENOENT
             next;
         };
         local $/;
@@ -226,7 +226,7 @@ sub _render {
         if ( defined $out && length $out ) { $out =~ s/\s+\z//; return $out }
         log_event( 'WARN', 'notify',
             'notice template failed; using the message until it is repaired '
-                . '(lazysite check --docroot names it)',
+                . '(`' . Lazysite::Util::check_command() . '` names it)',
             error => "$@" );
         return $vars->{message};
     }

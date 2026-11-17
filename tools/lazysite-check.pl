@@ -2940,7 +2940,7 @@ sub report_group_acl_reach {
         'SM288: these @group entries now apply on EVERY channel, including MCP '
             . 'and the control API, where they were silently inert before. '
             . 'For who is in each group, including via nested groups: '
-            . 'lazysite-users.pl --docroot <docroot> groups' );
+            . cli_spelling() . " users --docroot $d groups" );
     return;
 }
 

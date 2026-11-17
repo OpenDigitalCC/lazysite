@@ -45,7 +45,7 @@ die "--docroot is required\n" . _usage() unless defined $docroot && length $docr
 # found this one first had no way to know the other existed, which is how four
 # different invocations ended up in use for one job. Say it once, on stderr, so
 # it never pollutes output a script is parsing.
-print {*STDERR} "note: `lazysite repair --domain <site>` does this and re-checks "
+print {*STDERR} "note: `lazysite repair --docroot $docroot` does this and re-checks "
     . "afterwards; `--all` does every site.\n"
     unless $ENV{LAZYSITE_QUIET_HINTS};
 

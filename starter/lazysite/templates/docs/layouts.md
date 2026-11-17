@@ -192,6 +192,26 @@ says which variables belong in `<title>` and the description.
 Navigation uses the `[% nav %]` array populated from `nav.conf`.
 See [nav.conf](/docs/features/configuration/nav-conf).
 
+### Testing a layout against the engine's own filters
+
+A layout's `| json` and `| url_safe` are the engine's filters (`_json_filter` and
+`_url_safe_filter`, in `package main`). A layout test that renders a template itself loads
+the real ones from an installed engine instead of copying them, so the test follows the
+engine when a filter changes:
+
+```perl
+require "/path/to/cgi-bin/lazysite-processor/include.pm";    # the directory holding lazysite-processor.pl
+my $tt = Template->new( FILTERS => {
+    json     => \&main::_json_filter,
+    url_safe => \&main::_url_safe_filter,
+} );
+```
+
+The file is a part of the processor, not a module: it loads nothing else, so it needs no
+`-I` and no site. The two sub names are the contract; the engine's own test
+(`t/tools/700`) holds that they load this way and give the answers the layout reference
+documents. `| markdown` is not offered this way: it needs the processor's Markdown pass.
+
 ## Asset paths
 
 When a theme's assets (CSS, images, fonts) need to be

@@ -54,6 +54,23 @@ Archive
 ## Unreleased
 
 - Docs: SM1469 (a form field can be hidden or read-only) filed as a candidate.
+- SM1460 (PENDING) **the auth session's hints spell the check in full**. The four hints in
+  `Lazysite::Auth::Session` that said "(lazysite check --docroot names it)" or "lazysite check
+  --docroot <docroot> names it" now name `<cli> check --docroot <the site's docroot>` as this host
+  runs it, through one helper (`Lazysite::Util::check_command`, which SM1459's `_check_names_fix`
+  also uses). The same helper spells the log hints of Acl, Credential, LoginRate, Notify, Settings,
+  the supervisor and the scheduler, the users tool's refusal, the unreadable-file note and the
+  check's group note. A web door's text keeps its placeholder (a page carries no host path).
+  t/unit/auth/184.
+- SM1461 (PENDING) **the site user a refusal names cannot read a store the web server wrote**.
+  Filed on one decision, not built: user-settings.json is written by the web server's user at
+  0660, which the site user (owner of the directory, not in its group) cannot open, so `acl`
+  commands log "cannot read user-settings.json". Options A (0664), B (site user joins the web
+  group) and C are in the filing, for the release manager.
+- SM1399 (PENDING) **the template filters can be tested from outside**. The layout reference
+  documents loading the engine's real `| json` and `| url_safe` from an installed engine by
+  requiring `lazysite-processor/include.pm` (no -I, no site, no Lazysite:: module loaded), and
+  t/tools/700 holds it: the documented load, the filters' answers, and a Template that uses them.
 - SM1449 (R1, R3) (PENDING) **tools: a stopped gate resumes where it stopped**. R1: the suite
   pass record SM1454 R2 keeps by tree id is now named when it is reused - `suite: passed on this
   tree (TREE) at WHEN, reused` - and the receipt carries `suite_passed_at=`, so the release

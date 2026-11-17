@@ -203,6 +203,27 @@ sub cli_spelling {
     return -f $cli ? "perl $cli" : 'lazysite';
 }
 
+# SM1460: THE CHECK, SPELLED FOR ADVICE. `<cli> check --docroot D` with the host's own
+# spelling (cli_spelling) and the real docroot, for a hint in a log line or a CLI
+# refusal: never a bare `lazysite check`, never a <docroot> placeholder. $where is any
+# path inside the site's engine tree (or the tree itself); the docroot is the one whose
+# engine tree holds it. Where it cannot be told, the command is spelled without
+# --docroot (the CLI finds the site it is run from) - still the host's own spelling.
+# Not for a web door's text: a page carries no host path (SM494, ruling 243).
+sub check_command {
+    my ($where) = @_;
+    my $cmd = cli_spelling() . ' check';
+    return $cmd unless defined $where && length $where;
+    my $d = $where;
+    $d =~ s{/+\z}{};
+    while ( length $d && $d ne '/' ) {
+        my $dr = Lazysite::Paths::docroot_of($d);
+        return "$cmd --docroot $dr" if defined $dr;
+        $d =~ s{/[^/]*\z}{};
+    }
+    return $cmd;
+}
+
 # n825 (SM1447): THE USER TO RUN A COMMAND AS IS THE OWNER OF THE STORE FILES IT READS AND
 # WRITES, not of the directory holding them. On a Hestia host lazysite/auth/ is
 # ispadmin:www-data 2770 but acls.json and address-profiles.json are written by the CGI,
@@ -298,7 +319,7 @@ sub unreadable_note {
     my $owner = path_owner_name($path);
     return " This ran as unix user '$me', which cannot read $short ($why)."
         . ( !defined $owner ? ' Run it as the user the web server runs the site as, which owns the auth store.'
-        : $owner eq $me ? ' That user owns it, so its permissions are the fault: `lazysite check` names the fix.'
+        : $owner eq $me ? ' That user owns it, so its permissions are the fault: `' . check_command($path) . '` names the fix.'
         :   " It is owned by '$owner': run the command as '$owner' (sudo -u $owner ...)." );
 }
 

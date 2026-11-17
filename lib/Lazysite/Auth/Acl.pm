@@ -184,7 +184,7 @@ our $ACLS_FAULT = 0;
             Lazysite::Util::log_event( 'WARN', 'acl',
                 'acls.json does not decode as a JSON object - every per-file check is '
                     . 'refused, the operator\'s included, until it is repaired from the command '
-                    . 'line (lazysite check --docroot names it)',
+                    . 'line (`' . Lazysite::Util::check_command( _lz() ) . '` names it)',
                 file => 'lazysite/auth/acls.json' );
             return {};
         }
@@ -231,7 +231,7 @@ sub save_acls {
     if ( acls_write_refusal() ) {
         Lazysite::Util::log_event( 'WARN', 'acl',
             'refused to write acls.json over a store that cannot be read or does not decode - '
-                . 'the write would have replaced every rule in it (lazysite check --docroot names it)',
+                . 'the write would have replaced every rule in it (`' . Lazysite::Util::check_command( _lz() ) . '` names it)',
             file => 'lazysite/auth/acls.json' );
         return 0;
     }

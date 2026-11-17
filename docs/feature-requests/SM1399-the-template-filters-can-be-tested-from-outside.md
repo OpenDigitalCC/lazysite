@@ -8,7 +8,7 @@ status: candidate
 raised: 2026-11-07
 raised-by: "the n770 brief, item 5, from the layouts catalogue"
 area: layouts
-status-note: "CANDIDATE, filed on n770 (no build). The filters are processor subs (_json_filter, _url_safe_filter in lazysite-processor/include.pm), reachable only by loading the processor; a catalogue test today copies them or stubs them."
+status-note: "BUILT in 0.17.2 as the smallest form (F-2, without a new module or verb): the layout reference documents loading the real filters by requiring lazysite-processor/include.pm from an installed engine, and t/tools/700 holds it. Filed on n770; the filters are processor subs in lazysite-processor/include.pm."
 ---
 
 # The gap

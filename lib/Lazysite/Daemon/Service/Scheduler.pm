@@ -224,7 +224,7 @@ sub resolve_job_user {
     # that would not open, and is refused by name for the same reason.
     return ( undef, "lazysite/auth/groups-settings.json does not decode as a JSON object - "
             . "whether '$user' holds run_jobs is unknown; repair the file "
-            . '(`lazysite check` names it) or restore it from a backup' )
+            . '(`' . Lazysite::Util::check_command( Lazysite::Paths::lazysite_dir($root) ) . '` names it) or restore it from a backup' )
         if Lazysite::Auth::Settings::group_settings_undecodable();
 
     return ( undef, "the job account '$user' does not hold run_jobs" )

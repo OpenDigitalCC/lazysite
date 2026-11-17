@@ -2367,7 +2367,7 @@ sub _die_store_unreadable {
         . "and does not decode as a JSON object.\n"
         . "This is a fault in the file, not a decision about '$who' - their grants "
         . "may be entirely correct.\n"
-        . "`lazysite check` names it; repair the JSON or restore it from a backup.\n"
+        . '`' . Lazysite::Util::check_command($AUTH_DIR) . "` names it; repair the JSON or restore it from a backup.\n"
         if Lazysite::Auth::Settings::group_settings_undecodable();
     die "Cannot tell what '$who' may do: the group settings store exists and "
         . "could not be read.\n"

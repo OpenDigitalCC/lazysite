@@ -158,7 +158,7 @@ sub password_policy_refusal {
     my ( $password, $lazysite_dir ) = @_;
     if ( my $why = password_min_length_fault($lazysite_dir) ) {
         log_event( 'WARN', 'auth', "password refused: cannot tell - $why "
-                . '(lazysite check --docroot names it)' );
+                . '(`' . Lazysite::Util::check_command($lazysite_dir) . '` names it)' );
         return 'Cannot set a password right now: the site\'s password policy setting is '
             . 'invalid. This is a fault on the host, not a judgement of this password; the '
             . 'site operator can see the cause in the site log, and `lazysite check '

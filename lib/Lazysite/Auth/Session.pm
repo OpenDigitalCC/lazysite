@@ -267,7 +267,7 @@ sub account_disabled {
         $STORE_FAULT = 'lazysite/auth/user-settings.json';
         log_event( 'WARN', $username // '-',
             'user-settings.json cannot be read or does not decode - refusing sign-in and every '
-                . 'session until it is repaired (lazysite check --docroot names it)' );
+                . 'session until it is repaired (`' . _check_cmd() . '` names it)' );
         return 1;
     }
     return 0 unless $data;
@@ -289,7 +289,7 @@ sub session_revoked {
         $STORE_FAULT = 'lazysite/auth/revoked.json';
         log_event( 'WARN', $user,
             'revoked.json cannot be read or does not decode - refusing every session until it '
-                . 'is repaired (lazysite check --docroot names it)' );
+                . 'is repaired (`' . _check_cmd() . '` names it)' );
         return 1;
     }
 
@@ -443,7 +443,7 @@ sub verify_session_cookie {
     # expires cannot be told - cannot-tell, never the default.
     if ( my $why = session_lifetime_fault() ) {
         log_event( 'WARN', '-', "session refused: cannot tell - $why "
-                . '(lazysite check --docroot names it)' );
+                . '(`' . _check_cmd() . '` names it)' );
         return ( undef, 'cannot-tell', store => 'lazysite/lazysite.conf' );
     }
 
@@ -649,7 +649,7 @@ sub request_session {
 # repair. Only an unreadable or undecodable store is a fault: no cookie, an expired
 # cookie or a missing record is an ordinary signed-out visitor.
 sub SESSION_FAULT_REPAIR {
-    return 'lazysite check --docroot <docroot> names it; repair it from the command line';
+    return '`' . _check_cmd() . '` names it; repair it from the command line';
 }
 
 # Rulings 206, 216, 217 (the 0.16.9 restack): THE ONE WORDING of a page request
@@ -952,11 +952,12 @@ sub _secret_refused {
 
 # The remedy sentence of a hint: the check spelled as every other advice spells it (SM1458:
 # cli_spelling, never a bare `lazysite`), with the real docroot where it is known.
+sub _check_cmd {
+    return Lazysite::Util::check_command($LAZYSITE_DIR);    # SM1460: the one spelling
+}
+
 sub _check_names_fix {
-    require Lazysite::Paths;
-    my $dr = Lazysite::Paths::docroot_of($LAZYSITE_DIR);
-    my $cmd = Lazysite::Util::cli_spelling() . ' check' . ( defined $dr ? " --docroot $dr" : '' );
-    return "`$cmd` names the fix";
+    return '`' . _check_cmd() . '` names the fix';
 }
 
 # One refusal of mint_provider_session: the WARN line (provider, the cause in the log's
