@@ -53,6 +53,7 @@ Archive
 
 ## Unreleased
 
+- Docs: SM1469 (a form field can be hidden or read-only) filed as a candidate.
 - SM1449 (R1, R3) (PENDING) **tools: a stopped gate resumes where it stopped**. R1: the suite
   pass record SM1454 R2 keeps by tree id is now named when it is reused - `suite: passed on this
   tree (TREE) at WHEN, reused` - and the receipt carries `suite_passed_at=`, so the release
