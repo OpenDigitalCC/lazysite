@@ -8,7 +8,7 @@ status: partial
 raised: 2026-11-16
 raised-by: "the release manager (ruling 258), after the 0.17.1 estimate"
 area: release
-status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). R3, the lab runner, is built on n840 and R6 (the patch compliance stamp, the filing status, the record checks before the suite) on n845, both for 0.17.x. Status stays partial."
+status-note: "PARTIALLY SHIPPED (0.17.1): R1 (--patch, tools/patch-plan.pl), R2 (the suite pass record), R4 (confirm-register) and R5 (the slow tests trimmed, 449 s to 123 s). R3, the lab runner, is built on n840 and R6 (the patch compliance stamp, the filing status, the record checks before the suite) on n845, R7 (edge and beta patches stamped too) on n850, all for 0.17.x. Status stays partial."
 ---
 
 # What happened
@@ -84,6 +84,15 @@ R6 - a patch's records are written by the release, not by a branch
   (e) A drafted entry carries its marker: t/lint/594 holds every `(PENDING)` register entry the
   developer agent drafted, from 2026-11-16, to "awaiting the release manager's confirmation" (or
   the confirmed wording) in its Assessment and its verdict, the words `confirm-register` reads.
+
+R7 - an edge or beta patch's records are written by the release too (ruling 262)
+: R6 (a) stamped only a stable patch; an edge or beta cut said "walk them by hand", and the 0.17.2
+  edge gate stopped at the compliance check (records at 0.17.1, cutting 0.17.2). Every 0.16 edge
+  and beta cut had been walked by hand, the same mechanical walk. The material now stamps a patch
+  (X.Y.Z, Z above 0) on the stable, edge and beta channels alike, from the line's newest earlier
+  release tag whatever its channel; the clause says the channel truthfully ("an **edge patch** of
+  0.17.1"). The refusals are R6's: a runtime change with no register entry naming an SM in the
+  diff, and records not walked at the base. A new minor (X.Y.0) and a certified cut stay hand-walked.
 
 # To settle when built
 

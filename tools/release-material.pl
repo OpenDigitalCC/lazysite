@@ -31,11 +31,12 @@
 #                  `shipped` - `partial` when the bullet names a part, `SM1454
 #                  (R3)` - its note opened "SHIPPED (X.Y.Z): " (SM1454 R6 b).
 #   docs/compliance/OBLIGATIONS.md, docs/compliance/TECHNICAL-FILE.md
-#                  a STABLE PATCH (X.Y.Z+1) of a release whose records were
-#                  walked at that release: reviewed_at_version, reviewed_on and
-#                  covers_version say the target, and a dated patch-walk clause
-#                  names the diff's runtime files and register entries (SM1454
-#                  R6 a). See compliance(). Edge and beta cuts leave them alone.
+#                  a PATCH (X.Y.Z, Z > 0) of a release whose records were
+#                  walked at that release, on the stable, edge or beta channel:
+#                  reviewed_at_version, reviewed_on and covers_version say the
+#                  target, and a dated patch-walk clause names the diff's runtime
+#                  files and register entries (SM1454 R6 a, R7). See compliance().
+#                  A minor and a certified cut leave them to the hand walk.
 #
 # THE GATE RUNS IT TOO, without notes: the subtitle and the FEATURES prose are
 # placeholders, everything else is what the build will write. So the gate tests
@@ -77,7 +78,7 @@ use Text::Wrap     qw(wrap);
 # main that moved past its gate only through these needs no new gate.
 # GATE-LOG.md and coverage-last.json are written by release.sh itself (the row,
 # the coverage record); the two compliance records are stamped by compliance()
-# when the cut is a stable patch (SM1454 R6 a).
+# when the cut is a patch (SM1454 R6 a, R7).
 my @ALLOWLIST = qw(
     CHANGELOG.md
     docs/releases/CHANGELOG-archive.md
@@ -316,7 +317,7 @@ sub filings {
     return;
 }
 
-# --- the compliance records of a stable patch (SM1454 R6 a) ------------------
+# --- the compliance records of a patch (SM1454 R6 a, R7) ---------------------
 
 # 0.17.1 was one line in the auth wrapper, and its gate stopped at the compliance
 # check: OBLIGATIONS.md (reviewed_at_version) and TECHNICAL-FILE.md (covers_version)
@@ -324,26 +325,28 @@ sub filings {
 # landed before the gate could start again. For a PATCH the walk is mechanical, and
 # this does it, in the gate's stage and in the build's release commit alike:
 #
-#   - a STABLE cut X.Y.Z of the line's newest earlier release (the base, vX.Y.Z-1 or
-#     below) whose two records say they were reviewed AT THAT BASE: both are stamped
+#   - a STABLE, EDGE or BETA patch X.Y.Z (Z > 0) of the line's newest earlier release
+#     (the base, vX.Y.Z-1 or below, whatever channel it was cut on: R7, ruling 262)
+#     whose two records say they were reviewed AT THAT BASE: both are stamped
 #     with the target, OBLIGATIONS.md's reviewed_on with the date, and a dated
-#     patch-walk clause says what the diff from the base changes - the RUNTIME files
+#     patch-walk clause (it names the channel: "a **stable patch**", "an **edge
+#     patch**") says what the diff from the base changes - the RUNTIME files
 #     (dist/config/classification.json decides: a file the manifest ships is runtime,
 #     the tooling, tests and docs it excludes are not) and the register entries
 #     docs/SECURITY.md gains. The clause is f0226a873's form.
 #   - REFUSED, nothing written, when a runtime file changed and the diff adds no
 #     register entry naming an SM number (the change was not assessed; ADR 0007), or
 #     when a record was not reviewed at the base (a patch of a walk nobody made).
-#   - LEFT FOR THE CHECK when the cut is certified or a new minor (X.Y.0): those
-#     claim a walk by hand, so the records are not touched and the compliance check,
+#   - LEFT FOR THE CHECK when the cut is certified or a new minor (X.Y.0), on any
+#     channel: those claim a walk by hand, so the records are not touched and the compliance check,
 #     which runs next and still honours docs/compliance/SIGNOFF.md, names them.
-#   - A record already at the target was walked by hand: left as it is. Edge and beta
-#     cuts, and a tree with no compliance records, are not touched.
+#   - A record already at the target was walked by hand: left as it is. A tree with
+#     no compliance records is not touched.
 #
 # It stamps that the diff was read against the register; it does not read the rows.
 # The clause says so, and the rows the diff does not touch stand as walked at the base.
 sub compliance {
-    return unless $opt{channel} eq 'stable' || $opt{channel} eq 'certified';
+    return unless grep { $opt{channel} eq $_ } qw(stable edge beta certified);
     my @records = (
         [ 'docs/compliance/OBLIGATIONS.md',    'reviewed_at_version' ],
         [ 'docs/compliance/TECHNICAL-FILE.md', 'covers_version' ],
@@ -361,14 +364,16 @@ sub compliance {
     return unless @behind;
 
     my $base = patch_base();
-    if ( $opt{channel} ne 'stable' || $PAT == 0 || !defined $base ) {
+    if ( $opt{channel} eq 'certified' || $PAT == 0 || !defined $base ) {
         push @said, 'compliance: the records are behind '
             . $VERSION . ' and this cut is '
-            . ( $opt{channel} ne 'stable' ? "a $opt{channel} cut" : $PAT == 0 ? 'a new minor' : 'a patch with no earlier release of its line' )
+            . ( $opt{channel} eq 'certified' ? 'a certified cut' : $PAT == 0 ? 'a new minor' : 'a patch with no earlier release of its line' )
             . ': walk them by hand (the compliance check says which)';
         return;
     }
     ( my $bv = $base ) =~ s/^v//;
+    my $kind  = ( $opt{channel} eq 'edge' ? 'an' : 'a' ) . " $opt{channel} patch";
+    my $kindb = ( $opt{channel} eq 'edge' ? 'an' : 'a' ) . " **$opt{channel} patch**";
     for my $r (@behind) {
         my ( $rel, $key, $at ) = @$r;
         refuse( "$rel says $key $at, not $bv, the release this patch is of: it was not walked at the base, "
@@ -398,7 +403,7 @@ sub compliance {
         if ( $key eq 'reviewed_at_version' ) {
             $text =~ s/^(\s*reviewed_on:\s*)\S+/$1$DATE/m or refuse("$rel: has no reviewed_on to stamp");
             my $section = "# Walked for $VERSION: what a person must confirm\n\n"
-                . "Patch-walked on $DATE by tools/release-material.pl for $VERSION, a **stable patch** of $bv, against the\n"
+                . "Patch-walked on $DATE by tools/release-material.pl for $VERSION, $kindb of $bv, against the\n"
                 . "diff alone (`git diff $base HEAD`, $diff). Runtime files it changes: $files.\n"
                 . "Register entries it carries: $regs. The stamp says the diff was read against the register,\n"
                 . "not that a row was re-read: every row the diff does not touch stands as walked for $bv.\n\n";
@@ -406,7 +411,7 @@ sub compliance {
             $text =~ s/\n+\z/\n/;
         }
         else {
-            my $clause = "patch-walked on $DATE against $VERSION, a stable patch of $bv (the diff from $base: runtime files: "
+            my $clause = "patch-walked on $DATE against $VERSION, $kind of $bv (the diff from $base: runtime files: "
                 . ( @runtime ? join( ', ', @runtime ) : 'none' ) . "; register entries: $regs); ";
             $text =~ s/^(status:\s+index - complete in coverage, )/$1$clause/m
                 or refuse("$rel: its status line is not 'index - complete in coverage, ...'; walk it by hand");

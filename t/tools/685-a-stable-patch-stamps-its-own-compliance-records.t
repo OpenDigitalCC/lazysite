@@ -10,7 +10,8 @@
 # and prepends a dated clause naming the diff's RUNTIME files (dist/config/
 # classification.json decides) and the register entries it carries. It refuses a
 # runtime change with no register entry, and a record that was not walked at the base;
-# a minor or certified cut, and edge and beta, are left for the compliance check.
+# a minor or certified cut is left for the compliance check. (An edge or beta patch is
+# stamped the same way since R7: t/tools/692.)
 #
 # Driven through the real generator and the real compliance check on a scratch repository.
 use strict;
@@ -189,7 +190,7 @@ subtest 'it refuses, and says why' => sub {
     like( slurp("$d/docs/compliance/TECHNICAL-FILE.md"), qr/^covers_version:      0\.0\.9$/m, 'and nothing was stamped' );
 };
 
-subtest 'a minor, a certified cut, edge, beta and a hand walk are left alone' => sub {
+subtest 'a minor, a certified cut and a hand walk are left alone (edge and beta patches: t/tools/692)' => sub {
     my %case = (
         'a new minor' => [ '0.2.0', [ '--channel', 'stable' ],    qr/this cut is a new minor: walk them by hand/ ],
         'certified'   => [ '0.1.1', [ '--channel', 'certified' ], qr/this cut is a certified cut: walk them by hand/ ],
@@ -204,14 +205,6 @@ subtest 'a minor, a certified cut, edge, beta and a hand walk are left alone' =>
         like( slurp("$d/docs/compliance/TECHNICAL-FILE.md"), qr/^covers_version:      0\.1\.0$/m, "$name: and TECHNICAL-FILE.md" );
         unlike( slurp("$d/docs/compliance/OBLIGATIONS.md"), qr/Walked for \Q$v\E/, "$name: no clause" );
     }
-    for my $channel (qw(edge beta)) {
-        my $d = repo();
-        my ( $rc, $out ) = gen( $d, '0.1.1', '--channel', $channel );
-        is( $rc, 0, "$channel: the generator writes" ) or diag($out);
-        unlike( $out, qr/compliance:/, "$channel: and does not mention the records" );
-        like( slurp("$d/docs/compliance/OBLIGATIONS.md"), qr/^reviewed_at_version: 0\.1\.0$/m, "$channel: they are as they were" );
-    }
-
     # A walk made by hand for the target is not overwritten.
     my $d = repo();
     for my $f (qw(OBLIGATIONS TECHNICAL-FILE)) {

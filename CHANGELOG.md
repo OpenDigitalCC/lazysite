@@ -115,6 +115,14 @@ Archive
   new branch `claude/confirm-SMNNNN` from main, held for vcs-review, and the developer agent runs
   it on the release manager's ruling. t/lint/594 holds a drafted register entry to the marker
   `confirm-register` reads. Tests t/tools/685 to 687, 682 and t/lint/594.
+- SM1454 (R7) (PENDING) **release: an edge or beta patch's records are written by the release too**
+  (ruling 262). R6 stamped the compliance records only for a stable patch, so the 0.17.2 edge gate
+  stopped at the check with the records at 0.17.1. `tools/release-material.pl` now stamps a patch
+  (X.Y.Z, Z above 0) on the edge and beta channels as it does on stable, from the line's newest
+  earlier release whatever its channel, and its clause names the channel ("an **edge patch** of
+  0.17.1"). The same refusals stand (a runtime change with no register entry naming an SM, records
+  not walked at the base); a new minor and a certified cut stay with the hand walk. Test
+  t/tools/692; t/tools/685 no longer expects edge and beta to be left alone.
 - Docs: SM1454 R6 (a patch's compliance stamp and filing status are written by the release material, and its record checks run before the suite) filed from the 0.17.1 measurement.
 - Docs: SM1457 (the deploy reports what it did, and a test holds it to that) filed as a candidate.
 

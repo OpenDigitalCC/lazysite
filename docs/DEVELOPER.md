@@ -359,18 +359,20 @@ A patch to a stable line (0.17.1 after 0.17.0) is gated on its diff, not on the 
   what lands; nothing is committed on main by the tool or by anyone.
 - **The records are written by the release, not by a branch (R6).** `tools/release-material.pl`
   runs in the gate's stage and in the build's release commit, so both agree.
-  - *Compliance stamp.* For a stable cut X.Y.Z whose line has an earlier release (the base, the
-    newest `vX.Y.*` tag below the target) and whose `docs/compliance/OBLIGATIONS.md`
+  - *Compliance stamp.* For a stable, edge or beta patch X.Y.Z (Z above 0) whose line has an
+    earlier release (the base, the newest `vX.Y.*` tag below the target, whatever channel it
+    was cut on; R7) and whose `docs/compliance/OBLIGATIONS.md`
     (`reviewed_at_version`) and `TECHNICAL-FILE.md` (`covers_version`) both say the base, it
     stamps them with the target, sets `reviewed_on`, puts a "Walked for X.Y.Z" section above the
     earlier ones in OBLIGATIONS.md and a patch-walk clause at the front of the technical file's
     `status`. The clause names the diff's runtime files (a path `dist/config/classification.json`
     does not exclude; tooling, tests and docs are not) and the register entries the diff adds to
     `docs/SECURITY.md` (`### DATE - SMNNNN ...`). A runtime file with no such entry, or a record
-    that does not say the base, is a refusal naming it: walk by hand. A new minor, a certified
-    cut, edge and beta are not stamped (the compliance check names a record that is behind), and
-    a record already at the target (a hand walk) is left alone. It stamps that the diff was read
-    against the register, not that each row was re-read.
+    that does not say the base, is a refusal naming it: walk by hand. The clause names the
+    channel ("a **stable patch**", "an **edge patch**", "a **beta patch**"). A new minor (X.Y.0)
+    and a certified cut, on any channel, are not stamped (the compliance check names a record
+    that is behind), and a record already at the target (a hand walk) is left alone. It stamps
+    that the diff was read against the register, not that each row was re-read.
   - *Filing status.* A `candidate` filing whose CHANGELOG bullet is stamped with its landed SHA
     becomes `shipped`, its status-note opened `SHIPPED (X.Y.Z): `; a bullet that names a part
     (`SM1454 (R3)`, `SM1369 X4`, `SM12 partial`) makes it `partial`, `PARTIALLY SHIPPED (X.Y.Z): `.
