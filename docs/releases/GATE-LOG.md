@@ -111,3 +111,4 @@ the two differ only by the release material (`tools/release-material.pl --paths`
 | 0.16.12 | beta | `dc1aa3a5ecd10397059f1241006f9ae39750aca8` | 1814 | 31226 | 2026-11-11 19:39 |
 | 0.17.0 | stable | `8b7255d72066467a9c7bea23266b66474647d7bd` | 1824 | 31398 | 2026-11-15 20:29 |
 | 0.17.1 | stable | `cd3455ad156adc616988de933b4de5031ad1aa65` | 1828 | 31448 | 2026-11-16 14:10 |
+| 0.17.2 | stable | `9b2d0431f20bf2a9848ac0f0a6cf0a98047ce63b` | 286 | 12559 | 2026-11-17 15:00 |

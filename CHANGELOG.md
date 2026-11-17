@@ -53,12 +53,14 @@ Archive
 
 ## Unreleased
 
-- SM1473 (PENDING) **webdav: a binary upload writes no UTF-8 warnings**. A PUT ran the page-parse
+## 0.17.2 - STABLE: a binary upload over WebDAV writes no warnings (2026-11-17)
+
+- SM1473 (a9e2a706) **webdav: a binary upload writes no UTF-8 warnings**. A PUT ran the page-parse
   and address-profile checks on every file through a `:encoding(UTF-8)` read, so an image or
   archive was decoded twice and warned once per bad byte sequence (hundreds of MB of error log).
   Only a page, a form config and a nav file are read now, raw then as the processor reads them;
   the refusals are unchanged.
-- SM1474 (PENDING) **docs: the compliance records cover 0.17.2, a stable patch.** OBLIGATIONS.md
+- SM1474 (6b4b0170) **docs: the compliance records cover 0.17.2, a stable patch.** OBLIGATIONS.md
   and TECHNICAL-FILE.md are patch-walked against `git diff v0.17.1 HEAD` and stamped 0.17.2: the
   one change that ships (SM1473) touches the register, threat-model, technical-file,
   significant-change and vulnerability-handling rows. SM1473's register entry in docs/SECURITY.md
