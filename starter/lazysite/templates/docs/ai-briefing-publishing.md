@@ -484,7 +484,9 @@ To read what was submitted, use `read_form_submissions` (MCP) or
 ### Wiring a form
 
 A `::: form` block named e.g. `enquire` needs a dispatch config to receive
-submissions. With `manage_config` you deploy this yourself - no operator step
+submissions. (For a long form, group the fields with `--- section: Heading ---`
+lines in the block, optionally `--- section: Heading | intro ---`; it changes the
+page only, not what the handler receives.) With `manage_config` you deploy this yourself - no operator step
 for file storage:
 
 1. `PUT` `/dav/lazysite/forms/<name>.conf` (matching the form's name), listing

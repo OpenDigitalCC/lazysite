@@ -305,6 +305,9 @@ body.lazysite-fallback { font-family: system-ui, sans-serif; max-width: 800px;
 :where(.lazysite-form .form-submit, .login-form .login-submit) { margin-top: 1rem; }
 :where(.lazysite-form .lsf-step) { border: 0; margin: 0 0 1rem; padding: 0; min-width: 0; }
 :where(.lazysite-form .lsf-step > legend) { font-weight: 600; padding: 0; margin: 0 0 0.5rem; }
+:where(.lazysite-form .lsf-section) { border: 0; margin: 0 0 1.5rem; padding: 0; min-width: 0; }
+:where(.lazysite-form .lsf-section > legend) { font-weight: 600; padding: 0; margin: 0 0 0.5rem; }
+:where(.lazysite-form .lsf-section-intro) { margin: 0 0 0.75rem; }
 :where(.form-status) { margin: 0.5rem 0; }
 :where(.form-status-error, .auth-error, .login-context) {
     border-left: 3px solid currentColor;

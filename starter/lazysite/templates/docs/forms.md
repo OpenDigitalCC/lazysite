@@ -78,6 +78,33 @@ Each line defines a field. Fields are separated by pipe characters:
 The `submit` keyword as field name renders a submit button with the
 label as button text.
 
+### Sections
+
+A long form reads better in groups. A line of the form
+`--- section: Heading ---` starts a section; the fields after it belong to it
+until the next section, the next `--- step ---`, the `submit` line or the end
+of the block. An optional intro goes after a pipe:
+`--- section: Heading | A sentence of introduction ---`.
+
+```
+::: form
+--- section: About you | Who we are replying to. ---
+name  | Your name     | required max:200
+email | Email address | required email
+--- section: Your enquiry ---
+message | Your message | required textarea max:5000
+submit | Send message
+:::
+```
+
+Each section renders as a `<fieldset>` with the heading as its `<legend>`, and
+the intro as a paragraph the fieldset is described by, so a screen reader
+announces both on entering the group. A section is presentation only: it adds no
+field and no rule, and what a handler receives is exactly what the same form
+without the section lines would deliver. The heading and intro are plain text -
+markup in them is shown as typed. Fields before the first section stay
+ungrouped, and sections sit inside a step.
+
 ## Field rules
 
 **These rules are enforced by the server as well as the browser.** Until 0.15.2

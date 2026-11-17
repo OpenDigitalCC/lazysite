@@ -782,9 +782,41 @@ sub _render_form {
     # delimiter there is a single step = the classic single-page form (unchanged).
     my @steps = ( { title => '', fields => [] } );
     my @server_rules;    # SM934 FV1: what the handler will hold a submission to
+
+    # SM923 limit 1: a '--- section: Heading | intro ---' line groups the fields
+    # after it under a heading, as a <fieldset> with a <legend>. It is
+    # presentation only: the section adds no name to the post and nothing to
+    # @server_rules, so a handler receives exactly what it did without it. A
+    # section ends at the next section, the next step, the submit button or the
+    # end of the block. It reuses the step delimiter's shape rather than a new
+    # grammar rule per field, and it nests inside a step.
+    my $in_section = 0;
+    my $sec_n      = 0;
+    my $close_section = sub {
+        push @{ $steps[-1]{fields} }, qq(  </fieldset>\n) if $in_section;
+        $in_section = 0;
+    };
     for my $line ( split /\n/, $body ) {
         if ( $line =~ /^\s*-{3,}\s*step\b\s*:?\s*(.*?)\s*-{3,}\s*$/i ) {
+            $close_section->();
             push @steps, { title => $1, fields => [] };
+            next;
+        }
+        if ( $line =~ /^\s*-{3,}\s*section\b\s*:?\s*(.*?)\s*-{3,}\s*$/i ) {
+            my ( $head, $intro ) = split /\s*\|\s*/, $1, 2;
+            $head  //= '';
+            $intro //= '';
+            $close_section->();
+            $sec_n++;
+            my $sid   = _esc_attr("lsf-$form_name-sec$sec_n");
+            my $has_i = length $intro;
+            my $desc  = $has_i ? qq( aria-describedby="$sid-intro") : '';
+            my $open  = qq(  <fieldset class="lsf-section"$desc>\n);
+            $open .= qq(    <legend>) . _tt_inert( _esc_html($head) ) . qq(</legend>\n) if length $head;
+            $open .= qq(    <p class="lsf-section-intro" id="$sid-intro">)
+                . _tt_inert( _esc_html($intro) ) . qq(</p>\n) if $has_i;
+            push @{ $steps[-1]{fields} }, $open;
+            $in_section = 1;
             next;
         }
         $line =~ s/^\s+|\s+$//g;
@@ -800,6 +832,7 @@ sub _render_form {
         next unless length $name;
 
         if ( $name eq 'submit' ) {
+            $close_section->();
             push @{ $steps[-1]{fields} }, qq(  <div class="form-field form-submit">\n)
                 . qq(    <button type="submit">$label</button>\n)
                 . qq(  </div>\n);
@@ -896,6 +929,7 @@ sub _render_form {
             . qq(  </div>\n);
     }
 
+    $close_section->();
     _write_form_rules( $form_name, \@server_rules );    # SM934 FV1
 
     # Drop steps that ended up with no fields (e.g. a leading delimiter).

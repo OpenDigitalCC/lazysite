@@ -773,6 +773,10 @@ sub _form_block_findings {
     for my $line ( split /\n/, $block ) {
         $line =~ s/^\s+|\s+$//g;
         next unless length $line;
+
+        # SM923: a '--- step ---' or '--- section: Heading | intro ---' line is
+        # a delimiter, not a field; its intro may hold a pipe.
+        next if $line =~ /\A-{3,}\s*(?:step|section)\b/i;
         my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
         next if !defined $name || $name eq 'submit' || !defined $rules;
 

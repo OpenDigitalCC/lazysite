@@ -1576,6 +1576,14 @@ API before advancing). The form still posts **once** with the same token and
 honeypot - the steps are client-side presentation over one submission. Progressive
 enhancement: with no JavaScript every step shows and the form still submits.
 
+**Form sections** (SM923): a `--- section: Heading ---` line (optionally
+`--- section: Heading | intro ---`) inside a `:::form` groups the fields after it,
+up to the next section, step or `submit` line, as a `<fieldset class="lsf-section">`
+with the heading as `<legend>` and the intro as a paragraph the fieldset is
+`aria-describedby`. Presentation only: no field and no rule is added, so the rules
+sidecar and what a handler receives are identical with and without it. Heading and
+intro are escaped and TT-inert. `validate_page` reads the line as a delimiter.
+
 **Submissions viewer** (SM182, v2 SM187). Stored `file`-handler submissions live at
 `lazysite/forms/submissions/<form>.jsonl` in the reserved `lazysite/` tree the file
 editor refuses to open, so the data was unreachable from the UI. The extension-config

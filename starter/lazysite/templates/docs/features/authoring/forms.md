@@ -213,6 +213,23 @@ Notes:
   submits (progressive enhancement).
 - Steps are linear (no conditional skipping or save-and-resume yet).
 
+### Sections
+
+Group the fields of a long form with `--- section: Heading ---`, with an optional
+intro after a pipe: `--- section: Heading | Intro text ---`. A section runs to the
+next section, step or `submit` line and renders as a `<fieldset>` with a
+`<legend>`. It changes only how the form looks: the handler receives the same
+fields either way.
+
+    ::: form
+    --- section: About you | Who we are replying to. ---
+    name    | Your name     | required max:200
+    email   | Email address | required email
+    --- section: Your enquiry ---
+    message | Your message  | required textarea max:5000
+    submit  | Send
+    :::
+
 ### Notes
 
 - Security is automatic: honeypot, HMAC timestamp (3s-2h window),
