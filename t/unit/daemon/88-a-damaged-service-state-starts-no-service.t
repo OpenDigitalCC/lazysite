@@ -112,7 +112,9 @@ subtest 'a state file that does not decode: nothing starts, and it is left as fo
         or diag explain $st->{services};
     like( $svc->{message} // '', qr/lives\.state\.json cannot be read or does not decode/, 'naming the file' );
     like( $svc->{message} // '', qr/stays down until the file is repaired/, 'and that it stays down' );
-    like( $svc->{remedy}  // '', qr/lazysite check --docroot <docroot>/, 'with the remedy' );
+    # SM1460: the check as this host spells it, with this site's real docroot
+    my $cmd = Lazysite::Util::cli_spelling() . " check --docroot $d";
+    like( $svc->{remedy}  // '', qr/\Q`$cmd` names it\E/, 'with the remedy, the check spelled in full' );
 };
 
 done_testing();

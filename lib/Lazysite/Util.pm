@@ -212,6 +212,7 @@ sub cli_spelling {
 # Not for a web door's text: a page carries no host path (SM494, ruling 243).
 sub check_command {
     my ($where) = @_;
+    local $!;    # a caller may be building the argument of cannot_read, which reads errno
     my $cmd = cli_spelling() . ' check';
     return $cmd unless defined $where && length $where;
     my $d = $where;

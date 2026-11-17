@@ -50,7 +50,9 @@ subtest 'unreadable: the built-in, and a WARN naming the file' => sub {
     ok( !$from_file, 'the built-in carries the notice' );
     like( $err, qr/cannot read the notice template lazysite\/notify-templates\/default\.xmpp\.tt/,
         'the log names the file' );
-    like( $err, qr/lazysite check --docroot names it/, 'and the check' );
+    # SM1460: the check as this host spells it, with this site's docroot
+    my $cmd = Lazysite::Util::cli_spelling() . " check --docroot $d";
+    like( $err, qr/\Q`$cmd` names it\E/, 'and the check, spelled in full' );
 
     ( $err, $body, $from_file ) = template();
     ok( $from_file, 'once readable, the site template is used' );

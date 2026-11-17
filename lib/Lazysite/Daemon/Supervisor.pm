@@ -507,7 +507,7 @@ sub status {
                         . 'or does not decode, so the supervisor cannot tell whether the service '
                         . 'is already running and starts no service; it stays down until the '
                         . 'file is repaired (systemd does not restart exit 4)',
-                    remedy => '`' . Lazysite::Util::check_command( Lazysite::Paths::lazysite_dir( _docroot() ) ) . '` names it; once no copy of the '
+                    remedy => '`' . Lazysite::Util::check_command( Lazysite::Paths::lazysite_dir($root) ) . '` names it; once no copy of the '
                         . 'service is running, remove the file and restart the host service'
                     )
                 : $verdict eq 'failed'
