@@ -191,7 +191,10 @@ indented markup is not mangled by the Markdown processor - monolith, not fragmen
   puts that HTML through the Markdown pipeline. There is no outward redirect
   in the engine - `aliases:` redirects INWARD, always to the page carrying it
 - Native forms - `create_form` or a `:::form` bound to a vetted handler, never
-  hand-written form HTML or a third-party service
+  hand-written form HTML or a third-party service. A long form is grouped with
+  `--- section: Heading | optional intro ---` lines inside the block (a fieldset
+  with a legend; the handler receives the same fields) - never split into several
+  `:::form` blocks or hand-written fieldsets
 
 ## Briefs: stop writing sidecars from 0.10.29
 

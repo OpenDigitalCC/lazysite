@@ -790,8 +790,8 @@ sub _render_form {
     # section ends at the next section, the next step, the submit button or the
     # end of the block. It reuses the step delimiter's shape rather than a new
     # grammar rule per field, and it nests inside a step.
-    my $in_section = 0;
-    my $sec_n      = 0;
+    my $in_section    = 0;
+    my $sec_n         = 0;
     my $close_section = sub {
         push @{ $steps[-1]{fields} }, qq(  </fieldset>\n) if $in_section;
         $in_section = 0;
