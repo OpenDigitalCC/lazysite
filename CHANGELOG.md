@@ -53,6 +53,8 @@ Archive
 
 ## Unreleased
 
+- Docs: SM1472 (a signed-in Odoo call does not ask Odoo who the person is each time) filed as a candidate.
+- Docs: SM1471 (the dev server runs the Odoo endpoint as a pooled site does) filed as a candidate.
 - Docs: SM1469 (a form field can be hidden or read-only) filed as a candidate.
 - SM1460 (PENDING) **the auth session's hints spell the check in full**. The four hints in
   `Lazysite::Auth::Session` that said "(lazysite check --docroot names it)" or "lazysite check
