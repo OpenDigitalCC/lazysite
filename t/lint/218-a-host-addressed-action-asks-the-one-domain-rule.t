@@ -590,7 +590,7 @@ for my $v (@dav_verbs) {
     }
     else { ok( $BIND_ASKS{$v}, "WebDAV $v asks the form-binding rule" ) }
 }
-like( $BODY{do_put} // '', qr/form_bind_refusal\(\s*\$a\{rel\},\s*\$text,\s*scopes\s*=>/,
+like( $BODY{do_put} // '', qr/form_bind_refusal\(\s*\$a\{rel\},\s*\$page_text,\s*scopes\s*=>/,
     'WebDAV PUT asks with the account\'s scopes' );
 like( $BODY{do_copy_move} // '', qr/form_bind_tree_refusal\(\s*\$src->\{abs\},\s*\$drel,\s*scopes\s*=>/,
     'WebDAV COPY and MOVE ask with them, of the destination' );

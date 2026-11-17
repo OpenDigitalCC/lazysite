@@ -55,4 +55,4 @@ R2
 Built, awaiting the release manager. Test: t/tools/750 (a small and a 256 KiB binary with
 invalid UTF-8 land with no "does not map to Unicode" line; a page with invalid UTF-8 is still
 refused with 415; an unparseable page is still refused). It fails on the code before the fix.
-No register entry: what is refused is unchanged, only how the text is read.
+Register entry in docs/SECURITY.md (drafted, for the release manager's confirmation): what is refused is unchanged, only how the text is read. Ships in the 0.17.2 stable patch (ruling 270).
