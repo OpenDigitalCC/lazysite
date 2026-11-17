@@ -649,7 +649,7 @@ sub request_session {
 # repair. Only an unreadable or undecodable store is a fault: no cookie, an expired
 # cookie or a missing record is an ordinary signed-out visitor.
 sub SESSION_FAULT_REPAIR {
-    return '`' . _check_cmd() . '` names it; repair it from the command line';
+    return _check_cmd() . ' names it; repair it from the command line';
 }
 
 # Rulings 206, 216, 217 (the 0.16.9 restack): THE ONE WORDING of a page request

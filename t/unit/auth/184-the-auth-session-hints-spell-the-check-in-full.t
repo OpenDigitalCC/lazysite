@@ -75,7 +75,12 @@ is( $why, 'cannot-tell', 'an unreadable session_lifetime cannot tell' );
 spelled( join( ' ', map { $_->[2] } grep { $_->[0] eq 'WARN' } @log ), 'session_lifetime' );
 
 # 4. the repair field
-spelled( Lazysite::Auth::Session::SESSION_FAULT_REPAIR(), 'SESSION_FAULT_REPAIR' );
+{
+    # a field value (repair=...), unquoted like the processor's own copy of it
+    my $r = Lazysite::Auth::Session::SESSION_FAULT_REPAIR();
+    unlike( $r, qr/<docroot>/, 'SESSION_FAULT_REPAIR: no <docroot> placeholder' );
+    like( $r, qr/\A\Q$CMD\E names it; repair it from the command line\z/, 'SESSION_FAULT_REPAIR: the check in full, with the real docroot' );
+}
 
 # the helper: any path inside the tree names the docroot; an unknown place drops --docroot
 is( Lazysite::Util::check_command("$LZ/auth"), $CMD, 'check_command: a path inside the engine tree' );
